@@ -1,0 +1,757 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =====================================================
+// AUTH & ORGANIZATION
+// =====================================================
+
+model Organization {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  users       User[]
+  clients     Client[]
+  invitations Invitation[]
+  auditLogs   AuditLog[]
+
+  @@index([slug])
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+  CLIENT_OWNER
+  CLIENT_STAFF
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  role          UserRole
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  permissions   UserPermission[]
+  sessions      Session[]
+  accounts      Account[]
+  activities    Activity[]
+  notifications Notification[]
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([email])
+}
+
+model UserPermission {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module    String
+  canRead   Boolean @default(true)
+  canWrite  Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  @@unique([userId, module])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Invitation {
+  id             String    @id @default(cuid())
+  email          String
+  role           UserRole
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  clientId       String?
+  client         Client?   @relation(fields: [clientId], references: [id])
+  token          String    @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  invitedById    String
+  createdAt      DateTime  @default(now())
+
+  @@index([token])
+  @@index([email])
+}
+
+// =====================================================
+// CLIENT (CLÍNICA)
+// =====================================================
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  ONBOARDING
+  CHURNED
+}
+
+model Client {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  name          String
+  slug          String
+  city          String?
+  state         String?
+  phone         String?
+  email         String?
+  status        ClientStatus @default(ONBOARDING)
+  monthlyFee    Decimal?     @db.Decimal(12, 2)
+  contractStart DateTime?
+  notes         String?      @db.Text
+
+  healthScore    Int?
+  lastSnapshotAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users                User[]
+  invitations          Invitation[]
+  leads                Lead[]
+  patients             Patient[]
+  procedures           Procedure[]
+  procedureCategories  ProcedureCategory[]
+  revenues             Revenue[]
+  costs                Cost[]
+  appointments         Appointment[]
+  activities           Activity[]
+  insights             Insight[]
+  goals                Goal[]
+  pipelineStages       PipelineStage[]
+  marketingCampaigns   MarketingCampaign[]
+  kpiSnapshots         KpiSnapshot[]
+  pipelineDeals        PipelineDeal[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+  @@index([organizationId, deletedAt])
+}
+
+// =====================================================
+// CRM — PIPELINE INTERNO
+// =====================================================
+
+model PipelineStage {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id])
+  name      String
+  order     Int
+  color     String?
+  isWon     Boolean  @default(false)
+  isLost    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  leads Lead[]
+
+  @@unique([clientId, order])
+  @@index([clientId])
+}
+
+enum LeadSource {
+  META_ADS
+  GOOGLE_ADS
+  ORGANIC
+  REFERRAL
+  WHATSAPP
+  WALK_IN
+  OTHER
+}
+
+model MarketingCampaign {
+  id        String     @id @default(cuid())
+  clientId  String
+  client    Client     @relation(fields: [clientId], references: [id])
+  name      String
+  source    LeadSource
+  budget    Decimal?   @db.Decimal(12, 2)
+  startDate DateTime
+  endDate   DateTime?
+  isActive  Boolean    @default(true)
+  notes     String?    @db.Text
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?
+
+  leads Lead[]
+  costs Cost[]
+
+  @@index([clientId, isActive])
+}
+
+model Lead {
+  id             String    @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id])
+
+  name              String
+  phone             String?
+  email             String?
+  source            LeadSource
+  campaignId        String?
+  campaign          MarketingCampaign? @relation(fields: [campaignId], references: [id])
+  procedureInterest String?
+  notes             String?    @db.Text
+
+  stageId String
+  stage   PipelineStage @relation(fields: [stageId], references: [id])
+
+  firstContactAt DateTime?
+  scheduledAt    DateTime?
+  attendedAt     DateTime?
+  closedAt       DateTime?
+  lostAt         DateTime?
+  lostReason     String?
+
+  patientId      String?
+  patient        Patient?  @relation(fields: [patientId], references: [id])
+  estimatedValue Decimal?  @db.Decimal(12, 2)
+
+  assignedToId String?
+  tags         String[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  interactions LeadInteraction[]
+
+  @@index([organizationId, clientId])
+  @@index([clientId, stageId, deletedAt])
+  @@index([clientId, source])
+  @@index([clientId, createdAt])
+}
+
+model LeadInteraction {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type        String
+  content     String   @db.Text
+  metadata    Json?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([leadId, createdAt])
+}
+
+// =====================================================
+// PACIENTES
+// =====================================================
+
+model Patient {
+  id             String    @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id])
+
+  name        String
+  phone       String?
+  email       String?
+  birthDate   DateTime?
+  cpf         String?
+  notes       String?   @db.Text
+  tags        String[]
+
+  firstVisitAt DateTime?
+  lastVisitAt  DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  leads        Lead[]
+  appointments Appointment[]
+  revenues     Revenue[]
+
+  @@index([organizationId, clientId])
+  @@index([clientId, deletedAt])
+}
+
+// =====================================================
+// PROCEDIMENTOS
+// =====================================================
+
+model ProcedureCategory {
+  id        String    @id @default(cuid())
+  clientId  String
+  client    Client    @relation(fields: [clientId], references: [id])
+  name      String
+  color     String?
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  procedures Procedure[]
+
+  @@unique([clientId, name])
+  @@index([clientId])
+}
+
+model Procedure {
+  id             String    @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id])
+  categoryId     String?
+  category       ProcedureCategory? @relation(fields: [categoryId], references: [id])
+
+  name            String
+  description     String?  @db.Text
+  price           Decimal  @db.Decimal(12, 2)
+  cost            Decimal  @db.Decimal(12, 2)
+  durationMinutes Int?
+  isActive        Boolean  @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  appointments Appointment[]
+  revenues     Revenue[]
+
+  @@index([organizationId, clientId])
+  @@index([clientId, isActive])
+}
+
+// =====================================================
+// AGENDAMENTOS
+// =====================================================
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  ATTENDED
+  NO_SHOW
+  CANCELED
+  RESCHEDULED
+}
+
+model Appointment {
+  id             String            @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client            @relation(fields: [clientId], references: [id])
+  patientId      String
+  patient        Patient           @relation(fields: [patientId], references: [id])
+  procedureId    String
+  procedure      Procedure         @relation(fields: [procedureId], references: [id])
+
+  scheduledAt     DateTime
+  durationMinutes Int
+  status          AppointmentStatus @default(SCHEDULED)
+  confirmedAt     DateTime?
+  attendedAt      DateTime?
+  noShowAt        DateTime?
+  canceledAt      DateTime?
+  cancelReason    String?
+
+  notes String? @db.Text
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  revenue Revenue?
+
+  @@index([organizationId, clientId])
+  @@index([clientId, scheduledAt])
+  @@index([clientId, status])
+}
+
+// =====================================================
+// FINANCEIRO
+// =====================================================
+
+enum CostType {
+  FIXED
+  VARIABLE
+  MARKETING
+  PAYROLL
+  TAX
+  OTHER
+}
+
+model Revenue {
+  id             String    @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id])
+  patientId      String?
+  patient        Patient?  @relation(fields: [patientId], references: [id])
+  procedureId    String?
+  procedure      Procedure? @relation(fields: [procedureId], references: [id])
+  appointmentId  String?    @unique
+  appointment    Appointment? @relation(fields: [appointmentId], references: [id])
+
+  amount        Decimal @db.Decimal(12, 2)
+  date          DateTime
+  description   String?
+  paymentMethod String?
+  installments  Int?    @default(1)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  @@index([organizationId, clientId])
+  @@index([clientId, date])
+}
+
+model Cost {
+  id             String    @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id])
+  campaignId     String?
+  campaign       MarketingCampaign? @relation(fields: [campaignId], references: [id])
+
+  type         CostType
+  category     String?
+  amount       Decimal  @db.Decimal(12, 2)
+  date         DateTime
+  description  String?
+  isRecurring  Boolean  @default(false)
+  recurringDay Int?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  @@index([organizationId, clientId])
+  @@index([clientId, date])
+  @@index([clientId, type])
+}
+
+// =====================================================
+// METAS
+// =====================================================
+
+enum GoalMetric {
+  REVENUE
+  LEADS
+  CONVERSION_RATE
+  NO_SHOW_RATE
+  AVERAGE_TICKET
+  APPOINTMENTS
+  NEW_PATIENTS
+}
+
+enum GoalPeriod {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model Goal {
+  id             String     @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client     @relation(fields: [clientId], references: [id])
+
+  metric      GoalMetric
+  period      GoalPeriod
+  targetValue Decimal    @db.Decimal(15, 2)
+  startDate   DateTime
+  endDate     DateTime
+  notes       String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([clientId, metric, period])
+}
+
+// =====================================================
+// INSIGHTS
+// =====================================================
+
+enum InsightSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum InsightCategory {
+  COMMERCIAL
+  FINANCIAL
+  OPERATIONAL
+  RETENTION
+  MARKETING
+}
+
+enum InsightStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  DISMISSED
+}
+
+model Insight {
+  id             String          @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client          @relation(fields: [clientId], references: [id])
+
+  ruleKey         String
+  category        InsightCategory
+  severity        InsightSeverity
+  status          InsightStatus   @default(OPEN)
+
+  title           String
+  diagnosis       String   @db.Text
+  estimatedImpact Decimal? @db.Decimal(12, 2)
+  suggestion      String   @db.Text
+  metadata        Json?
+
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  dismissedAt    DateTime?
+  dismissReason  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId, status])
+  @@index([clientId, severity])
+  @@index([clientId, createdAt])
+}
+
+// =====================================================
+// ATIVIDADES E TAREFAS
+// =====================================================
+
+enum ActivityType {
+  TASK
+  MEETING
+  CALL
+  EMAIL
+  NOTE
+}
+
+enum ActivityStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum ActivityPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Activity {
+  id             String           @id @default(cuid())
+  organizationId String
+  clientId       String?
+  client         Client?          @relation(fields: [clientId], references: [id])
+
+  title       String
+  description String?          @db.Text
+  type        ActivityType
+  status      ActivityStatus   @default(PENDING)
+  priority    ActivityPriority @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+
+  assignedToId String?
+  assignedTo   User?   @relation(fields: [assignedToId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  @@index([organizationId, status])
+  @@index([assignedToId, status])
+  @@index([dueDate])
+}
+
+// =====================================================
+// PIPELINE DO ADMIN
+// =====================================================
+
+enum DealStage {
+  PROSPECT
+  CONTACTED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model PipelineDeal {
+  id             String    @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id])
+
+  stage           DealStage @default(PROSPECT)
+  value           Decimal?  @db.Decimal(12, 2)
+  probability     Int?
+  expectedCloseAt DateTime?
+  wonAt           DateTime?
+  lostAt          DateTime?
+  lostReason      String?
+  notes           String?   @db.Text
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([clientId])
+  @@index([organizationId, stage])
+}
+
+// =====================================================
+// SNAPSHOTS DE KPI
+// =====================================================
+
+model KpiSnapshot {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id])
+
+  periodType  String
+  periodStart DateTime
+  periodEnd   DateTime
+
+  leadsCount        Int     @default(0)
+  appointmentsCount Int     @default(0)
+  attendedCount     Int     @default(0)
+  noShowCount       Int     @default(0)
+  conversionRate    Decimal? @db.Decimal(5, 4)
+  noShowRate        Decimal? @db.Decimal(5, 4)
+  avgTimeToFirstContact Int?
+
+  totalRevenue  Decimal  @default(0) @db.Decimal(15, 2)
+  totalCosts    Decimal  @default(0) @db.Decimal(15, 2)
+  grossMargin   Decimal? @db.Decimal(5, 4)
+  netMargin     Decimal? @db.Decimal(5, 4)
+  averageTicket Decimal? @db.Decimal(12, 2)
+  marketingCost Decimal  @default(0) @db.Decimal(15, 2)
+  roi           Decimal? @db.Decimal(8, 4)
+  cac           Decimal? @db.Decimal(12, 2)
+
+  healthScore Int?
+
+  computedAt DateTime @default(now())
+
+  @@unique([clientId, periodType, periodStart])
+  @@index([organizationId, periodType, periodStart])
+}
+
+// =====================================================
+// NOTIFICAÇÕES
+// =====================================================
+
+enum NotificationType {
+  INSIGHT_GENERATED
+  GOAL_AT_RISK
+  GOAL_ACHIEVED
+  ACTIVITY_DUE
+  ACTIVITY_OVERDUE
+  CLIENT_INACTIVE
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  link      String?
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+// =====================================================
+// AUDIT LOG
+// =====================================================
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String?
+  action         String
+  entityType     String
+  entityId       String?
+  changes        Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+  @@index([userId])
+}
