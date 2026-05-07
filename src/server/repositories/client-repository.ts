@@ -30,7 +30,6 @@ export async function listClients(
       phone: true,
       email: true,
       status: true,
-      monthlyFee: true,
       contractStart: true,
       healthScore: true,
       lastSnapshotAt: true,
