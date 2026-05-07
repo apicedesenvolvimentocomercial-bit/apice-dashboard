@@ -9,6 +9,8 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import Link from 'next/link'
+
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -86,6 +88,15 @@ export function LoginForm() {
             </FormItem>
           )}
         />
+        <div className="flex items-center justify-between">
+          <span />
+          <Link
+            href="/forgot-password"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Esqueci a senha
+          </Link>
+        </div>
         <Button type="submit" className="w-full" disabled={loading}>
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Entrar
