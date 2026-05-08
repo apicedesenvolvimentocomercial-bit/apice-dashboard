@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Kanban, UserCheck, Calendar } from 'lucide-react'
+import { LayoutDashboard, Kanban, UserCheck, Calendar, DollarSign } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -11,6 +11,7 @@ type Props = { clientId: string }
 const tabs = [
   { href: 'overview', label: 'Visão geral', icon: LayoutDashboard },
   { href: 'crm', label: 'CRM / Leads', icon: Kanban },
+  { href: 'financial', label: 'Financeiro', icon: DollarSign },
   { href: 'patients', label: 'Pacientes', icon: UserCheck },
   { href: 'appointments', label: 'Agendamentos', icon: Calendar },
 ]

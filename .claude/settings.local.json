@@ -13,7 +13,9 @@
       "Bash(mkdir -p \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\app\\\\\\(admin\\)\\\\clients\\\\[clientId]\\\\patients\" \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\app\\\\\\(admin\\)\\\\clients\\\\[clientId]\\\\appointments\" 2>&1; echo done)",
       "Bash(npx tsc *)",
       "Bash(node -e ' *)",
-      "PowerShell(Get-ChildItem -Recurse -Path \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\modules\" -File 2>$null | ForEach-Object { $_.FullName } | Sort-Object)"
+      "PowerShell(Get-ChildItem -Recurse -Path \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\modules\" -File 2>$null | ForEach-Object { $_.FullName } | Sort-Object)",
+      "Bash(npx shadcn@latest add tabs --yes)",
+      "Bash(git commit *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\vicen\\Documents\\Importante\\Ápice\\SysV2\\src\\app\\(admin)\\clients\\[clientId]"
