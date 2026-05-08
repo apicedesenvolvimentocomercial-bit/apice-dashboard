@@ -9,12 +9,10 @@ import {
   createLead,
   updateLead,
   moveLead,
-  winLead,
-  loseLead,
-  addInteraction,
   findLeadById,
   softDeleteLead,
 } from '@/server/repositories/lead-repository'
+import { winLead, loseLead, addInteraction } from '@/server/services/lead-service'
 
 const leadSchema = z.object({
   name: z.string().min(2, 'Nome obrigatório'),

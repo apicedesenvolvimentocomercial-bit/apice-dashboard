@@ -10,7 +10,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { moveLeadAction } from '@/server/actions/lead-actions'
@@ -33,6 +33,10 @@ export function KanbanBoard({ stages: initialStages, clientId }: Props) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createStageId, setCreateStageId] = useState<string>('')
   const [, startTransition] = useTransition()
+
+  useEffect(() => {
+    setStages(initialStages)
+  }, [initialStages])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 

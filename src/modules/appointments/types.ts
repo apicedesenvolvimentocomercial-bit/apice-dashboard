@@ -1,0 +1,29 @@
+export const STATUS_LABELS: Record<string, string> = {
+  SCHEDULED: 'Agendado',
+  CONFIRMED: 'Confirmado',
+  ATTENDED: 'Compareceu',
+  NO_SHOW: 'Faltou',
+  CANCELED: 'Cancelado',
+  RESCHEDULED: 'Reagendado',
+}
+
+export const STATUS_COLORS: Record<string, string> = {
+  SCHEDULED: '#3b82f6',
+  CONFIRMED: '#10b981',
+  ATTENDED: '#059669',
+  NO_SHOW: '#ef4444',
+  CANCELED: '#6b7280',
+  RESCHEDULED: '#f59e0b',
+}
+
+export type AppointmentEvent = {
+  id: string
+  scheduledAt: Date
+  durationMinutes: number
+  status: string
+  patient: { id: string; name: string; phone: string | null }
+  procedure: { id: string; name: string; durationMinutes: number | null }
+  notes: string | null
+  patientId: string
+  procedureId: string
+}

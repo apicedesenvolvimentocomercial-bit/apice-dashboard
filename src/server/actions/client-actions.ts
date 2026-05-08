@@ -8,10 +8,10 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import {
   createClient,
-  createDefaultPipelineStages,
   softDeleteClient,
   updateClient,
 } from '@/server/repositories/client-repository'
+import { createDefaultPipelineStages } from '@/server/services/client-service'
 import { getTenantContext } from '@/server/tenant/context'
 import { ConflictError, ForbiddenError, NotFoundError, fail, ok } from '@/types/errors'
 
