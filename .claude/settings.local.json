@@ -15,7 +15,9 @@
       "Bash(node -e ' *)",
       "PowerShell(Get-ChildItem -Recurse -Path \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\modules\" -File 2>$null | ForEach-Object { $_.FullName } | Sort-Object)",
       "Bash(npx shadcn@latest add tabs --yes)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(cat .env)",
+      "Bash(cat .env.local)"
     ],
     "additionalDirectories": [
       "c:\\Users\\vicen\\Documents\\Importante\\Ápice\\SysV2\\src\\app\\(admin)\\clients\\[clientId]"

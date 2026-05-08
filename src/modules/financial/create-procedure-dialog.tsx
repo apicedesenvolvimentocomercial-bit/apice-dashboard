@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -30,29 +30,24 @@ export function CreateProcedureDialog({ open, clientId, procedure, onOpenChange,
   const [isPending, startTransition] = useTransition()
   const [form, setForm] = useState(EMPTY)
 
-  function reset() {
-    setForm(EMPTY)
-  }
-
-  function getInitialForm() {
-    if (procedure) {
-      return {
-        name: procedure.name,
-        price: String(procedure.price),
-        cost: String(procedure.cost),
-        durationMinutes: procedure.durationMinutes ? String(procedure.durationMinutes) : '',
-        description: '',
-      }
+  useEffect(() => {
+    if (open) {
+      setForm(
+        procedure
+          ? {
+              name: procedure.name,
+              price: String(procedure.price),
+              cost: String(procedure.cost),
+              durationMinutes: procedure.durationMinutes ? String(procedure.durationMinutes) : '',
+              description: '',
+            }
+          : EMPTY
+      )
     }
-    return EMPTY
-  }
+  }, [open, procedure])
 
   function handleOpenChange(v: boolean) {
-    if (v) {
-      setForm(getInitialForm())
-    } else {
-      reset()
-    }
+    if (!v) setForm(EMPTY)
     onOpenChange(v)
   }
 
@@ -92,7 +87,6 @@ export function CreateProcedureDialog({ open, clientId, procedure, onOpenChange,
         return
       }
       toast.success(procedure ? 'Procedimento atualizado!' : 'Procedimento criado!')
-      reset()
       onOpenChange(false)
       onSaved()
     })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -20,16 +20,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createCostAction } from '@/server/actions/cost-actions'
+import { createCostAction, updateCostAction } from '@/server/actions/cost-actions'
 import { COST_TYPE_LABELS } from './types'
+import type { CostRow } from './types'
 
 const COST_TYPES = Object.keys(COST_TYPE_LABELS)
 
 type Props = {
   open: boolean
   clientId: string
+  cost?: CostRow
   onOpenChange: (v: boolean) => void
-  onCreated: () => void
+  onSaved: () => void
 }
 
 const EMPTY = {
@@ -42,12 +44,31 @@ const EMPTY = {
   recurringDay: '',
 }
 
-export function CreateCostDialog({ open, clientId, onOpenChange, onCreated }: Props) {
+export function CreateCostDialog({ open, clientId, cost, onOpenChange, onSaved }: Props) {
   const [isPending, startTransition] = useTransition()
   const [form, setForm] = useState(EMPTY)
 
-  function reset() {
-    setForm(EMPTY)
+  useEffect(() => {
+    if (open) {
+      setForm(
+        cost
+          ? {
+              type: cost.type,
+              category: cost.category ?? '',
+              amount: String(cost.amount),
+              date: new Date(cost.date).toISOString().split('T')[0],
+              description: cost.description ?? '',
+              isRecurring: cost.isRecurring,
+              recurringDay: cost.recurringDay ? String(cost.recurringDay) : '',
+            }
+          : EMPTY
+      )
+    }
+  }, [open, cost])
+
+  function handleOpenChange(v: boolean) {
+    if (!v) setForm(EMPTY)
+    onOpenChange(v)
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -58,38 +79,36 @@ export function CreateCostDialog({ open, clientId, onOpenChange, onCreated }: Pr
       return
     }
 
+    const data = {
+      type: form.type as 'FIXED' | 'VARIABLE' | 'MARKETING' | 'PAYROLL' | 'TAX' | 'OTHER',
+      category: form.category || undefined,
+      amount,
+      date: form.date,
+      description: form.description || undefined,
+      isRecurring: form.isRecurring,
+      recurringDay: form.recurringDay ? parseInt(form.recurringDay) : undefined,
+    }
+
     startTransition(async () => {
-      const result = await createCostAction(clientId, {
-        type: form.type as 'FIXED' | 'VARIABLE' | 'MARKETING' | 'PAYROLL' | 'TAX' | 'OTHER',
-        category: form.category || undefined,
-        amount,
-        date: form.date,
-        description: form.description || undefined,
-        isRecurring: form.isRecurring,
-        recurringDay: form.recurringDay ? parseInt(form.recurringDay) : undefined,
-      })
+      const result = cost
+        ? await updateCostAction(cost.id, clientId, data)
+        : await createCostAction(clientId, data)
+
       if (!result.success) {
         toast.error(result.error.message)
         return
       }
-      toast.success('Custo registrado!')
-      reset()
+      toast.success(cost ? 'Custo atualizado!' : 'Custo registrado!')
       onOpenChange(false)
-      onCreated()
+      onSaved()
     })
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) reset()
-        onOpenChange(v)
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>Novo Custo</DialogTitle>
+          <DialogTitle>{cost ? 'Editar Custo' : 'Novo Custo'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -177,14 +196,7 @@ export function CreateCostDialog({ open, clientId, onOpenChange, onCreated }: Pr
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                reset()
-                onOpenChange(false)
-              }}
-            >
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={isPending}>

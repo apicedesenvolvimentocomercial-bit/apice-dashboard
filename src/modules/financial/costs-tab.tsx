@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Plus, Trash2, RefreshCw } from 'lucide-react'
+import { Edit2, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -31,7 +31,18 @@ type Props = {
 export function CostsTab({ costs, clientId }: Props) {
   const router = useRouter()
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editing, setEditing] = useState<CostRow | undefined>()
   const [deleting, setDeleting] = useState<string | null>(null)
+
+  function openCreate() {
+    setEditing(undefined)
+    setDialogOpen(true)
+  }
+
+  function openEdit(cost: CostRow) {
+    setEditing(cost)
+    setDialogOpen(true)
+  }
 
   async function handleDelete(id: string) {
     if (!confirm('Remover este custo?')) return
@@ -48,7 +59,7 @@ export function CostsTab({ costs, clientId }: Props) {
         <p className="text-sm text-muted-foreground">
           {costs.length} {costs.length === 1 ? 'custo' : 'custos'}
         </p>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
+        <Button size="sm" onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
           Novo custo
         </Button>
@@ -57,7 +68,7 @@ export function CostsTab({ costs, clientId }: Props) {
       {costs.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
           <p className="text-sm font-medium text-muted-foreground">Nenhum custo registrado</p>
-          <Button size="sm" className="mt-4" onClick={() => setDialogOpen(true)}>
+          <Button size="sm" className="mt-4" onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Adicionar custo
           </Button>
@@ -105,16 +116,27 @@ export function CostsTab({ costs, clientId }: Props) {
                     {formatCurrency(c.amount)}
                   </td>
                   <td className="px-4 py-2.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                      disabled={deleting === c.id}
-                      onClick={() => handleDelete(c.id)}
-                      aria-label="Remover custo"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => openEdit(c)}
+                        aria-label="Editar custo"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        disabled={deleting === c.id}
+                        onClick={() => handleDelete(c.id)}
+                        aria-label="Remover custo"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -126,8 +148,9 @@ export function CostsTab({ costs, clientId }: Props) {
       <CreateCostDialog
         open={dialogOpen}
         clientId={clientId}
+        cost={editing}
         onOpenChange={setDialogOpen}
-        onCreated={() => router.refresh()}
+        onSaved={() => router.refresh()}
       />
     </>
   )
