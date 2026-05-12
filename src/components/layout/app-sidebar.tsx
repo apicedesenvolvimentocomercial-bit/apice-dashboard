@@ -40,7 +40,7 @@ const adminNav: NavItem[] = [
 ]
 
 const clientNav: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/overview', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/crm', label: 'CRM / Leads', icon: Kanban },
   { href: '/financial', label: 'Financeiro', icon: DollarSign },
   { href: '/patients', label: 'Pacientes', icon: UserCheck },

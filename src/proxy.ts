@@ -14,7 +14,14 @@ const ADMIN_ROUTES = [
   '/staff',
   '/settings',
 ]
-const CLIENT_ROUTES = ['/crm', '/financial', '/patients', '/appointments', '/procedures']
+const CLIENT_ROUTES = [
+  '/overview',
+  '/crm',
+  '/financial',
+  '/patients',
+  '/appointments',
+  '/procedures',
+]
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -48,7 +55,7 @@ export async function proxy(request: NextRequest) {
 
   if (pathname === '/') {
     if (isAdminOrStaff) return NextResponse.redirect(new URL('/dashboard', request.url))
-    if (isClientUser) return NextResponse.redirect(new URL('/crm', request.url))
+    if (isClientUser) return NextResponse.redirect(new URL('/overview', request.url))
   }
 
   return NextResponse.next()
