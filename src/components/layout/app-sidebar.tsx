@@ -9,7 +9,9 @@ import {
   ChevronRight,
   FileText,
   LayoutDashboard,
+  Lightbulb,
   Settings,
+  Target,
   Users,
   Kanban,
   DollarSign,
@@ -41,6 +43,8 @@ const adminNav: NavItem[] = [
 
 const clientNav: NavItem[] = [
   { href: '/overview', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/insights', label: 'Insights', icon: Lightbulb },
+  { href: '/goals', label: 'Metas', icon: Target },
   { href: '/crm', label: 'CRM / Leads', icon: Kanban },
   { href: '/financial', label: 'Financeiro', icon: DollarSign },
   { href: '/patients', label: 'Pacientes', icon: UserCheck },

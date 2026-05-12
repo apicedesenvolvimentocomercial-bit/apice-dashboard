@@ -16,6 +16,8 @@ const ADMIN_ROUTES = [
 ]
 const CLIENT_ROUTES = [
   '/overview',
+  '/insights',
+  '/goals',
   '/crm',
   '/financial',
   '/patients',

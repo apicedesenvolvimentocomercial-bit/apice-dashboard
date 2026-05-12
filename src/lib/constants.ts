@@ -16,6 +16,11 @@ export const HEALTH_SCORE_THRESHOLDS = {
 export const NO_SHOW_CRITICAL_THRESHOLD = 0.25
 export const CONVERSION_WARNING_THRESHOLD = 0.1
 export const MARGIN_WARNING_THRESHOLD = 0.2
+export const SLOW_FIRST_CONTACT_MIN = 60
+export const PROCEDURE_CONCENTRATION_THRESHOLD = 0.6
+export const REVENUE_DROP_THRESHOLD = 0.2
+export const INACTIVE_PATIENTS_THRESHOLD = 0.2
+export const HIGH_MARKETING_SPEND_THRESHOLD = 500
 
 export const DEFAULT_PIPELINE_STAGES = [
   { name: 'Lead', order: 1, color: '#6366f1', isWon: false, isLost: false },
