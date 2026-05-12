@@ -40,7 +40,7 @@ export async function createLeadAction(clientId: string, formData: unknown) {
     email: parsed.data.email || undefined,
   })
   revalidate(clientId)
-  return ok(lead)
+  return ok({ id: lead.id, stageId: lead.stageId, name: lead.name })
 }
 
 export async function updateLeadAction(leadId: string, clientId: string, formData: unknown) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, Edit2, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Edit2, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -89,7 +89,13 @@ export function ProceduresTab({ procedures, clientId }: Props) {
             </thead>
             <tbody>
               {procedures.map((p) => {
-                const lowMargin = p.margin < 30
+                const suggestion = p.pricingSuggestion
+                const marginColor =
+                  suggestion.level === 'critical'
+                    ? 'text-red-600'
+                    : suggestion.level === 'warning'
+                      ? 'text-amber-600'
+                      : 'text-green-700'
                 return (
                   <tr key={p.id} className="border-b last:border-0 hover:bg-muted/20">
                     <td className="px-4 py-2.5">
@@ -97,27 +103,14 @@ export function ProceduresTab({ procedures, clientId }: Props) {
                         <span className={!p.isActive ? 'text-muted-foreground line-through' : ''}>
                           {p.name}
                         </span>
-                        {lowMargin && (
-                          <TooltipProvider delayDuration={200}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                Margem abaixo de 30% — considere revisar o preço
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
+                        <SuggestionIcon level={suggestion.level} message={suggestion.message} />
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-right">{formatCurrency(p.price)}</td>
                     <td className="px-4 py-2.5 text-right text-muted-foreground">
                       {formatCurrency(p.cost)}
                     </td>
-                    <td
-                      className={`px-4 py-2.5 text-right font-medium ${p.margin < 0 ? 'text-red-600' : lowMargin ? 'text-amber-600' : 'text-green-700'}`}
-                    >
+                    <td className={`px-4 py-2.5 text-right font-medium ${marginColor}`}>
                       {formatPercent(p.margin)}
                     </td>
                     <td className="px-4 py-2.5 text-right text-green-700">
@@ -173,5 +166,31 @@ export function ProceduresTab({ procedures, clientId }: Props) {
         onSaved={() => router.refresh()}
       />
     </>
+  )
+}
+
+function SuggestionIcon({
+  level,
+  message,
+}: {
+  level: 'critical' | 'warning' | 'opportunity' | 'ok'
+  message: string
+}) {
+  if (level === 'ok') return null
+  const icon =
+    level === 'opportunity' ? (
+      <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+    ) : level === 'critical' ? (
+      <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+    ) : (
+      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+    )
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>{icon}</TooltipTrigger>
+        <TooltipContent>{message}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }

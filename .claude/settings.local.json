@@ -17,7 +17,19 @@
       "Bash(npx shadcn@latest add tabs --yes)",
       "Bash(git commit *)",
       "Bash(cat .env)",
-      "Bash(cat .env.local)"
+      "Bash(cat .env.local)",
+      "Bash(dir /b *.md)",
+      "Bash(dir \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\")",
+      "Bash(npx eslint *)",
+      "Bash(xargs wc -l)",
+      "Bash(npx prisma *)",
+      "Bash(python -c \"import re; src=open\\('src/server/actions/revenue-actions.ts','r',encoding='utf-8'\\).read\\(\\); fixed=re.sub\\(r'\\\\.replace\\\\\\(/\\\\[[^/]+\\\\]/g, \\\\'\\\\'\\\\\\)', r'.replace\\(/[\\\\\\\\u0300-\\\\\\\\u036f]/g, \\\\'\\\\'\\)', src\\); open\\('src/server/actions/revenue-actions.ts','w',encoding='utf-8'\\).write\\(fixed\\); print\\('done'\\)\")",
+      "Bash(python scripts/fix-regex.py)",
+      "Bash(rm scripts/fix-regex.py)",
+      "Bash(rmdir scripts *)",
+      "Bash(ls scripts *)",
+      "Bash(python -c ' *)",
+      "Bash(npm test *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\vicen\\Documents\\Importante\\Ápice\\SysV2\\src\\app\\(admin)\\clients\\[clientId]"

@@ -28,7 +28,7 @@ import { Input } from '@/components/ui/input'
 import { createClientAction } from '@/server/actions/client-actions'
 
 const schema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  name: z.string().trim().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   city: z.string().optional(),
   state: z.string().optional(),
   phone: z.string().optional(),

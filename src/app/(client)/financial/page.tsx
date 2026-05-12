@@ -2,12 +2,12 @@ import type { Metadata } from 'next'
 
 import { auth } from '@/server/auth'
 import {
-  getFinancialOverview,
-  getRevenues,
   getCosts,
-  getProceduresWithStats,
-  getProceduresForSelect,
+  getFinancialOverview,
   getPatientsForSelect,
+  getProceduresForSelect,
+  getProceduresWithStats,
+  getRevenues,
 } from '@/server/queries/financial-queries'
 import { FinancialTabs } from '@/modules/financial/financial-tabs'
 
@@ -25,21 +25,22 @@ export default async function ClientFinancialPage() {
     )
   }
 
-  const [{ summary, chartData }, revenues, costs, procedures, proceduresForSelect, patients] =
-    await Promise.all([
-      getFinancialOverview(clientId),
-      getRevenues(clientId),
-      getCosts(clientId),
-      getProceduresWithStats(clientId),
-      getProceduresForSelect(clientId),
-      getPatientsForSelect(clientId),
-    ])
+  const [overview, revenues, costs, procedures, proceduresForSelect, patients] = await Promise.all([
+    getFinancialOverview(clientId),
+    getRevenues(clientId),
+    getCosts(clientId),
+    getProceduresWithStats(clientId),
+    getProceduresForSelect(clientId),
+    getPatientsForSelect(clientId),
+  ])
 
   return (
     <FinancialTabs
       clientId={clientId}
-      summary={summary}
-      chartData={chartData}
+      summary={overview.summary}
+      chartData={overview.chartData}
+      topProcedures={overview.topProcedures}
+      topCostCategories={overview.topCostCategories}
       revenues={revenues}
       costs={costs}
       procedures={procedures}

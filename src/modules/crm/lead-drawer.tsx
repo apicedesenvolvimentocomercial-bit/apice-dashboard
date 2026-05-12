@@ -159,6 +159,9 @@ export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpda
           )}
         >
           <DialogPrimitive.Title className="sr-only">Detalhes do Lead</DialogPrimitive.Title>
+          <DialogPrimitive.Description className="sr-only">
+            Painel de detalhes, interações e ações do lead
+          </DialogPrimitive.Description>
 
           {/* Header */}
           <div className="flex items-start justify-between border-b p-5">

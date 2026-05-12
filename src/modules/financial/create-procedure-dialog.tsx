@@ -39,7 +39,7 @@ export function CreateProcedureDialog({ open, clientId, procedure, onOpenChange,
               price: String(procedure.price),
               cost: String(procedure.cost),
               durationMinutes: procedure.durationMinutes ? String(procedure.durationMinutes) : '',
-              description: '',
+              description: procedure.description ?? '',
             }
           : EMPTY
       )

@@ -1,11 +1,11 @@
 'use server'
 
-import type { CostType } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
+import { parseLocalDate } from '@/lib/date'
 import { ok, fail } from '@/types/errors'
-import { getTenantContext } from '@/server/tenant/context'
+import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { createCost, updateCost, softDeleteCost } from '@/server/repositories/cost-repository'
 
 const COST_TYPES = ['FIXED', 'VARIABLE', 'MARKETING', 'PAYROLL', 'TAX', 'OTHER'] as const
@@ -27,12 +27,17 @@ function revalidate(clientId: string) {
 
 export async function createCostAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+
   const parsed = costSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
+  const date = parseLocalDate(parsed.data.date)
+  if (!date) return fail('Data inválida')
+
   await createCost(ctx, clientId, {
     ...parsed.data,
-    date: new Date(parsed.data.date),
+    date,
   })
   revalidate(clientId)
   return ok(null)
@@ -40,13 +45,21 @@ export async function createCostAction(clientId: string, formData: unknown) {
 
 export async function updateCostAction(costId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+
   const parsed = costSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
+  let date: Date | undefined
+  if (parsed.data.date) {
+    const parsedDate = parseLocalDate(parsed.data.date)
+    if (!parsedDate) return fail('Data inválida')
+    date = parsedDate
+  }
+
   await updateCost(ctx, costId, {
     ...parsed.data,
-    type: parsed.data.type as CostType | undefined,
-    date: parsed.data.date ? new Date(parsed.data.date) : undefined,
+    date,
   })
   revalidate(clientId)
   return ok(null)
@@ -54,6 +67,7 @@ export async function updateCostAction(costId: string, clientId: string, formDat
 
 export async function deleteCostAction(costId: string, clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
   await softDeleteCost(ctx, costId)
   revalidate(clientId)
   return ok(null)

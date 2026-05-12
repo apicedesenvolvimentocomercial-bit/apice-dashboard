@@ -1,6 +1,7 @@
 'use server'
 
 import { randomBytes } from 'crypto'
+import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { EMAIL_FROM, resend } from '@/lib/resend'
@@ -25,7 +26,7 @@ function slugify(name: string) {
 }
 
 const createClientSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  name: z.string().trim().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   city: z.string().optional(),
   state: z.string().optional(),
   phone: z.string().optional(),
@@ -66,7 +67,8 @@ export async function createClientAction(formData: z.infer<typeof createClientSc
 
   logger.info('Client created', { clientId: client.id, organizationId: ctx.organizationId })
 
-  return ok(client)
+  revalidatePath('/clients')
+  return ok({ id: client.id })
 }
 
 const updateClientSchema = z.object({

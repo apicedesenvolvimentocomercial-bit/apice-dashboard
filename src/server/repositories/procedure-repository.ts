@@ -31,6 +31,7 @@ export async function listProceduresWithStats(ctx: TenantContext, clientId: stri
     select: {
       id: true,
       name: true,
+      description: true,
       price: true,
       cost: true,
       durationMinutes: true,
@@ -49,9 +50,11 @@ export async function listProceduresWithStats(ctx: TenantContext, clientId: stri
     const cost = Number(p.cost)
     const margin = price > 0 ? ((price - cost) / price) * 100 : 0
     const revenueTotal90d = p.revenues.reduce((sum, r) => sum + Number(r.amount), 0)
+    const countSold90d = p.revenues.length
     return {
       id: p.id,
       name: p.name,
+      description: p.description,
       price,
       cost,
       margin,
@@ -60,9 +63,43 @@ export async function listProceduresWithStats(ctx: TenantContext, clientId: stri
       categoryId: p.categoryId,
       category: p.category,
       revenueTotal90d,
-      countSold90d: p.revenues.length,
+      countSold90d,
+      pricingSuggestion: suggestPricing({ margin, countSold90d, isActive: p.isActive }),
     }
   })
+}
+
+export type PricingSuggestion = {
+  level: 'critical' | 'warning' | 'opportunity' | 'ok'
+  message: string
+}
+
+function suggestPricing({
+  margin,
+  countSold90d,
+  isActive,
+}: {
+  margin: number
+  countSold90d: number
+  isActive: boolean
+}): PricingSuggestion {
+  if (!isActive) return { level: 'ok', message: 'Procedimento inativo' }
+  if (margin < 0) {
+    return { level: 'critical', message: 'Preço abaixo do custo — ajustar urgente' }
+  }
+  if (margin < 30) {
+    return { level: 'warning', message: 'Margem baixa (<30%) — considere aumentar o preço' }
+  }
+  if (countSold90d >= 10 && margin >= 50) {
+    return {
+      level: 'opportunity',
+      message: 'Alta demanda + margem boa — oportunidade de subir preço',
+    }
+  }
+  if (countSold90d >= 5 && margin >= 40) {
+    return { level: 'ok', message: 'Boa demanda e margem saudável' }
+  }
+  return { level: 'ok', message: 'Margem saudável' }
 }
 
 export async function findProcedureById(ctx: TenantContext, procedureId: string) {

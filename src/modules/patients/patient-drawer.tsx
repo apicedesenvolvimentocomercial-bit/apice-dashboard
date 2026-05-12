@@ -90,6 +90,9 @@ export function PatientDrawer({ open, patientId, clientId, onClose, onUpdated }:
           )}
         >
           <DialogPrimitive.Title className="sr-only">Detalhes do Paciente</DialogPrimitive.Title>
+          <DialogPrimitive.Description className="sr-only">
+            Painel de detalhes, histórico e ações do paciente
+          </DialogPrimitive.Description>
 
           <div className="flex items-start justify-between border-b p-5">
             <div className="min-w-0 flex-1 pr-4">

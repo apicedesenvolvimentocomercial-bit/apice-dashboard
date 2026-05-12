@@ -7,13 +7,16 @@ import { OverviewTab } from './overview-tab'
 import { RevenuesTab } from './revenues-tab'
 import { CostsTab } from './costs-tab'
 import { ProceduresTab } from './procedures-tab'
+import { ReportsTab } from './reports-tab'
 import type {
-  FinancialSummary,
   ChartMonth,
-  RevenueRow,
   CostRow,
-  ProcedureWithStats,
+  FinancialSummary,
   ProcedureForSelect,
+  ProcedureWithStats,
+  RevenueRow,
+  TopCostCategory,
+  TopProcedure,
 } from './types'
 
 type Patient = { id: string; name: string }
@@ -22,6 +25,8 @@ type Props = {
   clientId: string
   summary: FinancialSummary
   chartData: ChartMonth[]
+  topProcedures: TopProcedure[]
+  topCostCategories: TopCostCategory[]
   revenues: RevenueRow[]
   costs: CostRow[]
   procedures: ProcedureWithStats[]
@@ -33,6 +38,8 @@ export function FinancialTabs({
   clientId,
   summary,
   chartData,
+  topProcedures,
+  topCostCategories,
   revenues,
   costs,
   procedures,
@@ -45,7 +52,7 @@ export function FinancialTabs({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Financeiro</h1>
-        <p className="text-muted-foreground">Receitas, custos e procedimentos</p>
+        <p className="text-muted-foreground">Receitas, custos, procedimentos e DRE</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -54,10 +61,16 @@ export function FinancialTabs({
           <TabsTrigger value="revenues">Receitas</TabsTrigger>
           <TabsTrigger value="costs">Custos</TabsTrigger>
           <TabsTrigger value="procedures">Procedimentos</TabsTrigger>
+          <TabsTrigger value="reports">Relatórios</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
-          <OverviewTab summary={summary} chartData={chartData} />
+          <OverviewTab
+            summary={summary}
+            chartData={chartData}
+            topProcedures={topProcedures}
+            topCostCategories={topCostCategories}
+          />
         </TabsContent>
 
         <TabsContent value="revenues" className="mt-6 space-y-4">
@@ -75,6 +88,10 @@ export function FinancialTabs({
 
         <TabsContent value="procedures" className="mt-6 space-y-4">
           <ProceduresTab procedures={procedures} clientId={clientId} />
+        </TabsContent>
+
+        <TabsContent value="reports" className="mt-6">
+          <ReportsTab clientId={clientId} />
         </TabsContent>
       </Tabs>
     </div>

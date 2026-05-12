@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -20,9 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createRevenueAction } from '@/server/actions/revenue-actions'
-import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from './types'
-import type { ProcedureForSelect } from './types'
+import { createRevenueAction, updateRevenueAction } from '@/server/actions/revenue-actions'
+import { NONE_VALUE, PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from './types'
+import type { ProcedureForSelect, RevenueRow } from './types'
 
 type Patient = { id: string; name: string }
 
@@ -31,8 +31,9 @@ type Props = {
   clientId: string
   patients: Patient[]
   procedures: ProcedureForSelect[]
+  revenue?: RevenueRow
   onOpenChange: (v: boolean) => void
-  onCreated: () => void
+  onSaved: () => void
 }
 
 const EMPTY = {
@@ -50,11 +51,30 @@ export function CreateRevenueDialog({
   clientId,
   patients,
   procedures,
+  revenue,
   onOpenChange,
-  onCreated,
+  onSaved,
 }: Props) {
   const [isPending, startTransition] = useTransition()
   const [form, setForm] = useState(EMPTY)
+
+  useEffect(() => {
+    if (open) {
+      setForm(
+        revenue
+          ? {
+              amount: String(revenue.amount),
+              date: new Date(revenue.date).toISOString().split('T')[0],
+              description: revenue.description ?? '',
+              paymentMethod: revenue.paymentMethod ?? '',
+              installments: String(revenue.installments ?? 1),
+              patientId: revenue.patient?.id ?? '',
+              procedureId: revenue.procedure?.id ?? '',
+            }
+          : EMPTY
+      )
+    }
+  }, [open, revenue])
 
   function reset() {
     setForm(EMPTY)
@@ -68,24 +88,44 @@ export function CreateRevenueDialog({
       return
     }
 
+    let installments: number | undefined
+    if (form.installments) {
+      const n = parseInt(form.installments, 10)
+      if (!Number.isFinite(n) || n < 1 || n > 36) {
+        toast.error('Parcelas deve ser entre 1 e 36')
+        return
+      }
+      installments = n
+    }
+    // Parcelamento só faz sentido em cartão de crédito.
+    if (installments && installments > 1 && form.paymentMethod !== 'CREDIT_CARD') {
+      toast.error('Parcelamento só é permitido com cartão de crédito')
+      return
+    }
+
+    const data = {
+      amount,
+      date: form.date,
+      description: form.description || undefined,
+      paymentMethod: form.paymentMethod || undefined,
+      installments,
+      patientId: form.patientId || undefined,
+      procedureId: form.procedureId || undefined,
+    }
+
     startTransition(async () => {
-      const result = await createRevenueAction(clientId, {
-        amount,
-        date: form.date,
-        description: form.description || undefined,
-        paymentMethod: form.paymentMethod || undefined,
-        installments: form.installments ? parseInt(form.installments) : undefined,
-        patientId: form.patientId || undefined,
-        procedureId: form.procedureId || undefined,
-      })
+      const result = revenue
+        ? await updateRevenueAction(revenue.id, clientId, data)
+        : await createRevenueAction(clientId, data)
+
       if (!result.success) {
         toast.error(result.error.message)
         return
       }
-      toast.success('Receita registrada!')
+      toast.success(revenue ? 'Receita atualizada!' : 'Receita registrada!')
       reset()
       onOpenChange(false)
-      onCreated()
+      onSaved()
     })
   }
 
@@ -99,7 +139,7 @@ export function CreateRevenueDialog({
     >
       <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>Nova Receita</DialogTitle>
+          <DialogTitle>{revenue ? 'Editar Receita' : 'Nova Receita'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -131,14 +171,14 @@ export function CreateRevenueDialog({
               <Select
                 value={form.patientId}
                 onValueChange={(v) =>
-                  setForm((f) => ({ ...f, patientId: v === '__none__' ? '' : v }))
+                  setForm((f) => ({ ...f, patientId: v === NONE_VALUE ? '' : v }))
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Nenhum</SelectItem>
+                  <SelectItem value={NONE_VALUE}>Nenhum</SelectItem>
                   {patients.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
@@ -152,14 +192,14 @@ export function CreateRevenueDialog({
               <Select
                 value={form.procedureId}
                 onValueChange={(v) =>
-                  setForm((f) => ({ ...f, procedureId: v === '__none__' ? '' : v }))
+                  setForm((f) => ({ ...f, procedureId: v === NONE_VALUE ? '' : v }))
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Nenhum</SelectItem>
+                  <SelectItem value={NONE_VALUE}>Nenhum</SelectItem>
                   {procedures.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
@@ -176,14 +216,14 @@ export function CreateRevenueDialog({
               <Select
                 value={form.paymentMethod}
                 onValueChange={(v) =>
-                  setForm((f) => ({ ...f, paymentMethod: v === '__none__' ? '' : v }))
+                  setForm((f) => ({ ...f, paymentMethod: v === NONE_VALUE ? '' : v }))
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Não informar</SelectItem>
+                  <SelectItem value={NONE_VALUE}>Não informar</SelectItem>
                   {PAYMENT_METHODS.map((m) => (
                     <SelectItem key={m} value={m}>
                       {PAYMENT_METHOD_LABELS[m]}
@@ -200,8 +240,14 @@ export function CreateRevenueDialog({
                 min={1}
                 max={36}
                 value={form.installments}
+                disabled={form.paymentMethod !== 'CREDIT_CARD'}
                 onChange={(e) => setForm((f) => ({ ...f, installments: e.target.value }))}
               />
+              {form.paymentMethod !== 'CREDIT_CARD' && (
+                <p className="text-[10px] text-muted-foreground">
+                  Disponível só para cartão de crédito
+                </p>
+              )}
             </div>
           </div>
 

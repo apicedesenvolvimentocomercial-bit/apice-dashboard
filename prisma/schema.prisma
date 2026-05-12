@@ -470,6 +470,12 @@ model Cost {
   isRecurring  Boolean  @default(false)
   recurringDay Int?
 
+  // Self-relation: instances generated from a recurring template point back to it.
+  // null on templates and on standalone costs; set on auto-generated children.
+  recurringSourceId  String?
+  recurringSource    Cost?    @relation("RecurringInstances", fields: [recurringSourceId], references: [id], onDelete: SetNull)
+  recurringInstances Cost[]   @relation("RecurringInstances")
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdById String?
@@ -478,6 +484,7 @@ model Cost {
   @@index([organizationId, clientId])
   @@index([clientId, date])
   @@index([clientId, type])
+  @@index([recurringSourceId, date])
 }
 
 // =====================================================
