@@ -113,11 +113,17 @@ export const getAdminDashboard = cache(
     const costByClient = new Map(costAgg.map((c) => [c.clientId, Number(c._sum.amount ?? 0)]))
     const leadsByClient = new Map(leadAgg.map((l) => [l.clientId, l._count._all]))
 
-    const apptTotalByClient = new Map<string, number>()
+    // No-show rate: denominador = desfechos conhecidos (ATTENDED + NO_SHOW).
+    // Futuros e cancelamentos não diluem a taxa.
+    const apptAttendedByClient = new Map<string, number>()
     const apptNoShowByClient = new Map<string, number>()
     for (const a of apptAgg) {
-      apptTotalByClient.set(a.clientId, (apptTotalByClient.get(a.clientId) ?? 0) + a._count._all)
-      if (a.status === 'NO_SHOW') {
+      if (a.status === 'ATTENDED') {
+        apptAttendedByClient.set(
+          a.clientId,
+          (apptAttendedByClient.get(a.clientId) ?? 0) + a._count._all
+        )
+      } else if (a.status === 'NO_SHOW') {
         apptNoShowByClient.set(
           a.clientId,
           (apptNoShowByClient.get(a.clientId) ?? 0) + a._count._all
@@ -135,8 +141,9 @@ export const getAdminDashboard = cache(
         const revenue = revByClient.get(c.id) ?? 0
         const costs = costByClient.get(c.id) ?? 0
         const leads = leadsByClient.get(c.id) ?? 0
-        const apptTotal = apptTotalByClient.get(c.id) ?? 0
+        const attended = apptAttendedByClient.get(c.id) ?? 0
         const noShow = apptNoShowByClient.get(c.id) ?? 0
+        const completedAppts = attended + noShow
         const won = wonByClient.get(c.id) ?? 0
         return {
           clientId: c.id,
@@ -144,7 +151,7 @@ export const getAdminDashboard = cache(
           revenue,
           leads,
           conversionRate: leads > 0 ? won / leads : null,
-          noShowRate: apptTotal > 0 ? noShow / apptTotal : null,
+          noShowRate: completedAppts > 0 ? noShow / completedAppts : null,
           netMargin: revenue > 0 ? (revenue - costs) / revenue : null,
           healthScore: c.healthScore,
           status: c.status,

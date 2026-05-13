@@ -33,79 +33,99 @@ async function aggregateForRange(
   costVariable: number
   newPatientsCount: number
   revenueAttributedToMarketing: number
+  lostRevenueFromNoShows: number
 }> {
   const clientFilter = scope.clientIds
     ? { clientId: { in: scope.clientIds } }
     : ({} as { clientId?: { in: string[] } })
 
-  const [leadAgg, wonAgg, apptAgg, revenueAgg, costGrouped, newPatientsCount, leadFirstContacts] =
-    await Promise.all([
-      prisma.lead.count({
-        where: {
-          organizationId: scope.organizationId,
-          ...clientFilter,
-          deletedAt: null,
-          createdAt: { gte: range.from, lte: range.to },
-        },
-      }),
-      prisma.lead.count({
-        where: {
-          organizationId: scope.organizationId,
-          ...clientFilter,
-          deletedAt: null,
-          closedAt: { gte: range.from, lte: range.to },
-          stage: { isWon: true },
-        },
-      }),
-      prisma.appointment.groupBy({
-        by: ['status'],
-        where: {
-          organizationId: scope.organizationId,
-          ...clientFilter,
-          deletedAt: null,
-          scheduledAt: { gte: range.from, lte: range.to },
-        },
-        _count: { _all: true },
-      }),
-      prisma.revenue.aggregate({
-        where: {
-          organizationId: scope.organizationId,
-          ...clientFilter,
-          deletedAt: null,
-          date: { gte: range.from, lte: range.to },
-        },
-        _sum: { amount: true },
-        _count: { _all: true },
-      }),
-      prisma.cost.groupBy({
-        by: ['type'],
-        where: {
-          organizationId: scope.organizationId,
-          ...clientFilter,
-          deletedAt: null,
-          date: { gte: range.from, lte: range.to },
-        },
-        _sum: { amount: true },
-      }),
-      prisma.patient.count({
-        where: {
-          organizationId: scope.organizationId,
-          ...clientFilter,
-          deletedAt: null,
-          createdAt: { gte: range.from, lte: range.to },
-        },
-      }),
-      prisma.lead.findMany({
-        where: {
-          organizationId: scope.organizationId,
-          ...clientFilter,
-          deletedAt: null,
-          createdAt: { gte: range.from, lte: range.to },
-          firstContactAt: { not: null },
-        },
-        select: { createdAt: true, firstContactAt: true },
-      }),
-    ])
+  const [
+    leadAgg,
+    wonAgg,
+    apptAgg,
+    revenueAgg,
+    costGrouped,
+    newPatientsCount,
+    leadFirstContacts,
+    noShowAppointments,
+  ] = await Promise.all([
+    prisma.lead.count({
+      where: {
+        organizationId: scope.organizationId,
+        ...clientFilter,
+        deletedAt: null,
+        createdAt: { gte: range.from, lte: range.to },
+      },
+    }),
+    prisma.lead.count({
+      where: {
+        organizationId: scope.organizationId,
+        ...clientFilter,
+        deletedAt: null,
+        closedAt: { gte: range.from, lte: range.to },
+        stage: { isWon: true },
+      },
+    }),
+    prisma.appointment.groupBy({
+      by: ['status'],
+      where: {
+        organizationId: scope.organizationId,
+        ...clientFilter,
+        deletedAt: null,
+        scheduledAt: { gte: range.from, lte: range.to },
+      },
+      _count: { _all: true },
+    }),
+    prisma.revenue.aggregate({
+      where: {
+        organizationId: scope.organizationId,
+        ...clientFilter,
+        deletedAt: null,
+        date: { gte: range.from, lte: range.to },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    prisma.cost.groupBy({
+      by: ['type'],
+      where: {
+        organizationId: scope.organizationId,
+        ...clientFilter,
+        deletedAt: null,
+        date: { gte: range.from, lte: range.to },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.patient.count({
+      where: {
+        organizationId: scope.organizationId,
+        ...clientFilter,
+        deletedAt: null,
+        createdAt: { gte: range.from, lte: range.to },
+      },
+    }),
+    prisma.lead.findMany({
+      where: {
+        organizationId: scope.organizationId,
+        ...clientFilter,
+        deletedAt: null,
+        createdAt: { gte: range.from, lte: range.to },
+        firstContactAt: { not: null },
+      },
+      select: { createdAt: true, firstContactAt: true },
+    }),
+    // Para receita perdida: preço real do procedimento agendado em cada no-show.
+    prisma.appointment.findMany({
+      where: {
+        organizationId: scope.organizationId,
+        ...clientFilter,
+        deletedAt: null,
+        scheduledAt: { gte: range.from, lte: range.to },
+        status: 'NO_SHOW',
+      },
+      select: { procedure: { select: { price: true } } },
+    }),
+  ])
 
   const apptsByStatus = new Map(apptAgg.map((g) => [g.status, g._count._all]))
   const appointmentsCount = apptAgg.reduce((sum, g) => sum + g._count._all, 0)
@@ -143,6 +163,11 @@ async function aggregateForRange(
     _sum: { amount: true },
   })
 
+  const lostRevenueFromNoShows = noShowAppointments.reduce(
+    (sum, a) => sum + Number(a.procedure?.price ?? 0),
+    0
+  )
+
   return {
     leadsCount: leadAgg,
     wonCount: wonAgg,
@@ -157,6 +182,7 @@ async function aggregateForRange(
     costVariable,
     newPatientsCount,
     revenueAttributedToMarketing: Number(paidSourceRevenues._sum.amount ?? 0),
+    lostRevenueFromNoShows,
   }
 }
 
@@ -195,6 +221,10 @@ export async function computeClinicKpis(
       revenueCount: current.revenueCount,
       newPatientsCount: current.newPatientsCount,
       revenueAttributedToMarketing: current.revenueAttributedToMarketing,
+      // Quando há pelo menos um no-show com procedimento vinculado, usamos
+      // o preço real. Sem isso, cai no fallback noShow × ticket médio.
+      lostRevenueFromNoShows:
+        current.lostRevenueFromNoShows > 0 ? current.lostRevenueFromNoShows : undefined,
     },
     { noShowCount: current.noShowCount }
   )
@@ -276,6 +306,14 @@ export async function computeGlobalKpis(
       ? Math.round(healthScores.reduce((a, b) => a + b, 0) / healthScores.length)
       : null
 
+  // Receita perdida agregada: preferimos o somatório do preço real de
+  // procedimentos de NO_SHOWs. Fallback p/ noShow × ticket médio se nenhum
+  // appointment do período tinha procedimento vinculado.
+  const estimatedLostRevenue =
+    current.lostRevenueFromNoShows > 0
+      ? current.lostRevenueFromNoShows
+      : current.noShowCount * (averageTicket ?? 0)
+
   return {
     totalClinics: activeClients.length,
     totalLeads: current.leadsCount,
@@ -284,7 +322,7 @@ export async function computeGlobalKpis(
     noShowRate: commercial.noShowRate,
     averageHealthScore,
     revenueGrowthMoM: calculateMoMGrowth(current.revenueTotal, previous.revenueTotal),
-    estimatedLostRevenue: current.noShowCount * (averageTicket ?? 0),
+    estimatedLostRevenue,
     previousRevenue: previous.revenueTotal,
   }
 }

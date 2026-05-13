@@ -88,7 +88,7 @@ export function ClinicDashboard({ data }: Props) {
         <KpiCard
           label="Receita perdida"
           value={formatCurrency(kpis.financial.estimatedLostRevenue)}
-          hint="No-show × ticket médio"
+          hint="Soma do preço dos procedimentos em no-show"
         />
         <KpiCard
           label="Health Score"
@@ -145,7 +145,8 @@ export function ClinicDashboard({ data }: Props) {
                 name: LEAD_SOURCE_LABEL[s.source] ?? s.source,
                 value: s.count,
               }))}
-              formatter={(v) => `${v} leads`}
+              valueFormat="count"
+              unitLabel="leads"
             />
           </CardContent>
         </Card>

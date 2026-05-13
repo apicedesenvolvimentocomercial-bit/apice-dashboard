@@ -9,10 +9,25 @@ type Datum = { name: string; value: number }
 type Props = {
   data: Datum[]
   height?: number
-  formatter?: (value: number) => string
+  /**
+   * Como formatar valores no tooltip. Props serializável (não passar funções
+   * pelo boundary Server → Client). Default: `currency` (BRL).
+   */
+  valueFormat?: 'currency' | 'count'
+  /** Sufixo opcional quando `valueFormat='count'` (ex.: "leads"). */
+  unitLabel?: string
 }
 
-export function SharePieChart({ data, height = 280, formatter = formatBRL }: Props) {
+const COUNT_FORMATTER = new Intl.NumberFormat('pt-BR')
+
+export function SharePieChart({ data, height = 280, valueFormat = 'currency', unitLabel }: Props) {
+  const formatter = (v: number) =>
+    valueFormat === 'count'
+      ? unitLabel
+        ? `${COUNT_FORMATTER.format(v)} ${unitLabel}`
+        : COUNT_FORMATTER.format(v)
+      : formatBRL(v)
+
   if (data.length === 0) {
     return (
       <div

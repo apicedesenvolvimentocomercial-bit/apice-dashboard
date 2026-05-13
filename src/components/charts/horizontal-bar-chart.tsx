@@ -7,16 +7,30 @@ import { CHART_COLORS, formatBRL, formatBRLCompact } from './chart-theme'
 type Props = {
   data: { label: string; value: number }[]
   height?: number
-  formatter?: (value: number) => string
+  /**
+   * Como formatar valores no tooltip. Serializável para atravessar
+   * o boundary Server → Client. Default: `currency` (BRL).
+   */
+  valueFormat?: 'currency' | 'count'
+  unitLabel?: string
   color?: string
 }
+
+const COUNT_FORMATTER = new Intl.NumberFormat('pt-BR')
 
 export function HorizontalBarChart({
   data,
   height = 280,
-  formatter = (v) => formatBRL(v),
+  valueFormat = 'currency',
+  unitLabel,
   color = CHART_COLORS.primary,
 }: Props) {
+  const formatter = (v: number) =>
+    valueFormat === 'count'
+      ? unitLabel
+        ? `${COUNT_FORMATTER.format(v)} ${unitLabel}`
+        : COUNT_FORMATTER.format(v)
+      : formatBRL(v)
   if (data.length === 0) {
     return (
       <div
@@ -37,7 +51,9 @@ export function HorizontalBarChart({
           tick={{ fontSize: 11 }}
           tickLine={false}
           axisLine={false}
-          tickFormatter={formatBRLCompact}
+          tickFormatter={(v: number) =>
+            valueFormat === 'count' ? COUNT_FORMATTER.format(v) : formatBRLCompact(v)
+          }
         />
         <YAxis
           type="category"

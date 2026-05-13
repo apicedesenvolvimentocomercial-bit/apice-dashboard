@@ -43,7 +43,7 @@ describe('calculateFinancialKpis', () => {
     expect(out.netProfit).toBe(4000)
   })
 
-  it('calcula receita perdida usando ticket médio quando não passado contexto', () => {
+  it('fallback de receita perdida: noShow × ticket médio quando não há preço de procedimento', () => {
     const out = calculateFinancialKpis(
       {
         revenueTotal: 5000,
@@ -59,6 +59,44 @@ describe('calculateFinancialKpis', () => {
     expect(out.averageTicket).toBeCloseTo(200, 5)
     // 4 no-shows × 200 = 800
     expect(out.estimatedLostRevenue).toBeCloseTo(800, 5)
+  })
+
+  it('usa lostRevenueFromNoShows (preço real do procedimento) quando disponível', () => {
+    // Reproduz o caso reportado: R$5.000 lançados em 2 receitas (avg ticket = 2500),
+    // mas o procedimento agendado no no-show custava R$5.000. A nova lógica
+    // deve mostrar R$5.000 (real), não R$2.500 (fallback).
+    const out = calculateFinancialKpis(
+      {
+        revenueTotal: 5000,
+        costTotalAll: 0,
+        costMarketing: 0,
+        costVariable: 0,
+        revenueCount: 2, // 2 receitas → averageTicket = 2500
+        newPatientsCount: 1,
+        revenueAttributedToMarketing: 0,
+        lostRevenueFromNoShows: 5000, // preço real do procedimento perdido
+      },
+      { noShowCount: 1 }
+    )
+    expect(out.averageTicket).toBeCloseTo(2500, 5)
+    // O valor real do procedimento (5000) prevalece sobre noShow × ticketMédio (2500)
+    expect(out.estimatedLostRevenue).toBe(5000)
+  })
+
+  it('zero quando não há no-show', () => {
+    const out = calculateFinancialKpis(
+      {
+        revenueTotal: 5000,
+        costTotalAll: 0,
+        costMarketing: 0,
+        costVariable: 0,
+        revenueCount: 1,
+        newPatientsCount: 1,
+        revenueAttributedToMarketing: 0,
+      },
+      { noShowCount: 0 }
+    )
+    expect(out.estimatedLostRevenue).toBe(0)
   })
 })
 

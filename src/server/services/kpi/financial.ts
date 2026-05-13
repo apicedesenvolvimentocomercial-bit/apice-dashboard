@@ -24,7 +24,13 @@ export function calculateFinancialKpis(
   // CAC = custo_marketing / novos_pacientes
   const cac = ratio(input.costMarketing, input.newPatientsCount)
 
+  // Receita perdida: preferimos o preço real do procedimento agendado em cada
+  // no-show (input.lostRevenueFromNoShows). Sem isso, caímos para a
+  // aproximação noShowCount × ticket médio. Note que ticket médio depende
+  // de como as receitas foram lançadas (uma linha grande vs várias pequenas),
+  // então é apenas uma estimativa.
   const estimatedLostRevenue =
+    input.lostRevenueFromNoShows ??
     (context?.noShowCount ?? 0) * (context?.averageTicketForLost ?? averageTicket ?? 0)
 
   return {

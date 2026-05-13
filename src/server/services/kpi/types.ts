@@ -23,6 +23,12 @@ export type FinancialInputs = {
   revenueCount: number
   newPatientsCount: number
   revenueAttributedToMarketing: number
+  /**
+   * Receita perdida calculada a partir do preço real dos procedimentos
+   * agendados em appointments NO_SHOW. Quando disponível, é usada como
+   * `estimatedLostRevenue` — mais preciso que noShowCount × ticket médio.
+   */
+  lostRevenueFromNoShows?: number
 }
 
 export type HealthScoreInputs = {
