@@ -1,5 +1,9 @@
 import { Resend } from 'resend'
 
-export const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+import { env } from '@/lib/env'
 
-export const EMAIL_FROM = process.env.EMAIL_FROM ?? 'noreply@kpiclinic.os'
+export const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
+
+// EMAIL_FROM é obrigatório quando RESEND_API_KEY está setado (validado em env.ts).
+// Em dev sem Resend usamos um placeholder explícito para que o logger evidencie.
+export const EMAIL_FROM = env.EMAIL_FROM ?? 'no-reply@example.com'

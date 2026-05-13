@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { mapWithConcurrency } from '@/lib/concurrency'
 import { prisma as defaultPrisma } from '@/lib/prisma'
 import { monthBoundsFor, spDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
@@ -96,7 +97,8 @@ export async function runSnapshotsJob(
   let monthly = 0
   let errors = 0
 
-  for (const c of clients) {
+  // Paralelismo limitado para reduzir runtime do cron sem sobrecarregar o DB.
+  await mapWithConcurrency(clients, 5, async (c) => {
     try {
       await persistSnapshot({
         organizationId: c.organizationId,
@@ -139,7 +141,7 @@ export async function runSnapshotsJob(
         error: err instanceof Error ? err.message : String(err),
       })
     }
-  }
+  })
 
   const summary = { scanned: clients.length, daily, monthly, errors }
   logger.info('KPI snapshots job complete', summary)

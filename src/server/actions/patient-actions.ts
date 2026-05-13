@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { ok, fail, NotFoundError } from '@/types/errors'
-import { getTenantContext } from '@/server/tenant/context'
+import { assertCan } from '@/server/auth/assert-can'
+import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
   listPatients,
   findPatientById,
@@ -32,12 +33,15 @@ function revalidate(clientId: string) {
 
 export async function listPatientsAction(clientId: string, search?: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'patients', 'read')
   const patients = await listPatients(ctx, clientId, search ? { search } : undefined)
   return ok(patients)
 }
 
 export async function getPatientAction(patientId: string) {
   const ctx = await getTenantContext()
+  await assertCan(ctx, 'patients', 'read')
   const patient = await findPatientById(ctx, patientId)
   if (!patient) return fail(new NotFoundError('Paciente'))
   return ok(patient)
@@ -45,6 +49,9 @@ export async function getPatientAction(patientId: string) {
 
 export async function createPatientAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'patients', 'write')
+
   const parsed = patientSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
@@ -59,6 +66,9 @@ export async function createPatientAction(clientId: string, formData: unknown) {
 
 export async function updatePatientAction(patientId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'patients', 'write')
+
   const parsed = patientSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
@@ -73,6 +83,8 @@ export async function updatePatientAction(patientId: string, clientId: string, f
 
 export async function deletePatientAction(patientId: string, clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'patients', 'delete')
   await softDeletePatient(ctx, patientId)
   revalidate(clientId)
   return ok(null)

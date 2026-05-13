@@ -1,8 +1,9 @@
 'use client'
 
 import { Bell, ChevronDown, LogOut, Settings, User } from 'lucide-react'
-import { signOut } from 'next-auth/react'
 import Link from 'next/link'
+
+import { signOut } from '@/lib/auth-client'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'

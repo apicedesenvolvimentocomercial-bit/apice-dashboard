@@ -1,9 +1,19 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -27,6 +37,7 @@ function formatValue(metric: GoalView['metric'], value: number): string {
 
 export function GoalCard({ clientId, goal }: Props) {
   const [isPending, startTransition] = useTransition()
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const projectionTone =
     goal.projectedAtPace == null
@@ -37,14 +48,14 @@ export function GoalCard({ clientId, goal }: Props) {
           ? 'text-amber-600'
           : 'text-rose-600'
 
-  const handleDelete = () => {
-    if (!window.confirm('Excluir esta meta?')) return
+  const confirmDelete = () => {
     startTransition(async () => {
-      try {
-        await deleteGoalAction(goal.id, clientId)
+      const r = await deleteGoalAction(goal.id, clientId)
+      if (r.success) {
         toast.success('Meta excluída')
-      } catch {
-        toast.error('Falha ao excluir meta')
+        setConfirmOpen(false)
+      } else {
+        toast.error(r.error.message)
       }
     })
   }
@@ -63,12 +74,37 @@ export function GoalCard({ clientId, goal }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleDelete}
+            onClick={() => setConfirmOpen(true)}
             disabled={isPending}
             aria-label="Excluir meta"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
+
+          <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir esta meta?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  A meta &ldquo;{METRIC_LABEL[goal.metric]}&rdquo; será removida. Esta ação pode ser
+                  revertida via histórico, mas pare de aparecer no acompanhamento atual.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.preventDefault()
+                    confirmDelete()
+                  }}
+                  disabled={isPending}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isPending ? 'Excluindo...' : 'Excluir'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         <div>

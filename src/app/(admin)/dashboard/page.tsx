@@ -9,11 +9,15 @@ import { parsePeriodParam } from '@/server/services/kpi'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Props = { searchParams: Promise<any> }
+type DashboardSearchParams = {
+  period?: string
+  from?: string
+  to?: string
+}
+type Props = { searchParams: Promise<DashboardSearchParams> }
 
 export default async function DashboardPage({ searchParams }: Props) {
-  const sp = (await searchParams) as Record<string, string | undefined>
+  const sp = await searchParams
   const period = parsePeriodParam(sp.period)
   const from = typeof sp.from === 'string' ? sp.from : undefined
   const to = typeof sp.to === 'string' ? sp.to : undefined

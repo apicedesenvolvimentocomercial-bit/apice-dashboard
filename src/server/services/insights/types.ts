@@ -1,9 +1,15 @@
 import type { InsightCategory, InsightSeverity } from '@prisma/client'
 
+import type { prisma as defaultPrisma } from '@/lib/prisma'
+
+export type PrismaLike = typeof defaultPrisma
+
 export type RuleInput = {
   organizationId: string
   clientId: string
   now: Date
+  // Injetado pelo engine — permite mockar em testes sem tocar no DB real.
+  prisma: PrismaLike
 }
 
 export type InsightCandidate = {

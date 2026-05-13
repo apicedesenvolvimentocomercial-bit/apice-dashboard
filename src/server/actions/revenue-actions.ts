@@ -7,6 +7,7 @@ import { parseLocalDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { ok, fail } from '@/types/errors'
+import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
   createRevenue,
@@ -33,6 +34,7 @@ function revalidate(clientId: string) {
 export async function createRevenueAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'write')
   const parsed = revenueSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
@@ -52,6 +54,7 @@ export async function createRevenueAction(clientId: string, formData: unknown) {
 export async function updateRevenueAction(revenueId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'write')
   const parsed = revenueSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
@@ -73,6 +76,7 @@ export async function updateRevenueAction(revenueId: string, clientId: string, f
 export async function deleteRevenueAction(revenueId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'delete')
   await softDeleteRevenue(ctx, revenueId)
   revalidate(clientId)
   return ok(null)
@@ -162,6 +166,7 @@ export async function importRevenuesAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'write')
 
   const parsed = importPayloadSchema.safeParse(rows)
   if (!parsed.success) return fail('Payload inválido para import')

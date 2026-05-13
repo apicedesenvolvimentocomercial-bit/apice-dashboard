@@ -1,9 +1,10 @@
 'use server'
 
 import { hash } from 'bcryptjs'
-import { randomBytes } from 'crypto'
+import { createHash, randomBytes } from 'crypto'
 import { z } from 'zod'
 
+import { env } from '@/lib/env'
 import { EMAIL_FROM, resend } from '@/lib/resend'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
@@ -54,6 +55,10 @@ export async function acceptInviteAction(input: z.infer<typeof acceptInviteSchem
   return ok({ email: user.email })
 }
 
+function hashToken(raw: string): string {
+  return createHash('sha256').update(raw).digest('hex')
+}
+
 const forgotPasswordSchema = z.object({
   email: z.string().email(),
 })
@@ -64,33 +69,73 @@ export async function forgotPasswordAction(input: z.infer<typeof forgotPasswordS
 
   const user = await prisma.user.findUnique({
     where: { email: parsed.data.email, deletedAt: null, isActive: true },
+    select: { id: true, email: true, name: true },
   })
 
-  // Não revela se o email existe ou não (segurança)
+  // Não revela se o email existe ou não (segurança).
   if (!user) return ok(null)
 
-  const token = randomBytes(32).toString('hex')
+  // Token cru fica só no email + URL; o banco armazena somente o hash.
+  const rawToken = randomBytes(32).toString('hex')
+  const tokenHash = hashToken(rawToken)
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60) // 1h
 
-  // Armazena token na tabela Invitation reaproveitando como reset token
-  // Em produção, criar tabela PasswordResetToken dedicada
-  const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`
+  await prisma.passwordResetToken.create({
+    data: { userId: user.id, tokenHash, expiresAt },
+  })
+
+  const resetUrl = `${env.NEXT_PUBLIC_APP_URL}/reset-password?token=${rawToken}`
 
   if (resend) {
+    const { ResetPasswordEmail } = await import('@/emails/reset-password-email')
     await resend.emails.send({
       from: EMAIL_FROM,
       to: user.email,
       subject: 'Recuperação de senha — KPI Clinic OS',
-      html: `
-        <p>Olá, ${user.name}!</p>
-        <p>Clique no link abaixo para redefinir sua senha (válido por 1 hora):</p>
-        <a href="${resetUrl}">${resetUrl}</a>
-        <p>Se você não solicitou isso, ignore este email.</p>
-      `,
+      react: ResetPasswordEmail({ userName: user.name, resetUrl }),
     })
   } else {
     logger.warn('RESEND_API_KEY not set — reset email not sent', { resetUrl, expiresAt })
   }
 
+  return ok(null)
+}
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
+})
+
+export async function resetPasswordAction(input: z.infer<typeof resetPasswordSchema>) {
+  const parsed = resetPasswordSchema.safeParse(input)
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Dados inválidos')
+
+  const tokenHash = hashToken(parsed.data.token)
+
+  const record = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    select: { id: true, userId: true, expiresAt: true, usedAt: true },
+  })
+
+  if (!record) return fail('Token inválido')
+  if (record.usedAt) return fail('Token já utilizado')
+  if (record.expiresAt < new Date()) return fail('Token expirado')
+
+  const passwordHash = await hash(parsed.data.password, 12)
+
+  // Atualiza senha e marca o token como usado em uma única transação para
+  // evitar reuso em race condition.
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: record.userId },
+      data: { passwordHash },
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    }),
+  ])
+
+  logger.info('Password reset', { userId: record.userId })
   return ok(null)
 }

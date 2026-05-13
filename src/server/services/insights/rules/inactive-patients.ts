@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/prisma'
 import { INACTIVE_PATIENTS_THRESHOLD } from '@/lib/constants'
 
 import type { InsightCandidate, InsightRule, RuleInput } from '../types'
@@ -9,7 +8,12 @@ export const inactivePatientsRule: InsightRule = {
   key: KEY,
   category: 'RETENTION',
 
-  async evaluate({ organizationId, clientId, now }: RuleInput): Promise<InsightCandidate | null> {
+  async evaluate({
+    organizationId,
+    clientId,
+    now,
+    prisma,
+  }: RuleInput): Promise<InsightCandidate | null> {
     const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
     const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
 

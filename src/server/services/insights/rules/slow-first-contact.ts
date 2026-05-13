@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/prisma'
 import { SLOW_FIRST_CONTACT_MIN } from '@/lib/constants'
 
 import type { InsightCandidate, InsightRule, RuleInput } from '../types'
@@ -9,7 +8,12 @@ export const slowFirstContactRule: InsightRule = {
   key: KEY,
   category: 'COMMERCIAL',
 
-  async evaluate({ organizationId, clientId, now }: RuleInput): Promise<InsightCandidate | null> {
+  async evaluate({
+    organizationId,
+    clientId,
+    now,
+    prisma,
+  }: RuleInput): Promise<InsightCandidate | null> {
     const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
     const leads = await prisma.lead.findMany({

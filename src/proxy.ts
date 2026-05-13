@@ -25,6 +25,10 @@ const CLIENT_ROUTES = [
   '/procedures',
 ]
 
+/**
+ * Next.js 16 renomeou `middleware.ts` para `proxy.ts` — o export precisa
+ * se chamar `proxy`. Mantemos este arquivo no caminho oficial do Next 16+.
+ */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 

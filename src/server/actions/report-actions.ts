@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { dateRangeFromIsoStrings } from '@/lib/date'
 import { fail, ok } from '@/types/errors'
 import { getDreReport } from '@/server/queries/financial-queries'
+import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 
 const dreSchema = z.object({
@@ -15,6 +16,7 @@ const dreSchema = z.object({
 export async function generateDreAction(clientId: string, input: { from: string; to: string }) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'reports', 'read')
 
   const parsed = dreSchema.safeParse(input)
   if (!parsed.success) return fail('Período inválido')

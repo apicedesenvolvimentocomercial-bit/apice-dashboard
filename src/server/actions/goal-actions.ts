@@ -4,8 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { parseLocalDate } from '@/lib/date'
-import { fail, ok } from '@/types/errors'
+import { fail, runAction } from '@/types/errors'
 import { createGoal, softDeleteGoal, updateGoal } from '@/server/repositories/goal-repository'
+import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 
 const METRICS = [
@@ -37,9 +38,6 @@ function revalidate(clientId: string) {
 }
 
 export async function createGoalAction(clientId: string, formData: unknown) {
-  const ctx = await getTenantContext()
-  await assertClientAccess(ctx, clientId)
-
   const parsed = goalSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
@@ -48,22 +46,25 @@ export async function createGoalAction(clientId: string, formData: unknown) {
   if (!startDate || !endDate) return fail('Datas inválidas')
   if (endDate.getTime() <= startDate.getTime()) return fail('Data final deve ser após a inicial')
 
-  await createGoal(ctx, clientId, {
-    metric: parsed.data.metric,
-    period: parsed.data.period,
-    targetValue: parsed.data.targetValue,
-    startDate,
-    endDate,
-    notes: parsed.data.notes,
+  return runAction(async () => {
+    const ctx = await getTenantContext()
+    await assertClientAccess(ctx, clientId)
+    await assertCan(ctx, 'goals', 'write')
+
+    await createGoal(ctx, clientId, {
+      metric: parsed.data.metric,
+      period: parsed.data.period,
+      targetValue: parsed.data.targetValue,
+      startDate,
+      endDate,
+      notes: parsed.data.notes,
+    })
+    revalidate(clientId)
+    return null
   })
-  revalidate(clientId)
-  return ok(null)
 }
 
 export async function updateGoalAction(goalId: string, clientId: string, formData: unknown) {
-  const ctx = await getTenantContext()
-  await assertClientAccess(ctx, clientId)
-
   const parsed = goalSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
@@ -80,19 +81,23 @@ export async function updateGoalAction(goalId: string, clientId: string, formDat
     endDate = d
   }
 
-  await updateGoal(ctx, goalId, {
-    ...parsed.data,
-    startDate,
-    endDate,
+  return runAction(async () => {
+    const ctx = await getTenantContext()
+    await assertClientAccess(ctx, clientId)
+    await assertCan(ctx, 'goals', 'write')
+    await updateGoal(ctx, goalId, { ...parsed.data, startDate, endDate })
+    revalidate(clientId)
+    return null
   })
-  revalidate(clientId)
-  return ok(null)
 }
 
 export async function deleteGoalAction(goalId: string, clientId: string) {
-  const ctx = await getTenantContext()
-  await assertClientAccess(ctx, clientId)
-  await softDeleteGoal(ctx, goalId)
-  revalidate(clientId)
-  return ok(null)
+  return runAction(async () => {
+    const ctx = await getTenantContext()
+    await assertClientAccess(ctx, clientId)
+    await assertCan(ctx, 'goals', 'delete')
+    await softDeleteGoal(ctx, goalId)
+    revalidate(clientId)
+    return null
+  })
 }

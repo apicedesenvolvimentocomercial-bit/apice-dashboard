@@ -1,5 +1,8 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // Habilitado para preparar adapters (ex.: @prisma/adapter-pg em edge).
+  // Não muda comportamento no Node runtime atual.
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -55,11 +58,12 @@ model User {
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id])
 
-  permissions   UserPermission[]
-  sessions      Session[]
-  accounts      Account[]
-  activities    Activity[]
-  notifications Notification[]
+  permissions         UserPermission[]
+  sessions            Session[]
+  accounts            Account[]
+  activities          Activity[]
+  notifications       Notification[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([organizationId])
   @@index([clientId])
@@ -121,6 +125,22 @@ model Invitation {
 
   @@index([token])
   @@index([email])
+}
+
+/// Tokens de recuperação de senha. Armazenamos apenas o hash (sha256) do
+/// token; o token cru só existe na URL enviada por email — não em logs nem
+/// no banco. Uso único: `usedAt` é setado ao consumir; verificação rejeita
+/// tokens expirados ou já utilizados.
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // =====================================================

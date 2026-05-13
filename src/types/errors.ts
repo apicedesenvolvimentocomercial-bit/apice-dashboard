@@ -68,3 +68,23 @@ export function fail(error: AppError | string): { success: false; error: ErrorPa
     },
   }
 }
+
+/**
+ * Empacota o corpo de uma Server Action em try/catch, convertendo qualquer
+ * `AppError` lançado (Forbidden/NotFound/Validation/Unauthorized/Conflict)
+ * para `Result<T>` sem mascarar erros inesperados. Mantém o contrato
+ * Result<T> consistente em todas as actions e elimina o estreitamento de
+ * tipo quando uma action só tem caminho de sucesso aparente.
+ */
+export async function runAction<T>(fn: () => Promise<T>): Promise<Result<T>> {
+  try {
+    const data = await fn()
+    return ok(data)
+  } catch (err) {
+    if (err instanceof AppError) {
+      return fail(err)
+    }
+    // Erros inesperados re-lançam — Sentry captura, UI cai no error boundary.
+    throw err
+  }
+}

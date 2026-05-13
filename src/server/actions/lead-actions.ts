@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { NotFoundError, ok, fail } from '@/types/errors'
-import { getTenantContext } from '@/server/tenant/context'
+import { assertCan } from '@/server/auth/assert-can'
+import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
   createLead,
   updateLead,
@@ -32,6 +33,9 @@ function revalidate(clientId: string) {
 
 export async function createLeadAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'write')
+
   const parsed = leadSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
@@ -45,6 +49,9 @@ export async function createLeadAction(clientId: string, formData: unknown) {
 
 export async function updateLeadAction(leadId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'write')
+
   const parsed = leadSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
@@ -58,6 +65,9 @@ export async function updateLeadAction(leadId: string, clientId: string, formDat
 
 export async function moveLeadAction(leadId: string, stageId: string, clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'write')
+
   await moveLead(ctx, leadId, stageId)
   revalidate(clientId)
   return ok(null)
@@ -65,6 +75,9 @@ export async function moveLeadAction(leadId: string, stageId: string, clientId: 
 
 export async function winLeadAction(leadId: string, wonStageId: string, clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'write')
+
   const patient = await winLead(ctx, leadId, wonStageId)
   if (!patient) return fail(new NotFoundError('Lead'))
   revalidate(clientId)
@@ -79,6 +92,9 @@ export async function loseLeadAction(
 ) {
   try {
     const ctx = await getTenantContext()
+    await assertClientAccess(ctx, clientId)
+    await assertCan(ctx, 'crm', 'write')
+
     await loseLead(ctx, leadId, lostStageId, reason)
     revalidate(clientId)
     return ok(null)
@@ -95,6 +111,9 @@ export async function addInteractionAction(
 ) {
   if (!content.trim()) return fail('Conteúdo obrigatório')
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'write')
+
   const interaction = await addInteraction(ctx, leadId, type, content.trim())
   revalidate(clientId)
   return ok(interaction)
@@ -102,6 +121,8 @@ export async function addInteractionAction(
 
 export async function getLeadAction(leadId: string) {
   const ctx = await getTenantContext()
+  await assertCan(ctx, 'crm', 'read')
+
   const lead = await findLeadById(ctx, leadId)
   if (!lead) return fail(new NotFoundError('Lead'))
   return ok({
@@ -112,6 +133,9 @@ export async function getLeadAction(leadId: string) {
 
 export async function deleteLeadAction(leadId: string, clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'delete')
+
   await softDeleteLead(ctx, leadId)
   revalidate(clientId)
   return ok(null)

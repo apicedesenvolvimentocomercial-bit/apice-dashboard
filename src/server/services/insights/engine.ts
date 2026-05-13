@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { mapWithConcurrency } from '@/lib/concurrency'
 import { prisma as defaultPrisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
@@ -53,7 +54,12 @@ export async function runInsightsForClinic(
 
   for (const rule of rules) {
     try {
-      const candidate = await rule.evaluate({ organizationId, clientId, now })
+      const candidate = await rule.evaluate({
+        organizationId,
+        clientId,
+        now,
+        prisma: prismaClient,
+      })
       if (!candidate) continue
       triggeredKeys.add(rule.key)
 
@@ -135,7 +141,9 @@ export async function runInsightsForAllClinics(options?: {
     errors: 0,
   }
 
-  for (const c of clients) {
+  // Paralelismo limitado: 5 clínicas simultâneas equilibra throughput x carga
+  // no Postgres. Erros isolados por clínica não interrompem o batch.
+  await mapWithConcurrency(clients, 5, async (c) => {
     try {
       const r = await runInsightsForClinic(c.organizationId, c.id, options)
       totals.scanned += r.scanned
@@ -150,7 +158,7 @@ export async function runInsightsForAllClinics(options?: {
         error: err instanceof Error ? err.message : String(err),
       })
     }
-  }
+  })
 
   return { totals, clinics: clients.length }
 }

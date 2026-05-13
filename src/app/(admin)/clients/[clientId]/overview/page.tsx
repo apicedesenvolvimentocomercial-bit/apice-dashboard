@@ -11,10 +11,10 @@ import { getClinicDashboard } from '@/server/queries/dashboard-queries'
 import { getClient } from '@/server/queries/client-queries'
 import { parsePeriodParam } from '@/server/services/kpi'
 
+type DashboardSearchParams = { period?: string; from?: string; to?: string }
 type Props = {
   params: Promise<{ clientId: string }>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  searchParams: Promise<any>
+  searchParams: Promise<DashboardSearchParams>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ClientOverviewPage({ params, searchParams }: Props) {
   const { clientId } = await params
-  const sp = (await searchParams) as Record<string, string | undefined>
+  const sp = await searchParams
   const period = parsePeriodParam(sp.period)
   const from = typeof sp.from === 'string' ? sp.from : undefined
   const to = typeof sp.to === 'string' ? sp.to : undefined

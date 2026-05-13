@@ -10,10 +10,9 @@ export default async function ClientLayout({
   params,
 }: {
   children: React.ReactNode
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  params: Promise<any>
+  params: Promise<{ clientId: string }>
 }) {
-  const { clientId } = (await params) as { clientId: string }
+  const { clientId } = await params
   const client = await getClient(clientId)
 
   if (!client) notFound()

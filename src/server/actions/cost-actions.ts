@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { parseLocalDate } from '@/lib/date'
 import { ok, fail } from '@/types/errors'
+import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { createCost, updateCost, softDeleteCost } from '@/server/repositories/cost-repository'
 
@@ -28,6 +29,7 @@ function revalidate(clientId: string) {
 export async function createCostAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'write')
 
   const parsed = costSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
@@ -46,6 +48,7 @@ export async function createCostAction(clientId: string, formData: unknown) {
 export async function updateCostAction(costId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'write')
 
   const parsed = costSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
@@ -68,6 +71,7 @@ export async function updateCostAction(costId: string, clientId: string, formDat
 export async function deleteCostAction(costId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'delete')
   await softDeleteCost(ctx, costId)
   revalidate(clientId)
   return ok(null)

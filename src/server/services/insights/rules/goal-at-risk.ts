@@ -1,10 +1,9 @@
-import { prisma } from '@/lib/prisma'
-
-import type { InsightCandidate, InsightRule, RuleInput } from '../types'
+import type { InsightCandidate, InsightRule, PrismaLike, RuleInput } from '../types'
 
 const KEY = 'goal_at_risk'
 
 async function currentValue(
+  prisma: PrismaLike,
   organizationId: string,
   clientId: string,
   goal: { metric: string; startDate: Date; endDate: Date }
@@ -39,7 +38,12 @@ export const goalAtRiskRule: InsightRule = {
   key: KEY,
   category: 'OPERATIONAL',
 
-  async evaluate({ organizationId, clientId, now }: RuleInput): Promise<InsightCandidate | null> {
+  async evaluate({
+    organizationId,
+    clientId,
+    now,
+    prisma,
+  }: RuleInput): Promise<InsightCandidate | null> {
     const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 
     const goals = await prisma.goal.findMany({
@@ -54,10 +58,9 @@ export const goalAtRiskRule: InsightRule = {
 
     if (goals.length === 0) return null
 
-    // Pega a meta mais em risco
     const evaluated: { goal: (typeof goals)[number]; progress: number }[] = []
     for (const g of goals) {
-      const cur = await currentValue(organizationId, clientId, g)
+      const cur = await currentValue(prisma, organizationId, clientId, g)
       const target = Number(g.targetValue)
       const progress = target > 0 ? cur / target : 0
       if (progress < 0.5) evaluated.push({ goal: g, progress })

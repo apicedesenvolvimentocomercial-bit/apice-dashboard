@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/prisma'
 import { MARGIN_WARNING_THRESHOLD } from '@/lib/constants'
 
 import type { InsightCandidate, InsightRule, RuleInput } from '../types'
@@ -9,7 +8,12 @@ export const lowMarginRule: InsightRule = {
   key: KEY,
   category: 'FINANCIAL',
 
-  async evaluate({ organizationId, clientId, now }: RuleInput): Promise<InsightCandidate | null> {
+  async evaluate({
+    organizationId,
+    clientId,
+    now,
+    prisma,
+  }: RuleInput): Promise<InsightCandidate | null> {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, -1)
 

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { ok, fail } from '@/types/errors'
+import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
   createProcedure,
@@ -30,6 +31,7 @@ function revalidate(clientId: string) {
 export async function createProcedureAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'procedures', 'write')
 
   const parsed = procedureSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
@@ -49,6 +51,7 @@ export async function updateProcedureAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'procedures', 'write')
 
   const parsed = procedureSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
@@ -68,6 +71,7 @@ export async function toggleProcedureActiveAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'procedures', 'write')
   await updateProcedure(ctx, procedureId, { isActive })
   revalidate(clientId)
   return ok(null)
@@ -76,6 +80,7 @@ export async function toggleProcedureActiveAction(
 export async function deleteProcedureAction(procedureId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'procedures', 'delete')
   await softDeleteProcedure(ctx, procedureId)
   revalidate(clientId)
   return ok(null)

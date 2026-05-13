@@ -28,8 +28,21 @@ export const authConfig = {
         const parsed = loginSchema.safeParse(credentials)
         if (!parsed.success) return null
 
+        // Select explícito para que `passwordHash` não trafegue além do escopo
+        // estritamente necessário (regra de ouro §16.2 do prompt).
         const user = await prisma.user.findUnique({
           where: { email: parsed.data.email, deletedAt: null },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            image: true,
+            role: true,
+            organizationId: true,
+            clientId: true,
+            passwordHash: true,
+            isActive: true,
+          },
         })
 
         if (!user || !user.isActive || !user.passwordHash) return null

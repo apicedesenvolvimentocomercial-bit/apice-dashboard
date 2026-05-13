@@ -1,23 +1,14 @@
 import { NextResponse } from 'next/server'
 
+import { isCronAuthorized } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { runRecurringCostsJob } from '@/server/jobs/recurring-costs-job'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  const header = req.headers.get('authorization')
-  if (header === `Bearer ${secret}`) return true
-  // Vercel Cron passes the secret directly via the `Authorization` header.
-  if (header === secret) return true
-  return false
-}
-
 export async function GET(req: Request) {
-  if (!isAuthorized(req)) {
+  if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -1,3 +1,7 @@
+// APP_NAME/APP_URL têm defaults seguros — não justifica forçar `env` aqui
+// (e o import pulava a validação em ambientes de teste sem .env).
+// As variáveis críticas (CRON_SECRET, DATABASE_URL, NEXTAUTH_SECRET, etc.)
+// continuam validadas via env.ts nos lugares que dependem delas de verdade.
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? 'KPI Clinic OS'
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 

@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/prisma'
 import { PROCEDURE_CONCENTRATION_THRESHOLD } from '@/lib/constants'
 
 import type { InsightCandidate, InsightRule, RuleInput } from '../types'
@@ -9,7 +8,12 @@ export const procedureConcentrationRule: InsightRule = {
   key: KEY,
   category: 'OPERATIONAL',
 
-  async evaluate({ organizationId, clientId, now }: RuleInput): Promise<InsightCandidate | null> {
+  async evaluate({
+    organizationId,
+    clientId,
+    now,
+    prisma,
+  }: RuleInput): Promise<InsightCandidate | null> {
     const from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
 
     const grouped = await prisma.revenue.groupBy({

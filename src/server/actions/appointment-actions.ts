@@ -5,7 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { ok, fail, NotFoundError } from '@/types/errors'
-import { getTenantContext } from '@/server/tenant/context'
+import { assertCan } from '@/server/auth/assert-can'
+import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
   listAppointments,
   findAppointmentById,
@@ -36,6 +37,9 @@ export async function getAppointmentsAction(
   filters?: { from?: string; to?: string }
 ) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'appointments', 'read')
+
   const appointments = await listAppointments(ctx, clientId, {
     from: filters?.from ? new Date(filters.from) : undefined,
     to: filters?.to ? new Date(filters.to) : undefined,
@@ -45,6 +49,8 @@ export async function getAppointmentsAction(
 
 export async function getAppointmentAction(appointmentId: string) {
   const ctx = await getTenantContext()
+  await assertCan(ctx, 'appointments', 'read')
+
   const appointment = await findAppointmentById(ctx, appointmentId)
   if (!appointment) return fail(new NotFoundError('Agendamento'))
   return ok(appointment)
@@ -52,6 +58,9 @@ export async function getAppointmentAction(appointmentId: string) {
 
 export async function createAppointmentAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'appointments', 'write')
+
   const parsed = appointmentSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
@@ -69,6 +78,9 @@ export async function updateAppointmentAction(
   formData: unknown
 ) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'appointments', 'write')
+
   const parsed = appointmentSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
@@ -88,6 +100,9 @@ export async function updateAppointmentStatusAction(
 ) {
   try {
     const ctx = await getTenantContext()
+    await assertClientAccess(ctx, clientId)
+    await assertCan(ctx, 'appointments', 'write')
+
     await updateAppointmentStatus(ctx, appointmentId, status, extra)
     revalidate(clientId)
     return ok(null)
@@ -104,6 +119,9 @@ export async function confirmRevenueFromAppointmentAction(
 ) {
   try {
     const ctx = await getTenantContext()
+    await assertClientAccess(ctx, clientId)
+    await assertCan(ctx, 'financial', 'write')
+
     const revenue = await createRevenueFromAppointment(
       ctx,
       clientId,
@@ -121,6 +139,9 @@ export async function confirmRevenueFromAppointmentAction(
 
 export async function deleteAppointmentAction(appointmentId: string, clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'appointments', 'delete')
+
   await softDeleteAppointment(ctx, appointmentId)
   revalidate(clientId)
   return ok(null)

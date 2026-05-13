@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { AlertTriangle, CheckCircle2, Info, MoreVertical, Play, X } from 'lucide-react'
 
@@ -8,11 +8,20 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { formatCurrency } from '@/lib/utils'
 import {
   acknowledgeInsightAction,
@@ -49,6 +58,8 @@ const SEVERITY_ICON = { CRITICAL: AlertTriangle, WARNING: AlertTriangle, INFO: I
 
 export function InsightCard({ insight }: Props) {
   const [isPending, startTransition] = useTransition()
+  const [dismissOpen, setDismissOpen] = useState(false)
+  const [dismissReason, setDismissReason] = useState('')
   const Icon = SEVERITY_ICON[insight.severity]
   const tone = TONE[insight.severity]
 
@@ -63,10 +74,21 @@ export function InsightCard({ insight }: Props) {
     })
   }
 
-  const onDismiss = () => {
-    const reason = window.prompt('Motivo da dispensa:')
-    if (!reason) return
-    run('Insight dispensado', () => dismissInsightAction(insight.id, { reason }))
+  const confirmDismiss = () => {
+    if (dismissReason.trim().length < 3) {
+      toast.error('Informe um motivo com pelo menos 3 caracteres')
+      return
+    }
+    startTransition(async () => {
+      const r = await dismissInsightAction(insight.id, { reason: dismissReason.trim() })
+      if (r.success) {
+        toast.success('Insight dispensado')
+        setDismissOpen(false)
+        setDismissReason('')
+      } else {
+        toast.error(r.error?.message ?? 'Falha ao dispensar')
+      }
+    })
   }
 
   return (
@@ -120,7 +142,7 @@ export function InsightCard({ insight }: Props) {
                   Resolver
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={onDismiss} className="text-destructive">
+              <DropdownMenuItem onClick={() => setDismissOpen(true)} className="text-destructive">
                 <X className="mr-2 h-4 w-4" />
                 Dispensar
               </DropdownMenuItem>
@@ -137,6 +159,32 @@ export function InsightCard({ insight }: Props) {
             Impacto estimado: {formatCurrency(insight.estimatedImpact)}
           </p>
         )}
+
+        <Dialog open={dismissOpen} onOpenChange={setDismissOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Dispensar insight</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor={`dismiss-reason-${insight.id}`}>Motivo</Label>
+              <Input
+                id={`dismiss-reason-${insight.id}`}
+                value={dismissReason}
+                onChange={(e) => setDismissReason(e.target.value)}
+                placeholder="Ex.: já resolvido fora do sistema"
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDismissOpen(false)} disabled={isPending}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={confirmDismiss} disabled={isPending}>
+                {isPending ? 'Dispensando...' : 'Dispensar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )
