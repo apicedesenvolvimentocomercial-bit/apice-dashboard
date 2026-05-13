@@ -25,6 +25,27 @@ const appointmentSchema = z.object({
   notes: z.string().optional(),
 })
 
+/**
+ * Data mínima permitida para `scheduledAt`: exatamente 1 ano atrás a partir
+ * de "agora". Bloqueia retroativos antigos (lançamentos contábeis de períodos
+ * fechados) tanto no create quanto no update.
+ */
+function minAllowedScheduledAt(now: Date = new Date()): Date {
+  const d = new Date(now)
+  d.setFullYear(d.getFullYear() - 1)
+  return d
+}
+
+function rejectIfTooOld(scheduledAt: Date): { ok: true } | { ok: false; message: string } {
+  if (scheduledAt.getTime() < minAllowedScheduledAt().getTime()) {
+    return {
+      ok: false,
+      message: 'Data inválida: não é possível agendar mais de 1 ano no passado',
+    }
+  }
+  return { ok: true }
+}
+
 function revalidate(clientId: string) {
   revalidatePath('/appointments')
   revalidatePath('/patients')
@@ -64,9 +85,13 @@ export async function createAppointmentAction(clientId: string, formData: unknow
   const parsed = appointmentSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
+  const scheduledAt = new Date(parsed.data.scheduledAt)
+  const dateCheck = rejectIfTooOld(scheduledAt)
+  if (!dateCheck.ok) return fail(dateCheck.message)
+
   const appointment = await createAppointment(ctx, clientId, {
     ...parsed.data,
-    scheduledAt: new Date(parsed.data.scheduledAt),
+    scheduledAt,
   })
   revalidate(clientId)
   return ok(appointment)
@@ -84,9 +109,16 @@ export async function updateAppointmentAction(
   const parsed = appointmentSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
+  let scheduledAt: Date | undefined
+  if (parsed.data.scheduledAt) {
+    scheduledAt = new Date(parsed.data.scheduledAt)
+    const dateCheck = rejectIfTooOld(scheduledAt)
+    if (!dateCheck.ok) return fail(dateCheck.message)
+  }
+
   await updateAppointment(ctx, appointmentId, {
     ...parsed.data,
-    scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : undefined,
+    scheduledAt,
   })
   revalidate(clientId)
   return ok(null)

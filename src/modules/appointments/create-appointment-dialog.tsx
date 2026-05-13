@@ -51,6 +51,26 @@ export function CreateAppointmentDialog({
     durationMinutes: 60,
     notes: '',
   })
+  const [dateBlurred, setDateBlurred] = useState(false)
+  const [pastDateAck, setPastDateAck] = useState(false)
+
+  // Limite duro: 1 ano atrás a partir de agora. Server também valida.
+  const minScheduledDate = (() => {
+    const d = new Date()
+    d.setFullYear(d.getFullYear() - 1)
+    return d
+  })()
+  // Formato aceito pelo input datetime-local: "YYYY-MM-DDTHH:mm" no fuso local.
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const minScheduledAttr = `${minScheduledDate.getFullYear()}-${pad(minScheduledDate.getMonth() + 1)}-${pad(minScheduledDate.getDate())}T${pad(minScheduledDate.getHours())}:${pad(minScheduledDate.getMinutes())}`
+
+  const scheduledDate = form.scheduledAt ? new Date(form.scheduledAt) : null
+  const isPastDate = scheduledDate != null && scheduledDate.getTime() < Date.now()
+  const isTooOld = scheduledDate != null && scheduledDate.getTime() < minScheduledDate.getTime()
+  // Só consideramos "no passado" depois que o usuário sair do input (blur),
+  // para não acusar enquanto ainda está digitando "2026-...".
+  const showPastWarning = dateBlurred && isPastDate && !isTooOld
+  const blockedByPastWarning = showPastWarning && !pastDateAck
 
   function handleProcedureChange(procedureId: string) {
     const proc = procedures.find((p) => p.id === procedureId)
@@ -69,12 +89,22 @@ export function CreateAppointmentDialog({
       durationMinutes: 60,
       notes: '',
     })
+    setDateBlurred(false)
+    setPastDateAck(false)
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.patientId || !form.procedureId || !form.scheduledAt) {
       toast.error('Preencha todos os campos obrigatórios')
+      return
+    }
+    if (isTooOld) {
+      toast.error('Não é possível agendar mais de 1 ano no passado')
+      return
+    }
+    if (blockedByPastWarning) {
+      toast.error('Confirme a ciência sobre a data no passado')
       return
     }
     startTransition(async () => {
@@ -156,7 +186,15 @@ export function CreateAppointmentDialog({
                 id="apt-date"
                 type="datetime-local"
                 value={form.scheduledAt}
-                onChange={(e) => setForm((f) => ({ ...f, scheduledAt: e.target.value }))}
+                min={minScheduledAttr}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, scheduledAt: e.target.value }))
+                  // Se o usuário alterar a data, exigimos nova confirmação.
+                  setPastDateAck(false)
+                }}
+                onBlur={() => setDateBlurred(true)}
+                aria-invalid={isTooOld || undefined}
+                className={isTooOld ? 'border-red-500 focus-visible:ring-red-500' : undefined}
                 required
               />
             </div>
@@ -174,6 +212,35 @@ export function CreateAppointmentDialog({
               />
             </div>
           </div>
+
+          {isTooOld && (
+            <p className="rounded-md border border-red-400 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-700 dark:bg-red-950/50 dark:text-red-200">
+              Não é possível agendar mais de 1 ano no passado.
+            </p>
+          )}
+
+          {showPastWarning && (
+            <label
+              htmlFor="apt-past-ack"
+              className={`flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                pastDateAck
+                  ? 'border-emerald-300 bg-emerald-50/60 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
+                  : 'border-red-400 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-950/50 dark:text-red-200'
+              }`}
+            >
+              <input
+                id="apt-past-ack"
+                type="checkbox"
+                checked={pastDateAck}
+                onChange={(e) => setPastDateAck(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-red-600"
+              />
+              <span>
+                Estou ciente que esta data e hora já se passaram e desejo registrar este agendamento
+                mesmo assim.
+              </span>
+            </label>
+          )}
 
           <div className="space-y-1">
             <Label htmlFor="apt-notes">Observações</Label>
@@ -193,7 +260,14 @@ export function CreateAppointmentDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isPending || !form.patientId || !form.procedureId || !form.scheduledAt}
+              disabled={
+                isPending ||
+                !form.patientId ||
+                !form.procedureId ||
+                !form.scheduledAt ||
+                isTooOld ||
+                blockedByPastWarning
+              }
             >
               {isPending ? 'Salvando...' : 'Agendar'}
             </Button>
