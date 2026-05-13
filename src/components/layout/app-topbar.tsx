@@ -1,6 +1,6 @@
 'use client'
 
-import { Bell, ChevronDown, LogOut, Settings, User } from 'lucide-react'
+import { ChevronDown, LogOut, Settings, User } from 'lucide-react'
 import Link from 'next/link'
 
 import { signOut } from '@/lib/auth-client'
@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { NotificationBell, type BellNotification } from '@/modules/notifications/notification-bell'
 
 type User = {
   name?: string | null
@@ -25,6 +26,9 @@ type User = {
 
 type Props = {
   user: User
+  notifications: BellNotification[]
+  unreadCount: number
+  notificationsHref?: string | null
 }
 
 function getInitials(name?: string | null): string {
@@ -37,17 +41,17 @@ function getInitials(name?: string | null): string {
     .toUpperCase()
 }
 
-export function AppTopbar({ user }: Props) {
+export function AppTopbar({ user, notifications, unreadCount, notificationsHref }: Props) {
   return (
     <header className="flex h-14 items-center justify-between border-b bg-white px-6 dark:bg-zinc-900">
       <div className="flex-1" />
 
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" aria-label="Notificações" asChild>
-          <Link href="/settings">
-            <Bell className="h-4 w-4" />
-          </Link>
-        </Button>
+        <NotificationBell
+          notifications={notifications}
+          unreadCount={unreadCount}
+          seeAllHref={notificationsHref}
+        />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client'
 import { mapWithConcurrency } from '@/lib/concurrency'
 import { prisma as defaultPrisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import {
+  dispatchNotification,
+  getRecipientsForClient,
+} from '@/server/services/notification-service'
 
 import { ALL_RULES } from './rules'
 import type { InsightCandidate, InsightRule } from './types'
@@ -26,11 +30,22 @@ export type EngineRunResult = {
 export async function runInsightsForClinic(
   organizationId: string,
   clientId: string,
-  options?: { now?: Date; rules?: InsightRule[]; prisma?: typeof defaultPrisma }
+  options?: {
+    now?: Date
+    rules?: InsightRule[]
+    prisma?: typeof defaultPrisma
+    /**
+     * Dispara notificação ao criar insight novo. Default: true em produção.
+     * Quando `options.prisma` é injetado (caminho usado por testes unit),
+     * default vira `false` para não tocar no singleton real.
+     */
+    notify?: boolean
+  }
 ): Promise<EngineRunResult> {
   const rules = options?.rules ?? ALL_RULES
   const prismaClient = options?.prisma ?? defaultPrisma
   const now = options?.now ?? new Date()
+  const notify = options?.notify ?? !options?.prisma
 
   const result: EngineRunResult = {
     scanned: rules.length,
@@ -73,7 +88,7 @@ export async function runInsightsForClinic(
         })
         result.updated++
       } else {
-        await prismaClient.insight.create({
+        const created = await prismaClient.insight.create({
           data: {
             organizationId,
             clientId,
@@ -82,6 +97,30 @@ export async function runInsightsForClinic(
           },
         })
         result.created++
+
+        if (notify) {
+          // Notifica owners da clínica + admins quando insight novo nasce.
+          // Falha aqui não derruba o engine — só loga.
+          try {
+            const recipients = await getRecipientsForClient(organizationId, clientId)
+            if (recipients.length > 0) {
+              await dispatchNotification(recipients, {
+                type: 'INSIGHT_GENERATED',
+                title: `Novo insight: ${candidate.title}`,
+                message: candidate.diagnosis,
+                link: `/clients/${clientId}/insights`,
+                metadata: { insightId: created.id, ruleKey: candidate.ruleKey },
+                dedupeWindowHours: 20,
+              })
+            }
+          } catch (notifyErr) {
+            logger.warn('Insight notification dispatch failed', {
+              clientId,
+              ruleKey: rule.key,
+              error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+            })
+          }
+        }
       }
     } catch (err) {
       result.errors++
