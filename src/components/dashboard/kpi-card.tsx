@@ -3,10 +3,17 @@ import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
+import { InfoHint } from './info-hint'
+
 type Props = {
   label: string
   value: string
   hint?: string
+  /**
+   * Explicação curta exibida em popover ao clicar no ícone de interrogação
+   * ao lado do label. Aceita string ou nó (para formatar lista, ênfase, etc).
+   */
+  info?: React.ReactNode
   delta?: number | null
   invertDelta?: boolean
   tone?: 'default' | 'warning' | 'critical' | 'good'
@@ -17,6 +24,7 @@ export function KpiCard({
   label,
   value,
   hint,
+  info,
   delta,
   invertDelta = false,
   tone = 'default',
@@ -52,7 +60,10 @@ export function KpiCard({
   return (
     <Card className={cn(toneClass[tone])}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
+        <CardTitle className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          <span>{label}</span>
+          {info && <InfoHint label={label}>{info}</InfoHint>}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1">
         <div className="flex items-end justify-between gap-2">

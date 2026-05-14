@@ -24,6 +24,10 @@ const costSchema = z.object({
 function revalidate(clientId: string) {
   revalidatePath('/financial')
   revalidatePath(`/clients/${clientId}/financial`)
+  // Overview tem o gráfico "Receita recebida x Custos" que projeta custos
+  // recorrentes — precisa invalidar quando um template muda.
+  revalidatePath('/overview')
+  revalidatePath(`/clients/${clientId}/overview`)
 }
 
 export async function createCostAction(clientId: string, formData: unknown) {

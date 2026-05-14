@@ -2,10 +2,13 @@ import { FunnelBars } from '@/components/charts/funnel-bars'
 import { HorizontalBarChart } from '@/components/charts/horizontal-bar-chart'
 import { RevenueCostBars } from '@/components/charts/revenue-cost-bars'
 import { SharePieChart } from '@/components/charts/share-pie-chart'
+import { InfoHint } from '@/components/dashboard/info-hint'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import type { ClinicDashboardData } from '@/server/queries/dashboard-queries'
+
+import { ReceivedRevenueChart } from './received-revenue-chart'
 
 const LEAD_SOURCE_LABEL: Record<string, string> = {
   META_ADS: 'Meta Ads',
@@ -29,6 +32,8 @@ export function ClinicDashboard({ data }: Props) {
   const {
     kpis,
     revenueByMonth,
+    receivedByMonth,
+    receivedCenterIndex,
     funnel,
     revenueByProcedure,
     leadsBySource,
@@ -47,6 +52,20 @@ export function ClinicDashboard({ data }: Props) {
           value={formatPercent(kpis.commercial.noShowRate)}
           invertDelta
           tone={(kpis.commercial.noShowRate ?? 0) > 0.25 ? 'critical' : 'default'}
+          info={
+            <>
+              <p className="font-medium text-foreground">Taxa de no-show</p>
+              <p className="mt-1">
+                Percentual de agendamentos em que o paciente não compareceu sem avisar. Calculado
+                como <span className="font-medium">no-shows ÷ (atendidos + no-shows)</span>.
+              </p>
+              <p className="mt-1">
+                Apenas desfechos conhecidos entram no cálculo — agendamentos futuros, cancelamentos
+                comunicados e remarcações não diluem a taxa. Acima de 25% a clínica deve agir
+                (lembrete por WhatsApp, exigir sinal etc.).
+              </p>
+            </>
+          }
         />
         <KpiCard
           label="Conversão"
@@ -64,7 +83,20 @@ export function ClinicDashboard({ data }: Props) {
           value={formatCurrency(kpis.financial.netProfit)}
           tone={kpis.financial.netProfit < 0 ? 'critical' : 'default'}
         />
-        <KpiCard label="Ticket médio" value={formatCurrency(kpis.financial.averageTicket)} />
+        <KpiCard
+          label="Ticket médio"
+          value={formatCurrency(kpis.financial.averageTicket)}
+          info={
+            <>
+              <p className="font-medium text-foreground">Ticket médio</p>
+              <p className="mt-1">
+                Valor médio por receita lançada no período. Calculado como{' '}
+                <span className="font-medium">receita total ÷ número de receitas</span>. Quanto mais
+                alto, mais a clínica fatura por atendimento.
+              </p>
+            </>
+          }
+        />
         <KpiCard label="Margem bruta" value={formatPercent(kpis.financial.grossMargin)} />
         <KpiCard
           label="Margem líquida"
@@ -74,8 +106,43 @@ export function ClinicDashboard({ data }: Props) {
         <KpiCard
           label="ROI marketing"
           value={kpis.financial.roi != null ? `${(kpis.financial.roi * 100).toFixed(0)}%` : '—'}
+          info={
+            <>
+              <p className="font-medium text-foreground">ROI de marketing</p>
+              <p className="mt-1">
+                Retorno sobre o investimento em marketing. Calculado como{' '}
+                <span className="font-medium">
+                  (receita atribuída a marketing − custo de marketing) ÷ custo de marketing
+                </span>
+                .
+              </p>
+              <p className="mt-1">
+                100% significa que cada R$ 1 investido trouxe R$ 1 de lucro além do investimento.
+                Valores negativos indicam que o marketing custou mais do que gerou.
+              </p>
+            </>
+          }
         />
-        <KpiCard label="CAC" value={formatCurrency(kpis.financial.cac)} />
+        <KpiCard
+          label="CAC"
+          value={formatCurrency(kpis.financial.cac)}
+          info={
+            <>
+              <p className="font-medium text-foreground">CAC — Custo de Aquisição de Cliente</p>
+              <p className="mt-1">
+                Quanto custou, em média, conquistar cada novo paciente no período. Calculado como{' '}
+                <span className="font-medium">
+                  custo total de marketing ÷ novos pacientes cadastrados
+                </span>
+                .
+              </p>
+              <p className="mt-1">
+                Compare com o ticket médio: se o CAC for maior que o ticket, a clínica está gastando
+                mais para atrair do que recebe por atendimento.
+              </p>
+            </>
+          }
+        />
         <KpiCard
           label="Tempo até 1º contato"
           value={
@@ -102,16 +169,74 @@ export function ClinicDashboard({ data }: Props) {
                   ? 'warning'
                   : 'good'
           }
+          info={
+            <>
+              <p className="font-medium text-foreground">Health Score (0–100)</p>
+              <p className="mt-1">
+                Nota composta da saúde da clínica. Soma ponderada de até 6 dimensões; dimensões sem
+                dado são ignoradas e o peso é redistribuído.
+              </p>
+              <ul className="mt-2 space-y-1">
+                <li>
+                  <span className="font-medium">Conversão</span> (peso 25%): pontua 100 a cada 20%
+                  de conversão lead → venda.
+                </li>
+                <li>
+                  <span className="font-medium">No-show invertido</span> (peso 20%): 100 com 0% de
+                  faltas; cai a 0 com 25%.
+                </li>
+                <li>
+                  <span className="font-medium">Margem líquida</span> (peso 20%): 100 a partir de
+                  40% de margem.
+                </li>
+                <li>
+                  <span className="font-medium">Crescimento MoM</span> (peso 15%): 100 com +20% mês
+                  a mês; 0 com −20%.
+                </li>
+                <li>
+                  <span className="font-medium">Leads vs meta</span> (peso 10%): % de atingimento da
+                  meta de leads, limitado a 100.
+                </li>
+                <li>
+                  <span className="font-medium">Tempo até 1º contato</span> (peso 10%): 100
+                  instantâneo; 0 a partir de 120 min.
+                </li>
+              </ul>
+              <p className="mt-2">
+                Faixas: <span className="font-medium text-rose-600">0–40 crítico</span>
+                {' · '}
+                <span className="font-medium text-amber-600">41–60 atenção</span>
+                {' · '}
+                <span className="font-medium">61–80 bom</span>
+                {' · '}
+                <span className="font-medium text-emerald-600">81–100 excelente</span>.
+              </p>
+            </>
+          }
         />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Receita vs Custos — últimos 12 meses</CardTitle>
+            <CardTitle className="flex items-center gap-1.5 text-base">
+              <span>Receita gerada x Custos — últimos 12 meses</span>
+              <InfoHint label="Receita gerada x Custos">
+                <p className="font-medium text-foreground">Receita gerada</p>
+                <p className="mt-1">
+                  Soma do valor cheio das vendas no mês em que foram lançadas, independente do
+                  parcelamento. É a referência contábil de quanto foi faturado.
+                </p>
+                <p className="mt-2">
+                  <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
+                  parcelado em 12x e vendido em maio aparece como{' '}
+                  <span className="font-medium">R$ 5.000 em maio</span> aqui.
+                </p>
+              </InfoHint>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <RevenueCostBars data={revenueByMonth} />
+            <RevenueCostBars data={revenueByMonth} revenueName="Receita gerada" />
           </CardContent>
         </Card>
         <Card>
@@ -120,6 +245,41 @@ export function ClinicDashboard({ data }: Props) {
           </CardHeader>
           <CardContent>
             <FunnelBars data={funnel} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1.5 text-base">
+              <span>Receita recebida x Custos</span>
+              <InfoHint label="Receita recebida x Custos">
+                <p className="font-medium text-foreground">Receita recebida</p>
+                <p className="mt-1">
+                  Simulação do fluxo de caixa: o valor da venda é distribuído pelos meses conforme o
+                  número de parcelas. Cada mês mostra o que efetivamente entra no caixa.
+                </p>
+                <p className="mt-2">
+                  <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
+                  parcelado em 12x vendido em maio aparece como{' '}
+                  <span className="font-medium">R$ 416,67 em maio</span> e o mesmo valor em cada um
+                  dos 11 meses seguintes (até abril do ano seguinte).
+                </p>
+                <p className="mt-2">
+                  <span className="font-medium">Custos futuros:</span> incluem a projeção dos custos
+                  fixos cadastrados (custos recorrentes ainda não lançados). Mudanças nesses custos
+                  refletem aqui automaticamente.
+                </p>
+                <p className="mt-2 text-muted-foreground">
+                  Use as setas para navegar pelos meses anteriores e posteriores. O mês central fica
+                  sempre destacado no rodapé do gráfico.
+                </p>
+              </InfoHint>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ReceivedRevenueChart data={receivedByMonth} centerIndex={receivedCenterIndex} />
           </CardContent>
         </Card>
       </div>

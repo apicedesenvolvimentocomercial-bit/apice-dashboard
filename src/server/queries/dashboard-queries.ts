@@ -250,7 +250,19 @@ export const getAdminDashboard = cache(
 export type ClinicDashboardData = {
   range: PeriodRange
   kpis: ClinicKpis
+  /** "Receita gerada" = soma do valor cheio na data da venda. Últimos 12 meses. */
   revenueByMonth: { month: string; revenue: number; costs: number }[]
+  /**
+   * "Receita recebida" = simulação de fluxo de caixa. Cada parcela é distribuída
+   * no mês de competência: valor ÷ installments por mês a partir de `date`.
+   *
+   * Janela ampla (12 meses passados + atual + 12 meses futuros = 25 meses).
+   * Meses futuros incluem projeção de custos recorrentes (templates
+   * `isRecurring: true`) ainda não materializados. `centerIndex` aponta para
+   * o mês atual; a UI fatia em uma janela visível ao redor desse índice.
+   */
+  receivedByMonth: { month: string; revenue: number; costs: number; isFuture: boolean }[]
+  receivedCenterIndex: number
   funnel: { stage: string; count: number; isWon: boolean; isLost: boolean }[]
   revenueByProcedure: { name: string; total: number; count: number }[]
   leadsBySource: { source: string; count: number }[]
@@ -283,107 +295,216 @@ export const getClinicDashboard = cache(
     await assertClientAccess(ctx, clientId)
     const range = getRange(period, customFrom, customTo)
 
-    const [kpis, revRows, costRows, stages, proceduresAgg, leadsBySource, insightsOpen, goals] =
-      await Promise.all([
-        computeClinicKpis(ctx, clientId, range),
-        prisma.revenue.findMany({
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            deletedAt: null,
-            date: { gte: spDate(new Date().getFullYear() - 1, new Date().getMonth() + 1, 1) },
-          },
-          select: { amount: true, date: true },
-        }),
-        prisma.cost.findMany({
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            deletedAt: null,
-            date: { gte: spDate(new Date().getFullYear() - 1, new Date().getMonth() + 1, 1) },
-          },
-          select: { amount: true, date: true },
-        }),
-        prisma.pipelineStage.findMany({
-          where: { clientId },
-          orderBy: { order: 'asc' },
-          select: {
-            id: true,
-            name: true,
-            isWon: true,
-            isLost: true,
-            _count: { select: { leads: { where: { deletedAt: null } } } },
-          },
-        }),
-        prisma.revenue.groupBy({
-          by: ['procedureId'],
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            deletedAt: null,
-            date: { gte: range.from, lte: range.to },
-            procedureId: { not: null },
-          },
-          _sum: { amount: true },
-          _count: { _all: true },
-          orderBy: { _sum: { amount: 'desc' } },
-          take: 8,
-        }),
-        prisma.lead.groupBy({
-          by: ['source'],
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            deletedAt: null,
-            createdAt: { gte: range.from, lte: range.to },
-          },
-          _count: { _all: true },
-        }),
-        prisma.insight.findMany({
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            status: { in: ['OPEN', 'ACKNOWLEDGED'] },
-          },
-          orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
-          take: 6,
-          select: {
-            id: true,
-            title: true,
-            severity: true,
-            suggestion: true,
-            diagnosis: true,
-          },
-        }),
-        prisma.goal.findMany({
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            deletedAt: null,
-            endDate: { gte: new Date() },
-          },
-          orderBy: { endDate: 'asc' },
-        }),
-      ])
+    const [
+      kpis,
+      revRows,
+      costRows,
+      recurringTemplates,
+      stages,
+      proceduresAgg,
+      leadsBySource,
+      insightsOpen,
+      goals,
+    ] = await Promise.all([
+      computeClinicKpis(ctx, clientId, range),
+      prisma.revenue.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          // Janela ampliada para 36 meses atrás: cobre parcelas com prazos
+          // longos cujas parcelas ainda caem dentro da janela visível.
+          date: { gte: spDate(new Date().getFullYear() - 3, new Date().getMonth() + 1, 1) },
+        },
+        select: { amount: true, date: true, installments: true },
+      }),
+      // Custos materializados (não-templates) dos últimos 12 meses + atual.
+      prisma.cost.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          isRecurring: false,
+          date: { gte: spDate(new Date().getFullYear() - 1, new Date().getMonth() + 1, 1) },
+        },
+        select: { amount: true, date: true, recurringSourceId: true },
+      }),
+      // Templates de custos recorrentes (fixos) ativos. Usados para projetar
+      // o futuro e descontar das materializações já existentes.
+      prisma.cost.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          isRecurring: true,
+        },
+        select: { id: true, amount: true, createdAt: true },
+      }),
+      prisma.pipelineStage.findMany({
+        where: { clientId },
+        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          isWon: true,
+          isLost: true,
+          _count: { select: { leads: { where: { deletedAt: null } } } },
+        },
+      }),
+      prisma.revenue.groupBy({
+        by: ['procedureId'],
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          date: { gte: range.from, lte: range.to },
+          procedureId: { not: null },
+        },
+        _sum: { amount: true },
+        _count: { _all: true },
+        orderBy: { _sum: { amount: 'desc' } },
+        take: 8,
+      }),
+      prisma.lead.groupBy({
+        by: ['source'],
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          createdAt: { gte: range.from, lte: range.to },
+        },
+        _count: { _all: true },
+      }),
+      prisma.insight.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          status: { in: ['OPEN', 'ACKNOWLEDGED'] },
+        },
+        orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
+        take: 6,
+        select: {
+          id: true,
+          title: true,
+          severity: true,
+          suggestion: true,
+          diagnosis: true,
+        },
+      }),
+      prisma.goal.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          endDate: { gte: new Date() },
+        },
+        orderBy: { endDate: 'asc' },
+      }),
+    ])
 
     const now = new Date()
-    const buckets = new Map<string, { revenue: number; costs: number; label: string }>()
+
+    // Bucket "Receita gerada": 12 meses passados + atual (igual antes).
+    const generatedBuckets = new Map<string, { revenue: number; costs: number; label: string }>()
     for (let i = 11; i >= 0; i--) {
       const first = spDate(now.getFullYear(), now.getMonth() - i, 1)
-      buckets.set(monthKey(first), { revenue: 0, costs: 0, label: shortMonthLabel(first) })
+      generatedBuckets.set(monthKey(first), {
+        revenue: 0,
+        costs: 0,
+        label: shortMonthLabel(first),
+      })
     }
+
+    // Bucket "Receita recebida": janela ampla com 12 passados + atual + 12 futuros.
+    // Cada entrada sabe se é futuro (para projetar custos recorrentes e marcar
+    // visualmente na UI). currentMonthStart é a fronteira passado/futuro.
+    const currentMonthStart = spDate(now.getFullYear(), now.getMonth(), 1).getTime()
+    type ReceivedBucket = {
+      revenue: number
+      costs: number
+      label: string
+      monthStart: number
+      isFuture: boolean
+    }
+    const receivedBuckets = new Map<string, ReceivedBucket>()
+    let receivedCenterIndex = 0
+    {
+      let idx = 0
+      for (let i = -12; i <= 12; i++) {
+        const first = spDate(now.getFullYear(), now.getMonth() + i, 1)
+        if (i === 0) receivedCenterIndex = idx
+        receivedBuckets.set(monthKey(first), {
+          revenue: 0,
+          costs: 0,
+          label: shortMonthLabel(first),
+          monthStart: first.getTime(),
+          isFuture: first.getTime() > currentMonthStart,
+        })
+        idx++
+      }
+    }
+
     for (const r of revRows) {
-      const b = buckets.get(monthKey(r.date))
-      if (b) b.revenue += Number(r.amount)
+      const amount = Number(r.amount)
+      const installments = r.installments && r.installments > 0 ? r.installments : 1
+
+      // Receita gerada: valor cheio no mês da venda.
+      const generatedBucket = generatedBuckets.get(monthKey(r.date))
+      if (generatedBucket) generatedBucket.revenue += amount
+
+      // Receita recebida: 1 parcela = amount / installments por mês,
+      // a partir do mês de `r.date`. Parcelas fora da janela são descartadas.
+      const perInstallment = amount / installments
+      const baseYear = r.date.getFullYear()
+      const baseMonth = r.date.getMonth()
+      for (let i = 0; i < installments; i++) {
+        const month = spDate(baseYear, baseMonth + i, 1)
+        const target = receivedBuckets.get(monthKey(month))
+        if (target) target.revenue += perInstallment
+      }
     }
+
+    // Custos materializados (rows reais). Para o bucket "recebida", também
+    // contamos quantos templates recorrentes JÁ foram materializados em cada
+    // mês, para não duplicar quando projetarmos o futuro.
+    const materializedRecurringByMonth = new Map<string, Set<string>>()
     for (const c of costRows) {
-      const b = buckets.get(monthKey(c.date))
-      if (b) b.costs += Number(c.amount)
+      const key = monthKey(c.date)
+      const amount = Number(c.amount)
+      const gen = generatedBuckets.get(key)
+      if (gen) gen.costs += amount
+      const rec = receivedBuckets.get(key)
+      if (rec) rec.costs += amount
+      if (c.recurringSourceId) {
+        const set = materializedRecurringByMonth.get(key) ?? new Set<string>()
+        set.add(c.recurringSourceId)
+        materializedRecurringByMonth.set(key, set)
+      }
     }
-    const revenueByMonth = Array.from(buckets.values()).map((b) => ({
+
+    // Projeção de custos recorrentes: a partir do mês atual em diante, para
+    // cada template ativo (createdAt <= início desse mês), adiciona o valor
+    // se ainda não foi materializado naquele mês.
+    for (const [key, bucket] of receivedBuckets) {
+      if (bucket.monthStart < currentMonthStart) continue // passado: confia no materializado
+      const materializedSet = materializedRecurringByMonth.get(key) ?? new Set<string>()
+      for (const t of recurringTemplates) {
+        if (t.createdAt.getTime() > bucket.monthStart) continue
+        if (materializedSet.has(t.id)) continue
+        bucket.costs += Number(t.amount)
+      }
+    }
+
+    const revenueByMonth = Array.from(generatedBuckets.values()).map((b) => ({
       month: b.label,
       revenue: b.revenue,
       costs: b.costs,
+    }))
+    const receivedByMonth = Array.from(receivedBuckets.values()).map((b) => ({
+      month: b.label,
+      revenue: b.revenue,
+      costs: b.costs,
+      isFuture: b.isFuture,
     }))
 
     const procIds = proceduresAgg
@@ -431,6 +552,8 @@ export const getClinicDashboard = cache(
       range,
       kpis,
       revenueByMonth,
+      receivedByMonth,
+      receivedCenterIndex,
       funnel,
       revenueByProcedure,
       leadsBySource: leadsBySource.map((g) => ({ source: g.source, count: g._count._all })),
