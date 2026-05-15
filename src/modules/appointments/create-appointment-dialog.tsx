@@ -23,6 +23,8 @@ import {
 import { createAppointmentAction } from '@/server/actions/appointment-actions'
 import type { PatientWithStats } from '@/server/repositories/patient-repository'
 import type { ProcedureForSelect } from '@/server/repositories/procedure-repository'
+import { DEFAULT_SCHEDULE } from './types'
+import type { ClinicSchedule } from './types'
 
 type Props = {
   open: boolean
@@ -30,8 +32,37 @@ type Props = {
   patients: PatientWithStats[]
   procedures: ProcedureForSelect[]
   defaultDate?: string
+  schedule?: ClinicSchedule
   onOpenChange: (open: boolean) => void
   onCreated?: () => void
+}
+
+function timeToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+function getScheduleViolation(dateStr: string, schedule: ClinicSchedule): string | null {
+  if (!dateStr) return null
+  const dt = new Date(dateStr)
+  const dayOfWeek = dt.getDay()
+  if (!schedule.workdays.includes(dayOfWeek)) {
+    const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+    return `A clínica não atende às ${dayNames[dayOfWeek]}s.`
+  }
+  const minutes = dt.getHours() * 60 + dt.getMinutes()
+  if (minutes < timeToMinutes(schedule.workdayStart)) {
+    return `Horário antes da abertura (${schedule.workdayStart}).`
+  }
+  if (minutes >= timeToMinutes(schedule.workdayEnd)) {
+    return `Horário após o fechamento (${schedule.workdayEnd}).`
+  }
+  const dateOnly = dateStr.slice(0, 10)
+  const holiday = schedule.holidays.find((h) => h.date === dateOnly)
+  if (holiday) {
+    return `Esta data é feriado: ${holiday.name}.`
+  }
+  return null
 }
 
 export function CreateAppointmentDialog({
@@ -40,6 +71,7 @@ export function CreateAppointmentDialog({
   patients,
   procedures,
   defaultDate,
+  schedule = DEFAULT_SCHEDULE,
   onOpenChange,
   onCreated,
 }: Props) {
@@ -53,6 +85,8 @@ export function CreateAppointmentDialog({
   })
   const [dateBlurred, setDateBlurred] = useState(false)
   const [pastDateAck, setPastDateAck] = useState(false)
+  const [scheduleAck, setScheduleAck] = useState(false)
+  const [farFutureAck, setFarFutureAck] = useState(false)
 
   // Limite duro: 1 ano atrás a partir de agora. Server também valida.
   const minScheduledDate = (() => {
@@ -63,7 +97,6 @@ export function CreateAppointmentDialog({
   // Formato aceito pelo input datetime-local: "YYYY-MM-DDTHH:mm" no fuso local.
   const pad = (n: number) => String(n).padStart(2, '0')
   const minScheduledAttr = `${minScheduledDate.getFullYear()}-${pad(minScheduledDate.getMonth() + 1)}-${pad(minScheduledDate.getDate())}T${pad(minScheduledDate.getHours())}:${pad(minScheduledDate.getMinutes())}`
-
   const scheduledDate = form.scheduledAt ? new Date(form.scheduledAt) : null
   const isPastDate = scheduledDate != null && scheduledDate.getTime() < Date.now()
   const isTooOld = scheduledDate != null && scheduledDate.getTime() < minScheduledDate.getTime()
@@ -71,6 +104,17 @@ export function CreateAppointmentDialog({
   // para não acusar enquanto ainda está digitando "2026-...".
   const showPastWarning = dateBlurred && isPastDate && !isTooOld
   const blockedByPastWarning = showPastWarning && !pastDateAck
+
+  const scheduleViolation = dateBlurred ? getScheduleViolation(form.scheduledAt, schedule) : null
+  const blockedBySchedule = scheduleViolation !== null && !scheduleAck
+
+  const farFutureThreshold = (() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() + 4)
+    return d
+  })()
+  const isFarFuture = dateBlurred && scheduledDate != null && scheduledDate > farFutureThreshold
+  const blockedByFarFuture = isFarFuture && !farFutureAck
 
   function handleProcedureChange(procedureId: string) {
     const proc = procedures.find((p) => p.id === procedureId)
@@ -91,6 +135,8 @@ export function CreateAppointmentDialog({
     })
     setDateBlurred(false)
     setPastDateAck(false)
+    setScheduleAck(false)
+    setFarFutureAck(false)
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -105,6 +151,14 @@ export function CreateAppointmentDialog({
     }
     if (blockedByPastWarning) {
       toast.error('Confirme a ciência sobre a data no passado')
+      return
+    }
+    if (blockedBySchedule) {
+      toast.error('Confirme o agendamento fora do horário da clínica')
+      return
+    }
+    if (blockedByFarFuture) {
+      toast.error('Confirme o agendamento com mais de 4 meses de antecedência')
       return
     }
     startTransition(async () => {
@@ -185,12 +239,13 @@ export function CreateAppointmentDialog({
               <Input
                 id="apt-date"
                 type="datetime-local"
-                value={form.scheduledAt}
                 min={minScheduledAttr}
+                value={form.scheduledAt}
                 onChange={(e) => {
                   setForm((f) => ({ ...f, scheduledAt: e.target.value }))
-                  // Se o usuário alterar a data, exigimos nova confirmação.
                   setPastDateAck(false)
+                  setScheduleAck(false)
+                  setFarFutureAck(false)
                 }}
                 onBlur={() => setDateBlurred(true)}
                 aria-invalid={isTooOld || undefined}
@@ -242,6 +297,52 @@ export function CreateAppointmentDialog({
             </label>
           )}
 
+          {scheduleViolation && (
+            <label
+              htmlFor="apt-schedule-ack"
+              className={`flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                scheduleAck
+                  ? 'border-amber-300 bg-amber-50/60 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+                  : 'border-orange-400 bg-orange-50 text-orange-900 dark:border-orange-700 dark:bg-orange-950/50 dark:text-orange-200'
+              }`}
+            >
+              <input
+                id="apt-schedule-ack"
+                type="checkbox"
+                checked={scheduleAck}
+                onChange={(e) => setScheduleAck(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-orange-600"
+              />
+              <span>
+                <strong>Fora do expediente:</strong> {scheduleViolation} Estou ciente e desejo
+                agendar mesmo assim.
+              </span>
+            </label>
+          )}
+
+          {isFarFuture && (
+            <label
+              htmlFor="apt-future-ack"
+              className={`flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                farFutureAck
+                  ? 'border-blue-300 bg-blue-50/60 text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200'
+                  : 'border-blue-400 bg-blue-50 text-blue-900 dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-200'
+              }`}
+            >
+              <input
+                id="apt-future-ack"
+                type="checkbox"
+                checked={farFutureAck}
+                onChange={(e) => setFarFutureAck(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-600"
+              />
+              <span>
+                <strong>Agendamento distante:</strong> A data selecionada está a mais de 4 meses no
+                futuro. Estou ciente e desejo confirmar este agendamento.
+              </span>
+            </label>
+          )}
+
           <div className="space-y-1">
             <Label htmlFor="apt-notes">Observações</Label>
             <textarea
@@ -266,7 +367,9 @@ export function CreateAppointmentDialog({
                 !form.procedureId ||
                 !form.scheduledAt ||
                 isTooOld ||
-                blockedByPastWarning
+                blockedByPastWarning ||
+                blockedBySchedule ||
+                blockedByFarFuture
               }
             >
               {isPending ? 'Salvando...' : 'Agendar'}
