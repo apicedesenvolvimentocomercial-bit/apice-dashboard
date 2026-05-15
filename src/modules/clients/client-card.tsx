@@ -1,7 +1,7 @@
 'use client'
 
 import type { ClientStatus } from '@prisma/client'
-import { Building2, MoreHorizontal, Send, Settings2, Trash2 } from 'lucide-react'
+import { Building2, MoreHorizontal, Send, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -116,10 +116,6 @@ export function ClientCard({ client }: Props) {
                 <DropdownMenuItem onClick={() => setInviteOpen(true)}>
                   <Send className="mr-2 h-4 w-4" />
                   Convidar dono
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push(`/clients/${client.id}/settings`)}>
-                  <Settings2 className="mr-2 h-4 w-4" />
-                  Configurações
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

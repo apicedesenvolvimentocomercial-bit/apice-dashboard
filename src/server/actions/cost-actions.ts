@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { parseLocalDate } from '@/lib/date'
 import { ok, fail } from '@/types/errors'
+import { createAuditLog } from '@/server/repositories/audit-repository'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { createCost, updateCost, softDeleteCost } from '@/server/repositories/cost-repository'
@@ -41,10 +42,16 @@ export async function createCostAction(clientId: string, formData: unknown) {
   const date = parseLocalDate(parsed.data.date)
   if (!date) return fail('Data inválida')
 
-  await createCost(ctx, clientId, {
+  const cost = await createCost(ctx, clientId, {
     ...parsed.data,
     date,
   })
+  createAuditLog(ctx, {
+    action: 'create',
+    entityType: 'Cost',
+    entityId: cost.id,
+    changes: { amount: parsed.data.amount, type: parsed.data.type },
+  }).catch(() => {})
   revalidate(clientId)
   return ok(null)
 }
@@ -77,6 +84,7 @@ export async function deleteCostAction(costId: string, clientId: string) {
   await assertClientAccess(ctx, clientId)
   await assertCan(ctx, 'financial', 'delete')
   await softDeleteCost(ctx, costId)
+  createAuditLog(ctx, { action: 'delete', entityType: 'Cost', entityId: costId }).catch(() => {})
   revalidate(clientId)
   return ok(null)
 }

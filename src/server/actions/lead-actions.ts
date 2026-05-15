@@ -14,6 +14,7 @@ import {
   softDeleteLead,
 } from '@/server/repositories/lead-repository'
 import { winLead, loseLead, addInteraction } from '@/server/services/lead-service'
+import { createAuditLog } from '@/server/repositories/audit-repository'
 
 const leadSchema = z.object({
   name: z.string().min(2, 'Nome obrigatório'),
@@ -43,6 +44,12 @@ export async function createLeadAction(clientId: string, formData: unknown) {
     ...parsed.data,
     email: parsed.data.email || undefined,
   })
+  createAuditLog(ctx, {
+    action: 'create',
+    entityType: 'Lead',
+    entityId: lead.id,
+    changes: { name: lead.name, source: parsed.data.source },
+  }).catch(() => {})
   revalidate(clientId)
   return ok({ id: lead.id, stageId: lead.stageId, name: lead.name })
 }
@@ -69,6 +76,12 @@ export async function moveLeadAction(leadId: string, stageId: string, clientId: 
   await assertCan(ctx, 'crm', 'write')
 
   await moveLead(ctx, leadId, stageId)
+  createAuditLog(ctx, {
+    action: 'stage_change',
+    entityType: 'Lead',
+    entityId: leadId,
+    changes: { stageId },
+  }).catch(() => {})
   revalidate(clientId)
   return ok(null)
 }
@@ -137,6 +150,7 @@ export async function deleteLeadAction(leadId: string, clientId: string) {
   await assertCan(ctx, 'crm', 'delete')
 
   await softDeleteLead(ctx, leadId)
+  createAuditLog(ctx, { action: 'delete', entityType: 'Lead', entityId: leadId }).catch(() => {})
   revalidate(clientId)
   return ok(null)
 }

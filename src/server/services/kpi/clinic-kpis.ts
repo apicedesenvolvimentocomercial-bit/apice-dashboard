@@ -48,6 +48,7 @@ async function aggregateForRange(
     newPatientsCount,
     leadFirstContacts,
     noShowAppointments,
+    paidSourceRevenues,
   ] = await Promise.all([
     prisma.lead.count({
       where: {
@@ -125,6 +126,21 @@ async function aggregateForRange(
       },
       select: { procedure: { select: { price: true } } },
     }),
+    // ROI marketing: receitas com lead originário de campanha paga.
+    prisma.revenue.aggregate({
+      where: {
+        organizationId: scope.organizationId,
+        ...clientFilter,
+        deletedAt: null,
+        date: { gte: range.from, lte: range.to },
+        patient: {
+          leads: {
+            some: { source: { in: ['META_ADS', 'GOOGLE_ADS'] }, deletedAt: null },
+          },
+        },
+      },
+      _sum: { amount: true },
+    }),
   ])
 
   const apptsByStatus = new Map(apptAgg.map((g) => [g.status, g._count._all]))
@@ -143,25 +159,6 @@ async function aggregateForRange(
   }, 0)
   const avgTimeToFirstContactMin =
     leadFirstContacts.length > 0 ? Math.round(totalMinutes / leadFirstContacts.length) : null
-
-  // ROI marketing aproximação: receitas com lead originário de campanha paga.
-  const paidSourceRevenues = await prisma.revenue.aggregate({
-    where: {
-      organizationId: scope.organizationId,
-      ...clientFilter,
-      deletedAt: null,
-      date: { gte: range.from, lte: range.to },
-      patient: {
-        leads: {
-          some: {
-            source: { in: ['META_ADS', 'GOOGLE_ADS'] },
-            deletedAt: null,
-          },
-        },
-      },
-    },
-    _sum: { amount: true },
-  })
 
   const lostRevenueFromNoShows = noShowAppointments.reduce(
     (sum, a) => sum + Number(a.procedure?.price ?? 0),

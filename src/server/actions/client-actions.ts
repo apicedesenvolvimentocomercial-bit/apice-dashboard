@@ -17,6 +17,7 @@ import { createDefaultPipelineStages } from '@/server/services/client-service'
 import { assertCan } from '@/server/auth/assert-can'
 import { getTenantContext } from '@/server/tenant/context'
 import { ConflictError, NotFoundError, fail, ok, runAction } from '@/types/errors'
+import { createAuditLog } from '@/server/repositories/audit-repository'
 
 function slugify(name: string) {
   return name
@@ -68,6 +69,12 @@ export async function createClientAction(formData: z.infer<typeof createClientSc
   await createDefaultPipelineStages(client.id)
 
   logger.info('Client created', { clientId: client.id, organizationId: ctx.organizationId })
+  createAuditLog(ctx, {
+    action: 'create',
+    entityType: 'Client',
+    entityId: client.id,
+    changes: { name },
+  }).catch(() => {})
 
   revalidatePath('/clients')
   return ok({ id: client.id })
@@ -100,6 +107,12 @@ export async function updateClientAction(formData: z.infer<typeof updateClientSc
     email: email || undefined,
     contractStart: contractStart ? new Date(contractStart) : undefined,
   })
+  createAuditLog(ctx, {
+    action: 'update',
+    entityType: 'Client',
+    entityId: clientId,
+    changes: rest,
+  }).catch(() => {})
 
   return ok(null)
 }
@@ -111,6 +124,9 @@ export async function deleteClientAction(clientId: string) {
 
     await softDeleteClient(ctx, clientId)
     logger.info('Client soft-deleted', { clientId, organizationId: ctx.organizationId })
+    createAuditLog(ctx, { action: 'delete', entityType: 'Client', entityId: clientId }).catch(
+      () => {}
+    )
     return null
   })
 }

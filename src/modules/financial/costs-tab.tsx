@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Edit2, Plus, RefreshCw, Repeat, Trash2 } from 'lucide-react'
+import { Download, Edit2, Plus, RefreshCw, Repeat, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { deleteCostAction } from '@/server/actions/cost-actions'
+import { useCsvExport } from '@/hooks/use-csv-export'
 import { CreateCostDialog } from './create-cost-dialog'
 import {
   COST_TYPE_LABELS,
@@ -38,6 +39,7 @@ export function CostsTab({ costs, clientId }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<CostRow | undefined>()
   const [deleting, setDeleting] = useState<string | null>(null)
+  const { exportCsv, loading: exportLoading } = useCsvExport()
 
   function openCreate() {
     setEditing(undefined)
@@ -64,10 +66,21 @@ export function CostsTab({ costs, clientId }: Props) {
         <p className="text-sm text-muted-foreground">
           {costs.length} {costs.length === 1 ? 'custo' : 'custos'}
         </p>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo custo
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={exportLoading || costs.length === 0}
+            onClick={() => exportCsv({ clientId, resource: 'costs' })}
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            Exportar CSV
+          </Button>
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo custo
+          </Button>
+        </div>
       </div>
 
       {costs.length === 0 ? (

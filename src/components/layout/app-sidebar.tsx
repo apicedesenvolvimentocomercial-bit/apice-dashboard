@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Lightbulb,
   Settings,
+  ShieldCheck,
   Target,
   Users,
   Kanban,
@@ -38,6 +39,7 @@ const adminNav: NavItem[] = [
   { href: '/calendar', label: 'Calendário', icon: Calendar },
   { href: '/reports', label: 'Relatórios', icon: FileText },
   { href: '/staff', label: 'Equipe', icon: Users },
+  { href: '/settings/audit', label: 'Audit Log', icon: ShieldCheck },
   { href: '/settings', label: 'Configurações', icon: Settings },
 ]
 
@@ -54,6 +56,16 @@ const clientNav: NavItem[] = [
   { href: '/settings', label: 'Configurações', icon: Settings },
 ]
 
+function useActiveItem(pathname: string, navItems: NavItem[]) {
+  const hrefs = navItems.map((i) => i.href)
+  return (href: string) => {
+    if (pathname === href) return true
+    if (!pathname.startsWith(href + '/')) return false
+    // Only active if no more-specific nav item also matches this pathname
+    return !hrefs.some((h) => h !== href && h.startsWith(href) && pathname.startsWith(h))
+  }
+}
+
 type Props = {
   role: string
 }
@@ -64,47 +76,67 @@ export function AppSidebar({ role }: Props) {
 
   const isClientRole = role === 'CLIENT_OWNER' || role === 'CLIENT_STAFF'
   const navItems = isClientRole ? clientNav : adminNav
+  const isActive = useActiveItem(pathname, navItems)
 
   return (
     <aside
       className={cn(
-        'relative flex h-full flex-col border-r bg-white transition-all duration-200 dark:bg-zinc-900',
+        'relative flex h-full flex-col border-r bg-white dark:bg-zinc-900',
+        'transition-[width] duration-300 ease-in-out',
         collapsed ? 'w-16' : 'w-60'
       )}
     >
-      <div className="flex h-14 items-center border-b px-4">
-        {!collapsed && (
-          <span className="truncate text-sm font-bold text-primary">KPI Clinic OS</span>
-        )}
+      {/* overflow-hidden here clips text during the width transition
+          without affecting the absolutely-positioned toggle button */}
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex h-14 min-h-14 items-center border-b px-4">
+          <span
+            className={cn(
+              'truncate text-sm font-bold text-primary',
+              'transition-opacity duration-150',
+              collapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
+            )}
+          >
+            KPI Clinic OS
+          </span>
+        </div>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto py-2 pl-2 pr-3">
+          {navItems.map((item) => {
+            const Icon = item.icon
+            const active = isActive(item.href)
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  active
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                )}
+                title={item.label}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span
+                  className={cn(
+                    'truncate whitespace-nowrap transition-opacity duration-150',
+                    collapsed ? 'opacity-0' : 'opacity-100'
+                  )}
+                >
+                  {item.label}
+                </span>
+              </Link>
+            )
+          })}
+        </nav>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-        {navItems.map((item) => {
-          const Icon = item.icon
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              )}
-              title={collapsed ? item.label : undefined}
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          )
-        })}
-      </nav>
-
+      {/* z-10 keeps the button above the main content area */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-16 flex h-6 w-6 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-accent dark:bg-zinc-900"
+        className="absolute -right-[10px] top-16 z-10 flex h-5 w-5 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-accent dark:bg-zinc-900"
         aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
       >
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}

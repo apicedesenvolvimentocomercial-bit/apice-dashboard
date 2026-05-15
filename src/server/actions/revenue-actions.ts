@@ -7,6 +7,7 @@ import { parseLocalDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { ok, fail } from '@/types/errors'
+import { createAuditLog } from '@/server/repositories/audit-repository'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
@@ -41,12 +42,18 @@ export async function createRevenueAction(clientId: string, formData: unknown) {
   const date = parseLocalDate(parsed.data.date)
   if (!date) return fail('Data inválida')
 
-  await createRevenue(ctx, clientId, {
+  const revenue = await createRevenue(ctx, clientId, {
     ...parsed.data,
     date,
     patientId: parsed.data.patientId || undefined,
     procedureId: parsed.data.procedureId || undefined,
   })
+  createAuditLog(ctx, {
+    action: 'create',
+    entityType: 'Revenue',
+    entityId: revenue.id,
+    changes: { amount: parsed.data.amount, date: parsed.data.date },
+  }).catch(() => {})
   revalidate(clientId)
   return ok(null)
 }
@@ -78,6 +85,9 @@ export async function deleteRevenueAction(revenueId: string, clientId: string) {
   await assertClientAccess(ctx, clientId)
   await assertCan(ctx, 'financial', 'delete')
   await softDeleteRevenue(ctx, revenueId)
+  createAuditLog(ctx, { action: 'delete', entityType: 'Revenue', entityId: revenueId }).catch(
+    () => {}
+  )
   revalidate(clientId)
   return ok(null)
 }

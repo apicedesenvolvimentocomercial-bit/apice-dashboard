@@ -10,6 +10,7 @@ import { ClinicDashboard } from '@/modules/dashboard/clinic-dashboard'
 import { getClinicDashboard } from '@/server/queries/dashboard-queries'
 import { getClient } from '@/server/queries/client-queries'
 import { parsePeriodParam } from '@/server/services/kpi'
+import { PdfDownloadButton } from '@/modules/clients/pdf-download-button'
 
 type DashboardSearchParams = { period?: string; from?: string; to?: string }
 type Props = {
@@ -58,7 +59,10 @@ export default async function ClientOverviewPage({ params, searchParams }: Props
             {client.contractStart && ` · desde ${formatDate(client.contractStart)}`}
           </p>
         </div>
-        <PeriodFilter />
+        <div className="flex items-center gap-2">
+          <PdfDownloadButton clientId={clientId} from={from} to={to} />
+          <PeriodFilter />
+        </div>
       </div>
 
       <Suspense
