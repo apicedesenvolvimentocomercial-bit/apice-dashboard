@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { createClientAction } from '@/server/actions/client-actions'
 
 const schema = z.object({
@@ -178,7 +179,7 @@ export function CreateClientDialog({ open, onOpenChange }: Props) {
                   <FormItem>
                     <FormLabel>Início do contrato</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <DateInput {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -46,7 +46,7 @@ export function FunnelBars({ data, height = 240 }: Props) {
           axisLine={false}
         />
         <Tooltip />
-        <Bar dataKey="count" radius={[0, 3, 3, 0]}>
+        <Bar dataKey="count" radius={[0, 3, 3, 0]} animationDuration={300}>
           {data.map((d, i) => (
             <Cell
               key={i}

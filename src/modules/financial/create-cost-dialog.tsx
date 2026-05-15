@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -169,9 +170,8 @@ export function CreateCostDialog({ open, clientId, cost, onOpenChange, onSaved }
             </div>
             <div className="space-y-1">
               <Label htmlFor="cs-date">Data *</Label>
-              <Input
+              <DateInput
                 id="cs-date"
-                type="date"
                 value={form.date}
                 onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
                 required

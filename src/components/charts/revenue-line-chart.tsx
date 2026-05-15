@@ -54,6 +54,7 @@ export function RevenueLineChart({ data, showPreviousYear = true, height = 280 }
           strokeWidth={2}
           dot={{ r: 3 }}
           activeDot={{ r: 5 }}
+          animationDuration={300}
         />
         {showPreviousYear && (
           <Line
@@ -64,6 +65,7 @@ export function RevenueLineChart({ data, showPreviousYear = true, height = 280 }
             strokeDasharray="4 4"
             strokeWidth={2}
             dot={false}
+            animationDuration={300}
           />
         )}
       </LineChart>

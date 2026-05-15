@@ -19,7 +19,12 @@ export function AdminDashboard({ data }: Props) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Total de leads" value={global.totalLeads.toLocaleString('pt-BR')} />
         <KpiCard
-          label="Faturamento"
+          label="MRR (assinaturas)"
+          value={formatCurrency(global.mrrFromSubscriptions)}
+          hint="Soma das mensalidades das clínicas ativas"
+        />
+        <KpiCard
+          label="Faturamento das clínicas"
           value={formatCurrency(global.totalRevenue)}
           delta={global.revenueGrowthMoM}
           hint={

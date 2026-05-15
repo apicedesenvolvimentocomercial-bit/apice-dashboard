@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { getClient } from '@/server/queries/client-queries'
 import { getAppointments, getProcedures } from '@/server/queries/appointment-queries'
 import { getPatients } from '@/server/queries/patient-queries'
+import { getClinicSchedule } from '@/server/repositories/clinic-schedule-repository'
 import { AppointmentsCalendar } from '@/modules/appointments/appointments-calendar'
 
 export const metadata: Metadata = { title: 'Agendamentos' }
@@ -12,11 +13,12 @@ type Props = { params: Promise<{ clientId: string }> }
 
 export default async function AdminClientAppointmentsPage({ params }: Props) {
   const { clientId } = await params
-  const [client, appointments, patients, procedures] = await Promise.all([
+  const [client, appointments, patients, procedures, schedule] = await Promise.all([
     getClient(clientId),
     getAppointments(clientId),
     getPatients(clientId),
     getProcedures(clientId),
+    getClinicSchedule(clientId),
   ])
 
   if (!client) notFound()
@@ -28,6 +30,7 @@ export default async function AdminClientAppointmentsPage({ params }: Props) {
         patients={patients}
         procedures={procedures}
         clientId={clientId}
+        schedule={schedule}
       />
     </div>
   )

@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -154,9 +155,8 @@ export function CreateActivityDialog({ clients, users, defaultClientId, lockClie
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="dueDate">Vencimento</Label>
-              <Input
+              <DateInput
                 id="dueDate"
-                type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
               />

@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 
 const ACTION_LABELS: Record<string, string> = {
   create: 'Criação',
@@ -141,8 +141,7 @@ export function AuditLogTable({
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">De</label>
-          <Input
-            type="date"
+          <DateInput
             value={from}
             onChange={(e) => {
               setFrom(e.target.value)
@@ -153,8 +152,7 @@ export function AuditLogTable({
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Até</label>
-          <Input
-            type="date"
+          <DateInput
             value={to}
             onChange={(e) => {
               setTo(e.target.value)

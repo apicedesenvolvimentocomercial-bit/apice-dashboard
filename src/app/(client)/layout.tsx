@@ -13,7 +13,10 @@ export default async function ClientLayout({ children }: { children: React.React
   const role = session.user.role
   if (role !== 'CLIENT_OWNER' && role !== 'CLIENT_STAFF') redirect('/dashboard')
 
-  const { rows, unread } = await getNotificationsForCurrentUser({ take: 10 })
+  const { rows, unread } = await getNotificationsForCurrentUser({ take: 10 }).catch(() => ({
+    rows: [],
+    unread: 0,
+  }))
 
   return (
     <div className="flex h-screen overflow-hidden">

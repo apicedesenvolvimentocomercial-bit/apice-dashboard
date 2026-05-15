@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -164,9 +164,8 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
           <Label htmlFor="filter-from" className="text-xs">
             De
           </Label>
-          <Input
+          <DateInput
             id="filter-from"
-            type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             className="h-8 text-xs"
@@ -176,9 +175,8 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
           <Label htmlFor="filter-to" className="text-xs">
             Até
           </Label>
-          <Input
+          <DateInput
             id="filter-to"
-            type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
             className="h-8 text-xs"

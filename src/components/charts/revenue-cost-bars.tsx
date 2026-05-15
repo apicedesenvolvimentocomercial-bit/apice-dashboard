@@ -96,14 +96,14 @@ export function RevenueCostBars({
           name={revenueName}
           fill={CHART_COLORS.success}
           radius={[3, 3, 0, 0]}
-          isAnimationActive={false}
+          animationDuration={300}
         />
         <Bar
           dataKey="costs"
           name="Custos"
           fill={CHART_COLORS.danger}
           radius={[3, 3, 0, 0]}
-          isAnimationActive={false}
+          animationDuration={300}
         />
       </BarChart>
     </ResponsiveContainer>
@@ -139,8 +139,8 @@ export function RevenueCostYAxis({
             tickFormatter={formatBRLCompact}
           />
           {/* Barras transparentes garantem o mesmo cálculo de domínio. */}
-          <Bar dataKey="revenue" fill="transparent" isAnimationActive={false} />
-          <Bar dataKey="costs" fill="transparent" isAnimationActive={false} />
+          <Bar dataKey="revenue" fill="transparent" animationDuration={300} />
+          <Bar dataKey="costs" fill="transparent" animationDuration={300} />
         </BarChart>
       </ResponsiveContainer>
     </div>

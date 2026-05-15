@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { Plus } from 'lucide-react'
+import { Plus, Settings2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -11,7 +11,9 @@ import type { ProcedureForSelect } from '@/server/repositories/procedure-reposit
 
 import { AppointmentDetailDialog } from './appointment-detail-dialog'
 import { CreateAppointmentDialog } from './create-appointment-dialog'
-import type { AppointmentEvent } from './types'
+import { ScheduleSettingsDialog } from './schedule-settings-dialog'
+import { DEFAULT_SCHEDULE } from './types'
+import type { AppointmentEvent, ClinicSchedule } from './types'
 
 const CalendarView = dynamic(() => import('./calendar-view').then((m) => m.CalendarView), {
   ssr: false,
@@ -27,11 +29,19 @@ type Props = {
   patients: PatientWithStats[]
   procedures: ProcedureForSelect[]
   clientId: string
+  schedule?: ClinicSchedule
 }
 
-export function AppointmentsCalendar({ appointments, patients, procedures, clientId }: Props) {
+export function AppointmentsCalendar({
+  appointments,
+  patients,
+  procedures,
+  clientId,
+  schedule = DEFAULT_SCHEDULE,
+}: Props) {
   const router = useRouter()
   const [createOpen, setCreateOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [defaultDate, setDefaultDate] = useState<string | undefined>()
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentEvent | null>(null)
 
@@ -54,20 +64,31 @@ export function AppointmentsCalendar({ appointments, patients, procedures, clien
             {appointments.length} {appointments.length === 1 ? 'agendamento' : 'agendamentos'}
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setDefaultDate(undefined)
-            setCreateOpen(true)
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Novo agendamento
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            title="Configurações do expediente"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => {
+              setDefaultDate(undefined)
+              setCreateOpen(true)
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Novo agendamento
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border bg-background p-4">
         <CalendarView
           appointments={appointments}
+          schedule={schedule}
           onEventClick={setSelectedAppointment}
           onDateSelect={handleDateSelect}
         />
@@ -79,8 +100,17 @@ export function AppointmentsCalendar({ appointments, patients, procedures, clien
         patients={patients}
         procedures={procedures}
         defaultDate={defaultDate}
+        schedule={schedule}
         onOpenChange={setCreateOpen}
         onCreated={() => router.refresh()}
+      />
+
+      <ScheduleSettingsDialog
+        open={settingsOpen}
+        clientId={clientId}
+        schedule={schedule}
+        onOpenChange={setSettingsOpen}
+        onSaved={() => router.refresh()}
       />
 
       <AppointmentDetailDialog

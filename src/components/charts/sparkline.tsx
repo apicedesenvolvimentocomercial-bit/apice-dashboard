@@ -15,7 +15,14 @@ export function Sparkline({ data, color = CHART_COLORS.primary, height = 40 }: P
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data}>
-        <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} />
+        <Line
+          type="monotone"
+          dataKey="value"
+          stroke={color}
+          strokeWidth={2}
+          dot={false}
+          animationDuration={300}
+        />
       </LineChart>
     </ResponsiveContainer>
   )

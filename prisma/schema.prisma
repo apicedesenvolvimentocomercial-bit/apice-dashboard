@@ -173,6 +173,11 @@ model Client {
   healthScore    Int?
   lastSnapshotAt DateTime?
 
+  // Configuração de expediente
+  workdayStart String @default("07:00") // "HH:MM"
+  workdayEnd   String @default("20:00") // "HH:MM"
+  workdays     String @default("1,2,3,4,5,6") // CSV: 0=Dom … 6=Sáb
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -193,10 +198,23 @@ model Client {
   marketingCampaigns   MarketingCampaign[]
   kpiSnapshots         KpiSnapshot[]
   pipelineDeals        PipelineDeal[]
+  holidays             ClinicHoliday[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
   @@index([organizationId, deletedAt])
+}
+
+model ClinicHoliday {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date      String   // "YYYY-MM-DD"
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([clientId, date])
+  @@index([clientId])
 }
 
 // =====================================================

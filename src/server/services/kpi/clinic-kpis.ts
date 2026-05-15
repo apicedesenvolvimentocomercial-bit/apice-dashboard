@@ -253,6 +253,7 @@ export type GlobalKpis = {
   totalClinics: number
   totalLeads: number
   totalRevenue: number
+  mrrFromSubscriptions: number
   conversionRate: number | null
   noShowRate: number | null
   averageHealthScore: number | null
@@ -267,9 +268,13 @@ export async function computeGlobalKpis(
 ): Promise<GlobalKpis> {
   const clients = await prisma.client.findMany({
     where: { organizationId: ctx.organizationId, deletedAt: null },
-    select: { id: true, healthScore: true, status: true },
+    select: { id: true, healthScore: true, status: true, monthlyFee: true },
   })
   const activeClients = clients.filter((c) => c.status === 'ACTIVE')
+  const mrrFromSubscriptions = activeClients.reduce(
+    (sum, c) => sum + (c.monthlyFee ? Number(c.monthlyFee) : 0),
+    0
+  )
 
   const [current, previous] = await Promise.all([
     aggregateForRange({ organizationId: ctx.organizationId }, range),
@@ -315,6 +320,7 @@ export async function computeGlobalKpis(
     totalClinics: activeClients.length,
     totalLeads: current.leadsCount,
     totalRevenue: current.revenueTotal,
+    mrrFromSubscriptions,
     conversionRate: commercial.conversionRate,
     noShowRate: commercial.noShowRate,
     averageHealthScore,

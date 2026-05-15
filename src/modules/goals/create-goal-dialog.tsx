@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -146,9 +147,8 @@ export function CreateGoalDialog({ clientId }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="startDate">Início</Label>
-              <Input
+              <DateInput
                 id="startDate"
-                type="date"
                 required
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -156,9 +156,8 @@ export function CreateGoalDialog({ clientId }: Props) {
             </div>
             <div className="space-y-1">
               <Label htmlFor="endDate">Fim</Label>
-              <Input
+              <DateInput
                 id="endDate"
-                type="date"
                 required
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}

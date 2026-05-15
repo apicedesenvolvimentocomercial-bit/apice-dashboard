@@ -13,7 +13,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const role = session.user.role
   if (role !== 'ADMIN' && role !== 'STAFF') redirect('/crm')
 
-  const { rows, unread } = await getNotificationsForCurrentUser({ take: 10 })
+  const { rows, unread } = await getNotificationsForCurrentUser({ take: 10 }).catch(() => ({
+    rows: [],
+    unread: 0,
+  }))
 
   return (
     <div className="flex h-screen overflow-hidden">

@@ -50,6 +50,7 @@ export function SharePieChart({ data, height = 280, valueFormat = 'currency', un
           cy="50%"
           outerRadius={90}
           innerRadius={50}
+          animationDuration={300}
         >
           {data.map((_, i) => (
             <Cell key={i} fill={CHART_PIE_PALETTE[i % CHART_PIE_PALETTE.length]} />

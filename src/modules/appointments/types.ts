@@ -16,6 +16,20 @@ export const STATUS_COLORS: Record<string, string> = {
   RESCHEDULED: '#f59e0b',
 }
 
+export type ClinicSchedule = {
+  workdayStart: string // "HH:MM"
+  workdayEnd: string // "HH:MM"
+  workdays: number[] // 0=Dom … 6=Sáb
+  holidays: { id: string; date: string; name: string }[]
+}
+
+export const DEFAULT_SCHEDULE: ClinicSchedule = {
+  workdayStart: '07:00',
+  workdayEnd: '20:00',
+  workdays: [1, 2, 3, 4, 5, 6],
+  holidays: [],
+}
+
 export type AppointmentEvent = {
   id: string
   scheduledAt: Date

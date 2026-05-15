@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import { generateDreAction } from '@/server/actions/report-actions'
 import {
@@ -142,9 +142,8 @@ export function ReportsTab({ clientId }: Props) {
           <Label htmlFor="dre-from" className="text-xs">
             De
           </Label>
-          <Input
+          <DateInput
             id="dre-from"
-            type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             className="h-9 w-40"
@@ -154,9 +153,8 @@ export function ReportsTab({ clientId }: Props) {
           <Label htmlFor="dre-to" className="text-xs">
             Até
           </Label>
-          <Input
+          <DateInput
             id="dre-to"
-            type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
             className="h-9 w-40"

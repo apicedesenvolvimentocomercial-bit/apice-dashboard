@@ -64,7 +64,7 @@ export function HorizontalBarChart({
           axisLine={false}
         />
         <Tooltip formatter={(v: number) => formatter(v)} />
-        <Bar dataKey="value" fill={color} radius={[0, 3, 3, 0]} />
+        <Bar dataKey="value" fill={color} radius={[0, 3, 3, 0]} animationDuration={300} />
       </BarChart>
     </ResponsiveContainer>
   )

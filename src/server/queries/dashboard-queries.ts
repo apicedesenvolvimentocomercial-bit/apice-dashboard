@@ -548,6 +548,15 @@ export const getClinicDashboard = cache(
       })
     )
 
+    // Mantém Client.healthScore sincronizado com o valor ao vivo (período atual).
+    // Períodos históricos não sobrescrevem o score do mês corrente.
+    if (period === 'month' && kpis.healthScore != null) {
+      await prisma.client.update({
+        where: { id: clientId },
+        data: { healthScore: kpis.healthScore },
+      })
+    }
+
     return {
       range,
       kpis,

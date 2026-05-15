@@ -82,7 +82,6 @@ export function AppSidebar({ role }: Props) {
     <aside
       className={cn(
         'relative flex h-full flex-col border-r bg-white dark:bg-zinc-900',
-        'transition-[width] duration-300 ease-in-out',
         collapsed ? 'w-16' : 'w-60'
       )}
     >
@@ -93,8 +92,10 @@ export function AppSidebar({ role }: Props) {
           <span
             className={cn(
               'truncate text-sm font-bold text-primary',
-              'transition-opacity duration-150',
-              collapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
+              'transition-[transform,opacity] duration-200 ease-in-out',
+              collapsed
+                ? 'pointer-events-none -translate-x-2 opacity-0'
+                : 'translate-x-0 opacity-100'
             )}
           >
             KPI Clinic OS
@@ -121,8 +122,10 @@ export function AppSidebar({ role }: Props) {
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span
                   className={cn(
-                    'truncate whitespace-nowrap transition-opacity duration-150',
-                    collapsed ? 'opacity-0' : 'opacity-100'
+                    'truncate whitespace-nowrap transition-[transform,opacity] duration-200 ease-in-out',
+                    collapsed
+                      ? 'pointer-events-none -translate-x-2 opacity-0'
+                      : 'translate-x-0 opacity-100'
                   )}
                 >
                   {item.label}

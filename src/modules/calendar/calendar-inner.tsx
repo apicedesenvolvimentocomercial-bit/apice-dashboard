@@ -7,6 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import listPlugin from '@fullcalendar/list'
 import ptBrLocale from '@fullcalendar/core/locales/pt-br'
 import type { EventClickArg } from '@fullcalendar/core'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { CalendarEvent } from '@/server/queries/calendar-queries'
@@ -17,6 +18,18 @@ type Props = {
 
 export function CalendarInner({ events }: Props) {
   const router = useRouter()
+  const calendarRef = useRef<FullCalendar>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(() => {
+      calendarRef.current?.getApi().updateSize()
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   const fcEvents = events.map((e) => ({
     id: e.id,
@@ -35,8 +48,9 @@ export function CalendarInner({ events }: Props) {
   }
 
   return (
-    <div className="fc-wrapper">
+    <div ref={containerRef} className="fc-wrapper">
       <FullCalendar
+        ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
         initialView="dayGridMonth"
         locale={ptBrLocale}
