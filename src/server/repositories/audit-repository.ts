@@ -24,6 +24,9 @@ export type AuditEntityType =
   | 'User'
   | 'Invitation'
   | 'Procedure'
+  | 'Organization'
+  | 'PipelineDeal'
+  | 'UserPermission'
 
 export type AuditLogFilters = {
   from?: Date
