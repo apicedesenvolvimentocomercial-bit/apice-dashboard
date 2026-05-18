@@ -10,6 +10,7 @@ import {
   DollarSign,
   Lightbulb,
   Target,
+  Users,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ const tabs = [
   { href: 'financial', label: 'Financeiro', icon: DollarSign },
   { href: 'patients', label: 'Pacientes', icon: UserCheck },
   { href: 'appointments', label: 'Agendamentos', icon: Calendar },
+  { href: 'users', label: 'Usuários', icon: Users },
 ]
 
 export function ClientSubNav({ clientId }: Props) {

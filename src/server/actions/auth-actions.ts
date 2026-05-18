@@ -33,17 +33,36 @@ export async function acceptInviteAction(input: z.infer<typeof acceptInviteSchem
 
   const passwordHash = await hash(password, 12)
 
-  const user = await prisma.user.create({
-    data: {
-      email: invitation.email,
-      name,
-      passwordHash,
-      role: invitation.role,
-      isActive: true,
-      organizationId: invitation.organizationId,
-      clientId: invitation.clientId,
-    },
+  const existing = await prisma.user.findUnique({
+    where: { email: invitation.email },
+    select: { id: true, deletedAt: true },
   })
+  if (existing && !existing.deletedAt) return fail('Já existe uma conta ativa com este email')
+
+  const user = existing
+    ? await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          passwordHash,
+          role: invitation.role,
+          isActive: true,
+          deletedAt: null,
+          organizationId: invitation.organizationId,
+          clientId: invitation.clientId,
+        },
+      })
+    : await prisma.user.create({
+        data: {
+          email: invitation.email,
+          name,
+          passwordHash,
+          role: invitation.role,
+          isActive: true,
+          organizationId: invitation.organizationId,
+          clientId: invitation.clientId,
+        },
+      })
 
   await prisma.invitation.update({
     where: { id: invitation.id },

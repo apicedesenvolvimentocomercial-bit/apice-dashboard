@@ -131,9 +131,12 @@ export async function deleteClientAction(clientId: string) {
   })
 }
 
+const CLINIC_ROLES = ['CLIENT_OWNER', 'CLIENT_STAFF'] as const
+
 const inviteClientOwnerSchema = z.object({
   clientId: z.string().cuid(),
   email: z.string().email('Email inválido'),
+  role: z.enum(CLINIC_ROLES).optional(),
 })
 
 export async function inviteClientOwnerAction(formData: z.infer<typeof inviteClientOwnerSchema>) {
@@ -143,19 +146,19 @@ export async function inviteClientOwnerAction(formData: z.infer<typeof inviteCli
   const parsed = inviteClientOwnerSchema.safeParse(formData)
   if (!parsed.success) return fail(parsed.error.errors[0].message)
 
-  const { clientId, email } = parsed.data
+  const { clientId, email, role = 'CLIENT_OWNER' } = parsed.data
 
   const client = await prisma.client.findFirst({
     where: { id: clientId, organizationId: ctx.organizationId, deletedAt: null },
   })
   if (!client) return fail(new NotFoundError('Clínica'))
 
-  const accepted = await prisma.invitation.findFirst({
-    where: { email, clientId, acceptedAt: { not: null } },
+  const activeUser = await prisma.user.findFirst({
+    where: { email, clientId, deletedAt: null },
     select: { id: true },
   })
-  if (accepted) {
-    return fail(new ConflictError('Este usuário já aceitou o convite e faz parte desta clínica'))
+  if (activeUser) {
+    return fail(new ConflictError('Este usuário já faz parte desta clínica'))
   }
 
   await prisma.invitation.deleteMany({
@@ -168,7 +171,7 @@ export async function inviteClientOwnerAction(formData: z.infer<typeof inviteCli
   const invitation = await prisma.invitation.create({
     data: {
       email,
-      role: 'CLIENT_OWNER',
+      role,
       organizationId: ctx.organizationId,
       clientId,
       token,
@@ -191,7 +194,137 @@ export async function inviteClientOwnerAction(formData: z.infer<typeof inviteCli
     logger.warn('RESEND_API_KEY not set — invite email not sent', { inviteUrl })
   }
 
-  logger.info('Client owner invited', { invitationId: invitation.id, clientId, email })
+  logger.info('Clinic user invited', { invitationId: invitation.id, clientId, email, role })
 
+  revalidatePath(`/clients/${clientId}/users`)
   return ok({ inviteUrl })
+}
+
+const removeClinicUserSchema = z.object({
+  clientId: z.string().cuid(),
+  userId: z.string().cuid(),
+})
+
+export async function removeClinicUserAction(formData: z.infer<typeof removeClinicUserSchema>) {
+  return runAction(async () => {
+    const ctx = await getTenantContext()
+    await assertCan(ctx, 'staff', 'write')
+
+    const parsed = removeClinicUserSchema.safeParse(formData)
+    if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
+
+    const { clientId, userId } = parsed.data
+
+    if (userId === ctx.userId) {
+      throw new ConflictError('Você não pode remover a si mesmo')
+    }
+
+    const target = await prisma.user.findFirst({
+      where: {
+        id: userId,
+        clientId,
+        organizationId: ctx.organizationId,
+        role: { in: ['CLIENT_OWNER', 'CLIENT_STAFF'] },
+        deletedAt: null,
+      },
+      select: { id: true, email: true },
+    })
+    if (!target) throw new NotFoundError('Usuário')
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: { deletedAt: new Date(), isActive: false },
+      }),
+      prisma.session.deleteMany({ where: { userId } }),
+    ])
+
+    createAuditLog(ctx, {
+      action: 'delete',
+      entityType: 'User',
+      entityId: userId,
+      changes: { clientId, email: target.email },
+    }).catch(() => {})
+
+    logger.info('Clinic user removed', { userId, clientId })
+    revalidatePath(`/clients/${clientId}/users`)
+    return null
+  })
+}
+
+const invitationIdSchema = z.object({
+  invitationId: z.string().cuid(),
+})
+
+export async function resendClinicInvitationAction(formData: z.infer<typeof invitationIdSchema>) {
+  return runAction(async () => {
+    const ctx = await getTenantContext()
+    await assertCan(ctx, 'staff', 'write')
+
+    const parsed = invitationIdSchema.safeParse(formData)
+    if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
+
+    const invitation = await prisma.invitation.findFirst({
+      where: {
+        id: parsed.data.invitationId,
+        organizationId: ctx.organizationId,
+        acceptedAt: null,
+      },
+      include: { client: { select: { id: true, name: true } } },
+    })
+    if (!invitation) throw new NotFoundError('Convite')
+
+    const token = randomBytes(32).toString('hex')
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7)
+
+    const updated = await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { token, expiresAt },
+    })
+
+    const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/accept-invite?token=${token}`
+    const clinicName = invitation.client?.name ?? 'a equipe'
+
+    if (resend) {
+      const { InviteEmail } = await import('@/emails/invite-email')
+      await resend.emails.send({
+        from: EMAIL_FROM,
+        to: invitation.email,
+        subject: `Convite para gerenciar ${clinicName} — KPI Clinic OS`,
+        react: InviteEmail({ clinicName, inviteUrl }),
+      })
+    } else {
+      logger.warn('RESEND_API_KEY not set — invite email not sent', { inviteUrl })
+    }
+
+    logger.info('Clinic invitation resent', { invitationId: updated.id })
+    if (invitation.clientId) revalidatePath(`/clients/${invitation.clientId}/users`)
+    return { inviteUrl }
+  })
+}
+
+export async function cancelClinicInvitationAction(formData: z.infer<typeof invitationIdSchema>) {
+  return runAction(async () => {
+    const ctx = await getTenantContext()
+    await assertCan(ctx, 'staff', 'write')
+
+    const parsed = invitationIdSchema.safeParse(formData)
+    if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
+
+    const invitation = await prisma.invitation.findFirst({
+      where: {
+        id: parsed.data.invitationId,
+        organizationId: ctx.organizationId,
+        acceptedAt: null,
+      },
+      select: { id: true, clientId: true },
+    })
+    if (!invitation) throw new NotFoundError('Convite')
+
+    await prisma.invitation.delete({ where: { id: invitation.id } })
+
+    logger.info('Clinic invitation canceled', { invitationId: invitation.id })
+    if (invitation.clientId) revalidatePath(`/clients/${invitation.clientId}/users`)
+    return null
+  })
 }
