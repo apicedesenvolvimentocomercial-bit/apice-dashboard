@@ -1,17 +1,18 @@
 'use client'
 
+import type { UserRole } from '@prisma/client'
 import {
   Activity,
   Building2,
   Calendar,
   ChevronLeft,
   ChevronRight,
-  FileText,
   LayoutDashboard,
   Lightbulb,
   Settings,
   ShieldCheck,
   Target,
+  User,
   Users,
   Kanban,
   DollarSign,
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -30,29 +31,42 @@ type NavItem = {
   icon: React.ElementType
 }
 
-const adminNav: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/clients', label: 'Clínicas', icon: Building2 },
-  { href: '/pipeline', label: 'Pipeline', icon: Kanban },
-  { href: '/activities', label: 'Atividades', icon: Activity },
-  { href: '/calendar', label: 'Calendário', icon: Calendar },
-  { href: '/reports', label: 'Relatórios', icon: FileText },
-  { href: '/staff', label: 'Equipe', icon: Users },
-  { href: '/settings/audit', label: 'Audit Log', icon: ShieldCheck },
-  { href: '/settings', label: 'Configurações', icon: Settings },
-]
+// Audit log é restrito a ADMIN (checado também em (admin)/settings/audit/page.tsx).
+// STAFF não deve ver o item porque o clique sempre redireciona para /dashboard.
+function buildAdminNav(role: UserRole): NavItem[] {
+  const items: NavItem[] = [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/clients', label: 'Clínicas', icon: Building2 },
+    { href: '/pipeline', label: 'Pipeline', icon: Kanban },
+    { href: '/activities', label: 'Atividades', icon: Activity },
+    { href: '/calendar', label: 'Calendário', icon: Calendar },
+    { href: '/staff', label: 'Equipe', icon: Users },
+  ]
+  if (role === 'ADMIN') {
+    items.push({ href: '/settings/audit', label: 'Audit Log', icon: ShieldCheck })
+  }
+  items.push({ href: '/settings', label: 'Configurações', icon: Settings })
+  return items
+}
 
-const clientNav: NavItem[] = [
-  { href: '/overview', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/insights', label: 'Insights', icon: Lightbulb },
-  { href: '/goals', label: 'Metas', icon: Target },
-  { href: '/crm', label: 'CRM / Leads', icon: Kanban },
-  { href: '/financial', label: 'Financeiro', icon: DollarSign },
-  { href: '/patients', label: 'Pacientes', icon: UserCheck },
-  { href: '/appointments', label: 'Agendamentos', icon: Calendar },
-  { href: '/procedures', label: 'Procedimentos', icon: Stethoscope },
-  { href: '/settings', label: 'Configurações', icon: Settings },
-]
+// CLIENT_STAFF não administra dados da clínica (apenas perfil/senha), então
+// o item vira "Meu perfil" para refletir o que ele de fato encontra na página.
+function buildClientNav(role: UserRole): NavItem[] {
+  const isOwner = role === 'CLIENT_OWNER'
+  return [
+    { href: '/overview', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/insights', label: 'Insights', icon: Lightbulb },
+    { href: '/goals', label: 'Metas', icon: Target },
+    { href: '/crm', label: 'CRM / Leads', icon: Kanban },
+    { href: '/financial', label: 'Financeiro', icon: DollarSign },
+    { href: '/patients', label: 'Pacientes', icon: UserCheck },
+    { href: '/appointments', label: 'Agendamentos', icon: Calendar },
+    { href: '/procedures', label: 'Procedimentos', icon: Stethoscope },
+    isOwner
+      ? { href: '/settings', label: 'Configurações', icon: Settings }
+      : { href: '/settings', label: 'Meu perfil', icon: User },
+  ]
+}
 
 function useActiveItem(pathname: string, navItems: NavItem[]) {
   const hrefs = navItems.map((i) => i.href)
@@ -65,15 +79,17 @@ function useActiveItem(pathname: string, navItems: NavItem[]) {
 }
 
 type Props = {
-  role: string
+  role: UserRole
 }
 
 export function AppSidebar({ role }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
 
-  const isClientRole = role === 'CLIENT_OWNER' || role === 'CLIENT_STAFF'
-  const navItems = isClientRole ? clientNav : adminNav
+  const navItems = useMemo(() => {
+    const isClientRole = role === 'CLIENT_OWNER' || role === 'CLIENT_STAFF'
+    return isClientRole ? buildClientNav(role) : buildAdminNav(role)
+  }, [role])
   const isActive = useActiveItem(pathname, navItems)
 
   return (

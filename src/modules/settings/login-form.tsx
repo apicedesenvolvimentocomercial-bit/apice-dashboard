@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { signIn } from '@/lib/auth-client'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -30,9 +30,10 @@ const loginSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>
 
 export function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard'
+  // Default '/' deixa o root page + middleware despacharem o usuário para a
+  // home correta conforme o role (ADMIN -> /dashboard, CLIENT_OWNER -> /overview).
+  const callbackUrl = searchParams.get('callbackUrl') ?? '/'
   const [loading, setLoading] = useState(false)
 
   const form = useForm<LoginValues>({
@@ -48,15 +49,16 @@ export function LoginForm() {
       redirect: false,
     })
 
-    setLoading(false)
-
     if (result?.error) {
+      setLoading(false)
       toast.error('Email ou senha inválidos')
       return
     }
 
-    router.push(callbackUrl)
-    router.refresh()
+    // Full reload para descartar o RSC cache do Next.js que pode trazer estado
+    // do usuário anterior (ex.: admin -> dono na mesma aba) e causar loop de
+    // redirect no middleware antes do cookie novo ser lido.
+    window.location.assign(callbackUrl)
   }
 
   return (

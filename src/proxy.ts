@@ -4,16 +4,9 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/server/auth'
 
 const PUBLIC_ROUTES = ['/login', '/accept-invite', '/forgot-password', '/reset-password']
-const ADMIN_ROUTES = [
-  '/dashboard',
-  '/clients',
-  '/pipeline',
-  '/activities',
-  '/calendar',
-  '/reports',
-  '/staff',
-  '/settings',
-]
+// `/settings` não entra aqui: a página é compartilhada entre admin e dono
+// de clínica ((account)/settings/page.tsx renderiza cards diferentes por role).
+const ADMIN_ROUTES = ['/dashboard', '/clients', '/pipeline', '/activities', '/calendar', '/staff']
 const CLIENT_ROUTES = [
   '/overview',
   '/insights',
@@ -51,8 +44,10 @@ export async function proxy(request: NextRequest) {
   const isAdminRoute = ADMIN_ROUTES.some((r) => pathname.startsWith(r))
   const isClientRoute = CLIENT_ROUTES.some((r) => pathname.startsWith(r))
 
+  // Mandar client para a home dele (/overview) — `/dashboard` é admin-only
+  // e tambem entra em ADMIN_ROUTES, o que criaria loop infinito de redirect.
   if (isAdminRoute && !isAdminOrStaff) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL('/overview', request.url))
   }
 
   if (isClientRoute && !isClientUser) {
