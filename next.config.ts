@@ -11,14 +11,9 @@ const nextConfig: NextConfig = {
       allowedOrigins: [allowedHost],
     },
   },
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**.supabase.co',
-      },
-    ],
-  },
+  // `images.remotePatterns` foi removido — o projeto não usa next/image com
+  // hosts externos (Avatar usa Radix com <img>). Reintroduza ao habilitar
+  // upload/exibição de imagem hospedada em provider remoto.
 }
 
 export default withSentryConfig(nextConfig, {

@@ -20,7 +20,7 @@ import {
 import { deleteClientAction } from '@/server/actions/client-actions'
 import { getInitials } from '@/lib/utils'
 
-import { InviteOwnerDialog } from './invite-owner-dialog'
+import { InviteClinicUserDialog } from './invite-clinic-user-dialog'
 
 const STATUS_LABELS: Record<ClientStatus, string> = {
   ACTIVE: 'Ativo',
@@ -149,11 +149,12 @@ export function ClientCard({ client }: Props) {
           </Button>
         </CardContent>
       </Card>
-      <InviteOwnerDialog
+      <InviteClinicUserDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         clientId={client.id}
         clientName={client.name}
+        lockedRole="CLIENT_OWNER"
       />
     </>
   )
