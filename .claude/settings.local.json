@@ -1,42 +1,26 @@
 {
+  "env": {
+    "SHELL": "bash"
+  },
   "permissions": {
     "allow": [
-      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git)",
       "Bash(npm run *)",
-      "Bash(git add *)",
-      "Bash(git commit -m ' *)",
-      "Bash(npx next *)",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\" -Directory)",
-      "Bash(Select-Object Name)",
       "Bash(npm install *)",
       "Bash(npm list *)",
-      "Bash(mkdir -p \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\app\\\\\\(admin\\)\\\\clients\\\\[clientId]\\\\patients\" \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\app\\\\\\(admin\\)\\\\clients\\\\[clientId]\\\\appointments\" 2>&1; echo done)",
-      "Bash(npx tsc *)",
-      "Bash(node -e ' *)",
-      "PowerShell(Get-ChildItem -Recurse -Path \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\modules\" -File 2>$null | ForEach-Object { $_.FullName } | Sort-Object)",
-      "Bash(npx shadcn@latest add tabs --yes)",
+      "Bash(npx *)",
+      "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(cat .env)",
-      "Bash(cat .env.local)",
-      "Bash(dir /b *.md)",
-      "Bash(dir \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\")",
-      "Bash(npx eslint *)",
-      "Bash(xargs wc -l)",
-      "Bash(npx prisma *)",
-      "Bash(python -c \"import re; src=open\\('src/server/actions/revenue-actions.ts','r',encoding='utf-8'\\).read\\(\\); fixed=re.sub\\(r'\\\\.replace\\\\\\(/\\\\[[^/]+\\\\]/g, \\\\'\\\\'\\\\\\)', r'.replace\\(/[\\\\\\\\u0300-\\\\\\\\u036f]/g, \\\\'\\\\'\\)', src\\); open\\('src/server/actions/revenue-actions.ts','w',encoding='utf-8'\\).write\\(fixed\\); print\\('done'\\)\")",
-      "Bash(python scripts/fix-regex.py)",
-      "Bash(rm scripts/fix-regex.py)",
-      "Bash(rmdir scripts *)",
-      "Bash(ls scripts *)",
-      "Bash(python -c ' *)",
-      "Bash(npm test *)",
-      "Bash(npx vitest *)",
-      "Bash(grep -v \"schema.prisma\\\\|test\\\\|^.*//\")",
-      "Bash(git mv *)",
-      "Bash(npm i *)"
-    ],
-    "additionalDirectories": [
-      "c:\\Users\\vicen\\Documents\\Importante\\Ápice\\SysV2\\src\\app\\(admin)\\clients\\[clientId]"
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(mkdir -p *)",
+      "Bash(rm *)",
+      "Bash(node -e *)",
+      "Bash(grep *)",
+      "Bash(dir \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\app\" /s /b)",
+      "PowerShell(cd \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\"; Get-ChildItem -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"csv|pdf|audit|export\" } | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\($PWD, '.'\\) })",
+      "PowerShell(cd \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\"; Get-ChildItem -Path src\\\\app -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(cd \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\"; Get-ChildItem -Path src\\\\app -Recurse -Filter \"page.tsx\" | ForEach-Object { $_.FullName.Replace\\($PWD, \".\"\\) })",
+      "PowerShell(cd \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\"; Get-ChildItem -Path src\\\\app\\\\api -Recurse -Filter \"route.ts\" | ForEach-Object { $_.FullName.Replace\\($PWD, \".\"\\) })"
     ]
   }
 }
