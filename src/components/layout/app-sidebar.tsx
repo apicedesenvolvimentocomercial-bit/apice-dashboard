@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  BarChart3,
   Building2,
   Calendar,
   ChevronLeft,
@@ -52,7 +51,6 @@ const clientNav: NavItem[] = [
   { href: '/patients', label: 'Pacientes', icon: UserCheck },
   { href: '/appointments', label: 'Agendamentos', icon: Calendar },
   { href: '/procedures', label: 'Procedimentos', icon: Stethoscope },
-  { href: '/reports', label: 'Relatórios', icon: BarChart3 },
   { href: '/settings', label: 'Configurações', icon: Settings },
 ]
 
