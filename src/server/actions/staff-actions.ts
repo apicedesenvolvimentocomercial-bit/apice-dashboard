@@ -41,16 +41,14 @@ export async function inviteStaffAction(input: z.infer<typeof inviteSchema>) {
     })
     if (existing) throw new ConflictError('Já existe um usuário com este email')
 
-    const pending = await prisma.invitation.findFirst({
+    await prisma.invitation.deleteMany({
       where: {
         email,
         organizationId: ctx.organizationId,
         clientId: null,
         acceptedAt: null,
-        expiresAt: { gt: new Date() },
       },
     })
-    if (pending) throw new ConflictError('Já existe um convite pendente para este email')
 
     const token = randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) // 7 dias

@@ -150,10 +150,17 @@ export async function inviteClientOwnerAction(formData: z.infer<typeof inviteCli
   })
   if (!client) return fail(new NotFoundError('Clínica'))
 
-  const existing = await prisma.invitation.findFirst({
-    where: { email, clientId, acceptedAt: null, expiresAt: { gt: new Date() } },
+  const accepted = await prisma.invitation.findFirst({
+    where: { email, clientId, acceptedAt: { not: null } },
+    select: { id: true },
   })
-  if (existing) return fail(new ConflictError('Já existe um convite pendente para este email'))
+  if (accepted) {
+    return fail(new ConflictError('Este usuário já aceitou o convite e faz parte desta clínica'))
+  }
+
+  await prisma.invitation.deleteMany({
+    where: { email, clientId, acceptedAt: null },
+  })
 
   const token = randomBytes(32).toString('hex')
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) // 7 dias
