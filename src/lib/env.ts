@@ -72,7 +72,10 @@ const envSchema = z
 const _env = envSchema.safeParse(process.env)
 
 if (!_env.success) {
-  console.error('❌ Invalid environment variables:', _env.error.flatten().fieldErrors)
+  const flat = _env.error.flatten()
+  console.error('❌ Invalid environment variables')
+  console.error('  fieldErrors:', flat.fieldErrors)
+  console.error('  formErrors:', flat.formErrors)
   throw new Error('Invalid environment variables')
 }
 

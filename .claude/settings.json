@@ -27,7 +27,16 @@
       "PowerShell(Get-ChildItem -Path 'src/app' -Force -Directory | ForEach-Object { $_.Name }; \"---\"; Get-ChildItem -Path 'src' -Force -Directory | ForEach-Object { $_.Name })",
       "PowerShell(foreach \\($name in @\\('{components','{lib,hooks,utils,types','{server'\\)\\) { $p = \"src/$name\"; if \\(Test-Path -LiteralPath $p\\) { Remove-Item -LiteralPath $p -Recurse -Force; \"removed $name\" } }; \"remaining src dirs:\"; Get-ChildItem -Path 'src' -Force -Directory | ForEach-Object { $_.Name })",
       "PowerShell(npm run test 2>&1)",
-      "PowerShell(git add src/server/repositories/audit-repository.ts src/server/repositories/organization-repository.ts src/server/repositories/user-repository.ts src/server/repositories/pipeline-deal-repository.ts src/server/actions/settings-actions.ts src/server/actions/staff-actions.ts src/server/actions/pipeline-deal-actions.ts src/server/integrations src/app/api/webhooks src/app/'\\(account\\)' src/app/'\\(admin\\)/pipeline' src/app/'\\(admin\\)/staff' src/modules/settings src/modules/staff src/modules/pipeline)"
+      "PowerShell(git add src/server/repositories/audit-repository.ts src/server/repositories/organization-repository.ts src/server/repositories/user-repository.ts src/server/repositories/pipeline-deal-repository.ts src/server/actions/settings-actions.ts src/server/actions/staff-actions.ts src/server/actions/pipeline-deal-actions.ts src/server/integrations src/app/api/webhooks src/app/'\\(account\\)' src/app/'\\(admin\\)/pipeline' src/app/'\\(admin\\)/staff' src/modules/settings src/modules/staff src/modules/pipeline)",
+      "PowerShell(npm view @react-email/components version)",
+      "PowerShell(npm view @react-email/components dist-tags)",
+      "PowerShell(npm view @react-email/row version)",
+      "PowerShell(npm view @react-email/section version)",
+      "PowerShell(npm view @react-email/html version)",
+      "PowerShell(npm view @react-email/body version)",
+      "PowerShell(npm view @react-email/row deprecated)",
+      "PowerShell(npm view @react-email/row time --json)",
+      "Bash(gh api *)"
     ]
   }
 }
