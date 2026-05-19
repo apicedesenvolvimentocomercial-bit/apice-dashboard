@@ -87,12 +87,15 @@ export function ActivitiesPage({
   const defaultAssigneeId =
     isAdmin && selectedUserId ? selectedUserId : (currentUserId ?? users[0]?.id ?? '')
 
-  // Pasta atual (para o quick-add). Sem pasta selecionada, o admin cai no
-  // próprio usuário — STAFF sempre é forçado a si mesmo pelo backend.
-  const quickAddAssigneeId = isAdmin && selectedUserId ? selectedUserId : (currentUserId ?? null)
+  // Pasta atual define o destino da tarefa rápida:
+  // - Admin em "Todos" → null (atividade geral, aparece em Todos mas não na
+  //   pasta de ninguém específico)
+  // - Admin em pasta de usuário → esse usuário
+  // - STAFF / clínica → sempre o próprio usuário (backend força isso de novo).
+  const quickAddAssigneeId = isAdmin ? (selectedUserId ?? null) : (currentUserId ?? null)
   const quickAddFolderLabel = (() => {
     if (!isAdmin) return null
-    if (!selectedUserId) return 'sua pasta'
+    if (!selectedUserId) return 'Todos'
     const u = users.find((x) => x.id === selectedUserId)
     if (!u) return null
     return u.id === currentUserId ? `${u.name} (você)` : u.name

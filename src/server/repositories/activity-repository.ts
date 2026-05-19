@@ -130,6 +130,10 @@ export async function createActivity(
     assignedToId?: string | null
   }
 ) {
+  // `undefined` significa "não especificado" — cai no usuário atual.
+  // `null` explícito significa "sem responsável" (atividade geral, só aparece
+  // em Todos). Quem decide entre os dois é o caller (createActivityAction).
+  const assignedToId = data.assignedToId === undefined ? ctx.userId : data.assignedToId
   return prisma.activity.create({
     data: {
       organizationId: ctx.organizationId,
@@ -140,7 +144,7 @@ export async function createActivity(
       priority: data.priority ?? 'MEDIUM',
       dueDate: data.dueDate ?? null,
       clientId: data.clientId ?? null,
-      assignedToId: data.assignedToId ?? ctx.userId,
+      assignedToId,
       createdById: ctx.userId,
     },
   })

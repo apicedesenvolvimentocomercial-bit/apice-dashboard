@@ -85,8 +85,19 @@ export async function createActivityAction(formData: unknown) {
       return fail('Atividade precisa estar vinculada à clínica')
     }
 
-    const requestedAssignee = parsed.data.assignedToId || ctx.userId
-    const assignedToId = await resolveAssignee(ctx, requestedAssignee)
+    // Resolução do responsável:
+    // - ADMIN com assignedToId vazio/null → atividade geral (sem responsável,
+    //   aparece só em "Todos").
+    // - Outros papéis sem assignedToId → cai em si mesmo.
+    // - Qualquer papel com assignedToId explícito → resolveAssignee valida
+    //   (STAFF/CLIENT_* não podem atribuir a terceiros).
+    const requested = parsed.data.assignedToId
+    let assignedToId: string | null
+    if (requested == null || requested === '') {
+      assignedToId = ctx.role === 'ADMIN' ? null : ctx.userId
+    } else {
+      assignedToId = await resolveAssignee(ctx, requested)
+    }
 
     const due = combineDateTime(parsed.data.dueDate, parsed.data.dueTime)
 
