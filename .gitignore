@@ -37,7 +37,8 @@ yarn-error.log*
 next-env.d.ts
 
 # prisma
-prisma/migrations/
+# migrations directory is intentionally tracked — git is the source of truth
+# for schema history; `prisma migrate deploy` aplica os arquivos versionados.
 
 # Sentry Config File
 .env.sentry-build-plugin
