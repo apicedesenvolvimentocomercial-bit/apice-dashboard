@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Bell } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  deleteNotificationAction,
   markAllReadAction,
   markNotificationReadAction,
 } from '@/server/actions/notification-actions'
@@ -70,6 +71,17 @@ export function NotificationBell({ notifications, unreadCount, seeAllHref }: Pro
     })
   }
 
+  function dismiss(id: string) {
+    startTransition(async () => {
+      const r = await deleteNotificationAction(id)
+      if (!r.success) {
+        toast.error(r.error.message)
+        return
+      }
+      router.refresh()
+    })
+  }
+
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
@@ -106,14 +118,14 @@ export function NotificationBell({ notifications, unreadCount, seeAllHref }: Pro
               {notifications.map((n) => (
                 <li
                   key={n.id}
-                  className={`px-3 py-2 transition-colors hover:bg-accent ${
+                  className={`group relative px-3 py-2 transition-colors hover:bg-accent ${
                     n.readAt ? 'opacity-70' : 'bg-primary/5'
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => markOne(n.id, n.link)}
-                    className="flex w-full items-start gap-3 text-left"
+                    className="flex w-full items-start gap-3 pr-6 text-left"
                   >
                     <span className={`mt-0.5 ${NotificationColor(n.type)}`}>
                       <NotificationIcon type={n.type} />
@@ -130,6 +142,18 @@ export function NotificationBell({ notifications, unreadCount, seeAllHref }: Pro
                       <p className="text-sm font-medium leading-snug">{n.title}</p>
                       <p className="line-clamp-2 text-xs text-muted-foreground">{n.message}</p>
                     </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      dismiss(n.id)
+                    }}
+                    disabled={pending}
+                    aria-label="Dispensar notificação"
+                    className="absolute right-1.5 top-1.5 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 disabled:opacity-50 group-hover:opacity-100"
+                  >
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </li>
               ))}

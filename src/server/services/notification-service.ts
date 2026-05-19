@@ -160,16 +160,27 @@ export async function getRecipientsForActivity(activity: {
   return [{ userId: user.id, email: user.email, name: user.name }]
 }
 
+/**
+ * Notificações de clínica (insights, metas em risco etc.) vão para os donos
+ * da clínica. ADMINs da organização NÃO são incluídos por padrão — o
+ * painel deles tem outros canais (audit log, dashboard) e a caixa de
+ * notificação fica reservada a coisas que afetam diretamente o usuário.
+ *
+ * Se `clientId` for null (ex.: evento global da organização), retorna vazio
+ * porque não há um "dono" claro a notificar.
+ */
 export async function getRecipientsForClient(
   organizationId: string,
   clientId: string | null
 ): Promise<DispatchTarget[]> {
+  if (!clientId) return []
   const users = await prisma.user.findMany({
     where: {
       organizationId,
+      clientId,
+      role: 'CLIENT_OWNER',
       isActive: true,
       deletedAt: null,
-      OR: [{ role: 'ADMIN' }, ...(clientId ? [{ clientId, role: 'CLIENT_OWNER' as const }] : [])],
     },
     select: { id: true, email: true, name: true },
   })

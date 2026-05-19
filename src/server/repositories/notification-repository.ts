@@ -104,22 +104,34 @@ export async function hasRecentNotification(params: {
   return !!found
 }
 
+/**
+ * Donos ativos de uma clínica. ADMINs da organização NÃO entram aqui — a
+ * caixa de notificação do admin não deve ficar entulhada com eventos das
+ * clínicas. Se precisar avisar admin de algo, use canal próprio.
+ */
 export async function listRecipientsForClient(
   organizationId: string,
   clientId: string | null
 ): Promise<{ id: string; email: string; name: string }[]> {
-  // Para uma clínica específica: dono(s) da clínica + admins da org.
-  // Para atividade sem cliente: apenas admins da org.
+  if (!clientId) return []
   return prisma.user.findMany({
     where: {
       organizationId,
+      clientId,
+      role: 'CLIENT_OWNER',
       isActive: true,
       deletedAt: null,
-      OR: [
-        { role: 'ADMIN' },
-        ...(clientId ? [{ clientId, role: { in: ['CLIENT_OWNER' as const] } }] : []),
-      ],
     },
     select: { id: true, email: true, name: true },
+  })
+}
+
+/**
+ * Hard-delete de uma notificação do próprio usuário (botão X). Escopo por
+ * userId garante que ninguém apague notificação alheia.
+ */
+export async function deleteNotification(userId: string, notificationId: string) {
+  return prisma.notification.deleteMany({
+    where: { id: notificationId, userId },
   })
 }

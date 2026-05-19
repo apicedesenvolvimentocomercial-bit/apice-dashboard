@@ -2,6 +2,7 @@
 
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
@@ -9,6 +10,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
+  deleteNotificationAction,
   markAllReadAction,
   markNotificationReadAction,
 } from '@/server/actions/notification-actions'
@@ -48,6 +50,17 @@ export function NotificationsPage({ notifications, unreadCount }: Props) {
     })
   }
 
+  function dismiss(id: string) {
+    startTransition(async () => {
+      const r = await deleteNotificationAction(id)
+      if (!r.success) {
+        toast.error(r.error.message)
+        return
+      }
+      router.refresh()
+    })
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -73,7 +86,7 @@ export function NotificationsPage({ notifications, unreadCount }: Props) {
           {notifications.map((n) => (
             <li
               key={n.id}
-              className={`flex items-start gap-3 px-4 py-3 ${n.readAt ? 'opacity-70' : ''}`}
+              className={`group flex items-start gap-3 px-4 py-3 ${n.readAt ? 'opacity-70' : ''}`}
             >
               <span className={`mt-1 ${NotificationColor(n.type)}`}>
                 <NotificationIcon type={n.type} />
@@ -103,6 +116,15 @@ export function NotificationsPage({ notifications, unreadCount }: Props) {
                   )}
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => dismiss(n.id)}
+                disabled={pending}
+                aria-label="Dispensar notificação"
+                className="ml-2 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 disabled:opacity-50 group-hover:opacity-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </li>
           ))}
         </ul>
