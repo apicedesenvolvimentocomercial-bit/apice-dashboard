@@ -1,21 +1,17 @@
 'use client'
 
-import { FolderOpen } from 'lucide-react'
+import { AlertTriangle, Folder } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { markActivitiesSeenAction } from '@/server/actions/activity-actions'
 
 import { ActivityCard } from './activity-card'
 import { CreateActivityDialog } from './create-activity-dialog'
+import { folderColor } from './folder-colors'
 import { QuickAdd } from './quick-add'
 import type { ActivityView, ActivityView_Counts } from './types'
 
@@ -58,39 +54,65 @@ export function ActivitiesPage({
   const pathname = usePathname()
   const params = useSearchParams()
 
+  // Marca como visto somente as atividades atribuídas ao próprio usuário que
+  // ainda têm seenByAssigneeAt = null. O backend re-checa esse vínculo, então
+  // mandar uma lista "suja" também é seguro.
+  useEffect(() => {
+    if (!currentUserId) return
+    const unseenIds = activities
+      .filter((a) => a.assignedTo?.id === currentUserId && a.seenByAssigneeAt === null)
+      .map((a) => a.id)
+    if (unseenIds.length === 0) return
+    // Pequeno atraso evita marcar como visto durante uma navegação relâmpago.
+    const t = setTimeout(() => {
+      void markActivitiesSeenAction(unseenIds)
+    }, 800)
+    return () => clearTimeout(t)
+  }, [activities, currentUserId])
+
   function setView(v: View) {
     const sp = new URLSearchParams(params.toString())
     sp.set('view', v)
     router.push(`${pathname}?${sp.toString()}`)
   }
 
-  function setUserFolder(userId: string) {
+  function setUserFolder(userId: string | null) {
     const sp = new URLSearchParams(params.toString())
-    if (userId === 'all') sp.delete('userId')
+    if (!userId) sp.delete('userId')
     else sp.set('userId', userId)
     router.push(`${pathname}?${sp.toString()}`)
   }
 
-  const folderLabel = (() => {
-    if (!isAdmin) return null
-    if (!selectedUserId) return 'Todos os usuários'
-    const u = users.find((x) => x.id === selectedUserId)
-    if (!u) return 'Usuário'
-    return u.id === currentUserId ? `${u.name} (você)` : u.name
-  })()
-
   // Pré-seleciona o usuário para a nova atividade conforme a pasta aberta.
-  // Admin na pasta do usuário X cria já atribuída a X. Sem pasta, fica em
-  // branco (cai no próprio admin se ele não escolher outro responsável).
   const defaultAssigneeId =
     isAdmin && selectedUserId ? selectedUserId : (currentUserId ?? users[0]?.id ?? '')
 
+  // Pasta atual (para o quick-add). Sem pasta selecionada, o admin cai no
+  // próprio usuário — STAFF sempre é forçado a si mesmo pelo backend.
+  const quickAddAssigneeId = isAdmin && selectedUserId ? selectedUserId : (currentUserId ?? null)
+  const quickAddFolderLabel = (() => {
+    if (!isAdmin) return null
+    if (!selectedUserId) return 'sua pasta'
+    const u = users.find((x) => x.id === selectedUserId)
+    if (!u) return null
+    return u.id === currentUserId ? `${u.name} (você)` : u.name
+  })()
+
+  // Coloca o usuário atual (admin) na frente da lista de pastas.
+  const orderedUsers = isAdmin
+    ? [...users].sort((a, b) => {
+        if (a.id === currentUserId) return -1
+        if (b.id === currentUserId) return 1
+        return a.name.localeCompare(b.name)
+      })
+    : users
+
   return (
-    <div className="space-y-6">
+    <div className="rounded-2xl bg-muted/40 p-5 dark:bg-muted/20">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Atividades</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-medium tracking-tight">Atividades</h1>
+          <p className="text-sm text-muted-foreground">
             Tarefas, reuniões e ligações organizadas por prioridade e prazo
           </p>
         </div>
@@ -104,42 +126,47 @@ export function ActivitiesPage({
       </div>
 
       {isAdmin && users.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3">
-          <FolderOpen className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Pasta:</span>
-          <Select value={selectedUserId ?? 'all'} onValueChange={setUserFolder}>
-            <SelectTrigger className="h-8 w-64">
-              <SelectValue>{folderLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os usuários</SelectItem>
-              {users.map((u) => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.id === currentUserId ? `${u.name} (você)` : u.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedUserId && (
-            <Button variant="ghost" size="sm" onClick={() => setUserFolder('all')}>
-              Limpar
-            </Button>
-          )}
+        <div className="mt-4 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Folder className="h-3.5 w-3.5" /> Pastas
+          </span>
+          <FolderPill
+            label="Todos"
+            color="#9A9A93"
+            active={!selectedUserId}
+            onClick={() => setUserFolder(null)}
+          />
+          {orderedUsers.map((u) => {
+            const isCurrent = u.id === currentUserId
+            const c = folderColor(u.id, isCurrent)
+            return (
+              <FolderPill
+                key={u.id}
+                label={isCurrent ? `${u.name} (você)` : u.name}
+                color={c.dot}
+                active={selectedUserId === u.id}
+                onClick={() => setUserFolder(u.id)}
+              />
+            )
+          })}
         </div>
       )}
 
-      <QuickAdd />
+      <div className="mt-4">
+        <QuickAdd assignedToId={quickAddAssigneeId} folderLabel={quickAddFolderLabel} />
+      </div>
 
-      <div className="flex flex-wrap gap-2 border-b">
+      <div className="mt-5 flex flex-wrap gap-1 border-b">
         {TABS.map((t) => {
           const isActive = view === t.key
           const count = counts[t.key]
+          const isOverdue = t.key === 'overdue' && count > 0
           return (
             <button
               key={t.key}
               onClick={() => setView(t.key)}
               className={cn(
-                'border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                '-mb-px flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-sm font-medium transition-colors',
                 isActive
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -148,10 +175,10 @@ export function ActivitiesPage({
               {t.label}
               <span
                 className={cn(
-                  'ml-2 rounded-full px-2 py-0.5 text-xs',
-                  t.key === 'overdue' && count > 0
-                    ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
-                    : 'bg-muted text-muted-foreground'
+                  'rounded-full px-1.5 py-0.5 text-[11px] font-medium leading-none',
+                  isActive && !isOverdue && 'bg-emerald-100 text-emerald-700',
+                  isOverdue && 'bg-red-100 text-red-700',
+                  !isActive && !isOverdue && 'bg-muted text-muted-foreground'
                 )}
               >
                 {count}
@@ -161,22 +188,96 @@ export function ActivitiesPage({
         })}
       </div>
 
-      {activities.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          Nenhuma atividade neste filtro.
-          <div className="mt-3">
-            <Button asChild variant="outline" size="sm">
-              <Link href="?view=all">Ver todas</Link>
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {activities.map((a) => (
-            <ActivityCard key={a.id} activity={a} />
-          ))}
-        </div>
+      {view !== 'overdue' && counts.overdue > 0 && (
+        <button
+          type="button"
+          onClick={() => setView('overdue')}
+          className="mt-4 flex w-full items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-900 transition-colors hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
+        >
+          <AlertTriangle className="h-4 w-4 text-red-700 dark:text-red-300" />
+          <span>
+            <span className="font-medium">
+              {counts.overdue}{' '}
+              {counts.overdue === 1 ? 'atividade atrasada' : 'atividades atrasadas'}
+            </span>{' '}
+            precisando de atenção
+          </span>
+          <span className="ml-auto text-xs font-medium">Ver →</span>
+        </button>
       )}
+
+      <div className="mt-4">
+        {activities.length === 0 ? (
+          <div className="rounded-lg border border-dashed bg-background p-12 text-center text-sm text-muted-foreground">
+            Nenhuma atividade neste filtro.
+            <div className="mt-3">
+              <Button asChild variant="outline" size="sm">
+                <Link href="?view=all">Ver todas</Link>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {activities.map((a) => {
+              const assignee = a.assignedTo
+              const c = assignee ? folderColor(assignee.id, assignee.id === currentUserId) : null
+              const ownerLabel = assignee
+                ? assignee.id === currentUserId
+                  ? `${assignee.name} (você)`
+                  : assignee.name
+                : null
+              // Mostra "Nova" só para quem é o responsável: o admin abrindo
+              // a pasta de outra pessoa não deve ver "Nova" — esse marcador
+              // é do ponto de vista do dono da tarefa.
+              const isNewForViewer =
+                a.seenByAssigneeAt === null &&
+                a.assignedTo?.id === currentUserId &&
+                a.createdBy?.id !== currentUserId
+              return (
+                <ActivityCard
+                  key={a.id}
+                  activity={a}
+                  ownerColor={c?.dot ?? null}
+                  ownerLabel={ownerLabel}
+                  isNewForViewer={isNewForViewer}
+                />
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+function FolderPill({
+  label,
+  color,
+  active,
+  onClick,
+}: {
+  label: string
+  color: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+        active
+          ? 'border-transparent text-white shadow-sm'
+          : 'border-border bg-background text-foreground hover:bg-accent'
+      )}
+      style={active ? { backgroundColor: color } : undefined}
+    >
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: active ? 'rgba(255,255,255,0.95)' : color }}
+      />
+      {label}
+    </button>
   )
 }

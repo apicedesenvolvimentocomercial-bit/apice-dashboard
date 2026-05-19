@@ -26,6 +26,7 @@ export default async function PipelinePage() {
   const deals: PipelineDealView[] = rawDeals.map((d) => ({
     id: d.id,
     stage: d.stage,
+    position: d.position,
     value: d.value != null ? Number(d.value) : null,
     probability: d.probability,
     expectedCloseAt: d.expectedCloseAt,

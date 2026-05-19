@@ -1,6 +1,6 @@
 'use client'
 
-import { useDraggable } from '@dnd-kit/core'
+import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -25,12 +25,20 @@ function formatBRL(value: number | null): string {
 }
 
 export function DealCard({ deal, onClick, isDragOverlay = false }: Props) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  // useSortable engloba o useDraggable e adiciona contexto de ordenação
+  // dentro do SortableContext da coluna (drop sobre outro card = reorder).
+  // O `data.deal` permite que o handler em PipelineBoard recupere o objeto
+  // arrastado ao calcular a nova posição.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: deal.id,
     data: { deal },
+    disabled: isDragOverlay,
   })
 
-  const style = { transform: CSS.Translate.toString(transform) }
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  }
 
   return (
     <div
@@ -43,7 +51,7 @@ export function DealCard({ deal, onClick, isDragOverlay = false }: Props) {
       }}
       className={cn(
         'cursor-grab select-none rounded-lg border bg-background p-3',
-        'transition-all hover:shadow-sm',
+        'transition-shadow hover:shadow-sm',
         isDragging && 'opacity-30',
         isDragOverlay && 'rotate-1 cursor-grabbing opacity-100 shadow-xl'
       )}

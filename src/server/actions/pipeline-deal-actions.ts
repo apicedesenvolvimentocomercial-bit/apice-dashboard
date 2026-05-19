@@ -9,6 +9,7 @@ import { createAuditLog } from '@/server/repositories/audit-repository'
 import {
   createPipelineDeal,
   moveStage,
+  reorderDeal,
   softDeletePipelineDeal,
   updatePipelineDeal,
 } from '@/server/repositories/pipeline-deal-repository'
@@ -78,6 +79,7 @@ export async function createPipelineDealAction(input: z.infer<typeof createSchem
 const moveSchema = z.object({
   dealId: z.string().cuid(),
   stage: z.enum(STAGE_VALUES),
+  position: z.number().finite().optional(),
   lostReason: z.string().optional(),
 })
 
@@ -101,6 +103,7 @@ export async function moveDealStageAction(input: z.infer<typeof moveSchema>) {
 
     await moveStage(ctx, parsed.data.dealId, parsed.data.stage, {
       lostReason: parsed.data.lostReason,
+      position: parsed.data.position,
     })
 
     if (parsed.data.stage === 'WON') {
@@ -120,6 +123,29 @@ export async function moveDealStageAction(input: z.infer<typeof moveSchema>) {
       entityId: parsed.data.dealId,
       changes: { from: deal.stage, to: parsed.data.stage },
     }).catch(() => {})
+
+    revalidatePath('/pipeline')
+    return null
+  })
+}
+
+const reorderSchema = z.object({
+  dealId: z.string().cuid(),
+  position: z.number().finite(),
+})
+
+// Reordenação pura dentro da mesma coluna. Não muda stage, não toca em
+// wonAt/lostAt nem registra audit (movimento dentro da coluna é cosmético).
+export async function reorderDealAction(input: z.infer<typeof reorderSchema>) {
+  return runAction(async () => {
+    const ctx = await getTenantContext()
+    await assertCan(ctx, 'clients', 'write')
+
+    const parsed = reorderSchema.safeParse(input)
+    if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
+
+    const result = await reorderDeal(ctx, parsed.data.dealId, parsed.data.position)
+    if (result.count === 0) throw new NotFoundError('Negociação')
 
     revalidatePath('/pipeline')
     return null

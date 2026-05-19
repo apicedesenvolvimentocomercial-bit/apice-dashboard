@@ -3,6 +3,7 @@ import type { DealStage } from '@prisma/client'
 export type PipelineDealView = {
   id: string
   stage: DealStage
+  position: number
   value: number | null
   probability: number | null
   expectedCloseAt: Date | null

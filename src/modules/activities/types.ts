@@ -10,8 +10,10 @@ export type ActivityView = {
   dueDate: Date | null
   completedAt: Date | null
   createdAt: Date
+  seenByAssigneeAt: Date | null
   client: { id: string; name: string } | null
   assignedTo: { id: string; name: string; image: string | null } | null
+  createdBy: { id: string; name: string } | null
 }
 
 export const TYPE_LABEL: Record<ActivityType, string> = {

@@ -14,6 +14,7 @@ import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
   createActivity,
   findActivityById,
+  markActivitiesSeenForAssignee,
   softDeleteActivity,
   updateActivity,
 } from '@/server/repositories/activity-repository'
@@ -205,10 +206,24 @@ export async function deleteActivityAction(activityId: string) {
   })
 }
 
-export async function quickAddActivityAction(title: string, dueDate?: string | null) {
+// Marca atividades atribuídas ao usuário atual como vistas (some o badge
+// "Nova"). Silenciosamente ignora ids que não pertencem a ele.
+export async function markActivitiesSeenAction(activityIds: string[]) {
+  return runAction(async () => {
+    if (!Array.isArray(activityIds) || activityIds.length === 0) return null
+    const ctx = await getTenantContext()
+    await markActivitiesSeenForAssignee(ctx, ctx.userId, activityIds)
+    return null
+  })
+}
+
+export async function quickAddActivityAction(
+  title: string,
+  opts?: { dueDate?: string | null; assignedToId?: string | null }
+) {
   if (!title.trim()) return fail('Título obrigatório')
   // Tarefa rápida: hoje, prioridade padrão, fim do dia (23:59 SP).
-  const today = dueDate ?? todayInAppTz()
+  const today = opts?.dueDate ?? todayInAppTz()
   const endOfDay = `${String(END_OF_DAY_HOUR).padStart(2, '0')}:${String(END_OF_DAY_MINUTE).padStart(2, '0')}`
   return createActivityAction({
     title: title.trim(),
@@ -216,6 +231,7 @@ export async function quickAddActivityAction(title: string, dueDate?: string | n
     priority: 'MEDIUM',
     dueDate: today,
     dueTime: endOfDay,
+    assignedToId: opts?.assignedToId ?? null,
   })
 }
 

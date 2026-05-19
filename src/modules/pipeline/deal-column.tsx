@@ -1,6 +1,7 @@
 'use client'
 
 import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
 import { cn } from '@/lib/utils'
 import { DealCard } from './deal-card'
@@ -20,9 +21,15 @@ function formatBRL(value: number): string {
 }
 
 export function DealColumn({ column, onDealClick }: Props) {
-  const { setNodeRef, isOver } = useDroppable({ id: column.stage })
+  // O droppable da coluna recebe o drop em áreas vazias. Quando o usuário
+  // solta sobre um card, é o SortableContext que define a posição relativa.
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.stage,
+    data: { columnId: column.stage },
+  })
 
   const totalValue = column.deals.reduce((acc, d) => acc + (d.value ? Number(d.value) : 0), 0)
+  const dealIds = column.deals.map((d) => d.id)
 
   return (
     <div className="flex w-72 shrink-0 flex-col">
@@ -39,23 +46,25 @@ export function DealColumn({ column, onDealClick }: Props) {
         )}
       </div>
 
-      <div
-        ref={setNodeRef}
-        className={cn(
-          'flex min-h-48 flex-col gap-2 overflow-y-auto rounded-lg p-2 transition-colors',
-          'bg-muted/30',
-          isOver && 'bg-primary/10 ring-2 ring-primary/30'
-        )}
-      >
-        {column.deals.map((deal) => (
-          <DealCard key={deal.id} deal={deal} onClick={() => onDealClick(deal.id)} />
-        ))}
-        {column.deals.length === 0 && !isOver && (
-          <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
-            Nenhuma negociação
-          </div>
-        )}
-      </div>
+      <SortableContext items={dealIds} strategy={verticalListSortingStrategy}>
+        <div
+          ref={setNodeRef}
+          className={cn(
+            'flex min-h-48 flex-col gap-2 overflow-y-auto rounded-lg p-2 transition-colors',
+            'bg-muted/30',
+            isOver && 'bg-primary/10 ring-2 ring-primary/30'
+          )}
+        >
+          {column.deals.map((deal) => (
+            <DealCard key={deal.id} deal={deal} onClick={() => onDealClick(deal.id)} />
+          ))}
+          {column.deals.length === 0 && !isOver && (
+            <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
+              Nenhuma negociação
+            </div>
+          )}
+        </div>
+      </SortableContext>
     </div>
   )
 }

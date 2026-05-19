@@ -16,18 +16,32 @@ import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { moveDealStageAction } from '@/server/actions/pipeline-deal-actions'
+import { moveDealStageAction, reorderDealAction } from '@/server/actions/pipeline-deal-actions'
 
 import { CreateDealDialog } from './create-deal-dialog'
 import { DealCard } from './deal-card'
 import { DealColumn } from './deal-column'
 import { DealDrawer } from './deal-drawer'
 import { LostReasonDialog } from './lost-reason-dialog'
-import { columnsFromDeals, type PipelineDealView } from './types'
+import { columnsFromDeals, STAGE_ORDER, type PipelineDealView } from './types'
 
 type Props = {
   deals: PipelineDealView[]
   availableClients: { id: string; name: string; status: string }[]
+}
+
+// Calcula uma posição fracionária entre dois vizinhos. Sem vizinho, abre um
+// gap fixo de 1000 — suficiente para muitas inserções antes de precisar
+// rebalancear (que hoje nem é necessário, já que Float aguenta bem).
+function positionBetween(prev: number | null, next: number | null): number {
+  if (prev == null && next == null) return 1000
+  if (prev == null) return (next as number) - 1000
+  if (next == null) return (prev as number) + 1000
+  return (prev + next) / 2
+}
+
+function isStageId(id: string): id is DealStage {
+  return (STAGE_ORDER as string[]).includes(id)
 }
 
 export function PipelineBoard({ deals: initialDeals, availableClients }: Props) {
@@ -36,9 +50,11 @@ export function PipelineBoard({ deals: initialDeals, availableClients }: Props) 
   const [activeDeal, setActiveDeal] = useState<PipelineDealView | null>(null)
   const [drawerDealId, setDrawerDealId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
-  const [pendingLost, setPendingLost] = useState<{ dealId: string; previous: DealStage } | null>(
-    null
-  )
+  const [pendingLost, setPendingLost] = useState<{
+    dealId: string
+    previous: DealStage
+    position: number
+  } | null>(null)
   const [, startTransition] = useTransition()
 
   useEffect(() => {
@@ -46,22 +62,6 @@ export function PipelineBoard({ deals: initialDeals, availableClients }: Props) 
   }, [initialDeals])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
-
-  function applyStageLocally(dealId: string, newStage: DealStage) {
-    setDeals((prev) => prev.map((d) => (d.id === dealId ? { ...d, stage: newStage } : d)))
-  }
-
-  function persistStageChange(dealId: string, newStage: DealStage, previous: DealStage) {
-    startTransition(async () => {
-      const result = await moveDealStageAction({ dealId, stage: newStage })
-      if (!result.success) {
-        toast.error(result.error.message)
-        applyStageLocally(dealId, previous)
-        return
-      }
-      router.refresh()
-    })
-  }
 
   function handleDragStart({ active }: DragStartEvent) {
     const deal = deals.find((d) => d.id === active.id)
@@ -73,37 +73,130 @@ export function PipelineBoard({ deals: initialDeals, availableClients }: Props) 
     if (!over) return
 
     const dealId = active.id as string
-    const newStage = over.id as DealStage
     const current = deals.find((d) => d.id === dealId)
-    if (!current || current.stage === newStage) return
+    if (!current) return
 
-    if (newStage === 'LOST') {
-      // Pede motivo antes de persistir
-      setPendingLost({ dealId, previous: current.stage })
+    const overId = over.id as string
+
+    // Identifica a coluna destino: ou veio direto do overId (drop em área
+    // vazia da coluna), ou herdamos do stage do card sob o cursor.
+    let destStage: DealStage
+    let overDealId: string | null = null
+    if (isStageId(overId)) {
+      destStage = overId
+    } else {
+      const overDeal = deals.find((d) => d.id === overId)
+      if (!overDeal) return
+      destStage = overDeal.stage
+      overDealId = overDeal.id
+    }
+
+    // Snapshot dos cards da coluna destino (sem o card arrastado), em ordem.
+    const destDealsBefore = deals
+      .filter((d) => d.stage === destStage && d.id !== dealId)
+      .sort((a, b) => a.position - b.position)
+
+    // Onde inserir: acima do card-alvo, ou ao final quando soltou na área
+    // vazia da coluna (overId é a stage).
+    const insertIndex =
+      overDealId === null
+        ? destDealsBefore.length
+        : Math.max(
+            0,
+            destDealsBefore.findIndex((d) => d.id === overDealId)
+          )
+
+    const prev = insertIndex > 0 ? destDealsBefore[insertIndex - 1].position : null
+    const next = insertIndex < destDealsBefore.length ? destDealsBefore[insertIndex].position : null
+    const newPosition = positionBetween(prev, next)
+
+    const movingColumns = current.stage !== destStage
+
+    // Para LOST, dispara o diálogo de motivo antes de persistir.
+    if (movingColumns && destStage === 'LOST') {
+      setPendingLost({ dealId, previous: current.stage, position: newPosition })
       return
     }
 
-    applyStageLocally(dealId, newStage)
-    persistStageChange(dealId, newStage, current.stage)
+    // Otimista: atualiza o estado local imediatamente para o usuário ver
+    // o card no novo lugar antes da resposta do servidor.
+    const previousStage = current.stage
+    const previousPosition = current.position
+    applyLocal(dealId, destStage, newPosition)
+
+    if (movingColumns) {
+      persistMove(dealId, destStage, newPosition, previousStage, previousPosition)
+    } else {
+      // Mesma coluna: usa arrayMove só para consistência visual quando o
+      // card-alvo está acima do arrastado (ajustes finos de índice).
+      persistReorder(dealId, newPosition, previousStage, previousPosition)
+    }
   }
 
-  function confirmLost(reason: string) {
-    if (!pendingLost) return
-    const { dealId, previous } = pendingLost
-    setPendingLost(null)
-    applyStageLocally(dealId, 'LOST')
+  function applyLocal(dealId: string, stage: DealStage, position: number) {
+    setDeals((prev) => prev.map((d) => (d.id === dealId ? { ...d, stage, position } : d)))
+  }
+
+  function persistMove(
+    dealId: string,
+    newStage: DealStage,
+    position: number,
+    previousStage: DealStage,
+    previousPosition: number
+  ) {
     startTransition(async () => {
-      const result = await moveDealStageAction({ dealId, stage: 'LOST', lostReason: reason })
+      const result = await moveDealStageAction({ dealId, stage: newStage, position })
       if (!result.success) {
         toast.error(result.error.message)
-        applyStageLocally(dealId, previous)
+        applyLocal(dealId, previousStage, previousPosition)
         return
       }
       router.refresh()
     })
   }
 
-  const columns = columnsFromDeals(deals)
+  function persistReorder(
+    dealId: string,
+    position: number,
+    previousStage: DealStage,
+    previousPosition: number
+  ) {
+    startTransition(async () => {
+      const result = await reorderDealAction({ dealId, position })
+      if (!result.success) {
+        toast.error(result.error.message)
+        applyLocal(dealId, previousStage, previousPosition)
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  function confirmLost(reason: string) {
+    if (!pendingLost) return
+    const { dealId, previous, position } = pendingLost
+    setPendingLost(null)
+    const current = deals.find((d) => d.id === dealId)
+    const previousPosition = current?.position ?? position
+    applyLocal(dealId, 'LOST', position)
+    startTransition(async () => {
+      const result = await moveDealStageAction({
+        dealId,
+        stage: 'LOST',
+        position,
+        lostReason: reason,
+      })
+      if (!result.success) {
+        toast.error(result.error.message)
+        applyLocal(dealId, previous, previousPosition)
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  const sortedDeals = [...deals].sort((a, b) => a.position - b.position)
+  const columns = columnsFromDeals(sortedDeals)
   const drawerDeal = drawerDealId ? (deals.find((d) => d.id === drawerDealId) ?? null) : null
 
   return (

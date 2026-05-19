@@ -29,6 +29,16 @@ async function main() {
     },
   })
 
+  // Garante que a organização tenha um dono (coroa). Como o seed roda em
+  // ordem (org → admin), a migration de backfill não tinha o admin ainda;
+  // este passo cobre o caso de banco recém-seedado.
+  if (!org.ownerId) {
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { ownerId: admin.id },
+    })
+  }
+
   const staffHash = await hash('staff123', 12)
   await prisma.user.upsert({
     where: { email: 'staff@apice.dev' },

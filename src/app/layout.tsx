@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import { Toaster } from 'sonner'
-
+import { DismissibleToaster } from '@/components/dismissible-toaster'
 import { QueryProvider } from '@/components/providers/query-provider'
 
 import './globals.css'
@@ -21,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.className}>
         <QueryProvider>{children}</QueryProvider>
-        <Toaster position="top-right" richColors />
+        <DismissibleToaster />
       </body>
     </html>
   )

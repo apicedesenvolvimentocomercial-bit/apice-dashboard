@@ -79,7 +79,26 @@ export async function listActivities(ctx: TenantContext, filters: ActivityListFi
     include: {
       client: { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true, image: true } },
+      createdBy: { select: { id: true, name: true } },
     },
+  })
+}
+
+export async function markActivitiesSeenForAssignee(
+  ctx: TenantContext,
+  assigneeId: string,
+  activityIds: string[]
+) {
+  if (activityIds.length === 0) return { count: 0 }
+  return prisma.activity.updateMany({
+    where: {
+      id: { in: activityIds },
+      organizationId: ctx.organizationId,
+      assignedToId: assigneeId,
+      seenByAssigneeAt: null,
+      deletedAt: null,
+    },
+    data: { seenByAssigneeAt: new Date() },
   })
 }
 
@@ -93,6 +112,7 @@ export async function findActivityById(ctx: TenantContext, activityId: string) {
     include: {
       client: { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true, image: true } },
+      createdBy: { select: { id: true, name: true } },
     },
   })
 }

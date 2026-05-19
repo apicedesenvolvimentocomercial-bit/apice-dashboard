@@ -46,8 +46,10 @@ export default async function AdminActivitiesPage({ searchParams }: Props) {
     dueDate: r.dueDate,
     completedAt: r.completedAt,
     createdAt: r.createdAt,
+    seenByAssigneeAt: r.seenByAssigneeAt,
     client: r.client,
     assignedTo: r.assignedTo,
+    createdBy: r.createdBy,
   }))
 
   return (

@@ -4,6 +4,7 @@ import type { AppointmentStatus } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
+import { spDate } from '@/lib/date'
 import { ok, fail, NotFoundError } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -34,6 +35,25 @@ function minAllowedScheduledAt(now: Date = new Date()): Date {
   const d = new Date(now)
   d.setFullYear(d.getFullYear() - 1)
   return d
+}
+
+// `datetime-local` envia "YYYY-MM-DDTHH:mm" sem timezone. `new Date(...)` no
+// servidor em UTC interpreta isso como UTC, deslocando 3h no Brasil. Aqui
+// reconstruímos a data no fuso da aplicação (SP).
+function parseScheduledAt(raw: string): Date {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(raw)
+  if (m) {
+    return spDate(
+      Number(m[1]),
+      Number(m[2]) - 1,
+      Number(m[3]),
+      Number(m[4]),
+      Number(m[5]),
+      Number(m[6] ?? 0)
+    )
+  }
+  // Strings ISO com timezone explícito (Z ou ±hh:mm) caem aqui.
+  return new Date(raw)
 }
 
 function rejectIfTooOld(scheduledAt: Date): { ok: true } | { ok: false; message: string } {
@@ -85,7 +105,7 @@ export async function createAppointmentAction(clientId: string, formData: unknow
   const parsed = appointmentSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
-  const scheduledAt = new Date(parsed.data.scheduledAt)
+  const scheduledAt = parseScheduledAt(parsed.data.scheduledAt)
   const dateCheck = rejectIfTooOld(scheduledAt)
   if (!dateCheck.ok) return fail(dateCheck.message)
 
@@ -111,7 +131,7 @@ export async function updateAppointmentAction(
 
   let scheduledAt: Date | undefined
   if (parsed.data.scheduledAt) {
-    scheduledAt = new Date(parsed.data.scheduledAt)
+    scheduledAt = parseScheduledAt(parsed.data.scheduledAt)
     const dateCheck = rejectIfTooOld(scheduledAt)
     if (!dateCheck.ok) return fail(dateCheck.message)
   }

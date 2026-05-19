@@ -8,10 +8,13 @@ export type PipelineDealRow = Awaited<ReturnType<typeof listPipelineDeals>>[numb
 export async function listPipelineDeals(ctx: TenantContext) {
   return prisma.pipelineDeal.findMany({
     where: { organizationId: ctx.organizationId, deletedAt: null },
-    orderBy: { updatedAt: 'desc' },
+    // Dentro da mesma coluna, segue a ordem manual (position). Empate cai
+    // no updatedAt como desempate determinístico.
+    orderBy: [{ position: 'asc' }, { updatedAt: 'desc' }],
     select: {
       id: true,
       stage: true,
+      position: true,
       value: true,
       probability: true,
       expectedCloseAt: true,
@@ -82,7 +85,7 @@ export async function moveStage(
   ctx: TenantContext,
   dealId: string,
   stage: DealStage,
-  extra?: { lostReason?: string }
+  extra?: { lostReason?: string; position?: number }
 ) {
   const now = new Date()
   const data: Prisma.PipelineDealUpdateManyMutationInput = { stage }
@@ -99,9 +102,19 @@ export async function moveStage(
     data.lostAt = null
     data.lostReason = null
   }
+  if (typeof extra?.position === 'number' && Number.isFinite(extra.position)) {
+    data.position = extra.position
+  }
   return prisma.pipelineDeal.updateMany({
     where: { id: dealId, organizationId: ctx.organizationId, deletedAt: null },
     data,
+  })
+}
+
+export async function reorderDeal(ctx: TenantContext, dealId: string, position: number) {
+  return prisma.pipelineDeal.updateMany({
+    where: { id: dealId, organizationId: ctx.organizationId, deletedAt: null },
+    data: { position },
   })
 }
 
