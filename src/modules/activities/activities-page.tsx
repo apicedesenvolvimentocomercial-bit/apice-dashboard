@@ -1,9 +1,17 @@
 'use client'
 
+import { FolderOpen } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 import { ActivityCard } from './activity-card'
@@ -28,6 +36,9 @@ type Props = {
   users: { id: string; name: string }[]
   lockClient?: boolean
   defaultClientId?: string | null
+  currentUserId?: string
+  isAdmin?: boolean
+  selectedUserId?: string | null
 }
 
 export function ActivitiesPage({
@@ -38,6 +49,9 @@ export function ActivitiesPage({
   users,
   lockClient,
   defaultClientId,
+  currentUserId,
+  isAdmin,
+  selectedUserId,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -48,6 +62,30 @@ export function ActivitiesPage({
     sp.set('view', v)
     router.push(`${pathname}?${sp.toString()}`)
   }
+
+  function setUserFolder(userId: string) {
+    const sp = new URLSearchParams(params.toString())
+    if (userId === 'all') sp.delete('userId')
+    else sp.set('userId', userId)
+    router.push(`${pathname}?${sp.toString()}`)
+  }
+
+  const open = activities.filter((a) => a.status !== 'COMPLETED')
+  const done = activities.filter((a) => a.status === 'COMPLETED')
+
+  const folderLabel = (() => {
+    if (!isAdmin) return null
+    if (!selectedUserId) return 'Todos os usuários'
+    const u = users.find((x) => x.id === selectedUserId)
+    if (!u) return 'Usuário'
+    return u.id === currentUserId ? `${u.name} (você)` : u.name
+  })()
+
+  // Pré-seleciona o usuário para a nova atividade conforme a pasta aberta.
+  // Admin na pasta do usuário X cria já atribuída a X. Sem pasta, fica em
+  // branco (cai no próprio admin se ele não escolher outro responsável).
+  const defaultAssigneeId =
+    isAdmin && selectedUserId ? selectedUserId : (currentUserId ?? users[0]?.id ?? '')
 
   return (
     <div className="space-y-6">
@@ -63,8 +101,34 @@ export function ActivitiesPage({
           users={users}
           lockClient={lockClient}
           defaultClientId={defaultClientId ?? null}
+          defaultAssigneeId={defaultAssigneeId}
         />
       </div>
+
+      {isAdmin && users.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3">
+          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Pasta:</span>
+          <Select value={selectedUserId ?? 'all'} onValueChange={setUserFolder}>
+            <SelectTrigger className="h-8 w-64">
+              <SelectValue>{folderLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os usuários</SelectItem>
+              {users.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.id === currentUserId ? `${u.name} (você)` : u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedUserId && (
+            <Button variant="ghost" size="sm" onClick={() => setUserFolder('all')}>
+              Limpar
+            </Button>
+          )}
+        </div>
+      )}
 
       <QuickAdd />
 
@@ -109,10 +173,42 @@ export function ActivitiesPage({
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
-          {activities.map((a) => (
-            <ActivityCard key={a.id} activity={a} />
-          ))}
+        <div className="space-y-6">
+          <section className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Em aberto
+              </h2>
+              <span className="text-xs text-muted-foreground">{open.length}</span>
+            </div>
+            {open.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Nenhuma atividade em aberto.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {open.map((a) => (
+                  <ActivityCard key={a.id} activity={a} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {done.length > 0 && (
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Feitas
+                </h2>
+                <span className="text-xs text-muted-foreground">{done.length}</span>
+              </div>
+              <div className="space-y-2">
+                {done.map((a) => (
+                  <ActivityCard key={a.id} activity={a} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>

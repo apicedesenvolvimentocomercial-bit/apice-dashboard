@@ -22,6 +22,13 @@ export async function getActivitiesForTenant(filters: ActivityListFilters = {}) 
     await assertClientAccess(ctx, filters.clientId)
   }
 
+  // Per-user scoping: STAFF só enxerga as atividades atribuídas a si mesmo.
+  // ADMIN pode filtrar por usuário (pasta) via filters.assignedToId; se não
+  // filtrar, vê todas as atividades da organização.
+  if (ctx.role === 'STAFF') {
+    effective.assignedToId = ctx.userId
+  }
+
   const [rows, today, week, overdue, all] = await Promise.all([
     listActivities(ctx, effective),
     countActivities(ctx, { ...effective, view: 'today' }),
@@ -44,7 +51,9 @@ export async function getActivityById(activityId: string) {
 
 export async function listOrgUsers(): Promise<{ id: string; name: string; email: string }[]> {
   const ctx = await getTenantContext()
-  if (ctx.role !== 'ADMIN' && ctx.role !== 'STAFF') {
+  // STAFF e papéis de clínica só podem atribuir atividades a si mesmos.
+  // Apenas ADMIN enxerga toda a equipe (e pode alocar nas pastas dos demais).
+  if (ctx.role !== 'ADMIN') {
     return prisma.user.findMany({
       where: { id: ctx.userId },
       select: { id: true, name: true, email: true },

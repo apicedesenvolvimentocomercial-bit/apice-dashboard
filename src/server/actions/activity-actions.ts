@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { parseLocalDate } from '@/lib/date'
+import { logger } from '@/lib/logger'
+import { prisma } from '@/lib/prisma'
 import { fail, NotFoundError, runAction } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -13,6 +15,7 @@ import {
   softDeleteActivity,
   updateActivity,
 } from '@/server/repositories/activity-repository'
+import { dispatchNotification } from '@/server/services/notification-service'
 
 const TYPES = ['TASK', 'MEETING', 'CALL', 'EMAIL', 'NOTE'] as const
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as const
@@ -66,6 +69,9 @@ export async function createActivityAction(formData: unknown) {
       return fail('Atividade precisa estar vinculada à clínica')
     }
 
+    const requestedAssignee = parsed.data.assignedToId || ctx.userId
+    const assignedToId = await resolveAssignee(ctx, requestedAssignee)
+
     const due = combineDateTime(parsed.data.dueDate, parsed.data.dueTime)
 
     const activity = await createActivity(ctx, {
@@ -76,8 +82,17 @@ export async function createActivityAction(formData: unknown) {
       status: parsed.data.status,
       dueDate: due,
       clientId: targetClientId ?? (ctx.role.startsWith('CLIENT_') ? ctx.clientId : null),
-      assignedToId: parsed.data.assignedToId || ctx.userId,
+      assignedToId,
     })
+
+    if (assignedToId && assignedToId !== ctx.userId) {
+      await notifyAssignee(assignedToId, {
+        activityId: activity.id,
+        title: activity.title,
+        dueDate: activity.dueDate,
+      })
+    }
+
     revalidateAll(activity.clientId)
     return { id: activity.id }
   })
@@ -103,6 +118,12 @@ export async function updateActivityAction(activityId: string, formData: unknown
       due = combineDateTime(parsed.data.dueDate, parsed.data.dueTime)
     }
 
+    let assignedToId: string | null | undefined = undefined
+    if (parsed.data.assignedToId !== undefined) {
+      const requested = parsed.data.assignedToId
+      assignedToId = requested ? await resolveAssignee(ctx, requested) : null
+    }
+
     const completedAt =
       parsed.data.status === 'COMPLETED' && existing.status !== 'COMPLETED'
         ? new Date()
@@ -118,9 +139,20 @@ export async function updateActivityAction(activityId: string, formData: unknown
       priority: parsed.data.priority,
       dueDate: due,
       clientId: parsed.data.clientId,
-      assignedToId: parsed.data.assignedToId,
+      assignedToId,
       completedAt,
     })
+
+    // Notifica o novo responsável quando a atribuição muda para alguém
+    // diferente do autor da alteração.
+    if (assignedToId && assignedToId !== existing.assignedToId && assignedToId !== ctx.userId) {
+      await notifyAssignee(assignedToId, {
+        activityId,
+        title: parsed.data.title ?? existing.title,
+        dueDate: due !== undefined ? due : existing.dueDate,
+      })
+    }
+
     revalidateAll(existing.clientId)
     return null
   })
@@ -160,10 +192,86 @@ export async function deleteActivityAction(activityId: string) {
 
 export async function quickAddActivityAction(title: string, dueDate?: string | null) {
   if (!title.trim()) return fail('Título obrigatório')
+  // Tarefa rápida: vai para hoje com prioridade padrão (MEDIUM).
+  const today = dueDate ?? todayInAppTz()
   return createActivityAction({
     title: title.trim(),
     type: 'TASK',
     priority: 'MEDIUM',
-    dueDate: dueDate ?? null,
+    dueDate: today,
   })
+}
+
+function todayInAppTz(): string {
+  // YYYY-MM-DD no fuso da aplicação (SP), formato aceito por parseLocalDate.
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  return fmt.format(new Date())
+}
+
+// Apenas ADMIN pode atribuir atividade a outro usuário. Os demais (STAFF /
+// CLIENT_*) ficam restritos a si mesmos. O alvo precisa ser um usuário ativo
+// da mesma organização, senão a atividade volta para o próprio criador.
+async function resolveAssignee(
+  ctx: { userId: string; organizationId: string; role: string },
+  requested: string
+): Promise<string> {
+  if (requested === ctx.userId) return ctx.userId
+  if (ctx.role !== 'ADMIN') return ctx.userId
+
+  const target = await prisma.user.findFirst({
+    where: {
+      id: requested,
+      organizationId: ctx.organizationId,
+      isActive: true,
+      deletedAt: null,
+      role: { in: ['ADMIN', 'STAFF'] },
+    },
+    select: { id: true },
+  })
+  return target?.id ?? ctx.userId
+}
+
+async function notifyAssignee(
+  userId: string,
+  activity: { activityId: string; title: string; dueDate: Date | null }
+): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, name: true, isActive: true, deletedAt: true },
+  })
+  if (!user || !user.isActive || user.deletedAt) return
+
+  const when = activity.dueDate
+    ? activity.dueDate.toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null
+
+  try {
+    await dispatchNotification([{ userId: user.id, email: user.email, name: user.name }], {
+      type: 'SYSTEM',
+      title: `Nova atividade: ${activity.title}`,
+      message: when
+        ? `Você foi designado para "${activity.title}". Vencimento: ${when}.`
+        : `Você foi designado para "${activity.title}".`,
+      link: '/activities',
+      metadata: { activityId: activity.activityId },
+    })
+  } catch (err) {
+    logger.error('Activity assignment notification failed', {
+      activityId: activity.activityId,
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
 }

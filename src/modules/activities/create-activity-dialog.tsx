@@ -36,12 +36,22 @@ type Props = {
   defaultClientId?: string | null
   /** Quando true, o usuário não escolhe clínica (CLIENT_OWNER/STAFF). */
   lockClient?: boolean
+  /** Pré-seleciona o responsável (pasta do admin). */
+  defaultAssigneeId?: string
 }
 
-export function CreateActivityDialog({ clients, users, defaultClientId, lockClient }: Props) {
+export function CreateActivityDialog({
+  clients,
+  users,
+  defaultClientId,
+  lockClient,
+  defaultAssigneeId,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
+
+  const initialAssignee = defaultAssigneeId || users[0]?.id || ''
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -50,7 +60,7 @@ export function CreateActivityDialog({ clients, users, defaultClientId, lockClie
   const [dueDate, setDueDate] = useState('')
   const [dueTime, setDueTime] = useState('')
   const [clientId, setClientId] = useState<string>(defaultClientId ?? 'none')
-  const [assignedToId, setAssignedToId] = useState<string>(users[0]?.id ?? '')
+  const [assignedToId, setAssignedToId] = useState<string>(initialAssignee)
 
   function reset() {
     setTitle('')
@@ -60,6 +70,7 @@ export function CreateActivityDialog({ clients, users, defaultClientId, lockClie
     setDueDate('')
     setDueTime('')
     setClientId(defaultClientId ?? 'none')
+    setAssignedToId(initialAssignee)
   }
 
   function submit(e: React.FormEvent) {
