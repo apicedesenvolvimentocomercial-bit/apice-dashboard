@@ -100,7 +100,7 @@ export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpda
         toast.error(result.error.message)
         return
       }
-      toast.success('Lead marcado como perdido')
+      toast.success('Lead marcado como no-show')
       setShowLoseForm(false)
       setLoseReason('')
       onClose()

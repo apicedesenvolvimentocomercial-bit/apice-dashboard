@@ -57,7 +57,7 @@ function buildClientNav(role: UserRole): NavItem[] {
     { href: '/overview', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/insights', label: 'Insights', icon: Lightbulb },
     { href: '/goals', label: 'Metas', icon: Target },
-    { href: '/crm', label: 'CRM / Leads', icon: Kanban },
+    { href: '/crm', label: 'Pipeline', icon: Kanban },
     { href: '/financial', label: 'Financeiro', icon: DollarSign },
     { href: '/patients', label: 'Pacientes', icon: UserCheck },
     { href: '/appointments', label: 'Agendamentos', icon: Calendar },
