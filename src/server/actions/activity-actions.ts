@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
-import { parseLocalDate } from '@/lib/date'
+import { toZonedTime } from 'date-fns-tz'
+
+import { APP_TIMEZONE, parseLocalDate, spDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { fail, NotFoundError, runAction } from '@/types/errors'
@@ -42,15 +44,28 @@ function revalidateAll(clientId?: string | null) {
   }
 }
 
+// Fim do dia = 23:59 SP. Horários após esse limite caem automaticamente
+// para 23:59. Quando nenhum horário é informado, mantemos o meio-dia SP do
+// parseLocalDate (suficiente para colocar a atividade na aba "Hoje").
+const END_OF_DAY_HOUR = 23
+const END_OF_DAY_MINUTE = 59
+
 function combineDateTime(dateStr?: string | null, timeStr?: string | null): Date | null {
   if (!dateStr) return null
   const base = parseLocalDate(dateStr)
   if (!base) return null
-  if (timeStr && /^\d{2}:\d{2}$/.test(timeStr)) {
-    const [hh, mm] = timeStr.split(':').map(Number)
-    base.setHours(hh, mm, 0, 0)
+  if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) return base
+
+  let [hh, mm] = timeStr.split(':').map(Number)
+  if (hh > END_OF_DAY_HOUR || (hh === END_OF_DAY_HOUR && mm > END_OF_DAY_MINUTE)) {
+    hh = END_OF_DAY_HOUR
+    mm = END_OF_DAY_MINUTE
   }
-  return base
+
+  // Recompõe a data no fuso SP — base.setHours usaria o fuso do servidor
+  // (UTC em produção) e jogaria a atividade para o dia errado.
+  const zoned = toZonedTime(base, APP_TIMEZONE)
+  return spDate(zoned.getFullYear(), zoned.getMonth(), zoned.getDate(), hh, mm, 0)
 }
 
 export async function createActivityAction(formData: unknown) {
@@ -192,13 +207,15 @@ export async function deleteActivityAction(activityId: string) {
 
 export async function quickAddActivityAction(title: string, dueDate?: string | null) {
   if (!title.trim()) return fail('Título obrigatório')
-  // Tarefa rápida: vai para hoje com prioridade padrão (MEDIUM).
+  // Tarefa rápida: hoje, prioridade padrão, fim do dia (23:59 SP).
   const today = dueDate ?? todayInAppTz()
+  const endOfDay = `${String(END_OF_DAY_HOUR).padStart(2, '0')}:${String(END_OF_DAY_MINUTE).padStart(2, '0')}`
   return createActivityAction({
     title: title.trim(),
     type: 'TASK',
     priority: 'MEDIUM',
     dueDate: today,
+    dueTime: endOfDay,
   })
 }
 
