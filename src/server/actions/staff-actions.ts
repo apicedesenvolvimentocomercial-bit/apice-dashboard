@@ -16,7 +16,7 @@ import {
   upsertUserPermissions,
 } from '@/server/repositories/user-repository'
 import { getTenantContext } from '@/server/tenant/context'
-import { ConflictError, NotFoundError, runAction } from '@/types/errors'
+import { ConflictError, ForbiddenError, NotFoundError, runAction } from '@/types/errors'
 
 const ROLE_VALUES = ['ADMIN', 'STAFF'] as const
 
@@ -107,6 +107,18 @@ export async function updateStaffRoleAction(input: z.infer<typeof updateRoleSche
       throw new ConflictError('Você não pode alterar seu próprio cargo')
     }
 
+    // O dono não pode ser rebaixado por terceiros — a única forma de
+    // alguém deixar de ser dono é transferindo a titularidade.
+    const org = await prisma.organization.findUnique({
+      where: { id: ctx.organizationId },
+      select: { ownerId: true },
+    })
+    if (org?.ownerId === parsed.data.userId) {
+      throw new ConflictError(
+        'Este usuário é o dono da organização — só ele mesmo pode transferir a titularidade.'
+      )
+    }
+
     const result = await updateUserRole(ctx, parsed.data.userId, parsed.data.role)
     if (result.count === 0) throw new NotFoundError('Funcionário')
 
@@ -137,6 +149,21 @@ export async function setStaffActiveAction(input: z.infer<typeof setActiveSchema
 
     if (parsed.data.userId === ctx.userId) {
       throw new ConflictError('Você não pode desativar a si mesmo')
+    }
+
+    // Dono não pode ser desativado por terceiros (única forma de "remover":
+    // ele transferir a titularidade primeiro, virar ADMIN comum, e então
+    // pode ser desativado).
+    if (!parsed.data.isActive) {
+      const org = await prisma.organization.findUnique({
+        where: { id: ctx.organizationId },
+        select: { ownerId: true },
+      })
+      if (org?.ownerId === parsed.data.userId) {
+        throw new ConflictError(
+          'O dono da organização não pode ser desativado. Transfira a titularidade primeiro.'
+        )
+      }
     }
 
     const result = await setUserActive(ctx, parsed.data.userId, parsed.data.isActive)
@@ -194,6 +221,82 @@ export async function updateStaffPermissionsAction(input: z.infer<typeof updateP
       entityType: 'UserPermission',
       entityId: parsed.data.userId,
       changes: { permissions: parsed.data.permissions },
+    }).catch(() => {})
+
+    revalidatePath('/staff')
+    return null
+  })
+}
+
+const transferOwnershipSchema = z.object({
+  targetUserId: z.string().cuid(),
+})
+
+/**
+ * Transfere a titularidade da organização para outro usuário.
+ * - Apenas o dono atual pode invocar.
+ * - O alvo precisa estar ativo e pertencer à mesma organização.
+ * - Se o alvo é STAFF, é promovido a ADMIN na mesma transação.
+ * - O dono atual permanece ADMIN, mas perde a coroa.
+ */
+export async function transferOwnershipAction(input: z.infer<typeof transferOwnershipSchema>) {
+  return runAction(async () => {
+    const ctx = await getTenantContext()
+    if (ctx.role !== 'ADMIN') {
+      throw new ForbiddenError('Apenas ADMIN pode transferir titularidade')
+    }
+
+    const parsed = transferOwnershipSchema.safeParse(input)
+    if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
+
+    if (parsed.data.targetUserId === ctx.userId) {
+      throw new ConflictError('Você já é o dono — escolha outro usuário')
+    }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: ctx.organizationId },
+      select: { ownerId: true },
+    })
+    if (!org) throw new NotFoundError('Organização')
+    if (org.ownerId !== ctx.userId) {
+      throw new ForbiddenError('Apenas o dono atual pode transferir a titularidade')
+    }
+
+    const target = await prisma.user.findFirst({
+      where: {
+        id: parsed.data.targetUserId,
+        organizationId: ctx.organizationId,
+        deletedAt: null,
+        isActive: true,
+        role: { in: ['ADMIN', 'STAFF'] },
+      },
+      select: { id: true, name: true, role: true },
+    })
+    if (!target) {
+      throw new NotFoundError('Funcionário-alvo (precisa estar ativo na organização)')
+    }
+
+    await prisma.$transaction([
+      // Promove o alvo a ADMIN se ainda for STAFF (idempotente para ADMIN).
+      prisma.user.update({
+        where: { id: target.id },
+        data: { role: 'ADMIN' },
+      }),
+      // Move a coroa atomicamente.
+      prisma.organization.update({
+        where: { id: ctx.organizationId },
+        data: { ownerId: target.id },
+      }),
+    ])
+
+    createAuditLog(ctx, {
+      action: 'update',
+      entityType: 'Organization',
+      entityId: ctx.organizationId,
+      changes: {
+        ownerId: { from: ctx.userId, to: target.id },
+        promotedToAdmin: target.role === 'STAFF',
+      },
     }).catch(() => {})
 
     revalidatePath('/staff')

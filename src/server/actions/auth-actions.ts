@@ -69,6 +69,23 @@ export async function acceptInviteAction(input: z.infer<typeof acceptInviteSchem
     data: { acceptedAt: new Date() },
   })
 
+  // Se a organização ainda não tem dono e o usuário entrou como ADMIN,
+  // ele assume a titularidade automaticamente. Usa updateMany com filtro
+  // por ownerId IS NULL para evitar race condition (dois ADMINs aceitando
+  // convite simultaneamente — só o primeiro a executar vence).
+  if (user.role === 'ADMIN' && invitation.organizationId) {
+    const result = await prisma.organization.updateMany({
+      where: { id: invitation.organizationId, ownerId: null },
+      data: { ownerId: user.id },
+    })
+    if (result.count > 0) {
+      logger.info('Organization owner auto-assigned on invite accept', {
+        userId: user.id,
+        organizationId: invitation.organizationId,
+      })
+    }
+  }
+
   logger.info('Invite accepted', { userId: user.id, organizationId: invitation.organizationId })
 
   return ok({ email: user.email })

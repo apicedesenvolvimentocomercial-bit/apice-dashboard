@@ -1,6 +1,6 @@
 'use client'
 
-import { Plus, Users } from 'lucide-react'
+import { Crown, Plus, Users } from 'lucide-react'
 import { useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -12,11 +12,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { StaffUser } from '@/server/repositories/user-repository'
 
 import { InviteStaffDialog } from './invite-staff-dialog'
 import { PermissionMatrix } from './permission-matrix'
 import { StaffRowActions } from './staff-row-actions'
+import { TransferOwnershipDialog } from './transfer-ownership-dialog'
 
 type Props = {
   rows: StaffUser[]
@@ -26,13 +28,19 @@ type Props = {
    * leitura à equipe, mas só ADMIN pode mutar (ver `server/auth/permissions.ts`).
    */
   canWrite: boolean
+  /** ID do dono da organização (único usuário com a coroa). */
+  ownerId: string | null
+  /** Se o usuário atual é o dono — controla disponibilidade do "Transferir". */
+  currentUserIsOwner: boolean
 }
 
-export function StaffList({ rows, currentUserId, canWrite }: Props) {
+export function StaffList({ rows, currentUserId, canWrite, ownerId, currentUserIsOwner }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [transferTargetId, setTransferTargetId] = useState<string | null>(null)
 
   const editing = editingId ? rows.find((r) => r.id === editingId) : null
+  const transferTarget = transferTargetId ? rows.find((r) => r.id === transferTargetId) : null
 
   return (
     <>
@@ -85,45 +93,64 @@ export function StaffList({ rows, currentUserId, canWrite }: Props) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((user) => (
-                <tr key={user.id} className="border-t">
-                  <td className="px-4 py-3">
-                    <div className="font-medium">
-                      {user.name}
-                      {user.id === currentUserId && (
-                        <span className="ml-2 text-xs text-muted-foreground">(você)</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
-                      {user.role}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={user.isActive ? 'default' : 'outline'}>
-                      {user.isActive ? 'Ativo' : 'Inativo'}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {user.lastLoginAt
-                      ? new Date(user.lastLoginAt).toLocaleDateString('pt-BR')
-                      : '—'}
-                  </td>
-                  {canWrite && (
-                    <td className="px-4 py-3 text-right">
-                      <StaffRowActions
-                        userId={user.id}
-                        isActive={user.isActive}
-                        role={user.role as 'ADMIN' | 'STAFF'}
-                        isSelf={user.id === currentUserId}
-                        onEditPermissions={() => setEditingId(user.id)}
-                      />
+              {rows.map((user) => {
+                const isOwner = user.id === ownerId
+                return (
+                  <tr key={user.id} className="border-t">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 font-medium">
+                        {isOwner && (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Crown
+                                  className="h-4 w-4 text-amber-500"
+                                  aria-label="Dono da organização"
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent>Dono da organização</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        <span>{user.name}</span>
+                        {user.id === currentUserId && (
+                          <span className="text-xs text-muted-foreground">(você)</span>
+                        )}
+                      </div>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
+                        {user.role}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={user.isActive ? 'default' : 'outline'}>
+                        {user.isActive ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {user.lastLoginAt
+                        ? new Date(user.lastLoginAt).toLocaleDateString('pt-BR')
+                        : '—'}
+                    </td>
+                    {canWrite && (
+                      <td className="px-4 py-3 text-right">
+                        <StaffRowActions
+                          userId={user.id}
+                          isActive={user.isActive}
+                          role={user.role as 'ADMIN' | 'STAFF'}
+                          isSelf={user.id === currentUserId}
+                          isOwner={isOwner}
+                          currentUserIsOwner={currentUserIsOwner}
+                          onEditPermissions={() => setEditingId(user.id)}
+                          onTransferOwnership={() => setTransferTargetId(user.id)}
+                        />
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -151,6 +178,16 @@ export function StaffList({ rows, currentUserId, canWrite }: Props) {
               )}
             </DialogContent>
           </Dialog>
+
+          <TransferOwnershipDialog
+            open={transferTarget !== null}
+            onOpenChange={(open) => !open && setTransferTargetId(null)}
+            target={
+              transferTarget
+                ? { id: transferTarget.id, name: transferTarget.name, role: transferTarget.role }
+                : null
+            }
+          />
         </>
       )}
     </>

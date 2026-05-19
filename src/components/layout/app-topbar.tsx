@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, LogOut, Settings, User } from 'lucide-react'
+import { ChevronDown, Crown, LogOut, Settings, User } from 'lucide-react'
 import Link from 'next/link'
 
 import { signOut } from '@/lib/auth-client'
@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { NotificationBell, type BellNotification } from '@/modules/notifications/notification-bell'
 
 type User = {
@@ -29,6 +30,8 @@ type Props = {
   notifications: BellNotification[]
   unreadCount: number
   notificationsHref?: string | null
+  /** Quando true, exibe a coroa de dono ao lado do nome. */
+  isOwner?: boolean
 }
 
 function getInitials(name?: string | null): string {
@@ -41,7 +44,7 @@ function getInitials(name?: string | null): string {
     .toUpperCase()
 }
 
-export function AppTopbar({ user, notifications, unreadCount, notificationsHref }: Props) {
+export function AppTopbar({ user, notifications, unreadCount, notificationsHref, isOwner }: Props) {
   return (
     <header className="flex h-14 items-center justify-between border-b bg-white px-6 dark:bg-zinc-900">
       <div className="flex-1" />
@@ -60,6 +63,19 @@ export function AppTopbar({ user, notifications, unreadCount, notificationsHref 
                 <AvatarImage src={user.image ?? undefined} alt={user.name ?? 'Usuário'} />
                 <AvatarFallback className="text-xs">{getInitials(user.name)}</AvatarFallback>
               </Avatar>
+              {isOwner && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Crown
+                        className="h-3.5 w-3.5 text-amber-500"
+                        aria-label="Dono da organização"
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>Dono da organização</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <span className="hidden text-sm font-medium md:inline-flex">{user.name}</span>
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </Button>
@@ -67,7 +83,15 @@ export function AppTopbar({ user, notifications, unreadCount, notificationsHref 
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">{user.name}</p>
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  {user.name}
+                  {isOwner && (
+                    <Crown
+                      className="h-3.5 w-3.5 text-amber-500"
+                      aria-label="Dono da organização"
+                    />
+                  )}
+                </p>
                 <p className="text-xs text-muted-foreground">{user.email}</p>
               </div>
             </DropdownMenuLabel>

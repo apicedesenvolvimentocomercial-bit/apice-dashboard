@@ -23,6 +23,12 @@ model Organization {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
+  // Dono/titular da organização — único privilegiado que pode transferir a
+  // titularidade. Não pode ser rebaixado ou desativado por terceiros. Nullable
+  // durante migration; backfill seta o ADMIN mais antigo de cada org.
+  ownerId String? @unique
+  owner   User?   @relation("OrganizationOwner", fields: [ownerId], references: [id])
+
   users       User[]
   clients     Client[]
   invitations Invitation[]
@@ -64,6 +70,9 @@ model User {
   activities          Activity[]
   notifications       Notification[]
   passwordResetTokens PasswordResetToken[]
+
+  // Inverso 1:1 de Organization.ownerId — null se este usuário não é dono.
+  ownedOrganization Organization? @relation("OrganizationOwner")
 
   @@index([organizationId])
   @@index([clientId])
