@@ -23,11 +23,16 @@ export async function getActivitiesForTenant(filters: ActivityListFilters = {}) 
     await assertClientAccess(ctx, filters.clientId)
   }
 
-  // Per-user scoping: STAFF só enxerga as atividades atribuídas a si mesmo.
-  // ADMIN pode filtrar por usuário (pasta) via filters.assignedToId; se não
-  // filtrar, vê todas as atividades da organização.
+  // Per-user scoping:
+  // - ADMIN pode filtrar por usuário (pasta) via filters.assignedToId; sem
+  //   filtro, vê todas as atividades da organização.
+  // - STAFF nunca enxerga atividades de outros. Na pasta "Todos" (sem filtro
+  //   ou filtro para outro usuário) vê suas próprias + as sem responsável;
+  //   na própria pasta (assignedToId === ctx.userId) vê só as próprias.
   if (ctx.role === 'STAFF') {
+    const ownFolder = filters.assignedToId === ctx.userId
     effective.assignedToId = ctx.userId
+    effective.includeUnassigned = !ownFolder
   }
 
   const [rows, today, week, overdue, all, done] = await Promise.all([

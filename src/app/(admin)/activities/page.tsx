@@ -26,9 +26,15 @@ export default async function AdminActivitiesPage({ searchParams }: Props) {
   const ctx = await getTenantContext()
   const isAdmin = ctx.role === 'ADMIN'
 
-  // STAFF: sempre fixado em si mesmo (query força isso). Admin pode escolher
-  // pasta de usuário; sem escolha, vê todas as atividades da organização.
-  const selectedUserId = isAdmin && sp.userId && sp.userId !== 'all' ? sp.userId : null
+  // Pasta selecionada via URL. STAFF só pode escolher entre "Todos" (null) e a
+  // própria pasta — qualquer outro id é forçado para null (a query também
+  // re-checa o vínculo, então a URL não consegue vazar atividades alheias).
+  const requestedUserId = sp.userId && sp.userId !== 'all' ? sp.userId : null
+  const selectedUserId = isAdmin
+    ? requestedUserId
+    : requestedUserId === ctx.userId
+      ? ctx.userId
+      : null
 
   const [{ rows, counts }, users, clients] = await Promise.all([
     getActivitiesForTenant({ view, assignedToId: selectedUserId ?? undefined }),

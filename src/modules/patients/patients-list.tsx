@@ -67,7 +67,7 @@ export function PatientsList({ patients, clientId }: Props) {
           {!search && (
             <>
               <p className="mb-6 mt-1 text-sm text-muted-foreground">
-                Pacientes criados via CRM (leads ganhos) aparecem aqui automaticamente.
+                Pacientes criados via Pipeline (leads ganhos) aparecem aqui automaticamente.
               </p>
               <Button onClick={() => setCreateOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />

@@ -11,6 +11,10 @@ export type ActivityListFilters = {
   type?: ActivityType[]
   clientId?: string | null
   assignedToId?: string | null
+  // Quando true e assignedToId é um id, expande o filtro para "atribuído a
+  // esse usuário OU sem responsável". Usado para que STAFF na pasta "Todos"
+  // veja suas atividades + as gerais da organização.
+  includeUnassigned?: boolean
   view?: 'today' | 'week' | 'overdue' | 'all' | 'done'
   search?: string
 }
@@ -27,7 +31,13 @@ function buildWhere(
   }
 
   if (filters.clientId !== undefined) where.clientId = filters.clientId
-  if (filters.assignedToId !== undefined) where.assignedToId = filters.assignedToId
+  if (filters.assignedToId !== undefined) {
+    if (filters.includeUnassigned && typeof filters.assignedToId === 'string') {
+      where.OR = [{ assignedToId: filters.assignedToId }, { assignedToId: null }]
+    } else {
+      where.assignedToId = filters.assignedToId
+    }
+  }
   if (filters.status?.length) where.status = { in: filters.status }
   if (filters.priority?.length) where.priority = { in: filters.priority }
   if (filters.type?.length) where.type = { in: filters.type }

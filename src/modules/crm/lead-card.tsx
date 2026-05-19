@@ -1,6 +1,6 @@
 'use client'
 
-import { useDraggable } from '@dnd-kit/core'
+import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -18,12 +18,15 @@ type Props = {
 }
 
 export function LeadCard({ lead, onClick, isDragOverlay = false }: Props) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  // useSortable engloba useDraggable e adiciona contexto de ordenação dentro
+  // do SortableContext da coluna (drop sobre outro card = reorder relativo).
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
     data: { lead },
+    disabled: isDragOverlay,
   })
 
-  const style = { transform: CSS.Translate.toString(transform) }
+  const style = { transform: CSS.Translate.toString(transform), transition }
 
   return (
     <div

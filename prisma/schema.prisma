@@ -228,7 +228,7 @@ model ClinicHoliday {
 }
 
 // =====================================================
-// CRM — PIPELINE INTERNO
+// PIPELINE INTERNO DA CLÍNICA
 // =====================================================
 
 model PipelineStage {
@@ -296,6 +296,9 @@ model Lead {
 
   stageId String
   stage   PipelineStage @relation(fields: [stageId], references: [id])
+  // Posição manual dentro da coluna. Float fracionário permite inserir entre
+  // dois cards sem renumerar (1.0 → 1.5 → 2.0). Mesmo padrão do PipelineDeal.
+  position Float @default(0)
 
   firstContactAt DateTime?
   scheduledAt    DateTime?
@@ -321,6 +324,7 @@ model Lead {
 
   @@index([organizationId, clientId])
   @@index([clientId, stageId, deletedAt])
+  @@index([clientId, stageId, position])
   @@index([clientId, source])
   @@index([clientId, createdAt])
 }

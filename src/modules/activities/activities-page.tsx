@@ -94,8 +94,7 @@ export function ActivitiesPage({
   // - STAFF / clínica → sempre o próprio usuário (backend força isso de novo).
   const quickAddAssigneeId = isAdmin ? (selectedUserId ?? null) : (currentUserId ?? null)
   const quickAddFolderLabel = (() => {
-    if (!isAdmin) return null
-    if (!selectedUserId) return 'Todos'
+    if (!selectedUserId) return isAdmin ? 'Todos' : null
     const u = users.find((x) => x.id === selectedUserId)
     if (!u) return null
     return u.id === currentUserId ? `${u.name} (você)` : u.name
@@ -128,7 +127,7 @@ export function ActivitiesPage({
         />
       </div>
 
-      {isAdmin && users.length > 1 && (
+      {(isAdmin ? users.length > 1 : users.length >= 1) && (
         <div className="mt-4 flex flex-wrap items-center gap-1.5">
           <span className="mr-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Folder className="h-3.5 w-3.5" /> Pastas

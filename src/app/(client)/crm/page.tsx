@@ -4,7 +4,7 @@ import { auth } from '@/server/auth'
 import { getPipelineData } from '@/server/queries/lead-queries'
 import { KanbanBoard } from '@/modules/crm/kanban-board'
 
-export const metadata: Metadata = { title: 'CRM / Leads' }
+export const metadata: Metadata = { title: 'Pipeline' }
 
 export default async function ClientCrmPage() {
   const session = await auth()
@@ -24,7 +24,7 @@ export default async function ClientCrmPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">CRM / Leads</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
           <p className="text-sm text-muted-foreground">
             {stages.reduce((acc, s) => acc + s.leads.length, 0)} leads no funil
           </p>

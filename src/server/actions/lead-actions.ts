@@ -10,6 +10,7 @@ import {
   createLead,
   updateLead,
   moveLead,
+  reorderLead,
   findLeadById,
   softDeleteLead,
 } from '@/server/repositories/lead-repository'
@@ -70,18 +71,33 @@ export async function updateLeadAction(leadId: string, clientId: string, formDat
   return ok(null)
 }
 
-export async function moveLeadAction(leadId: string, stageId: string, clientId: string) {
+export async function moveLeadAction(
+  leadId: string,
+  stageId: string,
+  clientId: string,
+  position?: number
+) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
   await assertCan(ctx, 'crm', 'write')
 
-  await moveLead(ctx, leadId, stageId)
+  await moveLead(ctx, leadId, stageId, position)
   createAuditLog(ctx, {
     action: 'stage_change',
     entityType: 'Lead',
     entityId: leadId,
     changes: { stageId },
   }).catch(() => {})
+  revalidate(clientId)
+  return ok(null)
+}
+
+export async function reorderLeadAction(leadId: string, clientId: string, position: number) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'write')
+
+  await reorderLead(ctx, leadId, position)
   revalidate(clientId)
   return ok(null)
 }

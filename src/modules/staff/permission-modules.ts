@@ -10,7 +10,7 @@ export type PermissionModule = {
  */
 export const PERMISSION_MODULES: PermissionModule[] = [
   { key: 'clients', label: 'Clínicas', description: 'CRUD e dashboard das clínicas' },
-  { key: 'crm', label: 'CRM / Leads', description: 'Pipeline e leads' },
+  { key: 'crm', label: 'Pipeline', description: 'Funil de leads e negociações' },
   { key: 'patients', label: 'Pacientes', description: 'Cadastro de pacientes' },
   { key: 'appointments', label: 'Agendamentos', description: 'Agenda e status' },
   { key: 'procedures', label: 'Procedimentos', description: 'Catálogo de procedimentos' },

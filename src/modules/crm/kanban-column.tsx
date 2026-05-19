@@ -1,6 +1,7 @@
 'use client'
 
 import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -14,7 +15,10 @@ type Props = {
 }
 
 export function KanbanColumn({ stage, onAddLead, onLeadClick }: Props) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id })
+  // O droppable da coluna captura drop em áreas vazias. Quando o usuário
+  // solta sobre outro card, o SortableContext decide a posição relativa.
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { stageId: stage.id } })
+  const leadIds = stage.leads.map((l) => l.id)
 
   return (
     <div className="flex w-72 shrink-0 flex-col">
@@ -40,24 +44,22 @@ export function KanbanColumn({ stage, onAddLead, onLeadClick }: Props) {
         )}
       </div>
 
-      <div
-        ref={setNodeRef}
-        className={cn(
-          'flex min-h-48 flex-col gap-2 overflow-y-auto rounded-lg p-2 transition-colors',
-          'bg-muted/30',
-          isOver && 'bg-primary/10 ring-2 ring-primary/30'
-        )}
-      >
-        {stage.leads.map((lead) => (
-          <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead.id)} />
-        ))}
+      <SortableContext items={leadIds} strategy={verticalListSortingStrategy}>
+        <div
+          ref={setNodeRef}
+          className={cn('flex min-h-48 flex-col gap-2 overflow-y-auto rounded-lg bg-muted/30 p-2')}
+        >
+          {stage.leads.map((lead) => (
+            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead.id)} />
+          ))}
 
-        {stage.leads.length === 0 && !isOver && (
-          <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
-            Nenhum lead
-          </div>
-        )}
-      </div>
+          {stage.leads.length === 0 && !isOver && (
+            <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
+              Nenhum lead
+            </div>
+          )}
+        </div>
+      </SortableContext>
     </div>
   )
 }

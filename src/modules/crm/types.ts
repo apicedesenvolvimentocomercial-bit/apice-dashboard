@@ -9,6 +9,7 @@ export type KanbanLead = {
   tags: string[]
   createdAt: Date
   stageId: string
+  position: number
 }
 
 export type KanbanStage = {

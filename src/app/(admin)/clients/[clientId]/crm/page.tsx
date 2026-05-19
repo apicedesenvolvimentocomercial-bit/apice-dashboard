@@ -10,7 +10,7 @@ type Props = { params: Promise<{ clientId: string }> }
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { clientId } = await params
   const client = await getClient(clientId)
-  return { title: `CRM — ${client?.name ?? 'Clínica'}` }
+  return { title: `Pipeline — ${client?.name ?? 'Clínica'}` }
 }
 
 export default async function AdminClientCrmPage({ params }: Props) {
@@ -24,7 +24,7 @@ export default async function AdminClientCrmPage({ params }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">CRM — {client.name}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Pipeline — {client.name}</h1>
         <p className="text-sm text-muted-foreground">{totalLeads} leads no funil</p>
       </div>
 

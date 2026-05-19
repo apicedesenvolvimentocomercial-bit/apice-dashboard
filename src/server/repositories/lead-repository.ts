@@ -19,7 +19,7 @@ export async function getPipeline(ctx: TenantContext, clientId: string) {
       order: true,
       leads: {
         where: { organizationId: ctx.organizationId, clientId, deletedAt: null },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { position: 'asc' },
         select: {
           id: true,
           name: true,
@@ -29,6 +29,7 @@ export async function getPipeline(ctx: TenantContext, clientId: string) {
           tags: true,
           createdAt: true,
           stageId: true,
+          position: true,
         },
       },
     },
@@ -99,17 +100,30 @@ export async function updateLead(
   })
 }
 
-export async function moveLead(ctx: TenantContext, leadId: string, stageId: string) {
+export async function moveLead(
+  ctx: TenantContext,
+  leadId: string,
+  stageId: string,
+  position?: number
+) {
   const stage = await prisma.pipelineStage.findUnique({ where: { id: stageId } })
 
   return prisma.lead.updateMany({
     where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
     data: {
       stageId,
+      ...(position !== undefined ? { position } : {}),
       updatedById: ctx.userId,
       ...(stage?.isWon ? { closedAt: new Date() } : {}),
       ...(stage?.isLost ? { lostAt: new Date() } : {}),
     },
+  })
+}
+
+export async function reorderLead(ctx: TenantContext, leadId: string, position: number) {
+  return prisma.lead.updateMany({
+    where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
+    data: { position, updatedById: ctx.userId },
   })
 }
 
