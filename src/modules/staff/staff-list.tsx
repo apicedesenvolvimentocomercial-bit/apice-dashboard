@@ -21,9 +21,14 @@ import { StaffRowActions } from './staff-row-actions'
 type Props = {
   rows: StaffUser[]
   currentUserId: string
+  /**
+   * Quando false, esconde botões de convite/edição. STAFF tem acesso de
+   * leitura à equipe, mas só ADMIN pode mutar (ver `server/auth/permissions.ts`).
+   */
+  canWrite: boolean
 }
 
-export function StaffList({ rows, currentUserId }: Props) {
+export function StaffList({ rows, currentUserId, canWrite }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -38,23 +43,33 @@ export function StaffList({ rows, currentUserId }: Props) {
             {rows.length} {rows.length === 1 ? 'membro' : 'membros'} na organização.
           </p>
         </div>
-        <Button onClick={() => setInviteOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Convidar funcionário
-        </Button>
+        {canWrite && (
+          <Button onClick={() => setInviteOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Convidar funcionário
+          </Button>
+        )}
       </div>
 
       {rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-20 text-center">
           <Users className="mb-4 h-12 w-12 text-muted-foreground/50" />
           <h3 className="text-lg font-medium">Nenhum funcionário ainda</h3>
-          <p className="mb-6 mt-1 text-sm text-muted-foreground">
-            Convide o primeiro membro da sua equipe.
-          </p>
-          <Button onClick={() => setInviteOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Convidar
-          </Button>
+          {canWrite ? (
+            <>
+              <p className="mb-6 mt-1 text-sm text-muted-foreground">
+                Convide o primeiro membro da sua equipe.
+              </p>
+              <Button onClick={() => setInviteOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Convidar
+              </Button>
+            </>
+          ) : (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Peça a um administrador para convidar novos membros.
+            </p>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
@@ -66,7 +81,7 @@ export function StaffList({ rows, currentUserId }: Props) {
                 <th className="px-4 py-3 text-left font-medium">Cargo</th>
                 <th className="px-4 py-3 text-left font-medium">Status</th>
                 <th className="px-4 py-3 text-left font-medium">Último login</th>
-                <th className="px-4 py-3"></th>
+                {canWrite && <th className="px-4 py-3"></th>}
               </tr>
             </thead>
             <tbody>
@@ -96,15 +111,17 @@ export function StaffList({ rows, currentUserId }: Props) {
                       ? new Date(user.lastLoginAt).toLocaleDateString('pt-BR')
                       : '—'}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <StaffRowActions
-                      userId={user.id}
-                      isActive={user.isActive}
-                      role={user.role as 'ADMIN' | 'STAFF'}
-                      isSelf={user.id === currentUserId}
-                      onEditPermissions={() => setEditingId(user.id)}
-                    />
-                  </td>
+                  {canWrite && (
+                    <td className="px-4 py-3 text-right">
+                      <StaffRowActions
+                        userId={user.id}
+                        isActive={user.isActive}
+                        role={user.role as 'ADMIN' | 'STAFF'}
+                        isSelf={user.id === currentUserId}
+                        onEditPermissions={() => setEditingId(user.id)}
+                      />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -112,26 +129,30 @@ export function StaffList({ rows, currentUserId }: Props) {
         </div>
       )}
 
-      <InviteStaffDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      {canWrite && (
+        <>
+          <InviteStaffDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
-      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditingId(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Permissões de {editing?.name}</DialogTitle>
-            <DialogDescription>
-              Ajuste finamente o que este funcionário pode ler, escrever ou excluir em cada módulo.
-              Os defaults do cargo já são aplicados — sobreposições aqui têm prioridade.
-            </DialogDescription>
-          </DialogHeader>
-          {editing && (
-            <PermissionMatrix
-              userId={editing.id}
-              initial={editing.permissions}
-              onSaved={() => setEditingId(null)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+          <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditingId(null)}>
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Permissões de {editing?.name}</DialogTitle>
+                <DialogDescription>
+                  Ajuste finamente o que este funcionário pode ler, escrever ou excluir em cada
+                  módulo. Os defaults do cargo já são aplicados — sobreposições aqui têm prioridade.
+                </DialogDescription>
+              </DialogHeader>
+              {editing && (
+                <PermissionMatrix
+                  userId={editing.id}
+                  initial={editing.permissions}
+                  onSaved={() => setEditingId(null)}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </>
   )
 }

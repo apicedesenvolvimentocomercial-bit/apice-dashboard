@@ -20,7 +20,7 @@ const ROLE_DEFAULTS: Record<
     procedures: { read: true, write: false, delete: false },
     activities: { read: true, write: true, delete: false },
     reports: { read: true, write: false, delete: false },
-    staff: { read: false, write: false, delete: false },
+    staff: { read: true, write: false, delete: false },
     settings: { read: false, write: false, delete: false },
   },
   CLIENT_OWNER: {
