@@ -1,5 +1,7 @@
 import type { ActivityPriority, ActivityStatus, ActivityType, Prisma } from '@prisma/client'
+import { toZonedTime } from 'date-fns-tz'
 
+import { APP_TIMEZONE, spDate } from '@/lib/date'
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
 
@@ -9,7 +11,7 @@ export type ActivityListFilters = {
   type?: ActivityType[]
   clientId?: string | null
   assignedToId?: string | null
-  view?: 'today' | 'week' | 'overdue' | 'all'
+  view?: 'today' | 'week' | 'overdue' | 'all' | 'done'
   search?: string
 }
 
@@ -34,22 +36,36 @@ function buildWhere(
   }
 
   const now = new Date()
-  if (filters.view === 'today') {
-    const start = new Date(now)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(now)
-    end.setHours(23, 59, 59, 999)
-    where.dueDate = { gte: start, lte: end }
-  } else if (filters.view === 'week') {
-    const start = new Date(now)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(now)
-    end.setDate(end.getDate() + 7)
-    end.setHours(23, 59, 59, 999)
-    where.dueDate = { gte: start, lte: end }
-  } else if (filters.view === 'overdue') {
-    where.dueDate = { lt: now }
+  // "Hoje", "Esta semana" e "Atrasadas" usam o dia de calendário no fuso da
+  // aplicação (SP), não o fuso do servidor — senão num servidor UTC uma
+  // atividade marcada para "amanhã" às 12h SP cai dentro da janela de "hoje"
+  // do servidor e aparece na aba errada.
+  const zonedNow = toZonedTime(now, APP_TIMEZONE)
+  const y = zonedNow.getFullYear()
+  const m = zonedNow.getMonth()
+  const d = zonedNow.getDate()
+  const dayStart = spDate(y, m, d, 0, 0, 0)
+  const dayEnd = new Date(spDate(y, m, d + 1, 0, 0, 0).getTime() - 1)
+
+  // "Feitas" é a única aba que mostra concluídas; as demais ficam restritas
+  // a atividades em aberto para não duplicar.
+  if (filters.view === 'done') {
+    where.status = { in: ['COMPLETED'] }
+  } else if (filters.view === 'today') {
+    where.dueDate = { gte: dayStart, lte: dayEnd }
     where.status = { in: ['PENDING', 'IN_PROGRESS'] }
+  } else if (filters.view === 'week') {
+    const weekEnd = new Date(spDate(y, m, d + 8, 0, 0, 0).getTime() - 1)
+    where.dueDate = { gte: dayStart, lte: weekEnd }
+    where.status = { in: ['PENDING', 'IN_PROGRESS'] }
+  } else if (filters.view === 'overdue') {
+    where.dueDate = { lt: dayStart }
+    where.status = { in: ['PENDING', 'IN_PROGRESS'] }
+  } else if (filters.view === 'all' || filters.view === undefined) {
+    // "Todas" = todas as atividades em aberto.
+    if (!filters.status?.length) {
+      where.status = { in: ['PENDING', 'IN_PROGRESS', 'CANCELED'] }
+    }
   }
 
   return where

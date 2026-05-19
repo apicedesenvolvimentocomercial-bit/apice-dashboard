@@ -55,4 +55,5 @@ export type ActivityView_Counts = {
   week: number
   overdue: number
   all: number
+  done: number
 }

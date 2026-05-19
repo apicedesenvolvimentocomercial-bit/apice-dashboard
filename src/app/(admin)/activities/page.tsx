@@ -14,8 +14,8 @@ export const metadata: Metadata = { title: 'Atividades' }
 type SearchParams = { view?: string; userId?: string }
 type Props = { searchParams: Promise<SearchParams> }
 
-function parseView(v: string | undefined): 'today' | 'week' | 'overdue' | 'all' {
-  if (v === 'today' || v === 'week' || v === 'overdue' || v === 'all') return v
+function parseView(v: string | undefined): 'today' | 'week' | 'overdue' | 'all' | 'done' {
+  if (v === 'today' || v === 'week' || v === 'overdue' || v === 'all' || v === 'done') return v
   return 'today'
 }
 

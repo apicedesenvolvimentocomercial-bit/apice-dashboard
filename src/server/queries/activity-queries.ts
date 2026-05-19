@@ -16,7 +16,8 @@ export async function getActivitiesForTenant(filters: ActivityListFilters = {}) 
 
   const effective: ActivityListFilters = { ...filters }
   if (ctx.role === 'CLIENT_OWNER' || ctx.role === 'CLIENT_STAFF') {
-    if (!ctx.clientId) return { rows: [], counts: { today: 0, week: 0, overdue: 0, all: 0 } }
+    if (!ctx.clientId)
+      return { rows: [], counts: { today: 0, week: 0, overdue: 0, all: 0, done: 0 } }
     effective.clientId = ctx.clientId
   } else if (filters.clientId) {
     await assertClientAccess(ctx, filters.clientId)
@@ -29,17 +30,18 @@ export async function getActivitiesForTenant(filters: ActivityListFilters = {}) 
     effective.assignedToId = ctx.userId
   }
 
-  const [rows, today, week, overdue, all] = await Promise.all([
+  const [rows, today, week, overdue, all, done] = await Promise.all([
     listActivities(ctx, effective),
     countActivities(ctx, { ...effective, view: 'today' }),
     countActivities(ctx, { ...effective, view: 'week' }),
     countActivities(ctx, { ...effective, view: 'overdue' }),
-    countActivities(ctx, { ...effective, view: undefined }),
+    countActivities(ctx, { ...effective, view: 'all' }),
+    countActivities(ctx, { ...effective, view: 'done' }),
   ])
 
   return {
     rows,
-    counts: { today, week, overdue, all },
+    counts: { today, week, overdue, all, done },
   }
 }
 

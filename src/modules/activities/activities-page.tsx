@@ -19,13 +19,14 @@ import { CreateActivityDialog } from './create-activity-dialog'
 import { QuickAdd } from './quick-add'
 import type { ActivityView, ActivityView_Counts } from './types'
 
-type View = 'today' | 'week' | 'overdue' | 'all'
+type View = 'today' | 'week' | 'overdue' | 'all' | 'done'
 
 const TABS: { key: View; label: string }[] = [
   { key: 'today', label: 'Hoje' },
   { key: 'week', label: 'Esta semana' },
   { key: 'overdue', label: 'Atrasadas' },
   { key: 'all', label: 'Todas' },
+  { key: 'done', label: 'Feitas' },
 ]
 
 type Props = {
@@ -69,9 +70,6 @@ export function ActivitiesPage({
     else sp.set('userId', userId)
     router.push(`${pathname}?${sp.toString()}`)
   }
-
-  const open = activities.filter((a) => a.status !== 'COMPLETED')
-  const done = activities.filter((a) => a.status === 'COMPLETED')
 
   const folderLabel = (() => {
     if (!isAdmin) return null
@@ -173,42 +171,10 @@ export function ActivitiesPage({
           </div>
         </div>
       ) : (
-        <div className="space-y-6">
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Em aberto
-              </h2>
-              <span className="text-xs text-muted-foreground">{open.length}</span>
-            </div>
-            {open.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                Nenhuma atividade em aberto.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {open.map((a) => (
-                  <ActivityCard key={a.id} activity={a} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {done.length > 0 && (
-            <section className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Feitas
-                </h2>
-                <span className="text-xs text-muted-foreground">{done.length}</span>
-              </div>
-              <div className="space-y-2">
-                {done.map((a) => (
-                  <ActivityCard key={a.id} activity={a} />
-                ))}
-              </div>
-            </section>
-          )}
+        <div className="space-y-2">
+          {activities.map((a) => (
+            <ActivityCard key={a.id} activity={a} />
+          ))}
         </div>
       )}
     </div>
