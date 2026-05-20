@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Loader2, Check, X, UserX, AlertTriangle, Trash2 } from 'lucide-react'
+import { Loader2, Check, X, UserX, AlertTriangle, Trash2, CalendarClock } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
@@ -16,13 +16,19 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { toSPWallClock } from '@/lib/calendar-time'
 import {
   updateAppointmentStatusAction,
+  updateAppointmentAction,
   confirmRevenueFromAppointmentAction,
   deleteAppointmentAction,
 } from '@/server/actions/appointment-actions'
 import { STATUS_LABELS, STATUS_COLORS } from './types'
 import type { AppointmentEvent } from './types'
+
+// Janela em que o atendimento já é "acionável": faltando até 30 min para o
+// horário, ou já tendo passado. Antes disso, o fluxo é cancelar/reagendar.
+const ATTENDANCE_WINDOW_MS = 30 * 60 * 1000
 
 type Props = {
   open: boolean
@@ -42,11 +48,18 @@ export function AppointmentDetailDialog({
   const [isPending, startTransition] = useTransition()
   const [showCancelForm, setShowCancelForm] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const [showRescheduleForm, setShowRescheduleForm] = useState(false)
+  const [newDateTime, setNewDateTime] = useState('')
   const [showRevenuePrompt, setShowRevenuePrompt] = useState(false)
 
   if (!appointment) return null
 
   const isTerminal = ['ATTENDED', 'NO_SHOW', 'CANCELED'].includes(appointment.status)
+
+  // Faltando até 30 min para o horário, ou já passou → marcar comparecimento/
+  // falta. Mais de 30 min antes → só cancelar ou reagendar.
+  const startMs = new Date(appointment.scheduledAt).getTime()
+  const inAttendanceWindow = Date.now() >= startMs - ATTENDANCE_WINDOW_MS
 
   function handleStatus(status: string) {
     if (!appointment) return
@@ -83,6 +96,29 @@ export function AppointmentDetailDialog({
       toast.success('Agendamento cancelado')
       setShowCancelForm(false)
       setCancelReason('')
+      onUpdated()
+      onClose()
+    })
+  }
+
+  function handleReschedule() {
+    if (!appointment || !newDateTime) return
+    startTransition(async () => {
+      // Reagendar = mover o scheduledAt. É a única fonte de verdade da data:
+      // calendário, bucketing de KPI por período, relatórios e exports leem
+      // dela ao vivo, então mover aqui propaga para todo o sistema. Status
+      // segue SCHEDULED (continua acionável no novo horário). Receita só é
+      // criada no comparecimento, então não há nada a corrigir lá.
+      const result = await updateAppointmentAction(appointment.id, clientId, {
+        scheduledAt: newDateTime,
+      })
+      if (!result.success) {
+        toast.error(result.error.message)
+        return
+      }
+      toast.success('Agendamento remarcado')
+      setShowRescheduleForm(false)
+      setNewDateTime('')
       onUpdated()
       onClose()
     })
@@ -205,53 +241,101 @@ export function AppointmentDetailDialog({
 
             {!isTerminal && (
               <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {appointment.status === 'SCHEDULED' && (
+                {inAttendanceWindow ? (
+                  // Próximo do horário ou já passou: registrar o desfecho.
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => handleStatus('ATTENDED')}
+                      disabled={isPending}
+                    >
+                      {isPending ? (
+                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="mr-1.5 h-4 w-4" />
+                      )}
+                      Compareceu
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-blue-300 text-blue-600 hover:bg-blue-50"
-                      onClick={() => handleStatus('CONFIRMED')}
+                      className="border-red-300 text-red-600 hover:bg-red-50"
+                      onClick={() => handleStatus('NO_SHOW')}
                       disabled={isPending}
                     >
-                      <Check className="mr-1.5 h-4 w-4" />
-                      Confirmar
+                      <UserX className="mr-1.5 h-4 w-4" />
+                      Faltou
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => handleStatus('ATTENDED')}
-                    disabled={isPending}
-                  >
-                    {isPending ? (
-                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Check className="mr-1.5 h-4 w-4" />
-                    )}
-                    Compareceu
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-red-300 text-red-600 hover:bg-red-50"
-                    onClick={() => handleStatus('NO_SHOW')}
-                    disabled={isPending}
-                  >
-                    <UserX className="mr-1.5 h-4 w-4" />
-                    Faltou
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-muted-foreground"
-                    onClick={() => setShowCancelForm(!showCancelForm)}
-                    disabled={isPending}
-                  >
-                    <X className="mr-1.5 h-4 w-4" />
-                    Cancelar
-                  </Button>
-                </div>
+                  </div>
+                ) : (
+                  // Faltando mais de 30 min: cancelar (não conta como no-show)
+                  // ou reagendar para outro dia.
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setShowRescheduleForm((v) => !v)
+                        setShowCancelForm(false)
+                        if (!newDateTime) {
+                          setNewDateTime(toSPWallClock(appointment.scheduledAt).slice(0, 16))
+                        }
+                      }}
+                      disabled={isPending}
+                    >
+                      <CalendarClock className="mr-1.5 h-4 w-4" />
+                      Reagendar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground"
+                      onClick={() => {
+                        setShowCancelForm((v) => !v)
+                        setShowRescheduleForm(false)
+                      }}
+                      disabled={isPending}
+                    >
+                      <X className="mr-1.5 h-4 w-4" />
+                      Cancelar
+                    </Button>
+                  </div>
+                )}
+
+                {showRescheduleForm && (
+                  <div className="space-y-2 rounded-lg border border-amber-200 p-3">
+                    <Label className="text-xs text-amber-700">Nova data e hora</Label>
+                    <Input
+                      type="datetime-local"
+                      value={newDateTime}
+                      min={toSPWallClock(new Date()).slice(0, 16)}
+                      onChange={(e) => setNewDateTime(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleReschedule}
+                        disabled={!newDateTime || isPending}
+                        className="flex-1 bg-amber-600 hover:bg-amber-700"
+                      >
+                        {isPending ? (
+                          <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                        ) : (
+                          <CalendarClock className="mr-1.5 h-3 w-3" />
+                        )}
+                        Confirmar reagendamento
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShowRescheduleForm(false)}
+                      >
+                        Voltar
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {showCancelForm && (
                   <div className="space-y-2 rounded-lg border border-orange-200 p-3">
