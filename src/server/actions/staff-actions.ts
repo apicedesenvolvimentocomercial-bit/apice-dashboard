@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { env } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
-import { EMAIL_FROM, resend } from '@/lib/resend'
+import { sendEmail } from '@/lib/resend'
 import { assertCan } from '@/server/auth/assert-can'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import {
@@ -66,16 +66,14 @@ export async function inviteStaffAction(input: z.infer<typeof inviteSchema>) {
 
     const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/accept-invite?token=${token}`
 
-    if (resend) {
-      const { InviteEmail } = await import('@/emails/invite-email')
-      await resend.emails.send({
-        from: EMAIL_FROM,
-        to: email,
-        subject: 'Convite para a equipe — KPI Clinic OS',
-        react: InviteEmail({ clinicName: 'a equipe', inviteUrl }),
-      })
-    } else {
-      logger.warn('RESEND_API_KEY not set — staff invite email not sent', { inviteUrl })
+    const { InviteEmail } = await import('@/emails/invite-email')
+    const emailRes = await sendEmail({
+      to: email,
+      subject: 'Convite para a equipe — KPI Clinic OS',
+      react: InviteEmail({ clinicName: 'a equipe', inviteUrl }),
+    })
+    if (!emailRes.ok) {
+      logger.warn('Convite de equipe: email não enviado', { inviteUrl, error: emailRes.error })
     }
 
     createAuditLog(ctx, {

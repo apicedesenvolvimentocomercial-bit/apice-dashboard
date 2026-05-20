@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 import { prisma } from '@/lib/prisma'
-import { resend, EMAIL_FROM } from '@/lib/resend'
+import { resend, sendEmail } from '@/lib/resend'
 import { logger } from '@/lib/logger'
 import { computeClinicKpis } from '@/server/services/kpi/clinic-kpis'
 import { resolvePeriod } from '@/server/services/kpi/period'
@@ -81,15 +81,19 @@ export async function runReportsJob(now: Date = new Date()) {
 
       const to = client.users.map((u) => u.email)
 
-      await resend.emails.send({
-        from: EMAIL_FROM,
+      const emailRes = await sendEmail({
         to,
         subject: `Relatório mensal — ${client.name} (${periodLabel})`,
         html,
       })
 
-      sent++
-      logger.info('Monthly report sent', { clientId: client.id, to })
+      if (emailRes.ok) {
+        sent++
+        logger.info('Monthly report sent', { clientId: client.id, to })
+      } else {
+        failed++
+        logger.error('Monthly report send failed', { clientId: client.id, error: emailRes.error })
+      }
     } catch (err) {
       failed++
       logger.error('Monthly report send failed', {

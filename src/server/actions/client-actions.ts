@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { env } from '@/lib/env'
-import { EMAIL_FROM, resend } from '@/lib/resend'
+import { sendEmail } from '@/lib/resend'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import {
@@ -182,16 +182,14 @@ export async function inviteClientOwnerAction(formData: z.infer<typeof inviteCli
 
   const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/accept-invite?token=${token}`
 
-  if (resend) {
-    const { InviteEmail } = await import('@/emails/invite-email')
-    await resend.emails.send({
-      from: EMAIL_FROM,
-      to: email,
-      subject: `Convite para gerenciar ${client.name} — KPI Clinic OS`,
-      react: InviteEmail({ clinicName: client.name, inviteUrl }),
-    })
-  } else {
-    logger.warn('RESEND_API_KEY not set — invite email not sent', { inviteUrl })
+  const { InviteEmail } = await import('@/emails/invite-email')
+  const inviteEmailRes = await sendEmail({
+    to: email,
+    subject: `Convite para gerenciar ${client.name} — KPI Clinic OS`,
+    react: InviteEmail({ clinicName: client.name, inviteUrl }),
+  })
+  if (!inviteEmailRes.ok) {
+    logger.warn('Convite de clínica: email não enviado', { inviteUrl, error: inviteEmailRes.error })
   }
 
   logger.info('Clinic user invited', { invitationId: invitation.id, clientId, email, role })
@@ -285,16 +283,17 @@ export async function resendClinicInvitationAction(formData: z.infer<typeof invi
     const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/accept-invite?token=${token}`
     const clinicName = invitation.client?.name ?? 'a equipe'
 
-    if (resend) {
-      const { InviteEmail } = await import('@/emails/invite-email')
-      await resend.emails.send({
-        from: EMAIL_FROM,
-        to: invitation.email,
-        subject: `Convite para gerenciar ${clinicName} — KPI Clinic OS`,
-        react: InviteEmail({ clinicName, inviteUrl }),
+    const { InviteEmail } = await import('@/emails/invite-email')
+    const resendEmailRes = await sendEmail({
+      to: invitation.email,
+      subject: `Convite para gerenciar ${clinicName} — KPI Clinic OS`,
+      react: InviteEmail({ clinicName, inviteUrl }),
+    })
+    if (!resendEmailRes.ok) {
+      logger.warn('Reenvio de convite: email não enviado', {
+        inviteUrl,
+        error: resendEmailRes.error,
       })
-    } else {
-      logger.warn('RESEND_API_KEY not set — invite email not sent', { inviteUrl })
     }
 
     logger.info('Clinic invitation resent', { invitationId: updated.id })

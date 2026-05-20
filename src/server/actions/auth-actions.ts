@@ -5,7 +5,7 @@ import { createHash, randomBytes } from 'crypto'
 import { z } from 'zod'
 
 import { env } from '@/lib/env'
-import { EMAIL_FROM, resend } from '@/lib/resend'
+import { sendEmail } from '@/lib/resend'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { fail, ok } from '@/types/errors'
@@ -122,16 +122,18 @@ export async function forgotPasswordAction(input: z.infer<typeof forgotPasswordS
 
   const resetUrl = `${env.NEXT_PUBLIC_APP_URL}/reset-password?token=${rawToken}`
 
-  if (resend) {
-    const { ResetPasswordEmail } = await import('@/emails/reset-password-email')
-    await resend.emails.send({
-      from: EMAIL_FROM,
-      to: user.email,
-      subject: 'Recuperação de senha — KPI Clinic OS',
-      react: ResetPasswordEmail({ userName: user.name, resetUrl }),
+  const { ResetPasswordEmail } = await import('@/emails/reset-password-email')
+  const emailRes = await sendEmail({
+    to: user.email,
+    subject: 'Recuperação de senha — KPI Clinic OS',
+    react: ResetPasswordEmail({ userName: user.name, resetUrl }),
+  })
+  if (!emailRes.ok) {
+    logger.warn('Recuperação de senha: email não enviado', {
+      resetUrl,
+      expiresAt,
+      error: emailRes.error,
     })
-  } else {
-    logger.warn('RESEND_API_KEY not set — reset email not sent', { resetUrl, expiresAt })
   }
 
   return ok(null)

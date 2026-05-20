@@ -1,8 +1,7 @@
 import type { NotificationType, Prisma } from '@prisma/client'
 
 import { env } from '@/lib/env'
-import { logger } from '@/lib/logger'
-import { resend, EMAIL_FROM } from '@/lib/resend'
+import { resend, sendEmail } from '@/lib/resend'
 import { prisma } from '@/lib/prisma'
 
 import {
@@ -80,26 +79,19 @@ export async function dispatchNotification(
   if (EMAIL_TYPES.includes(payload.type) && resend) {
     for (const t of toCreate) {
       if (!t.email) continue
-      try {
-        await resend.emails.send({
-          from: EMAIL_FROM,
-          to: t.email,
-          subject: payload.title,
-          html: renderEmail({
-            title: payload.title,
-            message: payload.message,
-            link,
-            recipientName: t.name ?? undefined,
-          }),
-        })
-        emailed++
-      } catch (err) {
-        logger.error('Notification email failed', {
-          userId: t.userId,
-          type: payload.type,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      }
+      // sendEmail já checa o error retornado pelo Resend, retenta rate limit
+      // e loga falhas — só incrementamos quando realmente enviou.
+      const res = await sendEmail({
+        to: t.email,
+        subject: payload.title,
+        html: renderEmail({
+          title: payload.title,
+          message: payload.message,
+          link,
+          recipientName: t.name ?? undefined,
+        }),
+      })
+      if (res.ok) emailed++
     }
   }
 
