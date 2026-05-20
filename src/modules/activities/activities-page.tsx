@@ -81,8 +81,9 @@ export function ActivitiesPage({
 
   function setUserFolder(userId: string | null) {
     const sp = new URLSearchParams(params.toString())
-    if (!userId) sp.delete('userId')
-    else sp.set('userId', userId)
+    // null = pasta "Todos" → marcador explícito 'all'. Sem param a pasta
+    // padrão é a pessoal, então "Todos" precisa do valor explícito.
+    sp.set('userId', userId ?? 'all')
     router.push(`${pathname}?${sp.toString()}`)
   }
 
@@ -140,12 +141,6 @@ export function ActivitiesPage({
           <span className="mr-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Folder className="h-3.5 w-3.5" /> Pastas
           </span>
-          <FolderPill
-            label="Todos"
-            color="#9A9A93"
-            active={!selectedUserId}
-            onClick={() => setUserFolder(null)}
-          />
           {orderedUsers.map((u) => {
             const isCurrent = u.id === currentUserId
             const c = folderColor(u.id, isCurrent)
@@ -159,6 +154,13 @@ export function ActivitiesPage({
               />
             )
           })}
+          {/* "Todos" por último — a pasta padrão é a pessoal do usuário. */}
+          <FolderPill
+            label="Todos"
+            color="#9A9A93"
+            active={!selectedUserId}
+            onClick={() => setUserFolder(null)}
+          />
         </div>
       )}
 

@@ -27,9 +27,19 @@ export default async function AdminActivitiesPage({ searchParams }: Props) {
   const ctx = await getTenantContext()
   const isAdmin = ctx.role === 'ADMIN'
 
-  // STAFF: sempre fixado em si mesmo (query força isso). Admin pode escolher
-  // pasta de usuário; sem escolha, vê todas as atividades da organização.
-  const selectedUserId = isAdmin && sp.userId && sp.userId !== 'all' ? sp.userId : null
+  // STAFF: sempre fixado em si mesmo (query força isso).
+  // Admin: pasta padrão (sem param) é a PESSOAL; "Todos" é explícito via
+  // ?userId=all; ?userId=<id> abre a pasta daquele usuário.
+  let selectedUserId: string | null
+  if (!isAdmin) {
+    selectedUserId = null
+  } else if (sp.userId === 'all') {
+    selectedUserId = null
+  } else if (sp.userId) {
+    selectedUserId = sp.userId
+  } else {
+    selectedUserId = ctx.userId
+  }
 
   const [{ rows, counts }, users, clients, syncPrefRow] = await Promise.all([
     getActivitiesForTenant({ view, assignedToId: selectedUserId ?? undefined }),
