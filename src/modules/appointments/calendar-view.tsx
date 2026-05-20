@@ -150,6 +150,11 @@ export function CalendarView({
           nowIndicator={true}
           eventDisplay="block"
           dayMaxEvents={3}
+          // Aba dia/semana (timeGrid): agendamentos no mesmo horário ficam lado
+          // a lado (não sobrepostos) com um pequeno respiro entre eles (CSS). Se
+          // não couberem, o excedente colapsa num link "+N" que abre o popover.
+          slotEventOverlap={false}
+          eventMaxStack={3}
           eventTimeFormat={{ hour: '2-digit', minute: '2-digit', meridiem: false }}
           hiddenDays={closedDayNumbers}
           businessHours={{

@@ -12,6 +12,8 @@ import { useEffect, useRef } from 'react'
 import { toSPWallClock } from '@/lib/calendar-time'
 import type { CalendarEvent, CalendarHoliday } from '@/server/queries/calendar-queries'
 
+const ONE_HOUR_MS = 60 * 60 * 1000
+
 type Props = {
   events: CalendarEvent[]
   holidays: CalendarHoliday[]
@@ -32,19 +34,26 @@ export function CalendarInner({ events, holidays, onEventClick }: Props) {
     return () => obs.disconnect()
   }, [])
 
-  // Evento sem `end` (atividade/deadline ou evento pontual) vira all-day:
-  // ocupa exatamente um dia e renderiza como barra limpa. Sem isso, um
-  // evento às 23:59 ganharia a duração default de 1h do FullCalendar,
-  // terminaria 00:59 do dia seguinte e esticaria como barra de 2 dias.
-  // Eventos com `end` definido mantêm o horário (bloco de tempo real).
+  // Evento sem `end` (atividade sem duração definida) assume 1h por padrão,
+  // como bloco de tempo real — não vira all-day. Para não esticar a barra
+  // pro dia seguinte quando começa perto da meia-noite (ex.: 23:59), o fim
+  // é clampado no fim do mesmo dia SP. Eventos com `end` mantêm o horário.
   const fcEvents = events.map((e) => {
-    const hasRange = e.end != null
+    const start = toSPWallClock(e.start)
+    let end: string
+    if (e.end != null) {
+      end = toSPWallClock(e.end)
+    } else {
+      const oneHourLater = toSPWallClock(new Date(e.start.getTime() + ONE_HOUR_MS))
+      const sameDay = oneHourLater.slice(0, 10) === start.slice(0, 10)
+      end = sameDay ? oneHourLater : `${start.slice(0, 10)}T23:59:00`
+    }
     return {
       id: e.id,
       title: e.title,
-      start: toSPWallClock(e.start),
-      end: hasRange ? toSPWallClock(e.end as Date) : undefined,
-      allDay: !hasRange,
+      start,
+      end,
+      allDay: false,
       backgroundColor: e.color,
       borderColor: e.color,
       extendedProps: { source: e },
@@ -91,6 +100,11 @@ export function CalendarInner({ events, holidays, onEventClick }: Props) {
         height="auto"
         nowIndicator={true}
         dayMaxEvents={3}
+        // Aba dia/semana (timeGrid): eventos no mesmo horário ficam lado a
+        // lado (não sobrepostos) com um pequeno respiro entre eles (CSS). Se
+        // não couberem, o excedente colapsa num link "+N" que abre o popover.
+        slotEventOverlap={false}
+        eventMaxStack={3}
         // Barras preenchidas e consistentes para todos os eventos (all-day e
         // com horário) — em vez do "pontinho" default dos eventos com hora.
         eventDisplay="block"

@@ -101,6 +101,14 @@
   height: 2.5rem;
 }
 
+/* Aba dia/semana: pequeno respiro entre eventos no mesmo horário, para que
+   blocos lado a lado não fiquem colados. O FullCalendar posiciona o "harness"
+   com style inline (largura/coluna), então a folga é aplicada no evento
+   interno via inset — ele preenche o harness (inset: 0) por padrão. */
+.fc .fc-timegrid-event-harness > .fc-timegrid-event {
+  inset: 0 2px 1px 0;
+}
+
 .fc .fc-scrollgrid {
   @apply overflow-hidden rounded-lg;
 }
