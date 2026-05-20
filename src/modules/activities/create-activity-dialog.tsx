@@ -38,6 +38,10 @@ type Props = {
   lockClient?: boolean
   /** Pré-seleciona o responsável (pasta do admin). */
   defaultAssigneeId?: string
+  /** Habilita a opção "Todos os usuários" (fan-out). Apenas ADMIN. */
+  allowFanOut?: boolean
+  /** Pref do criador sobre sync com calendário pessoal. */
+  activityCalendarSync?: 'AUTO' | 'ASK' | 'NEVER'
 }
 
 export function CreateActivityDialog({
@@ -46,6 +50,8 @@ export function CreateActivityDialog({
   defaultClientId,
   lockClient,
   defaultAssigneeId,
+  allowFanOut,
+  activityCalendarSync = 'ASK',
 }: Props) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -61,6 +67,7 @@ export function CreateActivityDialog({
   const [dueTime, setDueTime] = useState('')
   const [clientId, setClientId] = useState<string>(defaultClientId ?? 'none')
   const [assignedToId, setAssignedToId] = useState<string>(initialAssignee)
+  const [addToCalendar, setAddToCalendar] = useState(false)
 
   function reset() {
     setTitle('')
@@ -71,6 +78,7 @@ export function CreateActivityDialog({
     setDueTime('')
     setClientId(defaultClientId ?? 'none')
     setAssignedToId(initialAssignee)
+    setAddToCalendar(false)
   }
 
   function submit(e: React.FormEvent) {
@@ -85,6 +93,7 @@ export function CreateActivityDialog({
         dueTime: dueTime || null,
         clientId: clientId === 'none' ? null : clientId,
         assignedToId: assignedToId || null,
+        addToCalendar: activityCalendarSync === 'ASK' ? addToCalendar : undefined,
       })
       if (res.success) {
         toast.success('Atividade criada')
@@ -203,7 +212,7 @@ export function CreateActivityDialog({
             </div>
           )}
 
-          {users.length > 1 && (
+          {(users.length > 1 || allowFanOut) && (
             <div className="space-y-1">
               <Label>Responsável</Label>
               <Select value={assignedToId} onValueChange={setAssignedToId}>
@@ -211,6 +220,7 @@ export function CreateActivityDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {allowFanOut && <SelectItem value="all">Todos</SelectItem>}
                   {users.map((u) => (
                     <SelectItem key={u.id} value={u.id}>
                       {u.name}
@@ -219,6 +229,19 @@ export function CreateActivityDialog({
                 </SelectContent>
               </Select>
             </div>
+          )}
+
+          {activityCalendarSync === 'ASK' && (
+            <label className="inline-flex cursor-pointer select-none items-center gap-2 pt-1 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={addToCalendar}
+                onChange={(e) => setAddToCalendar(e.target.checked)}
+                disabled={pending}
+                className="h-4 w-4 cursor-pointer accent-emerald-500"
+              />
+              Adicionar ao calendário
+            </label>
           )}
 
           <DialogFooter>

@@ -98,7 +98,18 @@
       "PowerShell(New-Item -ItemType Directory -Path \"prisma/migrations/20260519200000_lead_position\" -Force)",
       "PowerShell(\"OK\")",
       "PowerShell($out = & npx prisma generate 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(2000, $out.Length\\)\\))",
-      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx tsc --noEmit 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(5000, $out.Length\\)\\))"
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx tsc --noEmit 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(5000, $out.Length\\)\\))",
+      "PowerShell(New-Item -ItemType Directory -Path \"prisma/migrations/20260519210000_pipeline_deal_partial_unique\" -Force)",
+      "PowerShell($out = & npx prisma generate 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(1500, $out.Length\\)\\))",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx tsc --noEmit 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(2000, $out.Length\\)\\))",
+      "PowerShell(New-Item -ItemType Directory -Path \"prisma/migrations/20260519220000_activity_broadcast\" -Force)",
+      "PowerShell($out = & npx prisma generate 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(1000, $out.Length\\)\\))",
+      "PowerShell(New-Item -ItemType Directory -Path \"prisma/migrations/20260519230000_calendar_per_user\" -Force)",
+      "PowerShell($out = & npx prisma generate 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(800, $out.Length\\)\\))",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx tsc --noEmit 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(2500, $out.Length\\)\\))",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx vitest run src/lib/dnd-position.test.ts src/lib/calendar-time.test.ts src/lib/activity-calendar-sync.test.ts 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(5000, $out.Length\\)\\))",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx vitest run 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\([Math]::Max\\(0, $out.Length - 3000\\), [Math]::Min\\(3000, $out.Length\\)\\))",
+      "PowerShell(git add .claude/settings.json)"
     ]
   }
 }

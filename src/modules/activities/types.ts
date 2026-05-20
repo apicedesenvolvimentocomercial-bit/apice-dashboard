@@ -11,6 +11,7 @@ export type ActivityView = {
   completedAt: Date | null
   createdAt: Date
   seenByAssigneeAt: Date | null
+  broadcastId: string | null
   client: { id: string; name: string } | null
   assignedTo: { id: string; name: string; image: string | null } | null
   createdBy: { id: string; name: string } | null

@@ -36,6 +36,8 @@ type Props = {
   currentUserId?: string
   isAdmin?: boolean
   selectedUserId?: string | null
+  /** Preferência do usuário sobre sync atividade → calendário. */
+  activityCalendarSync?: 'AUTO' | 'ASK' | 'NEVER'
 }
 
 export function ActivitiesPage({
@@ -49,6 +51,7 @@ export function ActivitiesPage({
   currentUserId,
   isAdmin,
   selectedUserId,
+  activityCalendarSync = 'ASK',
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -84,17 +87,20 @@ export function ActivitiesPage({
   }
 
   // Pré-seleciona o usuário para a nova atividade conforme a pasta aberta.
-  const defaultAssigneeId =
-    isAdmin && selectedUserId ? selectedUserId : (currentUserId ?? users[0]?.id ?? '')
-
-  // Pasta atual define o destino da tarefa rápida:
-  // - Admin em "Todos" → null (atividade geral, aparece em Todos mas não na
-  //   pasta de ninguém específico)
   // - Admin em pasta de usuário → esse usuário
-  // - STAFF / clínica → sempre o próprio usuário (backend força isso de novo).
-  const quickAddAssigneeId = isAdmin ? (selectedUserId ?? null) : (currentUserId ?? null)
+  // - Admin em "Todos" → o próprio admin (fan-out fica como opção opt-in
+  //   "Todos" no select do diálogo, não default)
+  // - STAFF / clínica → sempre o próprio usuário
+  const defaultAssigneeId = isAdmin
+    ? (selectedUserId ?? currentUserId ?? users[0]?.id ?? '')
+    : (currentUserId ?? users[0]?.id ?? '')
+
+  // Tarefa rápida em "Todos" do admin faz fan-out (sentinel 'all'), igual
+  // a escolher "Todos" no select do diálogo. Em pasta de usuário, cai nele.
+  const quickAddAssigneeId = isAdmin ? (selectedUserId ?? 'all') : (currentUserId ?? null)
   const quickAddFolderLabel = (() => {
-    if (!selectedUserId) return isAdmin ? 'Todos' : null
+    if (!isAdmin) return null
+    if (!selectedUserId) return 'Todos'
     const u = users.find((x) => x.id === selectedUserId)
     if (!u) return null
     return u.id === currentUserId ? `${u.name} (você)` : u.name
@@ -124,10 +130,12 @@ export function ActivitiesPage({
           lockClient={lockClient}
           defaultClientId={defaultClientId ?? null}
           defaultAssigneeId={defaultAssigneeId}
+          allowFanOut={isAdmin}
+          activityCalendarSync={activityCalendarSync}
         />
       </div>
 
-      {(isAdmin ? users.length > 1 : users.length >= 1) && (
+      {isAdmin && users.length > 1 && (
         <div className="mt-4 flex flex-wrap items-center gap-1.5">
           <span className="mr-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Folder className="h-3.5 w-3.5" /> Pastas
@@ -155,7 +163,11 @@ export function ActivitiesPage({
       )}
 
       <div className="mt-4">
-        <QuickAdd assignedToId={quickAddAssigneeId} folderLabel={quickAddFolderLabel} />
+        <QuickAdd
+          assignedToId={quickAddAssigneeId}
+          folderLabel={quickAddFolderLabel}
+          activityCalendarSync={activityCalendarSync}
+        />
       </div>
 
       <div className="mt-5 flex flex-wrap gap-1 border-b">
@@ -222,12 +234,21 @@ export function ActivitiesPage({
           <div className="flex flex-col gap-2">
             {activities.map((a) => {
               const assignee = a.assignedTo
-              const c = assignee ? folderColor(assignee.id, assignee.id === currentUserId) : null
-              const ownerLabel = assignee
-                ? assignee.id === currentUserId
-                  ? `${assignee.name} (você)`
-                  : assignee.name
-                : null
+              // Fan-out exibido no "Todos" do admin colapsa em uma linha
+              // única — mostra "Todos" no lugar do nome do responsável.
+              const isBroadcastInTodos = a.broadcastId !== null && isAdmin && !selectedUserId
+              const c = isBroadcastInTodos
+                ? { dot: '#9A9A93' }
+                : assignee
+                  ? folderColor(assignee.id, assignee.id === currentUserId)
+                  : null
+              const ownerLabel = isBroadcastInTodos
+                ? 'Todos'
+                : assignee
+                  ? assignee.id === currentUserId
+                    ? `${assignee.name} (você)`
+                    : assignee.name
+                  : null
               // Mostra "Nova" só para quem é o responsável: o admin abrindo
               // a pasta de outra pessoa não deve ver "Nova" — esse marcador
               // é do ponto de vista do dono da tarefa.

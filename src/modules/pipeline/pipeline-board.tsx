@@ -16,6 +16,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { positionBetween } from '@/lib/dnd-position'
 import { moveDealStageAction, reorderDealAction } from '@/server/actions/pipeline-deal-actions'
 
 import { CreateDealDialog } from './create-deal-dialog'
@@ -28,16 +29,6 @@ import { columnsFromDeals, STAGE_ORDER, type PipelineDealView } from './types'
 type Props = {
   deals: PipelineDealView[]
   availableClients: { id: string; name: string; status: string }[]
-}
-
-// Calcula uma posição fracionária entre dois vizinhos. Sem vizinho, abre um
-// gap fixo de 1000 — suficiente para muitas inserções antes de precisar
-// rebalancear (que hoje nem é necessário, já que Float aguenta bem).
-function positionBetween(prev: number | null, next: number | null): number {
-  if (prev == null && next == null) return 1000
-  if (prev == null) return (next as number) - 1000
-  if (next == null) return (prev as number) + 1000
-  return (prev + next) / 2
 }
 
 function isStageId(id: string): id is DealStage {

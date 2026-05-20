@@ -11,10 +11,11 @@ export type ActivityListFilters = {
   type?: ActivityType[]
   clientId?: string | null
   assignedToId?: string | null
-  // Quando true e assignedToId é um id, expande o filtro para "atribuído a
-  // esse usuário OU sem responsável". Usado para que STAFF na pasta "Todos"
-  // veja suas atividades + as gerais da organização.
-  includeUnassigned?: boolean
+  // Quando setado, colapsa fan-outs: mantém apenas a cópia atribuída a esse
+  // userId para cada broadcastId (mais todas as atividades sem broadcast).
+  // O admin sempre tem uma cópia própria de cada fan-out, então passar
+  // ctx.userId aqui dá exatamente uma linha por broadcast na pasta "Todos".
+  collapseBroadcastsForUserId?: string
   view?: 'today' | 'week' | 'overdue' | 'all' | 'done'
   search?: string
 }
@@ -31,12 +32,9 @@ function buildWhere(
   }
 
   if (filters.clientId !== undefined) where.clientId = filters.clientId
-  if (filters.assignedToId !== undefined) {
-    if (filters.includeUnassigned && typeof filters.assignedToId === 'string') {
-      where.OR = [{ assignedToId: filters.assignedToId }, { assignedToId: null }]
-    } else {
-      where.assignedToId = filters.assignedToId
-    }
+  if (filters.assignedToId !== undefined) where.assignedToId = filters.assignedToId
+  if (filters.collapseBroadcastsForUserId) {
+    where.OR = [{ broadcastId: null }, { assignedToId: filters.collapseBroadcastsForUserId }]
   }
   if (filters.status?.length) where.status = { in: filters.status }
   if (filters.priority?.length) where.priority = { in: filters.priority }
@@ -138,6 +136,7 @@ export async function createActivity(
     dueDate?: Date | null
     clientId?: string | null
     assignedToId?: string | null
+    broadcastId?: string | null
   }
 ) {
   // `undefined` significa "não especificado" — cai no usuário atual.
@@ -155,6 +154,7 @@ export async function createActivity(
       dueDate: data.dueDate ?? null,
       clientId: data.clientId ?? null,
       assignedToId,
+      broadcastId: data.broadcastId ?? null,
       createdById: ctx.userId,
     },
   })

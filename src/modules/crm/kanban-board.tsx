@@ -15,7 +15,9 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
+import { positionBetween } from '@/lib/dnd-position'
 import { moveLeadAction, reorderLeadAction } from '@/server/actions/lead-actions'
+
 import { CreateLeadDialog } from './create-lead-dialog'
 import { KanbanColumn } from './kanban-column'
 import { LeadCard } from './lead-card'
@@ -25,15 +27,6 @@ import type { KanbanLead, KanbanStage } from './types'
 type Props = {
   stages: KanbanStage[]
   clientId: string
-}
-
-// Posição fracionária entre dois vizinhos — abre gap de 1000 quando não há
-// vizinho (suficiente pra muitas inserções antes de precisar rebalancear).
-function positionBetween(prev: number | null, next: number | null): number {
-  if (prev == null && next == null) return 1000
-  if (prev == null) return (next as number) - 1000
-  if (next == null) return (prev as number) + 1000
-  return (prev + next) / 2
 }
 
 export function KanbanBoard({ stages: initialStages, clientId }: Props) {

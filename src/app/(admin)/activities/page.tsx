@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 
 import { ActivitiesPage } from '@/modules/activities/activities-page'
 import type { ActivityView } from '@/modules/activities/types'
+import { prisma } from '@/lib/prisma'
 import {
   getActivitiesForTenant,
   listOrgClients,
@@ -26,21 +27,20 @@ export default async function AdminActivitiesPage({ searchParams }: Props) {
   const ctx = await getTenantContext()
   const isAdmin = ctx.role === 'ADMIN'
 
-  // Pasta selecionada via URL. STAFF só pode escolher entre "Todos" (null) e a
-  // própria pasta — qualquer outro id é forçado para null (a query também
-  // re-checa o vínculo, então a URL não consegue vazar atividades alheias).
-  const requestedUserId = sp.userId && sp.userId !== 'all' ? sp.userId : null
-  const selectedUserId = isAdmin
-    ? requestedUserId
-    : requestedUserId === ctx.userId
-      ? ctx.userId
-      : null
+  // STAFF: sempre fixado em si mesmo (query força isso). Admin pode escolher
+  // pasta de usuário; sem escolha, vê todas as atividades da organização.
+  const selectedUserId = isAdmin && sp.userId && sp.userId !== 'all' ? sp.userId : null
 
-  const [{ rows, counts }, users, clients] = await Promise.all([
+  const [{ rows, counts }, users, clients, syncPrefRow] = await Promise.all([
     getActivitiesForTenant({ view, assignedToId: selectedUserId ?? undefined }),
     listOrgUsers(),
     listOrgClients(),
+    prisma.user.findUnique({
+      where: { id: ctx.userId },
+      select: { activityCalendarSync: true },
+    }),
   ])
+  const syncPref = syncPrefRow?.activityCalendarSync ?? 'ASK'
 
   const activities: ActivityView[] = rows.map((r) => ({
     id: r.id,
@@ -53,6 +53,7 @@ export default async function AdminActivitiesPage({ searchParams }: Props) {
     completedAt: r.completedAt,
     createdAt: r.createdAt,
     seenByAssigneeAt: r.seenByAssigneeAt,
+    broadcastId: r.broadcastId,
     client: r.client,
     assignedTo: r.assignedTo,
     createdBy: r.createdBy,
@@ -68,6 +69,7 @@ export default async function AdminActivitiesPage({ searchParams }: Props) {
       currentUserId={ctx.userId}
       isAdmin={isAdmin}
       selectedUserId={selectedUserId}
+      activityCalendarSync={syncPref}
     />
   )
 }

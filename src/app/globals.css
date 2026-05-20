@@ -109,3 +109,27 @@
   --fc-page-bg-color: transparent;
   --fc-neutral-text-color: hsl(var(--foreground));
 }
+
+/* Popover do "+N mais": por padrão o FullCalendar herda --fc-page-bg-color
+   (transparent), fazendo o conteúdo ficar ilegível sobre a célula. Damos um
+   fundo sólido, sombra e largura confortável. */
+.fc .fc-popover {
+  @apply rounded-lg border bg-background text-foreground shadow-lg;
+  min-width: 18rem;
+  max-width: 22rem;
+  z-index: 50;
+}
+
+.fc .fc-popover-header {
+  @apply rounded-t-lg border-b bg-muted/50 px-3 py-2 text-sm font-medium;
+}
+
+.fc .fc-popover-body {
+  @apply space-y-1 px-3 py-2;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.fc .fc-popover-close {
+  @apply text-muted-foreground transition-colors hover:text-foreground;
+}

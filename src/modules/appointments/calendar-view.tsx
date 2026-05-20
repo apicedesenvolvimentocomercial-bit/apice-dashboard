@@ -9,6 +9,8 @@ import ptBrLocale from '@fullcalendar/core/locales/pt-br'
 import type { EventClickArg, DateSelectArg } from '@fullcalendar/core'
 import { useEffect, useRef, useState } from 'react'
 
+import { toSPWallClock } from '@/lib/calendar-time'
+
 import { STATUS_COLORS, DEFAULT_SCHEDULE } from './types'
 import type { AppointmentEvent, ClinicSchedule } from './types'
 
@@ -63,8 +65,8 @@ export function CalendarView({
     return {
       id: apt.id,
       title: `${apt.patient.name} — ${apt.procedure.name}`,
-      start,
-      end,
+      start: toSPWallClock(start),
+      end: toSPWallClock(end),
       backgroundColor: STATUS_COLORS[apt.status] ?? '#6b7280',
       borderColor: STATUS_COLORS[apt.status] ?? '#6b7280',
       extendedProps: { appointment: apt },

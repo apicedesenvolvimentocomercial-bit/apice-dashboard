@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { toZonedTime } from 'date-fns-tz'
 
+import { decideCalendarSync } from '@/lib/activity-calendar-sync'
 import { APP_TIMEZONE, parseLocalDate, spDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
@@ -18,6 +19,11 @@ import {
   softDeleteActivity,
   updateActivity,
 } from '@/server/repositories/activity-repository'
+import {
+  createCalendarEvent,
+  softDeleteCalendarEventForActivity,
+  syncCalendarEventForActivity,
+} from '@/server/repositories/calendar-event-repository'
 import { dispatchNotification } from '@/server/services/notification-service'
 
 const TYPES = ['TASK', 'MEETING', 'CALL', 'EMAIL', 'NOTE'] as const
@@ -34,7 +40,21 @@ const activitySchema = z.object({
   dueTime: z.string().optional().nullable(),
   clientId: z.string().optional().nullable(),
   assignedToId: z.string().optional().nullable(),
+  // Flag vindo da UI quando pref do usuário é ASK. Se pref é AUTO, ignorado
+  // (sempre adiciona). Se pref é NEVER, também ignorado (nunca adiciona).
+  addToCalendar: z.boolean().optional(),
 })
+
+async function shouldSyncToCalendar(
+  creatorUserId: string,
+  uiFlag: boolean | undefined
+): Promise<boolean> {
+  const u = await prisma.user.findUnique({
+    where: { id: creatorUserId },
+    select: { activityCalendarSync: true },
+  })
+  return decideCalendarSync(u?.activityCalendarSync ?? 'ASK', uiFlag)
+}
 
 function revalidateAll(clientId?: string | null) {
   revalidatePath('/activities')
@@ -86,20 +106,90 @@ export async function createActivityAction(formData: unknown) {
     }
 
     // Resolução do responsável:
-    // - ADMIN com assignedToId vazio/null → atividade geral (sem responsável,
-    //   aparece só em "Todos").
-    // - Outros papéis sem assignedToId → cai em si mesmo.
-    // - Qualquer papel com assignedToId explícito → resolveAssignee valida
-    //   (STAFF/CLIENT_* não podem atribuir a terceiros).
+    // - ADMIN com assignedToId === 'all' → fan-out: cria uma atividade por
+    //   usuário ativo (ADMIN+STAFF) da org. Cada um vê na própria pasta.
+    // - Sem assignedToId (null/vazio) → cai no próprio criador.
+    // - assignedToId explícito → resolveAssignee valida (STAFF/CLIENT_* não
+    //   podem atribuir a terceiros).
     const requested = parsed.data.assignedToId
-    let assignedToId: string | null
+    const due = combineDateTime(parsed.data.dueDate, parsed.data.dueTime)
+    const effectiveClientId =
+      targetClientId ?? (ctx.role.startsWith('CLIENT_') ? ctx.clientId : null)
+
+    const syncCalendar = await shouldSyncToCalendar(ctx.userId, parsed.data.addToCalendar)
+
+    if (requested === 'all') {
+      if (ctx.role !== 'ADMIN') return fail('Apenas ADMIN pode atribuir para todos')
+
+      const orgUsers = await prisma.user.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          isActive: true,
+          deletedAt: null,
+          role: { in: ['ADMIN', 'STAFF'] },
+        },
+        select: { id: true },
+      })
+      if (orgUsers.length === 0) return fail('Nenhum usuário ativo na organização')
+
+      // Mesmo broadcastId em todas as cópias — permite ao admin enxergar
+      // o fan-out colapsado em uma linha na pasta "Todos".
+      const broadcastId = crypto.randomUUID()
+      const created = await Promise.all(
+        orgUsers.map((u) =>
+          createActivity(ctx, {
+            title: parsed.data.title,
+            description: parsed.data.description,
+            type: parsed.data.type,
+            priority: parsed.data.priority,
+            status: parsed.data.status,
+            dueDate: due,
+            clientId: effectiveClientId,
+            assignedToId: u.id,
+            broadcastId,
+          })
+        )
+      )
+
+      // Cada cópia vira um evento no calendário do respectivo usuário quando
+      // a pref do criador permite. Só cria se a atividade tem dueDate (sem
+      // dueDate não tem onde encaixar no calendário).
+      if (syncCalendar && due) {
+        await Promise.all(
+          created.map((a) =>
+            createCalendarEvent(ctx, {
+              userId: a.assignedToId as string,
+              title: a.title,
+              startAt: due,
+              activityId: a.id,
+            })
+          )
+        )
+      }
+
+      // Notifica todo mundo, exceto o próprio admin que criou.
+      await Promise.all(
+        created
+          .filter((a) => a.assignedToId && a.assignedToId !== ctx.userId)
+          .map((a) =>
+            notifyAssignee(a.assignedToId as string, {
+              activityId: a.id,
+              title: a.title,
+              dueDate: a.dueDate,
+            })
+          )
+      )
+
+      revalidateAll(effectiveClientId)
+      return { id: created[0].id, count: created.length }
+    }
+
+    let assignedToId: string
     if (requested == null || requested === '') {
-      assignedToId = ctx.role === 'ADMIN' ? null : ctx.userId
+      assignedToId = ctx.userId
     } else {
       assignedToId = await resolveAssignee(ctx, requested)
     }
-
-    const due = combineDateTime(parsed.data.dueDate, parsed.data.dueTime)
 
     const activity = await createActivity(ctx, {
       title: parsed.data.title,
@@ -108,11 +198,20 @@ export async function createActivityAction(formData: unknown) {
       priority: parsed.data.priority,
       status: parsed.data.status,
       dueDate: due,
-      clientId: targetClientId ?? (ctx.role.startsWith('CLIENT_') ? ctx.clientId : null),
+      clientId: effectiveClientId,
       assignedToId,
     })
 
-    if (assignedToId && assignedToId !== ctx.userId) {
+    if (syncCalendar && due) {
+      await createCalendarEvent(ctx, {
+        userId: assignedToId,
+        title: activity.title,
+        startAt: due,
+        activityId: activity.id,
+      })
+    }
+
+    if (assignedToId !== ctx.userId) {
       await notifyAssignee(assignedToId, {
         activityId: activity.id,
         title: activity.title,
@@ -170,6 +269,15 @@ export async function updateActivityAction(activityId: string, formData: unknown
       completedAt,
     })
 
+    // Sincroniza o evento vinculado: título e/ou data — apenas os campos que
+    // mudaram. Se a atividade não tem evento, é no-op.
+    if (parsed.data.title !== undefined || due !== undefined) {
+      await syncCalendarEventForActivity(ctx, activityId, {
+        ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+        ...(due !== undefined ? { startAt: due } : {}),
+      })
+    }
+
     // Notifica o novo responsável quando a atribuição muda para alguém
     // diferente do autor da alteração.
     if (assignedToId && assignedToId !== existing.assignedToId && assignedToId !== ctx.userId) {
@@ -212,6 +320,8 @@ export async function deleteActivityAction(activityId: string) {
     const existing = await findActivityById(ctx, activityId)
     if (!existing) throw new NotFoundError('Atividade')
     await softDeleteActivity(ctx, activityId)
+    // Sync vinculado: apaga o evento se existir.
+    await softDeleteCalendarEventForActivity(activityId)
     revalidateAll(existing.clientId)
     return null
   })
@@ -230,7 +340,7 @@ export async function markActivitiesSeenAction(activityIds: string[]) {
 
 export async function quickAddActivityAction(
   title: string,
-  opts?: { dueDate?: string | null; assignedToId?: string | null }
+  opts?: { dueDate?: string | null; assignedToId?: string | null; addToCalendar?: boolean }
 ) {
   if (!title.trim()) return fail('Título obrigatório')
   // Tarefa rápida: hoje, prioridade padrão, fim do dia (23:59 SP).
@@ -243,6 +353,7 @@ export async function quickAddActivityAction(
     dueDate: today,
     dueTime: endOfDay,
     assignedToId: opts?.assignedToId ?? null,
+    addToCalendar: opts?.addToCalendar,
   })
 }
 

@@ -8,16 +8,17 @@ import listPlugin from '@fullcalendar/list'
 import ptBrLocale from '@fullcalendar/core/locales/pt-br'
 import type { EventClickArg } from '@fullcalendar/core'
 import { useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 
-import type { CalendarEvent } from '@/server/queries/calendar-queries'
+import { toSPWallClock } from '@/lib/calendar-time'
+import type { CalendarEvent, CalendarHoliday } from '@/server/queries/calendar-queries'
 
 type Props = {
   events: CalendarEvent[]
+  holidays: CalendarHoliday[]
+  onEventClick: (eventId: string) => void
 }
 
-export function CalendarInner({ events }: Props) {
-  const router = useRouter()
+export function CalendarInner({ events, holidays, onEventClick }: Props) {
   const calendarRef = useRef<FullCalendar>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -34,17 +35,28 @@ export function CalendarInner({ events }: Props) {
   const fcEvents = events.map((e) => ({
     id: e.id,
     title: e.title,
-    start: e.start,
-    end: e.end ?? undefined,
+    start: toSPWallClock(e.start),
+    end: e.end ? toSPWallClock(e.end) : undefined,
     allDay: false,
     backgroundColor: e.color,
     borderColor: e.color,
     extendedProps: { source: e },
   }))
 
+  const fcHolidays = holidays.map((h) => ({
+    id: `holiday-${h.id}`,
+    title: h.name,
+    start: h.date,
+    allDay: true,
+    display: 'background' as const,
+    backgroundColor: '#fde68a',
+    extendedProps: { isHoliday: true, holidayName: h.name },
+  }))
+
   function handleClick(info: EventClickArg) {
+    if (info.event.extendedProps.isHoliday) return
     const source = info.event.extendedProps.source as CalendarEvent
-    if (source.link) router.push(source.link)
+    onEventClick(source.id)
   }
 
   return (
@@ -66,7 +78,7 @@ export function CalendarInner({ events }: Props) {
           day: 'Dia',
           list: 'Lista',
         }}
-        events={fcEvents}
+        events={[...fcEvents, ...fcHolidays]}
         eventClick={handleClick}
         height="auto"
         nowIndicator={true}
@@ -74,20 +86,13 @@ export function CalendarInner({ events }: Props) {
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', meridiem: false }}
       />
 
-      <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded bg-[#3b82f6]" /> Agendamento
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded bg-[#2563eb]" /> Atividade média
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded bg-[#d97706]" /> Atividade alta
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded bg-[#dc2626]" /> Atividade urgente / no-show
-        </span>
-      </div>
+      {holidays.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded bg-[#fde68a]" /> Feriado
+          </span>
+        </div>
+      )}
     </div>
   )
 }

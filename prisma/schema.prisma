@@ -29,10 +29,12 @@ model Organization {
   ownerId String? @unique
   owner   User?   @relation("OrganizationOwner", fields: [ownerId], references: [id])
 
-  users       User[]
-  clients     Client[]
-  invitations Invitation[]
-  auditLogs   AuditLog[]
+  users          User[]
+  clients        Client[]
+  invitations    Invitation[]
+  auditLogs      AuditLog[]
+  calendarEvents CalendarEvent[]
+  holidays       OrgHoliday[]
 
   @@index([slug])
 }
@@ -42,6 +44,14 @@ enum UserRole {
   STAFF
   CLIENT_OWNER
   CLIENT_STAFF
+}
+
+// Como atividades viram eventos no calendário pessoal do usuário.
+// ASK é o default — mostra checkbox "Adicionar ao calendário" na criação.
+enum ActivityCalendarSync {
+  AUTO
+  ASK
+  NEVER
 }
 
 model User {
@@ -71,9 +81,14 @@ model User {
   createdActivities   Activity[]           @relation("CreatedActivities")
   notifications       Notification[]
   passwordResetTokens PasswordResetToken[]
+  calendarEvents      CalendarEvent[]
 
   // Inverso 1:1 de Organization.ownerId — null se este usuário não é dono.
   ownedOrganization Organization? @relation("OrganizationOwner")
+
+  // Preferência de quando atividades criadas viram evento no calendário do
+  // usuário. ASK = checkbox aparece na criação (default).
+  activityCalendarSync ActivityCalendarSync @default(ASK)
 
   @@index([organizationId])
   @@index([clientId])
@@ -683,12 +698,67 @@ model Activity {
   createdById      String?
   createdBy        User?     @relation("CreatedActivities", fields: [createdById], references: [id])
   seenByAssigneeAt DateTime?
+  // Id compartilhado por todas as cópias geradas em um fan-out "Todos".
+  // Usado pelo admin para colapsar as N cópias em uma única linha na pasta
+  // "Todos" (mostra apenas a cópia do próprio admin).
+  broadcastId      String?
   deletedAt        DateTime?
+
+  // Evento ligado no calendário pessoal do responsável — quando a atividade
+  // é criada com "Adicionar ao calendário". Edit/delete da atividade
+  // sincroniza com o evento (handled na camada de actions).
+  calendarEvent    CalendarEvent?
 
   @@index([organizationId, status])
   @@index([assignedToId, status])
   @@index([dueDate])
   @@index([organizationId, status, dueDate])
+  @@index([broadcastId])
+}
+
+// =====================================================
+// CALENDÁRIO PESSOAL (por usuário)
+// =====================================================
+
+model CalendarEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+
+  title    String
+  startAt  DateTime
+  endAt    DateTime?
+  notes    String?  @db.Text
+  // Opcionais: cor (hex) e categoria livre (ex.: "Pessoal", "Reunião") para
+  // visualização. Não afetam o filtro/permissão.
+  color    String?
+  category String?
+
+  // Atividade que originou esse evento (sync 1:1). null para eventos criados
+  // direto no calendário. Edit/delete da atividade propaga via actions.
+  activityId String?   @unique
+  activity   Activity? @relation(fields: [activityId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([userId, startAt])
+  @@index([organizationId, deletedAt])
+}
+
+model OrgHoliday {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  date           String       // YYYY-MM-DD (sem TZ — feriado é dia inteiro)
+  name           String
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, date])
+  @@index([organizationId])
 }
 
 // =====================================================
@@ -726,7 +796,10 @@ model PipelineDeal {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  @@unique([clientId])
+  // Uma única negociação ativa por clínica é garantida via índice único
+  // parcial (`WHERE "deletedAt" IS NULL`) criado em migration — Prisma não
+  // expressa partial unique no DSL. Soft-deletes da mesma clínica podem
+  // coexistir; o app-level check em createPipelineDealAction valida o resto.
   @@index([organizationId, stage])
   @@index([organizationId, stage, position])
 }

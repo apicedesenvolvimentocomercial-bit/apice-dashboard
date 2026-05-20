@@ -7,7 +7,9 @@ import { ClinicSettingsForm } from '@/modules/settings/clinic-settings-form'
 import { IntegrationsStatus } from '@/modules/settings/integrations-status'
 import { OrganizationForm } from '@/modules/settings/organization-form'
 import { ProfileForm } from '@/modules/settings/profile-form'
+import { ServicePreferencesForm } from '@/modules/settings/service-preferences-form'
 import { auth } from '@/server/auth'
+import { prisma } from '@/lib/prisma'
 import { getAllIntegrationStatuses } from '@/server/integrations'
 import { findClientById } from '@/server/repositories/client-repository'
 import { findCurrentOrganization } from '@/server/repositories/organization-repository'
@@ -24,12 +26,19 @@ export default async function SettingsPage() {
   const role = session.user.role
   const isAdminSide = role === 'ADMIN' || role === 'STAFF'
 
-  const [org, profile, integrations, client] = await Promise.all([
+  const [org, profile, integrations, client, syncPrefRow] = await Promise.all([
     isAdminSide ? findCurrentOrganization(ctx) : Promise.resolve(null),
     findUserProfileById(ctx.userId),
     isAdminSide && role === 'ADMIN' ? getAllIntegrationStatuses() : Promise.resolve([]),
     !isAdminSide && ctx.clientId ? findClientById(ctx, ctx.clientId) : Promise.resolve(null),
+    isAdminSide
+      ? prisma.user.findUnique({
+          where: { id: ctx.userId },
+          select: { activityCalendarSync: true },
+        })
+      : Promise.resolve(null),
   ])
+  const syncPref = syncPrefRow?.activityCalendarSync ?? 'ASK'
 
   return (
     <div className="space-y-6">
@@ -73,6 +82,18 @@ export default async function SettingsPage() {
           <ChangePasswordForm />
         </CardContent>
       </Card>
+
+      {isAdminSide && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Preferências de serviço</CardTitle>
+            <CardDescription>Como as suas atividades interagem com o calendário.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ServicePreferencesForm initial={syncPref} />
+          </CardContent>
+        </Card>
+      )}
 
       {client && role === 'CLIENT_OWNER' && (
         <Card>
