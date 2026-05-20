@@ -31,40 +31,18 @@ const HIGHLIGHT_TICK = '#2563eb'
 // Largura reservada para o eixo Y (usada no componente estático e no chart principal).
 export const YAXIS_WIDTH = 60
 
-function buildMonthTick(highlight: string | undefined, angled: boolean) {
+function buildMonthTick(highlight: string | undefined) {
   return function MonthTick(props: { x?: number; y?: number; payload?: { value?: string } }) {
     const value = props.payload?.value ?? ''
     const isHighlight = highlight != null && value === highlight
-    const x = props.x ?? 0
-    const fill = isHighlight ? HIGHLIGHT_TICK : 'currentColor'
-
-    // Em telas estreitas inclina o rótulo (-38°) para os meses não se
-    // sobreporem; em telas largas mantém horizontal centralizado.
-    if (angled) {
-      const y = (props.y ?? 0) + 10
-      return (
-        <text
-          x={x}
-          y={y}
-          textAnchor="end"
-          transform={`rotate(-38, ${x}, ${y})`}
-          fontSize={10}
-          fontWeight={400}
-          fill={fill}
-        >
-          {value}
-        </text>
-      )
-    }
-
     return (
       <text
-        x={x}
+        x={props.x}
         y={(props.y ?? 0) + 14}
         textAnchor="middle"
         fontSize={11}
         fontWeight={400}
-        fill={fill}
+        fill={isHighlight ? HIGHLIGHT_TICK : 'currentColor'}
       >
         {value}
       </text>
@@ -107,27 +85,28 @@ export function RevenueCostBars({
   }
 
   // Largura disponível pro eixo X (desconta a coluna do eixo Y, quando visível).
+  // Os rótulos ficam sempre retos; conforme a tela encolhe, mostramos menos
+  // deles (pulamos índices que não cabem) em vez de inclinar ou sobrepor.
+  // Cada rótulo ("mai/26") precisa de ~46px.
+  const MIN_LABEL_PX = 46
   const plotWidth = Math.max(0, boxWidth - (showYAxis ? YAXIS_WIDTH + 8 : 0))
-  const perLabel = data.length > 0 && plotWidth > 0 ? plotWidth / data.length : 999
-  const angled = perLabel < 42
+  const maxLabels = plotWidth > 0 ? Math.max(1, Math.floor(plotWidth / MIN_LABEL_PX)) : data.length
+  // interval = quantos ticks pular entre rótulos visíveis (0 = mostra todos).
+  const tickInterval = data.length > maxLabels ? Math.ceil(data.length / maxLabels) - 1 : 0
 
-  const MonthTick = buildMonthTick(highlightLabel, angled)
+  const MonthTick = buildMonthTick(highlightLabel)
 
   return (
     <div ref={wrapRef}>
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart
-          data={data}
-          margin={{ top: 4, right: 8, left: showYAxis ? 8 : 0, bottom: angled ? 22 : 0 }}
-        >
+        <BarChart data={data} margin={{ top: 4, right: 8, left: showYAxis ? 8 : 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="month"
             tick={MonthTick}
             tickLine={false}
             axisLine={false}
-            interval={0}
-            height={angled ? 52 : 30}
+            interval={tickInterval}
           />
           {showYAxis ? (
             <YAxis

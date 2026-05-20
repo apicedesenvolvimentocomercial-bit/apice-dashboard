@@ -121,7 +121,21 @@
       "PowerShell(\"---origin/main---\")",
       "PowerShell(\"---branches at commits---\")",
       "PowerShell(\"---settings diff---\")",
-      "PowerShell(git reset --soft 1704a55)"
-    ]
+      "PowerShell(git reset --soft 1704a55)",
+      "PowerShell(git commit -m \"chore: atualiza allowlist de permissoes do Claude Code \\(settings.json\\)`n`nCo-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>\")",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx tsc --noEmit 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(4000, $out.Length\\)\\))",
+      "PowerShell(Move-Item -Force \"src/lib/resend.test.ts\" \"src/lib/email-retry.test.ts\")",
+      "PowerShell(\"moved\")",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx tsc --noEmit 2>&1 | Out-String; \"TSC EXIT=$LASTEXITCODE\"; $out.Substring\\(0, [Math]::Min\\(2500, $out.Length\\)\\))",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx vitest run src/lib/email-retry.test.ts 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\([Math]::Max\\(0, $out.Length - 1500\\), [Math]::Min\\(1500, $out.Length\\)\\))",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx vitest run 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\([Math]::Max\\(0, $out.Length - 700\\), [Math]::Min\\(700, $out.Length\\)\\))",
+      "PowerShell(git add src/lib/resend.ts src/lib/email-retry.ts src/lib/email-retry.test.ts src/server/services/notification-service.ts src/server/actions/auth-actions.ts src/server/actions/staff-actions.ts src/server/actions/client-actions.ts src/server/jobs/reports-job.ts)",
+      "PowerShell(git commit -F .git/CMSG.txt)",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx vitest run 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\([Math]::Max\\(0, $out.Length - 500\\), [Math]::Min\\(500, $out.Length\\)\\))",
+      "PowerShell(git add src/modules/insights/labels.ts src/modules/insights/insight-card.tsx src/modules/insights/insights-page.tsx src/components/charts/revenue-cost-bars.tsx)",
+      "PowerShell(git add src/modules/calendar/calendar-inner.tsx src/modules/calendar/event-dialog.tsx src/modules/calendar/color-picker.tsx)",
+      "PowerShell(git add src/modules/appointments/appointment-detail-dialog.tsx)"
+    ],
+    "additionalDirectories": ["C:\\Users\\vicen\\Documents\\Importante\\Ápice\\SysV2\\.git"]
   }
 }
