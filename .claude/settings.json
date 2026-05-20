@@ -134,7 +134,10 @@
       "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx vitest run 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\([Math]::Max\\(0, $out.Length - 500\\), [Math]::Min\\(500, $out.Length\\)\\))",
       "PowerShell(git add src/modules/insights/labels.ts src/modules/insights/insight-card.tsx src/modules/insights/insights-page.tsx src/components/charts/revenue-cost-bars.tsx)",
       "PowerShell(git add src/modules/calendar/calendar-inner.tsx src/modules/calendar/event-dialog.tsx src/modules/calendar/color-picker.tsx)",
-      "PowerShell(git add src/modules/appointments/appointment-detail-dialog.tsx)"
+      "PowerShell(git add src/modules/appointments/appointment-detail-dialog.tsx)",
+      "PowerShell(\"---STATUS---\")",
+      "PowerShell($ErrorActionPreference = 'Continue'; $out = & npx vitest run 2>&1 | Out-String; \"EXIT=$LASTEXITCODE\"; $out.Substring\\([Math]::Max\\(0, $out.Length - 450\\), [Math]::Min\\(450, $out.Length\\)\\))",
+      "PowerShell(git add \"src/app/\\(admin\\)/activities/page.tsx\" src/modules/activities/activities-page.tsx)"
     ],
     "additionalDirectories": ["C:\\Users\\vicen\\Documents\\Importante\\Ápice\\SysV2\\.git"]
   }
