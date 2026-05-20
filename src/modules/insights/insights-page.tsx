@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { recalculateInsightsAction } from '@/server/actions/insight-actions'
 
 import { InsightCard } from './insight-card'
+import { statusLabel } from './labels'
 
 type Insight = React.ComponentProps<typeof InsightCard>['insight']
 
@@ -113,14 +114,14 @@ export function InsightsPage({ clientId, insights }: Props) {
                 : 'border-b-2 border-transparent px-4 py-2 text-sm text-muted-foreground hover:text-foreground'
             }
           >
-            {s} {counts[s] ? `(${counts[s]})` : ''}
+            {statusLabel(s)} {counts[s] ? `(${counts[s]})` : ''}
           </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          Nenhum insight em "{status}".
+          Nenhum insight em "{statusLabel(status)}".
         </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">

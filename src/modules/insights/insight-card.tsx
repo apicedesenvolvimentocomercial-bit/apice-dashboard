@@ -30,6 +30,8 @@ import {
   startInsightAction,
 } from '@/server/actions/insight-actions'
 
+import { categoryLabel, severityLabel, statusLabel } from './labels'
+
 type Props = {
   insight: {
     id: string
@@ -100,9 +102,9 @@ export function InsightCard({ insight }: Props) {
             <div>
               <p className="text-sm font-semibold leading-tight">{insight.title}</p>
               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-                <Badge variant={tone.badge}>{insight.severity}</Badge>
-                <Badge variant="outline">{insight.category}</Badge>
-                <Badge variant="secondary">{insight.status}</Badge>
+                <Badge variant={tone.badge}>{severityLabel(insight.severity)}</Badge>
+                <Badge variant="outline">{categoryLabel(insight.category)}</Badge>
+                <Badge variant="secondary">{statusLabel(insight.status)}</Badge>
               </div>
             </div>
           </div>

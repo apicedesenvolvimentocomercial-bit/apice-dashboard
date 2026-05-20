@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -30,18 +31,40 @@ const HIGHLIGHT_TICK = '#2563eb'
 // Largura reservada para o eixo Y (usada no componente estático e no chart principal).
 export const YAXIS_WIDTH = 60
 
-function buildMonthTick(highlight: string | undefined) {
+function buildMonthTick(highlight: string | undefined, angled: boolean) {
   return function MonthTick(props: { x?: number; y?: number; payload?: { value?: string } }) {
     const value = props.payload?.value ?? ''
     const isHighlight = highlight != null && value === highlight
+    const x = props.x ?? 0
+    const fill = isHighlight ? HIGHLIGHT_TICK : 'currentColor'
+
+    // Em telas estreitas inclina o rótulo (-38°) para os meses não se
+    // sobreporem; em telas largas mantém horizontal centralizado.
+    if (angled) {
+      const y = (props.y ?? 0) + 10
+      return (
+        <text
+          x={x}
+          y={y}
+          textAnchor="end"
+          transform={`rotate(-38, ${x}, ${y})`}
+          fontSize={10}
+          fontWeight={400}
+          fill={fill}
+        >
+          {value}
+        </text>
+      )
+    }
+
     return (
       <text
-        x={props.x}
+        x={x}
         y={(props.y ?? 0) + 14}
         textAnchor="middle"
         fontSize={11}
         fontWeight={400}
-        fill={isHighlight ? HIGHLIGHT_TICK : 'currentColor'}
+        fill={fill}
       >
         {value}
       </text>
@@ -58,6 +81,20 @@ export function RevenueCostBars({
   showLegend = true,
   yDomain,
 }: Props) {
+  // Mede a largura renderizada para decidir entre rótulos horizontais e
+  // inclinados. Cada rótulo ("mai/26") precisa de ~42px sem sobrepor.
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [boxWidth, setBoxWidth] = useState(0)
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const obs = new ResizeObserver((entries) => {
+      setBoxWidth(entries[0]?.contentRect.width ?? 0)
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
   if (data.every((d) => d.revenue === 0 && d.costs === 0)) {
     return (
       <div
@@ -69,44 +106,61 @@ export function RevenueCostBars({
     )
   }
 
-  const MonthTick = buildMonthTick(highlightLabel)
+  // Largura disponível pro eixo X (desconta a coluna do eixo Y, quando visível).
+  const plotWidth = Math.max(0, boxWidth - (showYAxis ? YAXIS_WIDTH + 8 : 0))
+  const perLabel = data.length > 0 && plotWidth > 0 ? plotWidth / data.length : 999
+  const angled = perLabel < 42
+
+  const MonthTick = buildMonthTick(highlightLabel, angled)
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={data} margin={{ top: 4, right: 8, left: showYAxis ? 8 : 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis dataKey="month" tick={MonthTick} tickLine={false} axisLine={false} interval={0} />
-        {showYAxis ? (
-          <YAxis
-            domain={yDomain}
-            width={YAXIS_WIDTH}
-            tick={{ fontSize: 11 }}
+    <div ref={wrapRef}>
+      <ResponsiveContainer width="100%" height={height}>
+        <BarChart
+          data={data}
+          margin={{ top: 4, right: 8, left: showYAxis ? 8 : 0, bottom: angled ? 22 : 0 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <XAxis
+            dataKey="month"
+            tick={MonthTick}
             tickLine={false}
             axisLine={false}
-            tickFormatter={formatBRLCompact}
+            interval={0}
+            height={angled ? 52 : 30}
           />
-        ) : (
-          // Eixo oculto mantém o domínio Y consistente com o eixo estático externo.
-          <YAxis hide domain={yDomain} width={0} />
-        )}
-        <Tooltip cursor={false} formatter={(v: number) => formatBRL(v)} />
-        {showLegend && <Legend />}
-        <Bar
-          dataKey="revenue"
-          name={revenueName}
-          fill={CHART_COLORS.success}
-          radius={[3, 3, 0, 0]}
-          animationDuration={300}
-        />
-        <Bar
-          dataKey="costs"
-          name="Custos"
-          fill={CHART_COLORS.danger}
-          radius={[3, 3, 0, 0]}
-          animationDuration={300}
-        />
-      </BarChart>
-    </ResponsiveContainer>
+          {showYAxis ? (
+            <YAxis
+              domain={yDomain}
+              width={YAXIS_WIDTH}
+              tick={{ fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={formatBRLCompact}
+            />
+          ) : (
+            // Eixo oculto mantém o domínio Y consistente com o eixo estático externo.
+            <YAxis hide domain={yDomain} width={0} />
+          )}
+          <Tooltip cursor={false} formatter={(v: number) => formatBRL(v)} />
+          {showLegend && <Legend />}
+          <Bar
+            dataKey="revenue"
+            name={revenueName}
+            fill={CHART_COLORS.success}
+            radius={[3, 3, 0, 0]}
+            animationDuration={300}
+          />
+          <Bar
+            dataKey="costs"
+            name="Custos"
+            fill={CHART_COLORS.danger}
+            radius={[3, 3, 0, 0]}
+            animationDuration={300}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
