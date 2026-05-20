@@ -32,16 +32,24 @@ export function CalendarInner({ events, holidays, onEventClick }: Props) {
     return () => obs.disconnect()
   }, [])
 
-  const fcEvents = events.map((e) => ({
-    id: e.id,
-    title: e.title,
-    start: toSPWallClock(e.start),
-    end: e.end ? toSPWallClock(e.end) : undefined,
-    allDay: false,
-    backgroundColor: e.color,
-    borderColor: e.color,
-    extendedProps: { source: e },
-  }))
+  // Evento sem `end` (atividade/deadline ou evento pontual) vira all-day:
+  // ocupa exatamente um dia e renderiza como barra limpa. Sem isso, um
+  // evento às 23:59 ganharia a duração default de 1h do FullCalendar,
+  // terminaria 00:59 do dia seguinte e esticaria como barra de 2 dias.
+  // Eventos com `end` definido mantêm o horário (bloco de tempo real).
+  const fcEvents = events.map((e) => {
+    const hasRange = e.end != null
+    return {
+      id: e.id,
+      title: e.title,
+      start: toSPWallClock(e.start),
+      end: hasRange ? toSPWallClock(e.end as Date) : undefined,
+      allDay: !hasRange,
+      backgroundColor: e.color,
+      borderColor: e.color,
+      extendedProps: { source: e },
+    }
+  })
 
   const fcHolidays = holidays.map((h) => ({
     id: `holiday-${h.id}`,
@@ -83,6 +91,9 @@ export function CalendarInner({ events, holidays, onEventClick }: Props) {
         height="auto"
         nowIndicator={true}
         dayMaxEvents={3}
+        // Barras preenchidas e consistentes para todos os eventos (all-day e
+        // com horário) — em vez do "pontinho" default dos eventos com hora.
+        eventDisplay="block"
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', meridiem: false }}
       />
 

@@ -23,6 +23,8 @@ import {
 } from '@/server/actions/calendar-event-actions'
 import type { CalendarEvent } from '@/server/queries/calendar-queries'
 
+import { ColorPicker } from './color-picker'
+
 type Props =
   | {
       mode: 'create'
@@ -232,28 +234,20 @@ export function EventDialog(props: Props) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="event-color">Cor (opcional)</Label>
-              <input
-                id="event-color"
-                type="color"
-                value={color || '#3b82f6'}
-                onChange={(e) => setColor(e.target.value)}
-                className="h-9 w-full cursor-pointer rounded-md border border-input bg-background px-1"
-                disabled={isLinkedActivity}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="event-category">Categoria (opcional)</Label>
-              <Input
-                id="event-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Ex: Pessoal, Reunião"
-                disabled={isLinkedActivity}
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label>Cor (opcional)</Label>
+            <ColorPicker value={color} onChange={setColor} disabled={isLinkedActivity} />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="event-category">Categoria (opcional)</Label>
+            <Input
+              id="event-category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="Ex: Pessoal, Reunião"
+              disabled={isLinkedActivity}
+            />
           </div>
 
           <DialogFooter className="gap-2 sm:gap-2">
