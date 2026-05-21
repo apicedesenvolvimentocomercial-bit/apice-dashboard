@@ -9,17 +9,17 @@
 
 ## Status por fase
 
-| Fase | Título                | Status              | Sessão          | Notas                                                                                                                |
-| ---- | --------------------- | ------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 0    | Contextos de domínio  | CONCLUÍDA           | S1 (2026-05-20) | Contextos criados; typecheck verde. Adoção distribuída p/ Fases 2-8.                                                 |
-| 1    | Escopo de dados       | CONCLUÍDA           | S1              | Migration+backfill APLICADOS pelo usuário. Schema/índices/FK em prod.                                                |
-| 2    | Notificações isoladas | CONCLUÍDA           | S1              | Repo+actions+query+rota `(client)/notifications`+componente+nav. dispatch grava clientId. Falta cron split (Fase 8). |
-| 3    | Atividades isoladas   | CONCLUÍDA           | S1              | P0 resolvido (clientId forçado). Repo+actions+query+rota+UI lean+nav. Fan-out/assignee só CLIENT\_\* mesma clínica.  |
-| 4    | Calendário isolado    | CONCLUÍDA (UI lean) | S1              | Repo+actions+query+rota+UI agenda lean+nav. Sync herda clientId. Feriados: pendente decisão; UI lean sem OrgHoliday. |
-| 5    | Layout separado       | PENDENTE            | —               |                                                                                                                      |
-| 6    | Rotas/nav clínica     | PENDENTE            | —               |                                                                                                                      |
-| 7    | Limpeza/dead code     | PENDENTE            | —               |                                                                                                                      |
-| 8    | Hardening/testes      | PENDENTE            | —               |                                                                                                                      |
+| Fase | Título                | Status    | Sessão          | Notas                                                                                                                                                               |
+| ---- | --------------------- | --------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | Contextos de domínio  | CONCLUÍDA | S1 (2026-05-20) | Contextos criados; typecheck verde. Adoção distribuída p/ Fases 2-8.                                                                                                |
+| 1    | Escopo de dados       | CONCLUÍDA | S1              | Migration+backfill APLICADOS pelo usuário. Schema/índices/FK em prod.                                                                                               |
+| 2    | Notificações isoladas | CONCLUÍDA | S1              | Repo+actions+query+rota `(client)/notifications`+componente+nav. dispatch grava clientId. Falta cron split (Fase 8).                                                |
+| 3    | Atividades isoladas   | CONCLUÍDA | S1              | P0 resolvido (clientId forçado). Repo+actions+query+rota+UI lean+nav. Fan-out/assignee só CLIENT\_\* mesma clínica.                                                 |
+| 4    | Calendário isolado    | CONCLUÍDA | S2              | FullCalendar rico embutido em `/appointments` (toggle "Agendamentos/Calendário" + slide). ClinicHoliday ligado. Sync atividade→calendário. `/agenda` lean removida. |
+| 5    | Layout separado       | PENDENTE  | —               |                                                                                                                                                                     |
+| 6    | Rotas/nav clínica     | PENDENTE  | —               |                                                                                                                                                                     |
+| 7    | Limpeza/dead code     | PENDENTE  | —               |                                                                                                                                                                     |
+| 8    | Hardening/testes      | PENDENTE  | —               |                                                                                                                                                                     |
 
 ## Relatórios de fase
 
@@ -68,6 +68,23 @@ Construído o núcleo de isolamento (§3.4): camada de dados de clínica tipada 
 **Verificação:** `npx tsc --noEmit` verde após cada fase; `eslint` limpo no código novo. Runtime NÃO testado (sem ambiente local; DB é prod).
 
 **Correção (colisão de rota):** route groups `(admin)`/`(client)` NÃO namespaceiam URL no Next. `(client)/activities|calendar|notifications` colidiam com `(admin)/...` → erro "two parallel pages resolve to same path". Renomeado p/ slugs PT únicos: **`/atividades`, `/agenda`, `/notificacoes`** (admin mantém `/activities|/calendar|/notifications`). Ajustado nav, `revalidatePath`, link de notificação e `notificationsHref` no topbar `(client)`. Decisão de namespacing definitivo (prefixo por domínio?) fica p/ Fase 5.
+
+### S2 — Fase 4 completa (calendário rico embutido)
+
+- Calendário pessoal da clínica = **FullCalendar** (reusa render puro `modules/calendar/calendar-inner` + `color-picker`, sem lógica de domínio) com `ClinicEventDialog`/`ClinicUserCalendar` próprios (actions de clínica).
+- Embutido na aba **`/appointments`** via `AppointmentsCalendarToggle`: título "Agendamentos / Calendário" (Agendamentos ativo/preto default, Calendário cinza), troca com slide (esquerda/direita). Agendamentos de paciente seguem intactos; calendário pessoal é outro mundo (escopo clientId+userId).
+- **Feriados = `ClinicHoliday`** (por clínica), lido em `getClinicCalendar` (formato `CalendarEvent`/`CalendarHoliday` do admin p/ reusar o render).
+- Sync atividade→calendário usa repo de clínica (herda clientId). `/agenda` lean + componente removidos; nav sem item Calendário (vive em Agendamentos). revalidate `/agenda`→`/appointments`.
+- tsc verde; lint 0 erros (2 warnings iguais ao event-dialog do admin).
+
+### S2 — Decisões Fase 3 + UI completa de atividades
+
+- **Permissão (bloqueador):** `CLIENT_OWNER`/`CLIENT_STAFF` não tinham módulo `activities` → `assertCan` barrava clínica. Adicionado (OWNER r/w/d, STAFF r/w). Cobre atividades E calendário (mesmo módulo).
+- **Discriminador `domain` (Activity):** enum `ActivityDomain` (ADMIN|CLINIC) + coluna default ADMIN. Migration `20260521000000_activity_domain` (aditiva, aplicada local). Admin repo filtra `domain=ADMIN`; clínica `domain=CLINIC`. **Resolve vazamento bidirecional:** tarefa da clínica não aparece no painel admin; etiqueta-CRM do admin não vaza pra clínica. Admin segue etiquetando por clínica (clientId como label).
+- **Membership cargo-agnóstico:** assignee/fan-out/recipients/membros da clínica agora filtram por `clientId` (não `role IN`). clientId só existe em user de clínica → exclui agência e fica pronto p/ cargos futuros.
+- **UI de atividades da clínica = espelho do admin:** `components/clinic/activities/` (ClinicActivitiesPage + Card + CreateDialog + QuickAdd). Pastas por membro, fan-out "Todos", quick-add + dialog completo, mark-seen, abas, banner de atrasadas. Query `getClinicActivitiesPage` (lista+counts+membros+pref). Clínica colaborativa (todo membro vê pastas/atribui). Reusa display puro de `modules/activities/{types,folder-colors}` (realocar Fase 7).
+- **Roles — avaliação:** sistema parcialmente pronto. 2 camadas: enum fixo de cargo + override por usuário (`UserPermission`, tem UI). Dá p/ múltiplos usuários com acesso distinto HOJE (override). NÃO dá p/ criar cargo novo dinâmico (precisa tabela Role+RolePermission no futuro).
+- tsc + lint verdes. **Migration `activity_domain` precisa ir p/ prod no deploy.**
 
 **Dívidas/pendências p/ Fases 5-8:**
 

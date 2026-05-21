@@ -73,7 +73,7 @@ function combineDateTime(dateStr?: string | null, timeStr?: string | null): Date
 
 function revalidateClinic() {
   revalidatePath('/atividades')
-  revalidatePath('/agenda')
+  revalidatePath('/appointments') // calendário pessoal vive embutido aqui (Fase 4)
   revalidatePath('/overview')
 }
 
@@ -320,14 +320,13 @@ async function notifyClinicAssignee(
   userId: string,
   activity: { activityId: string; title: string; dueDate: Date | null }
 ): Promise<void> {
-  // Destinatário precisa ser da MESMA clínica (defesa extra além do resolve).
+  // Destinatário precisa ser da MESMA clínica (membership por clientId).
   const user = await prisma.user.findFirst({
     where: {
       id: userId,
       clientId: ctx.clientId,
       isActive: true,
       deletedAt: null,
-      role: { in: ['CLIENT_OWNER', 'CLIENT_STAFF'] },
     },
     select: { id: true, email: true, name: true },
   })

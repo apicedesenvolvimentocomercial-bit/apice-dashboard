@@ -54,8 +54,9 @@ export async function deleteClinicNotification(ctx: ClinicContext, notificationI
 }
 
 /**
- * Destinatários de uma notificação de clínica: CLIENT_OWNER + CLIENT_STAFF
- * ativos da MESMA clínica. Nunca inclui ADMIN/STAFF da agência.
+ * Destinatários de uma notificação de clínica: usuários ativos da MESMA
+ * clínica (membership por clientId, cargo-agnóstico). Nunca inclui a agência —
+ * clientId só é setado em usuário de clínica.
  */
 export async function listClinicRecipients(
   ctx: ClinicContext
@@ -64,7 +65,6 @@ export async function listClinicRecipients(
     where: {
       organizationId: ctx.organizationId,
       clientId: ctx.clientId,
-      role: { in: ['CLIENT_OWNER', 'CLIENT_STAFF'] },
       isActive: true,
       deletedAt: null,
     },

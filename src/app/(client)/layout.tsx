@@ -2,8 +2,8 @@ import { redirect } from 'next/navigation'
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppTopbar } from '@/components/layout/app-topbar'
+import { getClinicNotifications } from '@/domains/clinic/notifications/notification-queries'
 import { auth } from '@/server/auth'
-import { getNotificationsForCurrentUser } from '@/server/queries/notification-queries'
 
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -13,7 +13,9 @@ export default async function ClientLayout({ children }: { children: React.React
   const role = session.user.role
   if (role !== 'CLIENT_OWNER' && role !== 'CLIENT_STAFF') redirect('/dashboard')
 
-  const { rows, unread } = await getNotificationsForCurrentUser({ take: 10 }).catch(() => ({
+  // Sino do topbar da clínica usa a query de clínica (escopo clientId), não a
+  // compartilhada por userId — separação total do domínio (Fase 2).
+  const { rows, unread } = await getClinicNotifications({ take: 10 }).catch(() => ({
     rows: [],
     unread: 0,
   }))

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import type { PatientWithStats } from '@/server/repositories/patient-repository'
 import type { ProcedureForSelect } from '@/server/repositories/procedure-repository'
 
@@ -30,6 +31,9 @@ type Props = {
   procedures: ProcedureForSelect[]
   clientId: string
   schedule?: ClinicSchedule
+  /** Oculta o título interno "Agendamentos" (quando o título vem de fora, ex.:
+   * toggle "Agendamentos / Calendário" na aba da clínica). Mantém os botões. */
+  hideTitle?: boolean
 }
 
 export function AppointmentsCalendar({
@@ -38,6 +42,7 @@ export function AppointmentsCalendar({
   procedures,
   clientId,
   schedule = DEFAULT_SCHEDULE,
+  hideTitle = false,
 }: Props) {
   const router = useRouter()
   const [createOpen, setCreateOpen] = useState(false)
@@ -57,13 +62,15 @@ export function AppointmentsCalendar({
 
   return (
     <>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Agendamentos</h1>
-          <p className="text-muted-foreground">
-            {appointments.length} {appointments.length === 1 ? 'agendamento' : 'agendamentos'}
-          </p>
-        </div>
+      <div className={cn('flex items-center', hideTitle ? 'justify-end' : 'justify-between')}>
+        {!hideTitle && (
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Agendamentos</h1>
+            <p className="text-muted-foreground">
+              {appointments.length} {appointments.length === 1 ? 'agendamento' : 'agendamentos'}
+            </p>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Button
             variant="outline"

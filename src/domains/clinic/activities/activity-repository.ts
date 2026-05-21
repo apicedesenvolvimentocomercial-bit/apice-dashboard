@@ -33,9 +33,11 @@ function buildClinicWhere(
   filters: ClinicActivityListFilters = {}
 ): Prisma.ActivityWhereInput {
   // clientId FORÇADO da sessão — nunca de input. Esta linha é a defesa.
+  // domain CLINIC: nunca traz atividade da agência (mesmo etiquetada nesta clínica).
   const where: Prisma.ActivityWhereInput = {
     organizationId: ctx.organizationId,
     clientId: ctx.clientId,
+    domain: 'CLINIC',
     deletedAt: null,
   }
 
@@ -108,6 +110,7 @@ export async function findClinicActivityById(ctx: ClinicContext, activityId: str
       id: activityId,
       organizationId: ctx.organizationId,
       clientId: ctx.clientId,
+      domain: 'CLINIC',
       deletedAt: null,
     },
     include: {
@@ -135,6 +138,7 @@ export async function createClinicActivity(
     data: {
       organizationId: ctx.organizationId,
       clientId: ctx.clientId, // FORÇADO — atividade de clínica sempre tem dono-clínica.
+      domain: 'CLINIC',
       title: data.title,
       description: data.description,
       type: data.type,
@@ -162,12 +166,13 @@ export async function updateClinicActivity(
     completedAt: Date | null
   }>
 ) {
-  // where inclui clientId — update só atinge atividade da própria clínica.
+  // where inclui clientId + domain — update só atinge atividade da própria clínica.
   return prisma.activity.updateMany({
     where: {
       id: activityId,
       organizationId: ctx.organizationId,
       clientId: ctx.clientId,
+      domain: 'CLINIC',
       deletedAt: null,
     },
     data,
@@ -180,6 +185,7 @@ export async function softDeleteClinicActivity(ctx: ClinicContext, activityId: s
       id: activityId,
       organizationId: ctx.organizationId,
       clientId: ctx.clientId,
+      domain: 'CLINIC',
       deletedAt: null,
     },
     data: { deletedAt: new Date() },
@@ -193,6 +199,7 @@ export async function markClinicActivitiesSeen(ctx: ClinicContext, activityIds: 
       id: { in: activityIds },
       organizationId: ctx.organizationId,
       clientId: ctx.clientId,
+      domain: 'CLINIC',
       assignedToId: ctx.userId,
       seenByAssigneeAt: null,
       deletedAt: null,
@@ -211,12 +218,15 @@ export async function resolveClinicAssignee(
   requested: string
 ): Promise<string> {
   if (requested === ctx.userId) return ctx.userId
+  // Membro da clínica = qualquer usuário ativo com o MESMO clientId. Não
+  // listamos cargos: clientId só é setado em usuário de clínica (agência tem
+  // clientId null), então o escopo já exclui admin/staff — e fica à prova de
+  // cargos clínicos futuros (reforma divisão total).
   const target = await prisma.user.findFirst({
     where: {
       id: requested,
       organizationId: ctx.organizationId,
       clientId: ctx.clientId,
-      role: { in: ['CLIENT_OWNER', 'CLIENT_STAFF'] },
       isActive: true,
       deletedAt: null,
     },
@@ -226,18 +236,34 @@ export async function resolveClinicAssignee(
 }
 
 /**
- * Alvos do fan-out "Todos" da clínica: usuários CLIENT_* ativos da MESMA
- * clínica (§4). Nunca varre a org nem inclui ADMIN/STAFF.
+ * Alvos do fan-out "Todos" da clínica: usuários ativos da MESMA clínica
+ * (membership por clientId). Nunca varre a org nem inclui agência.
  */
 export async function listClinicBroadcastTargets(ctx: ClinicContext) {
   return prisma.user.findMany({
     where: {
       organizationId: ctx.organizationId,
       clientId: ctx.clientId,
-      role: { in: ['CLIENT_OWNER', 'CLIENT_STAFF'] },
       isActive: true,
       deletedAt: null,
     },
     select: { id: true, email: true, name: true },
+  })
+}
+
+/**
+ * Membros da clínica (para pastas/seletor de responsável na UI). Ativos, mesmo
+ * clientId. Cargo-agnóstico.
+ */
+export async function listClinicMembers(ctx: ClinicContext) {
+  return prisma.user.findMany({
+    where: {
+      organizationId: ctx.organizationId,
+      clientId: ctx.clientId,
+      isActive: true,
+      deletedAt: null,
+    },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, image: true },
   })
 }

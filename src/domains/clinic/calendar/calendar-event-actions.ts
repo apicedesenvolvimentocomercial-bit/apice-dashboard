@@ -74,7 +74,7 @@ export async function createClinicCalendarEventAction(input: unknown) {
       category: parsed.data.category,
     })
 
-    revalidatePath('/agenda')
+    revalidatePath('/appointments')
     return { id: event.id }
   })
 }
@@ -113,7 +113,7 @@ export async function updateClinicCalendarEventAction(eventId: string, input: un
       ...(parsed.data.category !== undefined ? { category: parsed.data.category } : {}),
     })
 
-    revalidatePath('/agenda')
+    revalidatePath('/appointments')
     return null
   })
 }
@@ -126,7 +126,7 @@ export async function deleteClinicCalendarEventAction(eventId: string) {
     const result = await softDeleteClinicCalendarEvent(ctx, eventId)
     if (result.count === 0) throw new NotFoundError('Evento')
 
-    revalidatePath('/agenda')
+    revalidatePath('/appointments')
     return null
   })
 }

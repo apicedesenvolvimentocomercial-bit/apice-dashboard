@@ -658,6 +658,16 @@ model Insight {
 // ATIVIDADES E TAREFAS
 // =====================================================
 
+// Domínio dono da atividade (reforma divisão total). ADMIN = atividade da
+// agência (pode ter clientId só como ETIQUETA de CRM, "relacionada à clínica
+// X"). CLINIC = atividade operacional criada pela própria clínica (clientId =
+// dono). O discriminador impede que a tarefa da clínica apareça no painel do
+// admin e vice-versa — clientId sozinho não distingue os dois usos.
+enum ActivityDomain {
+  ADMIN
+  CLINIC
+}
+
 enum ActivityType {
   TASK
   MEETING
@@ -685,6 +695,9 @@ model Activity {
   organizationId String
   clientId       String?
   client         Client?          @relation(fields: [clientId], references: [id])
+  // ADMIN por padrão (toda atividade existente é da agência). Clínica grava
+  // CLINIC. Queries de cada domínio filtram por este campo — ver §3.4.
+  domain         ActivityDomain   @default(ADMIN)
 
   title       String
   description String?          @db.Text

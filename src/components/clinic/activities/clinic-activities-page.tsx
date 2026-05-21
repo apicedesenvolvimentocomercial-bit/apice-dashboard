@@ -1,27 +1,29 @@
 'use client'
 
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import { Check, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Folder } from 'lucide-react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useState, useTransition } from 'react'
-import { toast } from 'sonner'
-import type { ActivityPriority, ActivityStatus, ActivityType } from '@prisma/client'
+import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { markClinicActivitiesSeenAction } from '@/domains/clinic/activities/activity-actions'
 import { cn } from '@/lib/utils'
-import {
-  deleteClinicActivityAction,
-  quickAddClinicActivityAction,
-  updateClinicActivityStatusAction,
-} from '@/domains/clinic/activities/activity-actions'
-import {
-  PRIORITY_COLOR,
-  PRIORITY_LABEL,
-  STATUS_LABEL,
-  TYPE_LABEL,
-} from '@/modules/activities/types'
+import { folderColor } from '@/modules/activities/folder-colors'
+import type { ActivityView, ActivityView_Counts } from '@/modules/activities/types'
 
+import { ClinicActivityCard } from './clinic-activity-card'
+import { ClinicCreateActivityDialog } from './clinic-create-activity-dialog'
+import { ClinicQuickAdd } from './clinic-quick-add'
+
+/**
+ * Página de Atividades do DOMÍNIO CLÍNICA (Fase 3). Espelha o design do painel
+ * admin (modules/activities/activities-page) — pastas por membro, fan-out
+ * "Todos", quick-add + dialog completo — mas TODA action/query é de clínica
+ * (escopo clientId + domain=CLINIC). Nenhuma informação cruza pro admin.
+ *
+ * Clínica é colaborativa: qualquer membro vê pastas e pode atribuir/fan-out
+ * (membership por clientId, cargo-agnóstico — preparado p/ cargos futuros).
+ */
 type View = 'today' | 'week' | 'overdue' | 'all' | 'done'
 
 const TABS: { key: View; label: string }[] = [
@@ -32,29 +34,43 @@ const TABS: { key: View; label: string }[] = [
   { key: 'done', label: 'Feitas' },
 ]
 
-type ClinicActivity = {
-  id: string
-  title: string
-  description: string | null
-  type: ActivityType
-  status: ActivityStatus
-  priority: ActivityPriority
-  dueDate: Date | null
-  assignedTo: { id: string; name: string; image: string | null } | null
-}
+type Member = { id: string; name: string }
 
 type Props = {
-  activities: ClinicActivity[]
-  counts: Record<View, number>
+  activities: ActivityView[]
+  counts: ActivityView_Counts
   view: View
+  members: Member[]
+  currentUserId: string
+  selectedUserId: string | null
+  activityCalendarSync?: 'AUTO' | 'ASK' | 'NEVER'
 }
 
-export function ClinicActivitiesPage({ activities, counts, view }: Props) {
+export function ClinicActivitiesPage({
+  activities,
+  counts,
+  view,
+  members,
+  currentUserId,
+  selectedUserId,
+  activityCalendarSync = 'ASK',
+}: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
-  const [pending, startTransition] = useTransition()
-  const [quickTitle, setQuickTitle] = useState('')
+
+  // Marca como visto as atividades atribuídas ao próprio usuário ainda não
+  // vistas. O backend re-checa o vínculo (clientId+assignee), então é seguro.
+  useEffect(() => {
+    const unseenIds = activities
+      .filter((a) => a.assignedTo?.id === currentUserId && a.seenByAssigneeAt === null)
+      .map((a) => a.id)
+    if (unseenIds.length === 0) return
+    const t = setTimeout(() => {
+      void markClinicActivitiesSeenAction(unseenIds)
+    }, 800)
+    return () => clearTimeout(t)
+  }, [activities, currentUserId])
 
   function setView(v: View) {
     const sp = new URLSearchParams(params.toString())
@@ -62,65 +78,82 @@ export function ClinicActivitiesPage({ activities, counts, view }: Props) {
     router.push(`${pathname}?${sp.toString()}`)
   }
 
-  function quickAdd() {
-    const title = quickTitle.trim()
-    if (!title) return
-    startTransition(async () => {
-      const r = await quickAddClinicActivityAction(title)
-      if (!r.success) {
-        toast.error(r.error.message)
-        return
-      }
-      setQuickTitle('')
-      toast.success('Atividade criada')
-      router.refresh()
-    })
+  function setUserFolder(userId: string | null) {
+    const sp = new URLSearchParams(params.toString())
+    sp.set('userId', userId ?? 'all')
+    router.push(`${pathname}?${sp.toString()}`)
   }
 
-  function setStatus(id: string, status: ActivityStatus) {
-    startTransition(async () => {
-      const r = await updateClinicActivityStatusAction(id, status)
-      if (!r.success) {
-        toast.error(r.error.message)
-        return
-      }
-      router.refresh()
-    })
-  }
+  const showFolders = members.length > 1
 
-  function remove(id: string) {
-    startTransition(async () => {
-      const r = await deleteClinicActivityAction(id)
-      if (!r.success) {
-        toast.error(r.error.message)
-        return
-      }
-      router.refresh()
-    })
-  }
+  const defaultAssigneeId = selectedUserId ?? currentUserId ?? members[0]?.id ?? ''
+  const quickAddAssigneeId = selectedUserId ?? 'all'
+  const quickAddFolderLabel = (() => {
+    if (!selectedUserId) return 'Todos'
+    const u = members.find((x) => x.id === selectedUserId)
+    if (!u) return null
+    return u.id === currentUserId ? `${u.name} (você)` : u.name
+  })()
+
+  const orderedMembers = [...members].sort((a, b) => {
+    if (a.id === currentUserId) return -1
+    if (b.id === currentUserId) return 1
+    return a.name.localeCompare(b.name)
+  })
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Atividades</h1>
-        <p className="text-muted-foreground">Tarefas e lembretes da sua clínica</p>
-      </div>
-
-      <div className="flex gap-2">
-        <input
-          value={quickTitle}
-          onChange={(e) => setQuickTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && quickAdd()}
-          placeholder="Adicionar tarefa rápida (vence hoje)…"
-          className="flex-1 rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          disabled={pending}
+    <div className="rounded-2xl bg-muted/40 p-5 dark:bg-muted/20">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-medium tracking-tight">Atividades</h1>
+          <p className="text-sm text-muted-foreground">
+            Tarefas, reuniões e ligações da sua clínica
+          </p>
+        </div>
+        <ClinicCreateActivityDialog
+          members={members}
+          defaultAssigneeId={defaultAssigneeId}
+          allowFanOut
+          activityCalendarSync={activityCalendarSync}
         />
-        <Button onClick={quickAdd} disabled={pending || !quickTitle.trim()}>
-          Adicionar
-        </Button>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b">
+      {showFolders && (
+        <div className="mt-4 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Folder className="h-3.5 w-3.5" /> Pastas
+          </span>
+          {orderedMembers.map((u) => {
+            const isCurrent = u.id === currentUserId
+            const c = folderColor(u.id, isCurrent)
+            return (
+              <FolderPill
+                key={u.id}
+                label={isCurrent ? `${u.name} (você)` : u.name}
+                color={c.dot}
+                active={selectedUserId === u.id}
+                onClick={() => setUserFolder(u.id)}
+              />
+            )
+          })}
+          <FolderPill
+            label="Todos"
+            color="#9A9A93"
+            active={!selectedUserId}
+            onClick={() => setUserFolder(null)}
+          />
+        </div>
+      )}
+
+      <div className="mt-4">
+        <ClinicQuickAdd
+          assignedToId={quickAddAssigneeId}
+          folderLabel={quickAddFolderLabel}
+          activityCalendarSync={activityCalendarSync}
+        />
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-1 border-b">
         {TABS.map((t) => {
           const isActive = view === t.key
           const count = counts[t.key]
@@ -152,78 +185,100 @@ export function ClinicActivitiesPage({ activities, counts, view }: Props) {
         })}
       </div>
 
-      {activities.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
-          Nenhuma atividade neste filtro.
-        </div>
-      ) : (
-        <ul className="divide-y rounded-lg border bg-card">
-          {activities.map((a) => (
-            <li key={a.id} className="flex items-start gap-3 px-4 py-3">
-              <div className="flex-1 space-y-1">
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span
-                    className={cn('rounded px-1.5 py-0.5 font-medium', PRIORITY_COLOR[a.priority])}
-                  >
-                    {PRIORITY_LABEL[a.priority]}
-                  </span>
-                  <span className="text-muted-foreground">{TYPE_LABEL[a.type]}</span>
-                  <span className="text-muted-foreground">· {STATUS_LABEL[a.status]}</span>
-                  {a.dueDate && (
-                    <span className="text-muted-foreground">
-                      · vence {format(new Date(a.dueDate), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                    </span>
-                  )}
-                </div>
-                <p
-                  className={cn(
-                    'font-medium',
-                    a.status === 'COMPLETED' && 'line-through opacity-70'
-                  )}
-                >
-                  {a.title}
-                </p>
-                {a.description && <p className="text-sm text-muted-foreground">{a.description}</p>}
-                {a.assignedTo && (
-                  <p className="text-xs text-muted-foreground">Responsável: {a.assignedTo.name}</p>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                {a.status !== 'COMPLETED' ? (
-                  <button
-                    type="button"
-                    onClick={() => setStatus(a.id, 'COMPLETED')}
-                    disabled={pending}
-                    aria-label="Concluir"
-                    className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
-                  >
-                    <Check className="h-4 w-4" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setStatus(a.id, 'PENDING')}
-                    disabled={pending}
-                    aria-label="Reabrir"
-                    className="rounded p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-50"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => remove(a.id)}
-                  disabled={pending}
-                  aria-label="Excluir"
-                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600 disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+      {view !== 'overdue' && counts.overdue > 0 && (
+        <button
+          type="button"
+          onClick={() => setView('overdue')}
+          className="mt-4 flex w-full items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-900 transition-colors hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
+        >
+          <AlertTriangle className="h-4 w-4 text-red-700 dark:text-red-300" />
+          <span>
+            <span className="font-medium">
+              {counts.overdue}{' '}
+              {counts.overdue === 1 ? 'atividade atrasada' : 'atividades atrasadas'}
+            </span>{' '}
+            precisando de atenção
+          </span>
+          <span className="ml-auto text-xs font-medium">Ver →</span>
+        </button>
       )}
+
+      <div className="mt-4">
+        {activities.length === 0 ? (
+          <div className="rounded-lg border border-dashed bg-background p-12 text-center text-sm text-muted-foreground">
+            Nenhuma atividade neste filtro.
+            <div className="mt-3">
+              <Button asChild variant="outline" size="sm">
+                <Link href="?view=all">Ver todas</Link>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {activities.map((a) => {
+              const assignee = a.assignedTo
+              const isBroadcastInTodos = a.broadcastId !== null && !selectedUserId
+              const c = isBroadcastInTodos
+                ? { dot: '#9A9A93' }
+                : assignee
+                  ? folderColor(assignee.id, assignee.id === currentUserId)
+                  : null
+              const ownerLabel = isBroadcastInTodos
+                ? 'Todos'
+                : assignee
+                  ? assignee.id === currentUserId
+                    ? `${assignee.name} (você)`
+                    : assignee.name
+                  : null
+              const isNewForViewer =
+                a.seenByAssigneeAt === null &&
+                a.assignedTo?.id === currentUserId &&
+                a.createdBy?.id !== currentUserId
+              return (
+                <ClinicActivityCard
+                  key={a.id}
+                  activity={a}
+                  ownerColor={c?.dot ?? null}
+                  ownerLabel={ownerLabel}
+                  isNewForViewer={isNewForViewer}
+                />
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+function FolderPill({
+  label,
+  color,
+  active,
+  onClick,
+}: {
+  label: string
+  color: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+        active
+          ? 'border-transparent text-white shadow-sm'
+          : 'border-border bg-background text-foreground hover:bg-accent'
+      )}
+      style={active ? { backgroundColor: color } : undefined}
+    >
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: active ? 'rgba(255,255,255,0.95)' : color }}
+      />
+      {label}
+    </button>
   )
 }
