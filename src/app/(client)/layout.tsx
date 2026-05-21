@@ -22,7 +22,12 @@ export default async function ClientLayout({ children }: { children: React.React
     <div className="flex h-screen overflow-hidden">
       <AppSidebar role={role} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <AppTopbar user={session.user} notifications={rows} unreadCount={unread} />
+        <AppTopbar
+          user={session.user}
+          notifications={rows}
+          unreadCount={unread}
+          notificationsHref="/notificacoes"
+        />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>
       </div>
     </div>

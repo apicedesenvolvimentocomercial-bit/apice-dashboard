@@ -3,6 +3,7 @@
 import type { UserRole } from '@prisma/client'
 import {
   Activity,
+  Bell,
   Building2,
   Calendar,
   ChevronLeft,
@@ -62,6 +63,9 @@ function buildClientNav(role: UserRole): NavItem[] {
     { href: '/patients', label: 'Pacientes', icon: UserCheck },
     { href: '/appointments', label: 'Agendamentos', icon: Calendar },
     { href: '/procedures', label: 'Procedimentos', icon: Stethoscope },
+    { href: '/atividades', label: 'Atividades', icon: Activity },
+    { href: '/agenda', label: 'Calendário', icon: Calendar },
+    { href: '/notificacoes', label: 'Notificações', icon: Bell },
     isOwner
       ? { href: '/settings', label: 'Configurações', icon: Settings }
       : { href: '/settings', label: 'Meu perfil', icon: User },
