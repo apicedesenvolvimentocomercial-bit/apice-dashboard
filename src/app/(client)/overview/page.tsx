@@ -4,9 +4,11 @@ import { Suspense } from 'react'
 import { PeriodFilter } from '@/components/dashboard/period-filter'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ClinicDashboard } from '@/modules/dashboard/clinic-dashboard'
+import {
+  getClinicProfile,
+  getClinicOverviewDashboard,
+} from '@/domains/clinic/dashboard/dashboard-queries'
 import { auth } from '@/server/auth'
-import { getClient } from '@/server/queries/client-queries'
-import { getClinicDashboard } from '@/server/queries/dashboard-queries'
 import { parsePeriodParam } from '@/server/services/kpi'
 
 export const metadata: Metadata = { title: 'Dashboard' }
@@ -31,7 +33,7 @@ export default async function ClientOverviewPage({ searchParams }: Props) {
   const from = typeof sp.from === 'string' ? sp.from : undefined
   const to = typeof sp.to === 'string' ? sp.to : undefined
 
-  const client = await getClient(clientId)
+  const client = await getClinicProfile()
 
   return (
     <div className="space-y-6">
@@ -47,24 +49,22 @@ export default async function ClientOverviewPage({ searchParams }: Props) {
         key={`${clientId}-${period}-${from ?? ''}-${to ?? ''}`}
         fallback={<ClinicSkeleton />}
       >
-        <Content clientId={clientId} period={period} from={from} to={to} />
+        <Content period={period} from={from} to={to} />
       </Suspense>
     </div>
   )
 }
 
 async function Content({
-  clientId,
   period,
   from,
   to,
 }: {
-  clientId: string
   period: ReturnType<typeof parsePeriodParam>
   from?: string
   to?: string
 }) {
-  const data = await getClinicDashboard(clientId, period, from, to)
+  const data = await getClinicOverviewDashboard(period, from, to)
   return <ClinicDashboard data={data} />
 }
 
