@@ -1,8 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  // Habilitado para preparar adapters (ex.: @prisma/adapter-pg em edge).
-  // Não muda comportamento no Node runtime atual.
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
+  // `driverAdapters` (preview) foi removido: não era usado no runtime Node
+  // (lib/prisma usa Accelerate em prod e conexão direta em dev local) e forçava
+  // a geração pela via wasm/queryCompiler, que falhava por arquivo ausente
+  // (`query_engine_bg.postgresql.wasm-base64.js`). Sem ele, o client usa o
+  // engine de biblioteca (binário) normalmente.
 }
 
 datasource db {
@@ -224,6 +226,8 @@ model Client {
   kpiSnapshots         KpiSnapshot[]
   pipelineDeals        PipelineDeal[]
   holidays             ClinicHoliday[]
+  calendarEvents       CalendarEvent[]
+  notifications        Notification[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -654,6 +658,16 @@ model Insight {
 // ATIVIDADES E TAREFAS
 // =====================================================
 
+// Domínio dono da atividade (reforma divisão total). ADMIN = atividade da
+// agência (pode ter clientId só como ETIQUETA de CRM, "relacionada à clínica
+// X"). CLINIC = atividade operacional criada pela própria clínica (clientId =
+// dono). O discriminador impede que a tarefa da clínica apareça no painel do
+// admin e vice-versa — clientId sozinho não distingue os dois usos.
+enum ActivityDomain {
+  ADMIN
+  CLINIC
+}
+
 enum ActivityType {
   TASK
   MEETING
@@ -681,6 +695,9 @@ model Activity {
   organizationId String
   clientId       String?
   client         Client?          @relation(fields: [clientId], references: [id])
+  // ADMIN por padrão (toda atividade existente é da agência). Clínica grava
+  // CLINIC. Queries de cada domínio filtram por este campo — ver §3.4.
+  domain         ActivityDomain   @default(ADMIN)
 
   title       String
   description String?          @db.Text
@@ -713,6 +730,9 @@ model Activity {
   @@index([assignedToId, status])
   @@index([dueDate])
   @@index([organizationId, status, dueDate])
+  // Domínio clínica: queries escopam por clientId. Cobre where+orderBy reais
+  // das listagens de atividade da clínica (Fase 3 da reforma divisão total).
+  @@index([clientId, status, dueDate])
   @@index([broadcastId])
 }
 
@@ -726,6 +746,12 @@ model CalendarEvent {
   organization   Organization @relation(fields: [organizationId], references: [id])
   userId         String
   user           User         @relation(fields: [userId], references: [id])
+
+  // Escopo de domínio (reforma divisão total, Fase 1). Evento da clínica recebe
+  // o clientId do dono; evento de agência fica null. Derivar domínio:
+  // clientId != null ⇒ clínica. Garantido por ClinicContext na camada de dados.
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
 
   title    String
   startAt  DateTime
@@ -747,6 +773,7 @@ model CalendarEvent {
 
   @@index([userId, startAt])
   @@index([organizationId, deletedAt])
+  @@index([clientId, startAt])
 }
 
 model OrgHoliday {
@@ -861,6 +888,11 @@ model Notification {
   id        String           @id @default(cuid())
   userId    String
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Escopo de domínio (reforma divisão total, Fase 1). Preenchido quando o
+  // destinatário é de clínica (= User.clientId do destinatário); null para
+  // notificação de agência. Derivar domínio: clientId != null ⇒ clínica.
+  clientId  String?
+  client    Client?          @relation(fields: [clientId], references: [id])
   type      NotificationType
   title     String
   message   String           @db.Text
@@ -871,6 +903,7 @@ model Notification {
 
   @@index([userId, readAt])
   @@index([userId, createdAt])
+  @@index([clientId, readAt])
 }
 
 // =====================================================

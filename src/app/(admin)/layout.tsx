@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 
-import { AppSidebar } from '@/components/layout/app-sidebar'
-import { AppTopbar } from '@/components/layout/app-topbar'
+import { AdminSidebar } from '@/components/admin/admin-sidebar'
+import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { auth } from '@/server/auth'
 import { getNotificationsForCurrentUser } from '@/server/queries/notification-queries'
 import { isOrganizationOwner } from '@/server/queries/organization-queries'
@@ -21,13 +21,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AppSidebar role={role} />
+      <AdminSidebar role={role} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <AppTopbar
+        <AdminTopbar
           user={session.user}
           notifications={notifResult.rows}
           unreadCount={notifResult.unread}
-          notificationsHref="/notifications"
           isOwner={isOwner}
         />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>

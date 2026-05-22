@@ -15,8 +15,12 @@ import {
   markNotificationReadAction,
 } from '@/server/actions/notification-actions'
 
-import { NotificationColor, NotificationIcon, notificationTypeLabel } from './notification-icon'
-import type { BellNotification } from './notification-bell'
+import {
+  NotificationColor,
+  NotificationIcon,
+  notificationTypeLabel,
+} from '@/components/shared/notifications/notification-icon'
+import type { BellNotification } from '@/components/shared/notifications/notification-bell'
 
 type Props = {
   notifications: BellNotification[]

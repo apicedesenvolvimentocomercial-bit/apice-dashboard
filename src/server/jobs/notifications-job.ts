@@ -5,6 +5,19 @@ import { dispatchNotification } from '@/server/services/notification-service'
 
 type JobTotals = { dueCreated: number; overdueCreated: number; emailed: number; errors: number }
 
+// Roteia a notificação para o domínio correto (§4 / Fase 8). Atividade de
+// clínica (`domain === 'CLINIC'`) usa a rota PT da clínica e carrega `clientId`
+// — sem ele a notificação não apareceria no sino da clínica, que filtra por
+// clientId. Atividade da agência usa a rota admin, sem clientId.
+function domainRouting(a: { domain: string; clientId: string | null }): {
+  link: string
+  clientId: string | null
+} {
+  return a.domain === 'CLINIC'
+    ? { link: '/atividades', clientId: a.clientId }
+    : { link: '/activities', clientId: null }
+}
+
 export async function runActivityNotificationsJob(now: Date = new Date()): Promise<JobTotals> {
   const totals: JobTotals = { dueCreated: 0, overdueCreated: 0, emailed: 0, errors: 0 }
 
@@ -13,21 +26,29 @@ export async function runActivityNotificationsJob(now: Date = new Date()): Promi
     const dueResults = await Promise.allSettled(
       due
         .filter((a) => a.assignedTo)
-        .map((a) =>
-          dispatchNotification(
-            [{ userId: a.assignedTo!.id, email: a.assignedTo!.email, name: a.assignedTo!.name }],
+        .map((a) => {
+          const route = domainRouting(a)
+          return dispatchNotification(
+            [
+              {
+                userId: a.assignedTo!.id,
+                email: a.assignedTo!.email,
+                name: a.assignedTo!.name,
+                clientId: route.clientId,
+              },
+            ],
             {
               type: 'ACTIVITY_DUE',
               title: `Tarefa em 24h: ${a.title}`,
               message:
                 `A atividade "${a.title}" vence ${formatRelative(a.dueDate!, now)}.` +
                 (a.client ? `\nClínica: ${a.client.name}` : ''),
-              link: '/activities',
+              link: route.link,
               metadata: { activityId: a.id },
               dedupeWindowHours: 18,
             }
           )
-        )
+        })
     )
     for (const r of dueResults) {
       if (r.status === 'fulfilled') {
@@ -50,21 +71,29 @@ export async function runActivityNotificationsJob(now: Date = new Date()): Promi
     const overdueResults = await Promise.allSettled(
       overdue
         .filter((a) => a.assignedTo)
-        .map((a) =>
-          dispatchNotification(
-            [{ userId: a.assignedTo!.id, email: a.assignedTo!.email, name: a.assignedTo!.name }],
+        .map((a) => {
+          const route = domainRouting(a)
+          return dispatchNotification(
+            [
+              {
+                userId: a.assignedTo!.id,
+                email: a.assignedTo!.email,
+                name: a.assignedTo!.name,
+                clientId: route.clientId,
+              },
+            ],
             {
               type: 'ACTIVITY_OVERDUE',
               title: `Tarefa atrasada: ${a.title}`,
               message:
                 `A atividade "${a.title}" venceu ${formatRelative(a.dueDate!, now)}.` +
                 (a.client ? `\nClínica: ${a.client.name}` : ''),
-              link: '/activities',
+              link: route.link,
               metadata: { activityId: a.id },
               dedupeWindowHours: 20,
             }
           )
-        )
+        })
     )
     for (const r of overdueResults) {
       if (r.status === 'fulfilled') {

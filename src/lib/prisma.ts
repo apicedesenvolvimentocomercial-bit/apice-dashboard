@@ -11,9 +11,16 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createClient(): PrismaClient {
-  return new PrismaClient({
+  const base = new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  }).$extends(withAccelerate()) as unknown as PrismaClient
+  })
+  // Aplicar `withAccelerate()` SÓ na Accelerate cloud real. O Prisma Postgres
+  // LOCAL (`npx prisma dev`, host loopback) fala o protocolo nativamente via
+  // HTTP — a extensão força HTTPS e quebraria com "fetch failed" (P5010).
+  // Cloud = `prisma://` ou host `accelerate.prisma-data.net`.
+  const url = process.env.DATABASE_URL ?? ''
+  const useAccelerate = url.startsWith('prisma://') || url.includes('accelerate.prisma-data.net')
+  return (useAccelerate ? base.$extends(withAccelerate()) : base) as unknown as PrismaClient
 }
 
 export const prisma = globalForPrisma.prisma ?? createClient()
