@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 import { auth } from '@/server/auth'
-import { getPatients } from '@/server/queries/patient-queries'
+import { getClinicPatients } from '@/domains/clinic/patients/patient-queries'
 import { PatientsList } from '@/modules/patients/patients-list'
 
 export const metadata: Metadata = { title: 'Pacientes' }
@@ -18,7 +18,7 @@ export default async function ClientPatientsPage() {
     )
   }
 
-  const patients = await getPatients(clientId)
+  const patients = await getClinicPatients()
 
   return (
     <div className="space-y-6">
