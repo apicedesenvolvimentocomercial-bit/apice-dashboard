@@ -1,42 +1,42 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import { ChangePasswordForm } from '@/components/shared/settings/change-password-form'
-import { ProfileForm } from '@/components/shared/settings/profile-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { prisma } from '@/lib/prisma'
+import { ChangePasswordForm } from '@/modules/settings/change-password-form'
+import { ClinicSettingsForm } from '@/modules/settings/clinic-settings-form'
 import { IntegrationsStatus } from '@/modules/settings/integrations-status'
 import { OrganizationForm } from '@/modules/settings/organization-form'
+import { ProfileForm } from '@/modules/settings/profile-form'
 import { ServicePreferencesForm } from '@/modules/settings/service-preferences-form'
 import { auth } from '@/server/auth'
+import { prisma } from '@/lib/prisma'
 import { getAllIntegrationStatuses } from '@/server/integrations'
+import { findClientById } from '@/server/repositories/client-repository'
 import { findCurrentOrganization } from '@/server/repositories/organization-repository'
 import { findUserProfileById } from '@/server/repositories/user-repository'
 import { getTenantContext } from '@/server/tenant/context'
 
 export const metadata: Metadata = { title: 'Configurações' }
 
-/**
- * Configurações do DOMÍNIO ADMIN (Fase 7 — split do antigo `(account)/settings`
- * compartilhado). Só blocos da agência: organização, integrações e
- * preferências de serviço, além de perfil/senha (compartilhados). O branch que
- * resta é permissão intra-admin (ADMIN vs STAFF), não escolha de domínio.
- */
-export default async function AdminSettingsPage() {
+export default async function SettingsPage() {
   const session = await auth()
   if (!session?.user) redirect('/login')
 
   const ctx = await getTenantContext()
-  const isAdmin = session.user.role === 'ADMIN'
+  const role = session.user.role
+  const isAdminSide = role === 'ADMIN' || role === 'STAFF'
 
-  const [org, profile, integrations, syncPrefRow] = await Promise.all([
-    isAdmin ? findCurrentOrganization(ctx) : Promise.resolve(null),
+  const [org, profile, integrations, client, syncPrefRow] = await Promise.all([
+    isAdminSide ? findCurrentOrganization(ctx) : Promise.resolve(null),
     findUserProfileById(ctx.userId),
-    isAdmin ? getAllIntegrationStatuses() : Promise.resolve([]),
-    prisma.user.findUnique({
-      where: { id: ctx.userId },
-      select: { activityCalendarSync: true },
-    }),
+    isAdminSide && role === 'ADMIN' ? getAllIntegrationStatuses() : Promise.resolve([]),
+    !isAdminSide && ctx.clientId ? findClientById(ctx, ctx.clientId) : Promise.resolve(null),
+    isAdminSide
+      ? prisma.user.findUnique({
+          where: { id: ctx.userId },
+          select: { activityCalendarSync: true },
+        })
+      : Promise.resolve(null),
   ])
   const syncPref = syncPrefRow?.activityCalendarSync ?? 'ASK'
 
@@ -44,10 +44,12 @@ export default async function AdminSettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Configurações</h1>
-        <p className="text-muted-foreground">Gerencie sua conta, organização e preferências.</p>
+        <p className="text-muted-foreground">
+          Gerencie sua conta{isAdminSide ? ', organização' : ' e clínica'} e preferências.
+        </p>
       </div>
 
-      {org && isAdmin && (
+      {org && role === 'ADMIN' && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Organização</CardTitle>
@@ -81,17 +83,41 @@ export default async function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Preferências de serviço</CardTitle>
-          <CardDescription>Como as suas atividades interagem com o calendário.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ServicePreferencesForm initial={syncPref} />
-        </CardContent>
-      </Card>
+      {isAdminSide && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Preferências de serviço</CardTitle>
+            <CardDescription>Como as suas atividades interagem com o calendário.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ServicePreferencesForm initial={syncPref} />
+          </CardContent>
+        </Card>
+      )}
 
-      {isAdmin && integrations.length > 0 && (
+      {client && role === 'CLIENT_OWNER' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Clínica</CardTitle>
+            <CardDescription>Dados da sua clínica.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClinicSettingsForm
+              clientId={client.id}
+              initial={{
+                name: client.name,
+                email: client.email,
+                phone: client.phone,
+                city: client.city,
+                state: client.state,
+                notes: client.notes,
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {role === 'ADMIN' && integrations.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Integrações</CardTitle>

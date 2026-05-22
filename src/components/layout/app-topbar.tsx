@@ -17,25 +17,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  NotificationBell,
-  type BellNotification,
-} from '@/components/shared/notifications/notification-bell'
+import { NotificationBell, type BellNotification } from '@/modules/notifications/notification-bell'
 
-type TopbarUser = {
+type User = {
   name?: string | null
   email?: string | null
   image?: string | null
 }
 
-export type TopbarShellProps = {
-  user: TopbarUser
+type Props = {
+  user: User
   notifications: BellNotification[]
   unreadCount: number
-  /** Destino do "Ver tudo" do sino — definido pelo topbar do domínio. */
   notificationsHref?: string | null
-  /** Rota de configurações/perfil do domínio (admin `/settings`, clínica `/configuracoes`). */
-  settingsHref: string
   /** Quando true, exibe a coroa de dono ao lado do nome. */
   isOwner?: boolean
 }
@@ -50,20 +44,7 @@ function getInitials(name?: string | null): string {
     .toUpperCase()
 }
 
-/**
- * Casca de topbar BURRA — chrome compartilhado (sino + menu de usuário). Não
- * tem noção de domínio: o `notificationsHref` chega pronto do topbar do domínio
- * (admin/clínica). Divisão total: cada domínio tem seu `*-topbar` que fixa o
- * destino do sino; esta casca só pinta (Fase 5).
- */
-export function TopbarShell({
-  user,
-  notifications,
-  unreadCount,
-  notificationsHref,
-  settingsHref,
-  isOwner,
-}: TopbarShellProps) {
+export function AppTopbar({ user, notifications, unreadCount, notificationsHref, isOwner }: Props) {
   return (
     <header className="flex h-14 items-center justify-between border-b bg-white px-6 dark:bg-zinc-900">
       <div className="flex-1" />
@@ -117,13 +98,13 @@ export function TopbarShell({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href={settingsHref}>
+                <Link href="/settings">
                   <User className="mr-2 h-4 w-4" />
                   Meu perfil
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href={settingsHref}>
+                <Link href="/settings">
                   <Settings className="mr-2 h-4 w-4" />
                   Configurações
                 </Link>

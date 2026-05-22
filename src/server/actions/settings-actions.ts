@@ -53,10 +53,7 @@ export async function updateProfileAction(input: z.infer<typeof updateProfileSch
     await updateUserProfile(ctx.userId, parsed.data)
     logger.info('User profile updated', { userId: ctx.userId })
 
-    // Perfil é compartilhado pelos dois domínios (Fase 7): admin em `/settings`,
-    // clínica em `/configuracoes`. Revalida ambos — só um existe por sessão.
     revalidatePath('/settings')
-    revalidatePath('/configuracoes')
     return null
   })
 }
@@ -129,7 +126,7 @@ export async function updateClinicSettingsAction(
       changes: rest,
     }).catch(() => {})
 
-    revalidatePath('/configuracoes') // dados da clínica vivem no domínio clínica (Fase 7)
+    revalidatePath('/settings')
     revalidatePath(`/clients/${clientId}/overview`)
     return null
   })

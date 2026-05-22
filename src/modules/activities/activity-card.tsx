@@ -29,7 +29,7 @@ import {
 import { cn } from '@/lib/utils'
 import { deleteActivityAction, updateActivityStatusAction } from '@/server/actions/activity-actions'
 
-import { PRIORITY_LABEL, TYPE_LABEL, type ActivityView } from '@/components/shared/activities/types'
+import { PRIORITY_LABEL, TYPE_LABEL, type ActivityView } from './types'
 
 type Props = {
   activity: ActivityView

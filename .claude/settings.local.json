@@ -1,10 +1,26 @@
 {
-  "claude.allowedShells": ["bash", "powershell"],
   "env": {
-    "SHELL": "bash",
-    "POWERSHELL_PATH": "powershell"
+    "SHELL": "bash"
   },
   "permissions": {
-    "allow": ["*"]
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npm list *)",
+      "Bash(npx *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(mkdir -p *)",
+      "Bash(rm *)",
+      "Bash(node -e *)",
+      "Bash(grep *)",
+      "Bash(dir \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\\\\src\\\\app\" /s /b)",
+      "PowerShell(cd \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\"; Get-ChildItem -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"csv|pdf|audit|export\" } | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\($PWD, '.'\\) })",
+      "PowerShell(cd \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\"; Get-ChildItem -Path src\\\\app -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(cd \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\"; Get-ChildItem -Path src\\\\app -Recurse -Filter \"page.tsx\" | ForEach-Object { $_.FullName.Replace\\($PWD, \".\"\\) })",
+      "PowerShell(cd \"c:\\\\Users\\\\vicen\\\\Documents\\\\Importante\\\\Ápice\\\\SysV2\"; Get-ChildItem -Path src\\\\app\\\\api -Recurse -Filter \"route.ts\" | ForEach-Object { $_.FullName.Replace\\($PWD, \".\"\\) })"
+    ]
   }
 }

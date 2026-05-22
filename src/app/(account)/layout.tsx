@@ -6,13 +6,13 @@ import { auth } from '@/server/auth'
 import { getNotificationsForCurrentUser } from '@/server/queries/notification-queries'
 import { isOrganizationOwner } from '@/server/queries/organization-queries'
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
-
   if (!session?.user) redirect('/login')
 
   const role = session.user.role
-  if (role !== 'ADMIN' && role !== 'STAFF') redirect('/crm')
+  const isAdminSide = role === 'ADMIN' || role === 'STAFF'
+  const notificationsHref = isAdminSide ? '/notifications' : undefined
 
   const [notifResult, isOwner] = await Promise.all([
     getNotificationsForCurrentUser({ take: 10 }).catch(() => ({ rows: [], unread: 0 })),
@@ -27,7 +27,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           user={session.user}
           notifications={notifResult.rows}
           unreadCount={notifResult.unread}
-          notificationsHref="/notifications"
+          notificationsHref={notificationsHref}
           isOwner={isOwner}
         />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>
