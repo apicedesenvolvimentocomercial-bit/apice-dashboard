@@ -31,6 +31,10 @@ const ROLE_DEFAULTS: Record<
     patients: { read: true, write: true, delete: true },
     appointments: { read: true, write: true, delete: true },
     procedures: { read: true, write: true, delete: false },
+    // Atividades/Calendário da clínica (reforma divisão total, Fases 3-4).
+    // `activities` cobre tanto a aba Atividades quanto o CalendarEvent (o
+    // calendário usa o mesmo módulo de permissão).
+    activities: { read: true, write: true, delete: true },
     reports: { read: true, write: false, delete: false },
     settings: { read: true, write: true, delete: false },
   },
@@ -42,6 +46,7 @@ const ROLE_DEFAULTS: Record<
     patients: { read: true, write: true, delete: false },
     appointments: { read: true, write: true, delete: false },
     procedures: { read: true, write: false, delete: false },
+    activities: { read: true, write: true, delete: false },
     reports: { read: true, write: false, delete: false },
     settings: { read: false, write: false, delete: false },
   },

@@ -1,71 +1,16 @@
 'use client'
 
-import type { UserRole } from '@prisma/client'
-import {
-  Activity,
-  Building2,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  LayoutDashboard,
-  Lightbulb,
-  Settings,
-  ShieldCheck,
-  Target,
-  User,
-  Users,
-  Kanban,
-  DollarSign,
-  UserCheck,
-  Stethoscope,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { cn } from '@/lib/utils'
 
-type NavItem = {
+export type NavItem = {
   href: string
   label: string
   icon: React.ElementType
-}
-
-// Audit log é restrito a ADMIN (checado também em (admin)/settings/audit/page.tsx).
-// STAFF não deve ver o item porque o clique sempre redireciona para /dashboard.
-function buildAdminNav(role: UserRole): NavItem[] {
-  const items: NavItem[] = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/clients', label: 'Clínicas', icon: Building2 },
-    { href: '/pipeline', label: 'Pipeline', icon: Kanban },
-    { href: '/activities', label: 'Atividades', icon: Activity },
-    { href: '/calendar', label: 'Calendário', icon: Calendar },
-    { href: '/staff', label: 'Equipe', icon: Users },
-  ]
-  if (role === 'ADMIN') {
-    items.push({ href: '/settings/audit', label: 'Audit Log', icon: ShieldCheck })
-  }
-  items.push({ href: '/settings', label: 'Configurações', icon: Settings })
-  return items
-}
-
-// CLIENT_STAFF não administra dados da clínica (apenas perfil/senha), então
-// o item vira "Meu perfil" para refletir o que ele de fato encontra na página.
-function buildClientNav(role: UserRole): NavItem[] {
-  const isOwner = role === 'CLIENT_OWNER'
-  return [
-    { href: '/overview', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/insights', label: 'Insights', icon: Lightbulb },
-    { href: '/goals', label: 'Metas', icon: Target },
-    { href: '/crm', label: 'Pipeline', icon: Kanban },
-    { href: '/financial', label: 'Financeiro', icon: DollarSign },
-    { href: '/patients', label: 'Pacientes', icon: UserCheck },
-    { href: '/appointments', label: 'Agendamentos', icon: Calendar },
-    { href: '/procedures', label: 'Procedimentos', icon: Stethoscope },
-    isOwner
-      ? { href: '/settings', label: 'Configurações', icon: Settings }
-      : { href: '/settings', label: 'Meu perfil', icon: User },
-  ]
 }
 
 function useActiveItem(pathname: string, navItems: NavItem[]) {
@@ -78,18 +23,16 @@ function useActiveItem(pathname: string, navItems: NavItem[]) {
   }
 }
 
-type Props = {
-  role: UserRole
-}
-
-export function AppSidebar({ role }: Props) {
+/**
+ * Casca de navegação BURRA — sem nenhuma noção de domínio nem de role. Recebe a
+ * lista de itens já montada pelo sidebar do domínio (admin ou clínica) e cuida
+ * só do chrome (colapsar, marcação de ativo, render). Divisão total: cada
+ * domínio tem seu próprio `*-sidebar` que decide os itens; esta casca é o único
+ * pedaço compartilhado (Fase 5).
+ */
+export function SidebarShell({ navItems }: { navItems: NavItem[] }) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
-
-  const navItems = useMemo(() => {
-    const isClientRole = role === 'CLIENT_OWNER' || role === 'CLIENT_STAFF'
-    return isClientRole ? buildClientNav(role) : buildAdminNav(role)
-  }, [role])
   const isActive = useActiveItem(pathname, navItems)
 
   return (

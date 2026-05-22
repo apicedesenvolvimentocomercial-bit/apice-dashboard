@@ -28,6 +28,9 @@ function buildWhere(
 ): Prisma.ActivityWhereInput {
   const where: Prisma.ActivityWhereInput = {
     organizationId: ctx.organizationId,
+    // Painel admin só enxerga atividades do domínio ADMIN. Tarefas operacionais
+    // da clínica (domain CLINIC) NUNCA aparecem aqui — mesmo tendo clientId.
+    domain: 'ADMIN',
     deletedAt: null,
   }
 
@@ -102,6 +105,7 @@ export async function markActivitiesSeenForAssignee(
     where: {
       id: { in: activityIds },
       organizationId: ctx.organizationId,
+      domain: 'ADMIN',
       assignedToId: assigneeId,
       seenByAssigneeAt: null,
       deletedAt: null,
@@ -116,7 +120,7 @@ export async function countActivities(ctx: TenantContext, filters: ActivityListF
 
 export async function findActivityById(ctx: TenantContext, activityId: string) {
   return prisma.activity.findFirst({
-    where: { id: activityId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: activityId, organizationId: ctx.organizationId, domain: 'ADMIN', deletedAt: null },
     include: {
       client: { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true, image: true } },
@@ -146,6 +150,7 @@ export async function createActivity(
   return prisma.activity.create({
     data: {
       organizationId: ctx.organizationId,
+      domain: 'ADMIN', // atividade da agência; clientId aqui é só etiqueta de CRM.
       title: data.title,
       description: data.description,
       type: data.type,
@@ -176,14 +181,14 @@ export async function updateActivity(
   }>
 ) {
   return prisma.activity.updateMany({
-    where: { id: activityId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: activityId, organizationId: ctx.organizationId, domain: 'ADMIN', deletedAt: null },
     data,
   })
 }
 
 export async function softDeleteActivity(ctx: TenantContext, activityId: string) {
   return prisma.activity.updateMany({
-    where: { id: activityId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: activityId, organizationId: ctx.organizationId, domain: 'ADMIN', deletedAt: null },
     data: { deletedAt: new Date() },
   })
 }

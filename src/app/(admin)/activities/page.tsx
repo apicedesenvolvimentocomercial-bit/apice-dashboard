@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 import { ActivitiesPage } from '@/modules/activities/activities-page'
-import type { ActivityView } from '@/modules/activities/types'
+import type { ActivityView } from '@/components/shared/activities/types'
 import { prisma } from '@/lib/prisma'
 import {
   getActivitiesForTenant,

@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/select'
 import { createActivityAction } from '@/server/actions/activity-actions'
 
-import { PRIORITY_LABEL, TYPE_LABEL } from './types'
+import { PRIORITY_LABEL, TYPE_LABEL } from '@/components/shared/activities/types'
 
 type Option = { id: string; name: string }
 
