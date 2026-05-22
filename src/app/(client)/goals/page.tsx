@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { GoalsPage } from '@/modules/goals/goals-page'
 import type { GoalView } from '@/modules/goals/types'
 import { auth } from '@/server/auth'
-import { getGoalsWithProgress } from '@/server/queries/goal-queries'
+import { getClinicGoals } from '@/domains/clinic/goals/goal-queries'
 
 export const metadata: Metadata = { title: 'Metas' }
 
@@ -18,7 +18,7 @@ export default async function ClientGoalsPage() {
     )
   }
 
-  const goals = await getGoalsWithProgress(clientId)
+  const goals = await getClinicGoals()
   return (
     <GoalsPage
       clientId={clientId}
