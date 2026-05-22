@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 import { auth } from '@/server/auth'
-import { getPipelineData } from '@/server/queries/lead-queries'
+import { getClinicPipeline } from '@/domains/clinic/crm/lead-queries'
 import { KanbanBoard } from '@/modules/crm/kanban-board'
 
 export const metadata: Metadata = { title: 'Pipeline' }
@@ -18,7 +18,7 @@ export default async function ClientCrmPage() {
     )
   }
 
-  const stages = await getPipelineData(clientId)
+  const stages = await getClinicPipeline()
 
   return (
     <div className="space-y-4">
