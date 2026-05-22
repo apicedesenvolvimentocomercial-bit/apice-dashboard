@@ -13,6 +13,7 @@ const APP_URL =
   process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 export async function runReportsJob(now: Date = new Date()) {
+  const startedAt = Date.now()
   if (!resend) {
     logger.info('Reports job skipped — RESEND_API_KEY not set')
     return { skipped: true }
@@ -89,7 +90,7 @@ export async function runReportsJob(now: Date = new Date()) {
 
       if (emailRes.ok) {
         sent++
-        logger.info('Monthly report sent', { clientId: client.id, to })
+        logger.info('Monthly report sent', { clientId: client.id, recipients: to.length })
       } else {
         failed++
         logger.error('Monthly report send failed', { clientId: client.id, error: emailRes.error })
@@ -103,6 +104,6 @@ export async function runReportsJob(now: Date = new Date()) {
     }
   }
 
-  logger.info('Reports job complete', { sent, failed })
+  logger.info('Reports job complete', { sent, failed, durationMs: Date.now() - startedAt })
   return { sent, failed }
 }

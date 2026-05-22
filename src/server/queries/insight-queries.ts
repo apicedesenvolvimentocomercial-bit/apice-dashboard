@@ -2,6 +2,7 @@ import type { InsightCategory, InsightSeverity, InsightStatus } from '@prisma/cl
 
 import { prisma } from '@/lib/prisma'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { assertCan } from '@/server/auth/assert-can'
 
 export type InsightRow = Awaited<ReturnType<typeof listInsights>>[number]
 
@@ -33,6 +34,7 @@ export async function listInsights(
 > {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'insights', 'read')
 
   const rows = await prisma.insight.findMany({
     where: {
@@ -60,6 +62,8 @@ export async function getInsightCountsByClinic(): Promise<
   Map<string, { open: number; critical: number }>
 > {
   const ctx = await getTenantContext()
+  // Agregado org-wide (visão da agência sobre todas as clínicas) — gate admin/STAFF.
+  await assertCan(ctx, 'clients', 'read')
   const rows = await prisma.insight.groupBy({
     by: ['clientId', 'status', 'severity'],
     where: {

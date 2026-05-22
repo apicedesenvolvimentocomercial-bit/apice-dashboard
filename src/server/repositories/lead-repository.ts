@@ -8,7 +8,9 @@ export type FullLead = Awaited<ReturnType<typeof findLeadById>>
 
 export async function getPipeline(ctx: TenantContext, clientId: string) {
   return prisma.pipelineStage.findMany({
-    where: { clientId },
+    // PipelineStage não tem organizationId próprio; escopa via relação `client`
+    // para garantir a barreira de org no nível do repo (SEC-002).
+    where: { clientId, client: { organizationId: ctx.organizationId } },
     orderBy: { order: 'asc' },
     select: {
       id: true,

@@ -1,6 +1,7 @@
 import type { CostType } from '@prisma/client'
 
-import { getTenantContext } from '@/server/tenant/context'
+import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { assertCan } from '@/server/auth/assert-can'
 import {
   listRevenues,
   getFinancialSummary,
@@ -18,6 +19,8 @@ import { listPatients } from '@/server/repositories/patient-repository'
 
 export async function getFinancialOverview(clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'read')
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const [summary, chartData, topProcedures, topCostCategories] = await Promise.all([
@@ -40,6 +43,8 @@ export async function getRevenues(
   }
 ) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'read')
   return listRevenues(ctx, clientId, {
     from: filters?.from ? new Date(filters.from) : undefined,
     to: filters?.to ? new Date(filters.to) : undefined,
@@ -54,6 +59,8 @@ export async function getCosts(
   filters?: { from?: string; to?: string; type?: CostType }
 ) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'read')
   return listCosts(ctx, clientId, {
     from: filters?.from ? new Date(filters.from) : undefined,
     to: filters?.to ? new Date(filters.to) : undefined,
@@ -63,21 +70,29 @@ export async function getCosts(
 
 export async function getProceduresWithStats(clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'procedures', 'read')
   return listProceduresWithStats(ctx, clientId)
 }
 
 export async function getProceduresForSelect(clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'procedures', 'read')
   return listProceduresForSelect(ctx, clientId)
 }
 
 export async function getProcedureCategories(clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'procedures', 'read')
   return listCategories(ctx, clientId)
 }
 
 export async function getPatientsForSelect(clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'patients', 'read')
   const patients = await listPatients(ctx, clientId)
   return patients.map((p) => ({ id: p.id, name: p.name }))
 }
@@ -105,6 +120,8 @@ export async function getDreReport(
   filters: { from: Date; to: Date }
 ): Promise<DreReport> {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'read')
   const [revenuesByProc, costsByCat, revenues, costs] = await Promise.all([
     getTopProceduresByRevenue(ctx, clientId, { from: filters.from, to: filters.to, limit: 50 }),
     getTopCostCategories(ctx, clientId, { from: filters.from, to: filters.to, limit: 50 }),

@@ -5,6 +5,8 @@ import { ptBR } from 'date-fns/locale'
 import { auth } from '@/server/auth'
 import { getTenantContext, assertClientAccess } from '@/server/tenant/context'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
+import { ForbiddenError } from '@/types/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,6 +90,12 @@ export async function GET(req: Request, { params }: { params: Promise<Params> })
     const to = url.searchParams.get('to')
     const dateFrom = from ? new Date(from) : undefined
     const dateTo = to ? new Date(to + 'T23:59:59') : undefined
+    if (
+      (dateFrom && Number.isNaN(dateFrom.getTime())) ||
+      (dateTo && Number.isNaN(dateTo.getTime()))
+    ) {
+      return NextResponse.json({ error: 'Invalid date range' }, { status: 400 })
+    }
 
     let csv = ''
     let filename = `export-${resource}-${format(new Date(), 'yyyy-MM-dd')}.csv`
@@ -279,7 +287,14 @@ export async function GET(req: Request, { params }: { params: Promise<Params> })
         'Content-Disposition': `attachment; filename="${filename}"`,
       },
     })
-  } catch {
+  } catch (err) {
+    if (err instanceof ForbiddenError) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    logger.error('Export failed', {
+      resource,
+      error: err instanceof Error ? err.message : String(err),
+    })
     return NextResponse.json({ error: 'Export failed' }, { status: 500 })
   }
 }

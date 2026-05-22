@@ -1,5 +1,6 @@
 import { getCurrentGoalValue, listGoals, type GoalRow } from '@/server/repositories/goal-repository'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { assertCan } from '@/server/auth/assert-can'
 
 export type GoalWithProgress = GoalRow & {
   currentValue: number
@@ -14,6 +15,7 @@ export async function getGoalsWithProgress(
 ): Promise<GoalWithProgress[]> {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'goals', 'read')
 
   const goals = await listGoals(ctx, clientId, options?.includePast ?? false)
   const now = new Date()
