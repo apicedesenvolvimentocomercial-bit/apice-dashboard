@@ -4,22 +4,25 @@
 
 - Arquitetura: mesmo repo, domínios isolados.
 - Escopo de dado: **`clientId` nullable** (deriva domínio: `clientId != null ⇒ clínica`). Decidido pelo usuário S1.
-- Feature flag: **A DECIDIR** (`CLINIC_FEATURES_ENABLED`?).
-- Feriados na clínica: A DECIDIR (Fase 4).
+- Feature flag: **A DECIDIR** (`CLINIC_FEATURES_ENABLED`?) — decisão de rollout (Fase 8), não bloqueia limpeza. Default §6: liberar por fase validada, sem flag.
+- Feriados na clínica: **`ClinicHoliday` por clínica** (decidido de fato na Fase 4/S2; formalizado S3).
+- **Fase 7 — casa do shared:** `components/shared/*` p/ display burro + arquivo de tipos shared. NÃO `components/ui` (só shadcn). Move o que a clínica importa de `modules/*` (notification-icon, color-picker, calendar-inner, folder-colors, activity types/labels, profile/password forms) e tipos cross-domain de `server/queries/calendar-queries`.
+- **Fase 7 — settings:** SPLIT em `(admin)/settings` + `(clinic)/settings`; forms comuns (perfil/senha) viram shared.
+- **Rename `(client)`→`(clinic)` + namespacing:** **fase isolada própria PÓS-Fase 7** (não fazer dentro da 7). Mantém slugs PT atuais por ora.
 
 ## Status por fase
 
-| Fase | Título                | Status    | Sessão          | Notas                                                                                                                                                               |
-| ---- | --------------------- | --------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | Contextos de domínio  | CONCLUÍDA | S1 (2026-05-20) | Contextos criados; typecheck verde. Adoção distribuída p/ Fases 2-8.                                                                                                |
-| 1    | Escopo de dados       | CONCLUÍDA | S1              | Migration+backfill APLICADOS pelo usuário. Schema/índices/FK em prod.                                                                                               |
-| 2    | Notificações isoladas | CONCLUÍDA | S1              | Repo+actions+query+rota `(client)/notifications`+componente+nav. dispatch grava clientId. Falta cron split (Fase 8).                                                |
-| 3    | Atividades isoladas   | CONCLUÍDA | S1              | P0 resolvido (clientId forçado). Repo+actions+query+rota+UI lean+nav. Fan-out/assignee só CLIENT\_\* mesma clínica.                                                 |
-| 4    | Calendário isolado    | CONCLUÍDA | S2              | FullCalendar rico embutido em `/appointments` (toggle "Agendamentos/Calendário" + slide). ClinicHoliday ligado. Sync atividade→calendário. `/agenda` lean removida. |
-| 5    | Layout separado       | PENDENTE  | —               |                                                                                                                                                                     |
-| 6    | Rotas/nav clínica     | PENDENTE  | —               |                                                                                                                                                                     |
-| 7    | Limpeza/dead code     | PENDENTE  | —               |                                                                                                                                                                     |
-| 8    | Hardening/testes      | PENDENTE  | —               |                                                                                                                                                                     |
+| Fase | Título                | Status    | Sessão          | Notas                                                                                                                                                                                                                      |
+| ---- | --------------------- | --------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | Contextos de domínio  | CONCLUÍDA | S1 (2026-05-20) | Contextos criados; typecheck verde. Adoção distribuída p/ Fases 2-8.                                                                                                                                                       |
+| 1    | Escopo de dados       | CONCLUÍDA | S1              | Migration+backfill APLICADOS pelo usuário. Schema/índices/FK em prod.                                                                                                                                                      |
+| 2    | Notificações isoladas | CONCLUÍDA | S1              | Repo+actions+query+rota `(client)/notifications`+componente+nav. dispatch grava clientId. Falta cron split (Fase 8).                                                                                                       |
+| 3    | Atividades isoladas   | CONCLUÍDA | S1              | P0 resolvido (clientId forçado). Repo+actions+query+rota+UI lean+nav. Fan-out/assignee só CLIENT\_\* mesma clínica.                                                                                                        |
+| 4    | Calendário isolado    | CONCLUÍDA | S2              | FullCalendar rico embutido em `/appointments` (toggle "Agendamentos/Calendário" + slide). ClinicHoliday ligado. Sync atividade→calendário. `/agenda` lean removida.                                                        |
+| 5    | Layout separado       | CONCLUÍDA | S3 (2026-05-21) | Sidebar/topbar split em `components/admin/*` + `components/clinic/*` sobre cascas burras `layout/{sidebar,topbar}-shell`. Zero branch de domínio. `(account)` monta casca por role.                                        |
+| 6    | Rotas/nav clínica     | CONCLUÍDA | S3 (2026-05-21) | Nav clínica isolada no `ClinicSidebar`. assertCan read na query de atividades (writes já gateados). Revalidação já escopada (Fase 3/4).                                                                                    |
+| 7    | Limpeza/dead code     | CONCLUÍDA | S3 (2026-05-21) | Display/tipos shared → `components/shared/*` + `src/shared/calendar-types`. Settings split: admin `/settings`, clínica `/configuracoes`. Branches CLIENT\_\* órfãos removidos do activity-actions admin. README do shared. |
+| 8    | Hardening/testes      | CONCLUÍDA | S3 (2026-05-21) | Suíte isolamento 21 testes (3 repos clínica) verde. Cron notif roteia por domínio (link PT + clientId). Perf/logs revisados. Relatório `reforma-relatorio.md`.                                                             |
 
 ## Relatórios de fase
 
@@ -93,6 +96,58 @@ Construído o núcleo de isolamento (§3.4): camada de dados de clínica tipada 
 - Cron de notificações (`notifications-job`) ainda processa os dois domínios juntos — split na Fase 8.
 - Layout/sidebar ainda é único ramificado por role (Fase 5). Adicionei itens de nav da clínica no `buildClientNav` existente.
 - Decisão feriados clínica (Fase 4) + testes de isolamento cross-tenant (Fase 8).
+
+### S3 (2026-05-21) — FASES 5 e 6
+
+**Fase 5 (layout separado):**
+
+- Acabou o sidebar único ramificado por role. Criadas cascas BURRAS compartilhadas (sem noção de domínio/role): `components/layout/sidebar-shell.tsx` (`SidebarShell` + `NavItem`, chrome de colapsar/ativo/render) e `components/layout/topbar-shell.tsx` (`TopbarShell`, sino + menu de usuário; recebe `notificationsHref` pronto).
+- Componentes de domínio finos: `components/admin/admin-sidebar.tsx` (`AdminSidebar`, dono do `buildAdminNav`), `components/clinic/clinic-sidebar.tsx` (`ClinicSidebar`, dono do `buildClinicNav`), `components/admin/admin-topbar.tsx` (fixa `/notifications`), `components/clinic/clinic-topbar.tsx` (fixa `/notificacoes`).
+- Removidos `components/layout/app-sidebar.tsx` e `app-topbar.tsx` (e com eles o branch `isClientRole ? buildClientNav : buildAdminNav` e o `notificationsHref` mágico nos layouts).
+- Layouts religados: `(admin)/layout` → `AdminSidebar`/`AdminTopbar`; `(client)/layout` → `ClinicSidebar`/`ClinicTopbar`.
+
+**Decisão técnica (justificativa):** topbar não tinha branch de feature por role (só `notificationsHref` por prop), então split puro geraria duplicação boba (alertada na Fase 5). Optei por **casca burra compartilhada + wrapper por domínio**: mantém divisão total (cada domínio tem seu `*-sidebar`/`*-topbar` e fixa o destino do sino) sem duplicar ~200 linhas de chrome. Os branches que sobraram (`role==='ADMIN'` p/ Audit Log; owner vs staff p/ rótulo de Configurações) são permissão granular intra-domínio, não escolha de domínio.
+
+**`(account)` (rotas de conta/`/settings`):** grupo compartilhado pelos 4 roles. Layout passou a montar a casca do DOMÍNIO correto por role (admin → sino/notif compartilhada por userId; clínica → `getClinicNotifications` escopado, igual ao `(client)/layout`). Escolha de casca por role aqui é roteamento de domínio, não branch de feature.
+
+**Fase 6 (rotas/nav clínica + permissões):**
+
+- Nav da clínica agora vive isolada no `ClinicSidebar` (itens novos `/atividades`, `/notificacoes` já presentes desde Fase 2/3; calendário pessoal embutido em `/appointments`, Fase 4 — sem item próprio).
+- `assertCan(ctx,'activities','read')` adicionado em `getClinicActivitiesPage` (leitura). Writes/delete já gateavam (`activity-actions`). OWNER/STAFF têm read por padrão; override em `UserPermission` pode revogar (defesa em profundidade junto do escopo clientId+domain).
+- Notificações: sem módulo de permissão (toda pessoa vê as próprias) — gate é o `getClinicContext` (domínio + clientId). Não adicionei módulo `notifications` ao `permissions.ts`.
+- Revalidação já escopada ao domínio (`/atividades`,`/appointments`,`/overview` na action de clínica — Fase 3/4).
+
+**Verificação:** `npx tsc --noEmit` **verde**. `eslint` nos arquivos tocados: 0 erros (2 warnings pré-existentes em `clinic-event-dialog`, idênticos ao event-dialog do admin). Runtime NÃO testado (sem ambiente local; DB é prod).
+
+**Dívida p/ Fase 7:** página `(account)/settings` ainda é compartilhada pelos 4 roles (branch interno por role na própria página) — candidata a split por domínio na limpeza. Cascas `layout/*-shell` são o compartilhado legítimo (chrome burro) — documentar/manter.
+
+### S3 (2026-05-21) — FASE 7 (limpeza/dead code)
+
+**Shared consolidado (decisão S3):** display burro reusado pelos dois domínios saiu de `modules/*` p/ `components/shared/*`; tipos cross-camada p/ `src/shared`.
+
+- `components/shared/notifications/{notification-icon,notification-bell}.tsx`, `components/shared/calendar/{calendar-inner,color-picker}.tsx`, `components/shared/activities/{types,folder-colors}.ts`, `components/shared/settings/{profile-form,change-password-form}.tsx`, `components/clinic/settings/clinic-settings-form.tsx`.
+- `src/shared/calendar-types.ts` (`CalendarEvent`/`CalendarHoliday`) — fora de `components/` p/ o server importar sem inverter layering; `server/queries/calendar-queries` re-exporta p/ consumidores admin.
+- Todos os imports (admin `modules/*` + clínica) reapontados. `components/shared/README.md` documenta o inventário e a regra ("na dúvida, não é shared").
+
+**Settings split (decisão S3):** acabou o `(account)/settings` único role-branched.
+
+- `(admin)/settings/page.tsx` — org/integrações/prefs (ADMIN) + perfil/senha. `(client)/configuracoes/page.tsx` — perfil/senha + dados da clínica (CLIENT_OWNER). Slug PT `/configuracoes` (route groups não namespaceiam URL; `/settings` é do admin, coexiste com `/settings/audit`).
+- Grupo `(account)` removido (layout + page). `revalidatePath` de perfil agora cobre `/settings`+`/configuracoes`; dados-da-clínica revalida `/configuracoes`. Topbar ganhou `settingsHref` (admin `/settings`, clínica `/configuracoes`); nav da clínica aponta `/configuracoes`.
+
+**Dead code / "clínica opera aqui":** `server/actions/activity-actions.ts` (admin) tinha branches `CLIENT_*` órfãos (clínica usa `domains/clinic/activities`). Removidos; guard de domínio concentrado no topo (`role ∈ {ADMIN,STAFF}` senão ForbiddenError) — melhora defesa-em-profundidade. `clientId` como etiqueta-CRM do admin **mantido** (§2.4, legítimo).
+
+**Incidente (resolvido):** um passo de reapontamento via PowerShell/.NET corrompeu 7 arquivos (todo `f`→`r`). Recuperados de `git HEAD`; imports reaplicados via Edit. Lição: não usar `[System.IO.File]` em lote nesses arquivos — usar a ferramenta Edit.
+
+**Verificação:** `npx tsc --noEmit` **verde**; `eslint src` 0 erros (5 warnings pré-existentes: 2× event-dialog admin, 2× clinic-event-dialog, 1× logger console). Cache `.next/types` stale limpo (referenciava o `(account)` removido). Runtime NÃO testado (DB é prod).
+
+### S3 (2026-05-21) — FASE 8 (hardening/testes)
+
+- **Isolamento:** `src/domains/clinic/clinic-isolation.test.ts` — 21 testes, prisma mockado, provam que os 3 repos de clínica (activities/notifications/calendar) forçam `clientId`/`data.clientId` e clínica vizinha nunca vaza num `where`. `npx vitest run` = **128 passed (13 files)**.
+- **Cron notif:** `notifications-job` ganhou `domainRouting(a)` — atividade `domain==='CLINIC'` notifica com link `/atividades` + `clientId`; agência `/activities` sem clientId. Corrige §4 (antes: clínica caía com link admin e sem clientId → nem aparecia no sino da clínica).
+- **Perf:** telas de clínica usam `take`+índices `[clientId,...]`, sem N+1. Resíduo: cron `findDue/OverdueActivities` varre tabela toda (status+dueDate, sem clientId) — documentado no relatório, precisa índice+medição em prod.
+- **Logs:** sem PII (só userId/activityId/error).
+- **Relatório final:** `prompt/reforma-relatorio.md` (mapa antes×depois, migrations, riscos, DoD §9 checado).
+- tsc verde; eslint 0 erros nos arquivos novos.
 
 ## Pendências e riscos abertos
 

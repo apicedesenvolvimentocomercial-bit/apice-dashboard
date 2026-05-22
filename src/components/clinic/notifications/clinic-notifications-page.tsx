@@ -19,7 +19,7 @@ import {
   NotificationColor,
   NotificationIcon,
   notificationTypeLabel,
-} from '@/modules/notifications/notification-icon'
+} from '@/components/shared/notifications/notification-icon'
 
 /**
  * Página de Notificações do DOMÍNIO CLÍNICA (Fase 2). Componente próprio da

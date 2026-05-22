@@ -8,7 +8,7 @@ import {
   PRIORITY_LABEL,
   STATUS_LABEL,
   TYPE_LABEL,
-} from '@/modules/activities/types'
+} from '@/components/shared/activities/types'
 
 /**
  * Visão READ-ONLY das atividades da clínica para o ADMIN (em

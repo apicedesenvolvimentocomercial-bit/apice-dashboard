@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 import { ClinicActivitiesPage } from '@/components/clinic/activities/clinic-activities-page'
 import { getClinicActivitiesPage } from '@/domains/clinic/activities/activity-queries'
-import type { ActivityView } from '@/modules/activities/types'
+import type { ActivityView } from '@/components/shared/activities/types'
 import { auth } from '@/server/auth'
 
 export const metadata: Metadata = { title: 'Atividades' }

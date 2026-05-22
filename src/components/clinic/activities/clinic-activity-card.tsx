@@ -31,7 +31,7 @@ import {
   updateClinicActivityStatusAction,
 } from '@/domains/clinic/activities/activity-actions'
 import { cn } from '@/lib/utils'
-import { PRIORITY_LABEL, TYPE_LABEL, type ActivityView } from '@/modules/activities/types'
+import { PRIORITY_LABEL, TYPE_LABEL, type ActivityView } from '@/components/shared/activities/types'
 
 /**
  * Card de atividade do DOMÍNIO CLÍNICA. Espelha o design do admin

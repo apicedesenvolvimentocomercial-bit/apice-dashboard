@@ -21,7 +21,7 @@ import {
   deleteClinicCalendarEventAction,
   updateClinicCalendarEventAction,
 } from '@/domains/clinic/calendar/calendar-event-actions'
-import { ColorPicker } from '@/modules/calendar/color-picker'
+import { ColorPicker } from '@/components/shared/calendar/color-picker'
 import type { CalendarEvent } from '@/server/queries/calendar-queries'
 
 /**

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 
-import { AppSidebar } from '@/components/layout/app-sidebar'
-import { AppTopbar } from '@/components/layout/app-topbar'
+import { ClinicSidebar } from '@/components/clinic/clinic-sidebar'
+import { ClinicTopbar } from '@/components/clinic/clinic-topbar'
 import { getClinicNotifications } from '@/domains/clinic/notifications/notification-queries'
 import { auth } from '@/server/auth'
 
@@ -22,14 +22,9 @@ export default async function ClientLayout({ children }: { children: React.React
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AppSidebar role={role} />
+      <ClinicSidebar role={role} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <AppTopbar
-          user={session.user}
-          notifications={rows}
-          unreadCount={unread}
-          notificationsHref="/notificacoes"
-        />
+        <ClinicTopbar user={session.user} notifications={rows} unreadCount={unread} />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>
       </div>
     </div>

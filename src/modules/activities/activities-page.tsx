@@ -11,9 +11,9 @@ import { markActivitiesSeenAction } from '@/server/actions/activity-actions'
 
 import { ActivityCard } from './activity-card'
 import { CreateActivityDialog } from './create-activity-dialog'
-import { folderColor } from './folder-colors'
+import { folderColor } from '@/components/shared/activities/folder-colors'
 import { QuickAdd } from './quick-add'
-import type { ActivityView, ActivityView_Counts } from './types'
+import type { ActivityView, ActivityView_Counts } from '@/components/shared/activities/types'
 
 type View = 'today' | 'week' | 'overdue' | 'all' | 'done'
 

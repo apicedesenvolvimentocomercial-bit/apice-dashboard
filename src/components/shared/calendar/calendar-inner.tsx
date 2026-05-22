@@ -10,7 +10,7 @@ import type { EventClickArg } from '@fullcalendar/core'
 import { useEffect, useRef } from 'react'
 
 import { toSPWallClock } from '@/lib/calendar-time'
-import type { CalendarEvent, CalendarHoliday } from '@/server/queries/calendar-queries'
+import type { CalendarEvent, CalendarHoliday } from '@/shared/calendar-types'
 
 const ONE_HOUR_MS = 60 * 60 * 1000
 

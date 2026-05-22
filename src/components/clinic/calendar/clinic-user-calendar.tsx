@@ -15,7 +15,7 @@ import type { CalendarEvent, CalendarHoliday } from '@/server/queries/calendar-q
  * Feriados exibidos vêm de `ClinicHoliday`.
  */
 const CalendarInner = dynamic(
-  () => import('@/modules/calendar/calendar-inner').then((m) => m.CalendarInner),
+  () => import('@/components/shared/calendar/calendar-inner').then((m) => m.CalendarInner),
   {
     ssr: false,
     loading: () => (

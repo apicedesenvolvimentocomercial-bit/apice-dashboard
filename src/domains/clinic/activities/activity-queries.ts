@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { assertCan } from '@/server/auth/assert-can'
 import { getClinicContext } from '@/server/auth/clinic-context'
 
 import {
@@ -26,6 +27,10 @@ export async function getClinicActivitiesPage(
   filters: { view?: ClinicActivityListFilters['view']; assignedToId?: string } = {}
 ) {
   const ctx = await getClinicContext()
+  // Gate de leitura intra-clínica (Fase 6). OWNER e STAFF têm read por padrão;
+  // override em UserPermission pode revogar. Defesa em profundidade junto do
+  // escopo clientId+domain do repo.
+  await assertCan(ctx, 'activities', 'read')
   const assignedToId = filters.assignedToId
 
   const [rows, today, week, overdue, all, done, members, prefRow] = await Promise.all([

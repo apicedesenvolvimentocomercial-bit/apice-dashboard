@@ -10,7 +10,7 @@ import type { CalendarEvent, CalendarHoliday } from '@/server/queries/calendar-q
  * cria/edita evento da clínica (reforma divisão total).
  */
 const CalendarInner = dynamic(
-  () => import('@/modules/calendar/calendar-inner').then((m) => m.CalendarInner),
+  () => import('@/components/shared/calendar/calendar-inner').then((m) => m.CalendarInner),
   {
     ssr: false,
     loading: () => (

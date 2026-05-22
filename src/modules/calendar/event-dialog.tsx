@@ -23,7 +23,7 @@ import {
 } from '@/server/actions/calendar-event-actions'
 import type { CalendarEvent } from '@/server/queries/calendar-queries'
 
-import { ColorPicker } from './color-picker'
+import { ColorPicker } from '@/components/shared/calendar/color-picker'
 
 type Props =
   | {

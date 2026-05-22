@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createClinicActivityAction } from '@/domains/clinic/activities/activity-actions'
-import { PRIORITY_LABEL, TYPE_LABEL } from '@/modules/activities/types'
+import { PRIORITY_LABEL, TYPE_LABEL } from '@/components/shared/activities/types'
 
 /**
  * Dialog de nova atividade do DOMÍNIO CLÍNICA. Espelha o admin, mas: sem
