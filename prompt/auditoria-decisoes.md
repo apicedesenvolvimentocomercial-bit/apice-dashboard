@@ -1,5 +1,28 @@
 # Auditoria — Mesa de Decisões
 
+## 🚀 Implementação (2026-05-22) — branch `feat/auditoria-hardening-divisao-c`
+
+Todos os PRs executados na ordem recomendada. `tsc` limpo, `eslint` limpo, **128/128 testes**.
+
+- **PR1 — hardening** (`8071d28`): SEC-001 (`assertClientAccess` nas read-queries), SEC-002
+  (escopo de org no `getPipeline` via relação `client`), SEC-004 (`assertCan(read)` nas queries
+  legadas + agregados org-wide gateados em `clients:read`), SEC-003·B (webhook fail-closed),
+  BUG-001 (export 403/400/500 + datas), SEC-005 (log de contagem), PERF-001 (durationMs nos crons).
+- **PR2–9 — divisão híbrida C** (incremental, PII primeiro): portas de domínio em
+  `src/domains/clinic/{patients,appointments,financial,procedures,crm,goals,insights,dashboard}`
+  que derivam `clientId` de `getClinicContext()` e reusam o cálculo compartilhado. As 8 telas
+  `(client)/*` não passam mais `clientId`.
+
+> **⚠️ Ação operacional (SEC-003·B):** o webhook agora é **fail-closed** — `POST /api/webhooks/*`
+> responde **401** a menos que a env `WEBHOOK_SECRET` esteja setada E o header `x-webhook-secret`
+> bata. Como os providers ainda são mock, nada quebra hoje; ao ligar integração real, setar
+> `WEBHOOK_SECRET` em prod e, idealmente, trocar por validação de assinatura por provider.
+
+> **Pendente (fora do escopo destes PRs):** PERF-001·B (índice `[status,dueDate]` — depende de
+> medição em prod via os novos logs `durationMs`); rename `(client)`→`(clinic)` (cosmético).
+
+---
+
 ## ✅ Decisões finais (2026-05-22)
 
 | Achado   | Decisão                                                                                                               |
