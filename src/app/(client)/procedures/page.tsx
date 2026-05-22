@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 import { auth } from '@/server/auth'
 import { ProceduresTab } from '@/modules/financial/procedures-tab'
-import { getProceduresWithStats } from '@/server/queries/financial-queries'
+import { getClinicProceduresWithStats } from '@/domains/clinic/procedures/procedure-queries'
 
 export const metadata: Metadata = { title: 'Procedimentos' }
 
@@ -18,7 +18,7 @@ export default async function ClientProceduresPage() {
     )
   }
 
-  const procedures = await getProceduresWithStats(clientId)
+  const procedures = await getClinicProceduresWithStats()
 
   return (
     <div className="space-y-6">
