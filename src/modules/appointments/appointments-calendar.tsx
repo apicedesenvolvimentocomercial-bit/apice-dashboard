@@ -92,7 +92,7 @@ export function AppointmentsCalendar({
         </div>
       </div>
 
-      <div className="rounded-lg border bg-background p-4">
+      <div className="mt-4 rounded-lg border bg-background p-4">
         <CalendarView
           appointments={appointments}
           schedule={schedule}
