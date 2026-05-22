@@ -1,9 +1,7 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "permissions": {
-    "allow": ["Bash", "Write", "Edit", "Read", "Grep", "Glob", "WebFetch"],
-    "defaultMode": "acceptEdits"
-  },
   "claude.code.dangerouslySkipPermissions": true,
-  "claude.code.allowedTools": ["*"]
+  "claude.code.allowedTools": ["*"],
+  "permissions": {
+    "allow": ["*"]
+  }
 }

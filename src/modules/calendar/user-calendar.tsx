@@ -10,17 +10,14 @@ import type { CalendarEvent, CalendarHoliday } from '@/server/queries/calendar-q
 import { EventDialog } from './event-dialog'
 import { ImportHolidaysDialog } from './import-holidays-dialog'
 
-const CalendarInner = dynamic(
-  () => import('@/components/shared/calendar/calendar-inner').then((m) => m.CalendarInner),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex h-96 items-center justify-center rounded-lg border">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    ),
-  }
-)
+const CalendarInner = dynamic(() => import('./calendar-inner').then((m) => m.CalendarInner), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center rounded-lg border">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  ),
+})
 
 type Props = {
   events: CalendarEvent[]

@@ -36,10 +36,6 @@ export type DispatchTarget = {
   userId: string
   email?: string | null
   name?: string | null
-  // Escopo de domínio (Fase 1/2): clientId do destinatário quando é de clínica;
-  // null/undefined p/ agência. Grava em Notification.clientId → a notificação
-  // aparece no painel de notificações da clínica (que filtra por clientId).
-  clientId?: string | null
 }
 
 export async function dispatchNotification(
@@ -76,7 +72,6 @@ export async function dispatchNotification(
       message: payload.message,
       link,
       metadata: payload.metadata,
-      clientId: t.clientId ?? null,
     }))
   )
 
@@ -151,10 +146,10 @@ export async function getRecipientsForActivity(activity: {
   if (!activity.assignedToId) return []
   const user = await prisma.user.findUnique({
     where: { id: activity.assignedToId },
-    select: { id: true, email: true, name: true, isActive: true, deletedAt: true, clientId: true },
+    select: { id: true, email: true, name: true, isActive: true, deletedAt: true },
   })
   if (!user || !user.isActive || user.deletedAt) return []
-  return [{ userId: user.id, email: user.email, name: user.name, clientId: user.clientId }]
+  return [{ userId: user.id, email: user.email, name: user.name }]
 }
 
 /**
@@ -181,8 +176,7 @@ export async function getRecipientsForClient(
     },
     select: { id: true, email: true, name: true },
   })
-  // clientId conhecido (param) → grava na notificação p/ escopo de domínio.
-  return users.map((u) => ({ userId: u.id, email: u.email, name: u.name, clientId }))
+  return users.map((u) => ({ userId: u.id, email: u.email, name: u.name }))
 }
 
 export function summarizeUnread(rows: NotificationRow[]): {

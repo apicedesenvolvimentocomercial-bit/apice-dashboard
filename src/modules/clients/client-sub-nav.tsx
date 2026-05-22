@@ -11,7 +11,6 @@ import {
   Lightbulb,
   Target,
   Users,
-  Activity,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -25,8 +24,7 @@ const tabs = [
   { href: 'crm', label: 'Pipeline', icon: Kanban },
   { href: 'financial', label: 'Financeiro', icon: DollarSign },
   { href: 'patients', label: 'Pacientes', icon: UserCheck },
-  { href: 'appointments', label: 'Agenda', icon: Calendar },
-  { href: 'atividades', label: 'Atividades', icon: Activity },
+  { href: 'appointments', label: 'Agendamentos', icon: Calendar },
   { href: 'users', label: 'Usuários', icon: Users },
 ]
 

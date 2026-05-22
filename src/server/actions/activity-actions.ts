@@ -9,7 +9,7 @@ import { decideCalendarSync } from '@/lib/activity-calendar-sync'
 import { APP_TIMEZONE, parseLocalDate, spDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
-import { fail, ForbiddenError, NotFoundError, runAction } from '@/types/errors'
+import { fail, NotFoundError, runAction } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
@@ -95,20 +95,14 @@ export async function createActivityAction(formData: unknown) {
 
   return runAction(async () => {
     const ctx = await getTenantContext()
-    // Domínio admin (Fase 7): atividades da agência são exclusivas de ADMIN/STAFF.
-    // A clínica usa `domains/clinic/activities` (escopo clientId+domain próprio).
-    // Guard concentrado aqui substitui os branches CLIENT_* que existiam
-    // espalhados ("clínica opera aqui" removida).
-    if (ctx.role !== 'ADMIN' && ctx.role !== 'STAFF') {
-      throw new ForbiddenError('Atividades de agência: domínio admin')
-    }
     await assertCan(ctx, 'activities', 'write')
 
-    // clientId é etiqueta-CRM opcional: admin pode vincular a atividade a uma
-    // clínica; null = atividade interna da agência (§2.4).
     const targetClientId = parsed.data.clientId || null
     if (targetClientId) {
       await assertClientAccess(ctx, targetClientId)
+    } else if (ctx.role === 'CLIENT_OWNER' || ctx.role === 'CLIENT_STAFF') {
+      // Cliente nunca cria atividade global da org.
+      return fail('Atividade precisa estar vinculada à clínica')
     }
 
     // Resolução do responsável:
@@ -119,7 +113,8 @@ export async function createActivityAction(formData: unknown) {
     //   podem atribuir a terceiros).
     const requested = parsed.data.assignedToId
     const due = combineDateTime(parsed.data.dueDate, parsed.data.dueTime)
-    const effectiveClientId = targetClientId
+    const effectiveClientId =
+      targetClientId ?? (ctx.role.startsWith('CLIENT_') ? ctx.clientId : null)
 
     const syncCalendar = await shouldSyncToCalendar(ctx.userId, parsed.data.addToCalendar)
 
@@ -373,9 +368,9 @@ function todayInAppTz(): string {
   return fmt.format(new Date())
 }
 
-// Apenas ADMIN pode atribuir atividade a outro usuário; STAFF fica restrito a
-// si mesmo. O alvo precisa ser um usuário ativo (ADMIN/STAFF) da mesma
-// organização, senão a atividade volta para o próprio criador.
+// Apenas ADMIN pode atribuir atividade a outro usuário. Os demais (STAFF /
+// CLIENT_*) ficam restritos a si mesmos. O alvo precisa ser um usuário ativo
+// da mesma organização, senão a atividade volta para o próprio criador.
 async function resolveAssignee(
   ctx: { userId: string; organizationId: string; role: string },
   requested: string

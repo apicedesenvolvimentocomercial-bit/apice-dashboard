@@ -3,11 +3,25 @@ import { listOrgHolidays } from '@/server/repositories/org-holiday-repository'
 import { getTenantContext } from '@/server/tenant/context'
 import { assertCan } from '@/server/auth/assert-can'
 
-// Contratos de exibição agora vivem em `@/shared/calendar-types` (Fase 7) —
-// compartilhados com a clínica e com o render sem acoplar domínio. Re-exporta
-// p/ manter os consumidores admin atuais (`@/server/queries/calendar-queries`).
-import type { CalendarEvent, CalendarHoliday } from '@/shared/calendar-types'
-export type { CalendarEvent, CalendarHoliday }
+export type CalendarEvent = {
+  id: string
+  kind: 'event' | 'holiday'
+  title: string
+  start: Date
+  end: Date | null
+  color: string
+  link: string | null
+  // Source data — para drawer/edit.
+  notes: string | null
+  category: string | null
+  activityId: string | null
+}
+
+export type CalendarHoliday = {
+  id: string
+  date: string
+  name: string
+}
 
 const DEFAULT_EVENT_COLOR = '#3b82f6'
 const HOLIDAY_COLOR = '#e2e8f0'

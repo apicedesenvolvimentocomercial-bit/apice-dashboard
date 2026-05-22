@@ -43,9 +43,6 @@ export async function createNotification(data: {
   message: string
   link?: string | null
   metadata?: Prisma.InputJsonValue
-  // Escopo de domínio (Fase 1): clientId do destinatário se for de clínica,
-  // null para agência. Deriva domínio (clientId != null ⇒ clínica).
-  clientId?: string | null
 }) {
   return prisma.notification.create({
     data: {
@@ -55,7 +52,6 @@ export async function createNotification(data: {
       message: data.message,
       link: data.link ?? null,
       metadata: data.metadata,
-      clientId: data.clientId ?? null,
     },
   })
 }
@@ -68,7 +64,6 @@ export async function createNotifications(
     message: string
     link?: string | null
     metadata?: Prisma.InputJsonValue
-    clientId?: string | null
   }>
 ) {
   if (rows.length === 0) return { count: 0 }
@@ -80,7 +75,6 @@ export async function createNotifications(
       message: r.message,
       link: r.link ?? null,
       metadata: r.metadata,
-      clientId: r.clientId ?? null,
     })),
     skipDuplicates: false,
   })

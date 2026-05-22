@@ -10,7 +10,7 @@ import type { EventClickArg } from '@fullcalendar/core'
 import { useEffect, useRef } from 'react'
 
 import { toSPWallClock } from '@/lib/calendar-time'
-import type { CalendarEvent, CalendarHoliday } from '@/shared/calendar-types'
+import type { CalendarEvent, CalendarHoliday } from '@/server/queries/calendar-queries'
 
 const ONE_HOUR_MS = 60 * 60 * 1000
 
@@ -37,11 +37,7 @@ export function CalendarInner({ events, holidays, onEventClick }: Props) {
   // Evento sem `end` (atividade sem duração definida) assume 1h por padrão,
   // como bloco de tempo real — não vira all-day. Para não esticar a barra
   // pro dia seguinte quando começa perto da meia-noite (ex.: 23:59), o fim
-  // é clampado no fim do mesmo dia SP. Importante: o clamp NÃO pode ser igual
-  // ao start (duração zero) — o FullCalendar trataria como "sem fim" e
-  // aplicaria a duração default de 1h, transbordando pro dia seguinte. Por
-  // isso fechamos em 23:59:59 (duração positiva, mesmo dia). Eventos com `end`
-  // mantêm o horário.
+  // é clampado no fim do mesmo dia SP. Eventos com `end` mantêm o horário.
   const fcEvents = events.map((e) => {
     const start = toSPWallClock(e.start)
     let end: string
@@ -50,7 +46,7 @@ export function CalendarInner({ events, holidays, onEventClick }: Props) {
     } else {
       const oneHourLater = toSPWallClock(new Date(e.start.getTime() + ONE_HOUR_MS))
       const sameDay = oneHourLater.slice(0, 10) === start.slice(0, 10)
-      end = sameDay ? oneHourLater : `${start.slice(0, 10)}T23:59:59`
+      end = sameDay ? oneHourLater : `${start.slice(0, 10)}T23:59:00`
     }
     return {
       id: e.id,

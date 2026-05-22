@@ -12,7 +12,7 @@ import type { TenantContext } from '@/server/tenant/context'
  * converte para Result<T> ou propaga conforme o caller.
  */
 export async function assertCan(
-  ctx: Pick<TenantContext, 'userId' | 'role'>,
+  ctx: TenantContext,
   module: string,
   action: 'read' | 'write' | 'delete'
 ): Promise<void> {
