@@ -15,6 +15,7 @@ import {
   createRevenuesBulk,
   updateRevenue,
   softDeleteRevenue,
+  type RevenueProcedureInput,
 } from '@/server/repositories/revenue-repository'
 
 const revenueSchema = z.object({
@@ -24,12 +25,48 @@ const revenueSchema = z.object({
   paymentMethod: z.string().optional(),
   installments: z.number().int().positive().optional(),
   patientId: z.string().optional(),
-  procedureId: z.string().optional(),
+  procedureIds: z.array(z.string()).optional(),
+  discountPct: z.number().min(0, 'Desconto inválido').max(100, 'Desconto máximo 100%').optional(),
 })
 
 function revalidate(clientId: string) {
   revalidatePath('/financial')
   revalidatePath(`/clients/${clientId}/financial`)
+}
+
+// Busca preços/custos atuais dos procedimentos no servidor (não confia no client).
+// Preserva ordem e duplicatas do input (ex.: 2x o mesmo procedimento).
+async function resolveProcedures(
+  organizationId: string,
+  clientId: string,
+  ids: string[]
+): Promise<RevenueProcedureInput[]> {
+  if (ids.length === 0) return []
+  const uniqueIds = Array.from(new Set(ids))
+  const procs = await prisma.procedure.findMany({
+    where: { organizationId, clientId, id: { in: uniqueIds }, deletedAt: null },
+    select: { id: true, name: true, price: true, cost: true },
+  })
+  const map = new Map(procs.map((p) => [p.id, p]))
+  return ids
+    .map((id) => map.get(id))
+    .filter((p): p is NonNullable<typeof p> => Boolean(p))
+    .map((p) => ({
+      procedureId: p.id,
+      name: p.name,
+      price: Number(p.price),
+      cost: Number(p.cost),
+    }))
+}
+
+// Valor final = soma dos preços × (1 − desconto%), arredondado a 2 casas.
+function computeAmount(
+  procedures: RevenueProcedureInput[],
+  discountPct: number | undefined
+): number {
+  const sum = procedures.reduce((s, p) => s + p.price, 0)
+  const factor = 1 - (discountPct ?? 0) / 100
+  return Math.round(sum * factor * 100) / 100
 }
 
 export async function createRevenueAction(clientId: string, formData: unknown) {
@@ -42,17 +79,30 @@ export async function createRevenueAction(clientId: string, formData: unknown) {
   const date = parseLocalDate(parsed.data.date)
   if (!date) return fail('Data inválida')
 
+  const procedures = await resolveProcedures(
+    ctx.organizationId,
+    clientId,
+    parsed.data.procedureIds ?? []
+  )
+  // Com procedimentos, o valor é derivado da soma (− desconto). Sem, usa o informado.
+  const amount =
+    procedures.length > 0 ? computeAmount(procedures, parsed.data.discountPct) : parsed.data.amount
+  if (!(amount > 0)) return fail('Valor deve ser positivo')
+
   const revenue = await createRevenue(ctx, clientId, {
-    ...parsed.data,
+    amount,
     date,
+    description: parsed.data.description || undefined,
+    paymentMethod: parsed.data.paymentMethod || undefined,
+    installments: parsed.data.installments,
     patientId: parsed.data.patientId || undefined,
-    procedureId: parsed.data.procedureId || undefined,
+    procedures,
   })
   createAuditLog(ctx, {
     action: 'create',
     entityType: 'Revenue',
     entityId: revenue.id,
-    changes: { amount: parsed.data.amount, date: parsed.data.date },
+    changes: { amount, date: parsed.data.date },
   }).catch(() => {})
   revalidate(clientId)
   return ok(null)
@@ -72,10 +122,29 @@ export async function updateRevenueAction(revenueId: string, clientId: string, f
     date = parsedDate
   }
 
-  await updateRevenue(ctx, revenueId, {
-    ...parsed.data,
-    date,
-  })
+  // Se procedimentos vieram no payload, re-sincroniza itens + custos e deriva o valor.
+  const hasProcedures = parsed.data.procedureIds !== undefined
+  const procedures = hasProcedures
+    ? await resolveProcedures(ctx.organizationId, clientId, parsed.data.procedureIds ?? [])
+    : undefined
+  const amount =
+    procedures && procedures.length > 0
+      ? computeAmount(procedures, parsed.data.discountPct)
+      : parsed.data.amount
+
+  await updateRevenue(
+    ctx,
+    revenueId,
+    {
+      amount,
+      date,
+      description: parsed.data.description,
+      paymentMethod: parsed.data.paymentMethod,
+      installments: parsed.data.installments,
+      patientId: parsed.data.patientId,
+    },
+    procedures
+  )
   revalidate(clientId)
   return ok(null)
 }

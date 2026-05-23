@@ -1,8 +1,30 @@
+import { Prisma } from '@prisma/client'
+
 import { prisma } from '@/lib/prisma'
 import { monthKey, shortMonthLabel, spDate } from '@/lib/date'
 import type { TenantContext } from '@/server/tenant/context'
+import { currentClientId, runOutsideClientScope } from '@/server/tenant/client-scope'
 
 export type RevenueRow = Awaited<ReturnType<typeof listRevenues>>[number]
+
+/**
+ * Transação interativa segura sob escopo de clínica (footgun #2 de
+ * `rls-gambiarra.md`): sob clínica, a extensão de RLS embrulharia CADA op de
+ * modelo em seu próprio `$transaction` → transação aninhada → erro. Aqui limpamos
+ * o escopo (extensão passa direto) e setamos a GUC `app.current_client_id`
+ * manualmente como 1ª instrução, mantendo a RLS enforçando dentro da transação.
+ */
+function scopedTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  const scoped = currentClientId()
+  return runOutsideClientScope(() =>
+    prisma.$transaction(async (tx) => {
+      if (scoped) {
+        await tx.$executeRaw`SELECT set_config('app.current_client_id', ${scoped}, true)`
+      }
+      return fn(tx)
+    })
+  )
+}
 
 export async function listRevenues(
   ctx: TenantContext,
@@ -43,10 +65,59 @@ export async function listRevenues(
       createdAt: true,
       patient: { select: { id: true, name: true } },
       procedure: { select: { id: true, name: true } },
+      procedures: {
+        select: {
+          procedureId: true,
+          price: true,
+          procedure: { select: { name: true } },
+        },
+      },
     },
   })
 
-  return rows.map((r) => ({ ...r, amount: Number(r.amount) }))
+  return rows.map((r) => ({
+    ...r,
+    amount: Number(r.amount),
+    procedures: r.procedures.map((p) => ({
+      procedureId: p.procedureId,
+      name: p.procedure.name,
+      price: Number(p.price),
+    })),
+  }))
+}
+
+// Item de procedimento usado ao criar/editar uma receita.
+export type RevenueProcedureInput = {
+  procedureId: string
+  name: string
+  price: number
+  cost: number
+}
+
+const PROCEDURE_COST_CATEGORY = 'Procedimento'
+
+// Monta as linhas de Cost (uma por procedimento). Custo nunca é parcelado.
+function buildProcedureCostRows(
+  ctx: TenantContext,
+  clientId: string,
+  date: Date,
+  revenueId: string,
+  procedures: RevenueProcedureInput[]
+) {
+  return procedures
+    .filter((p) => p.cost > 0)
+    .map((p) => ({
+      organizationId: ctx.organizationId,
+      clientId,
+      revenueId,
+      type: 'VARIABLE' as const,
+      category: PROCEDURE_COST_CATEGORY,
+      amount: p.cost,
+      date,
+      description: p.name,
+      isRecurring: false,
+      createdById: ctx.userId,
+    }))
 }
 
 export async function createRevenue(
@@ -60,21 +131,43 @@ export async function createRevenue(
     installments?: number
     patientId?: string
     procedureId?: string
+    procedures?: RevenueProcedureInput[]
   }
 ) {
-  return prisma.revenue.create({
-    data: {
-      organizationId: ctx.organizationId,
-      clientId,
-      amount: data.amount,
-      date: data.date,
-      description: data.description,
-      paymentMethod: data.paymentMethod,
-      installments: data.installments ?? 1,
-      patientId: data.patientId,
-      procedureId: data.procedureId,
-      createdById: ctx.userId,
-    },
+  const procedures = data.procedures ?? []
+  // procedureId scalar = primeiro procedimento (mantém compat com filtros/relatórios).
+  const primaryProcedureId = data.procedureId ?? procedures[0]?.procedureId
+
+  return scopedTransaction(async (tx) => {
+    const revenue = await tx.revenue.create({
+      data: {
+        organizationId: ctx.organizationId,
+        clientId,
+        amount: data.amount,
+        date: data.date,
+        description: data.description,
+        paymentMethod: data.paymentMethod,
+        installments: data.installments ?? 1,
+        patientId: data.patientId,
+        procedureId: primaryProcedureId,
+        createdById: ctx.userId,
+        procedures: {
+          create: procedures.map((p) => ({
+            clientId,
+            procedureId: p.procedureId,
+            price: p.price,
+            cost: p.cost,
+          })),
+        },
+      },
+    })
+
+    const costRows = buildProcedureCostRows(ctx, clientId, data.date, revenue.id, procedures)
+    if (costRows.length > 0) {
+      await tx.cost.createMany({ data: costRows })
+    }
+
+    return revenue
   })
 }
 
@@ -119,18 +212,70 @@ export async function updateRevenue(
     installments: number
     patientId: string
     procedureId: string
-  }>
+  }>,
+  procedures?: RevenueProcedureInput[]
 ) {
-  return prisma.revenue.updateMany({
-    where: { id: revenueId, organizationId: ctx.organizationId, deletedAt: null },
-    data,
+  // Sem mudança de procedimentos: update simples dos campos escalares.
+  if (!procedures) {
+    return prisma.revenue.updateMany({
+      where: { id: revenueId, organizationId: ctx.organizationId, deletedAt: null },
+      data,
+    })
+  }
+
+  // Com procedimentos: re-sincroniza itens e custos vinculados numa transação.
+  const primaryProcedureId = data.procedureId ?? procedures[0]?.procedureId
+  const date = data.date ?? new Date()
+
+  return scopedTransaction(async (tx) => {
+    const updated = await tx.revenue.updateMany({
+      where: { id: revenueId, organizationId: ctx.organizationId, deletedAt: null },
+      data: { ...data, procedureId: primaryProcedureId },
+    })
+    if (updated.count === 0) return updated
+
+    // Apaga itens e custos antigos, recria do estado novo.
+    await tx.revenueProcedure.deleteMany({ where: { revenueId } })
+    await tx.cost.updateMany({
+      where: { revenueId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    })
+    if (procedures.length > 0) {
+      const rev = await tx.revenue.findUnique({
+        where: { id: revenueId },
+        select: { clientId: true },
+      })
+      if (rev) {
+        await tx.revenueProcedure.createMany({
+          data: procedures.map((p) => ({
+            clientId: rev.clientId,
+            revenueId,
+            procedureId: p.procedureId,
+            price: p.price,
+            cost: p.cost,
+          })),
+        })
+        const costRows = buildProcedureCostRows(ctx, rev.clientId, date, revenueId, procedures)
+        if (costRows.length > 0) await tx.cost.createMany({ data: costRows })
+      }
+    }
+    return updated
   })
 }
 
 export async function softDeleteRevenue(ctx: TenantContext, revenueId: string) {
-  return prisma.revenue.updateMany({
-    where: { id: revenueId, organizationId: ctx.organizationId, deletedAt: null },
-    data: { deletedAt: new Date() },
+  const now = new Date()
+  return scopedTransaction(async (tx) => {
+    const result = await tx.revenue.updateMany({
+      where: { id: revenueId, organizationId: ctx.organizationId, deletedAt: null },
+      data: { deletedAt: now },
+    })
+    // Soft-delete dos custos de procedimento gerados por esta receita.
+    await tx.cost.updateMany({
+      where: { revenueId, organizationId: ctx.organizationId, deletedAt: null },
+      data: { deletedAt: now },
+    })
+    return result
   })
 }
 

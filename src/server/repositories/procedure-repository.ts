@@ -5,7 +5,7 @@ export type ProcedureForSelect = Awaited<ReturnType<typeof listProceduresForSele
 export type ProcedureWithStats = Awaited<ReturnType<typeof listProceduresWithStats>>[number]
 
 export async function listProceduresForSelect(ctx: TenantContext, clientId: string) {
-  return prisma.procedure.findMany({
+  const rows = await prisma.procedure.findMany({
     where: {
       organizationId: ctx.organizationId,
       clientId,
@@ -17,8 +17,12 @@ export async function listProceduresForSelect(ctx: TenantContext, clientId: stri
       id: true,
       name: true,
       durationMinutes: true,
+      price: true,
+      cost: true,
     },
   })
+  // Decimal → number p/ serializar do server p/ client component.
+  return rows.map((p) => ({ ...p, price: Number(p.price), cost: Number(p.cost) }))
 }
 
 export async function listProceduresWithStats(ctx: TenantContext, clientId: string) {
