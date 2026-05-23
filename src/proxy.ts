@@ -3,7 +3,13 @@ import { NextResponse } from 'next/server'
 
 import { auth } from '@/server/auth'
 
-const PUBLIC_ROUTES = ['/login', '/accept-invite', '/forgot-password', '/reset-password']
+const PUBLIC_ROUTES = [
+  '/login',
+  '/accept-invite',
+  '/forgot-password',
+  '/reset-password',
+  '/privacidade',
+]
 // `/settings` não entra aqui: a página é compartilhada entre admin e dono
 // de clínica ((account)/settings/page.tsx renderiza cards diferentes por role).
 const ADMIN_ROUTES = ['/dashboard', '/clients', '/pipeline', '/activities', '/calendar', '/staff']

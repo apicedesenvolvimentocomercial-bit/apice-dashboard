@@ -75,6 +75,7 @@ export function ServicePreferencesForm({ initial }: Props) {
               <input
                 type="radio"
                 name="activity-calendar-sync"
+                aria-label={opt.label}
                 value={opt.value}
                 checked={isSelected}
                 onChange={() => setValue(opt.value)}

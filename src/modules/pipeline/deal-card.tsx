@@ -41,6 +41,10 @@ export function DealCard({ deal, onClick, isDragOverlay = false }: Props) {
   }
 
   return (
+    // dnd-kit injeta role/tabIndex/handlers de teclado via {...attributes}/{...listeners}
+    // (Space/Enter = pegar/soltar o card). Um onKeyDown próprio p/ "abrir" conflitaria com o
+    // drag por teclado; o clique é uma affordance de mouse complementar.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
       ref={setNodeRef}
       style={style}
