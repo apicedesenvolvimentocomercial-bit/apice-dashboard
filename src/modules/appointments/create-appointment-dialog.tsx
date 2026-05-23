@@ -239,6 +239,7 @@ export function CreateAppointmentDialog({
               <Input
                 id="apt-date"
                 type="datetime-local"
+                lang="pt-BR"
                 min={minScheduledAttr}
                 value={form.scheduledAt}
                 onChange={(e) => {

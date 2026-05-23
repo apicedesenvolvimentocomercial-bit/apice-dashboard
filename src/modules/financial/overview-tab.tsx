@@ -5,16 +5,17 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { COST_TYPE_LABELS, formatCurrency, formatPercent } from './types'
-import type { ChartMonth, FinancialSummary, TopCostCategory, TopProcedure } from './types'
+import type { FinancialSummary, TopCostCategory, TopProcedure } from './types'
+import type { RevenueMonthlySeries } from '@/server/queries/revenue-series'
 
-const RevenueCostChart = dynamic(
-  () => import('./revenue-cost-chart').then((m) => m.RevenueCostChart),
-  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-lg bg-muted" /> }
+const RevenueChartsSwitch = dynamic(
+  () => import('./revenue-charts-switch').then((m) => m.RevenueChartsSwitch),
+  { ssr: false, loading: () => <div className="h-72 animate-pulse rounded-lg bg-muted" /> }
 )
 
 type Props = {
   summary: FinancialSummary
-  chartData: ChartMonth[]
+  revenueSeries: RevenueMonthlySeries
   topProcedures: TopProcedure[]
   topCostCategories: TopCostCategory[]
 }
@@ -36,7 +37,7 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
   )
 }
 
-export function OverviewTab({ summary, chartData, topProcedures, topCostCategories }: Props) {
+export function OverviewTab({ summary, revenueSeries, topProcedures, topCostCategories }: Props) {
   const { current, previous } = summary
 
   const kpis = [
@@ -86,20 +87,11 @@ export function OverviewTab({ summary, chartData, topProcedures, topCostCategori
         ))}
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Receita × Custos (últimos 12 meses)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {chartData.length === 0 || chartData.every((d) => d.revenue === 0 && d.costs === 0) ? (
-            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-              Sem dados financeiros ainda.
-            </div>
-          ) : (
-            <RevenueCostChart data={chartData} />
-          )}
-        </CardContent>
-      </Card>
+      <RevenueChartsSwitch
+        revenueByMonth={revenueSeries.revenueByMonth}
+        receivedByMonth={revenueSeries.receivedByMonth}
+        receivedCenterIndex={revenueSeries.receivedCenterIndex}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>

@@ -18,14 +18,14 @@ export default async function ClientFinancialPage() {
     )
   }
 
-  const { overview, revenues, costs, procedures, proceduresForSelect, patients } =
+  const { overview, revenueSeries, revenues, costs, procedures, proceduresForSelect, patients } =
     await getClinicFinancialPage()
 
   return (
     <FinancialTabs
       clientId={clientId}
       summary={overview.summary}
-      chartData={overview.chartData}
+      revenueSeries={revenueSeries}
       topProcedures={overview.topProcedures}
       topCostCategories={overview.topCostCategories}
       revenues={revenues}

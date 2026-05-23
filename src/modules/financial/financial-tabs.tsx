@@ -9,7 +9,6 @@ import { CostsTab } from './costs-tab'
 import { ProceduresTab } from './procedures-tab'
 import { ReportsTab } from './reports-tab'
 import type {
-  ChartMonth,
   CostRow,
   FinancialSummary,
   ProcedureForSelect,
@@ -18,13 +17,14 @@ import type {
   TopCostCategory,
   TopProcedure,
 } from './types'
+import type { RevenueMonthlySeries } from '@/server/queries/revenue-series'
 
 type Patient = { id: string; name: string }
 
 type Props = {
   clientId: string
   summary: FinancialSummary
-  chartData: ChartMonth[]
+  revenueSeries: RevenueMonthlySeries
   topProcedures: TopProcedure[]
   topCostCategories: TopCostCategory[]
   revenues: RevenueRow[]
@@ -37,7 +37,7 @@ type Props = {
 export function FinancialTabs({
   clientId,
   summary,
-  chartData,
+  revenueSeries,
   topProcedures,
   topCostCategories,
   revenues,
@@ -67,7 +67,7 @@ export function FinancialTabs({
         <TabsContent value="overview" className="mt-6">
           <OverviewTab
             summary={summary}
-            chartData={chartData}
+            revenueSeries={revenueSeries}
             topProcedures={topProcedures}
             topCostCategories={topCostCategories}
           />

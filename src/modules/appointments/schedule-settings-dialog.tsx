@@ -139,6 +139,7 @@ export function ScheduleSettingsDialog({ open, clientId, schedule, onOpenChange,
                   <Input
                     id="sched-start"
                     type="time"
+                    lang="pt-BR"
                     value={workdayStart}
                     onChange={(e) => setWorkdayStart(e.target.value)}
                   />
@@ -151,6 +152,7 @@ export function ScheduleSettingsDialog({ open, clientId, schedule, onOpenChange,
                   <Input
                     id="sched-end"
                     type="time"
+                    lang="pt-BR"
                     value={workdayEnd}
                     onChange={(e) => setWorkdayEnd(e.target.value)}
                   />

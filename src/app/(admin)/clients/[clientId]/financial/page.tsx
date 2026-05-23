@@ -8,6 +8,9 @@ import {
   getProceduresWithStats,
   getRevenues,
 } from '@/server/queries/financial-queries'
+import { getRevenueMonthlySeries } from '@/server/queries/revenue-series'
+import { assertCan } from '@/server/auth/assert-can'
+import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { FinancialTabs } from '@/modules/financial/financial-tabs'
 
 export const metadata: Metadata = { title: 'Financeiro' }
@@ -17,20 +20,26 @@ type Props = { params: Promise<{ clientId: string }> }
 export default async function AdminClientFinancialPage({ params }: Props) {
   const { clientId } = await params
 
-  const [overview, revenues, costs, procedures, proceduresForSelect, patients] = await Promise.all([
-    getFinancialOverview(clientId),
-    getRevenues(clientId),
-    getCosts(clientId),
-    getProceduresWithStats(clientId),
-    getProceduresForSelect(clientId),
-    getPatientsForSelect(clientId),
-  ])
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'financial', 'read')
+
+  const [overview, revenueSeries, revenues, costs, procedures, proceduresForSelect, patients] =
+    await Promise.all([
+      getFinancialOverview(clientId),
+      getRevenueMonthlySeries(ctx, clientId),
+      getRevenues(clientId),
+      getCosts(clientId),
+      getProceduresWithStats(clientId),
+      getProceduresForSelect(clientId),
+      getPatientsForSelect(clientId),
+    ])
 
   return (
     <FinancialTabs
       clientId={clientId}
       summary={overview.summary}
-      chartData={overview.chartData}
+      revenueSeries={revenueSeries}
       topProcedures={overview.topProcedures}
       topCostCategories={overview.topCostCategories}
       revenues={revenues}

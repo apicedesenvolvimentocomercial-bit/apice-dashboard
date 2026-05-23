@@ -194,6 +194,7 @@ export function EventDialog(props: Props) {
               <Input
                 id="event-start-time"
                 type="time"
+                lang="pt-BR"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 disabled={isLinkedActivity}
@@ -216,6 +217,7 @@ export function EventDialog(props: Props) {
               <Input
                 id="event-end-time"
                 type="time"
+                lang="pt-BR"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 disabled={isLinkedActivity}

@@ -308,6 +308,7 @@ export function AppointmentDetailDialog({
                     <Label className="text-xs text-amber-700">Nova data e hora</Label>
                     <Input
                       type="datetime-local"
+                      lang="pt-BR"
                       value={newDateTime}
                       min={toSPWallClock(new Date()).slice(0, 16)}
                       onChange={(e) => setNewDateTime(e.target.value)}

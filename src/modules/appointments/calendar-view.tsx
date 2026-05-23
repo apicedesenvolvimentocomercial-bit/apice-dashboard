@@ -83,13 +83,14 @@ export function CalendarView({
     extendedProps: { isHoliday: true, holidayName: h.name },
   }))
 
-  // Dias fechados (não estão em workdays) → background events na semana visível
-  // FullCalendar businessHours já cobre isso, mas background events
-  // reforçam visualmente os dias fechados com uma cor diferente.
+  // Dias fechados (não estão em workdays) → background events.
+  // Os dias permanecem visíveis na agenda (não usamos hiddenDays), apenas
+  // pintados com uma cor que remete a "fechado/inativo". Cobrimos uma janela
+  // ampla (±26 semanas) para que a marcação apareça ao navegar entre meses.
   const closedDayEvents = (() => {
     const result: object[] = []
     const today = new Date()
-    for (let w = -4; w <= 4; w++) {
+    for (let w = -26; w <= 26; w++) {
       for (let d = 0; d < 7; d++) {
         if (!schedule.workdays.includes(d)) {
           const date = new Date(today)
@@ -100,7 +101,8 @@ export function CalendarView({
             start: dateStr,
             allDay: true,
             display: 'background',
-            backgroundColor: '#f1f5f9',
+            backgroundColor: '#cbd5e1',
+            extendedProps: { isClosed: true },
           })
         }
       }
@@ -156,7 +158,6 @@ export function CalendarView({
           slotEventOverlap={false}
           eventMaxStack={3}
           eventTimeFormat={{ hour: '2-digit', minute: '2-digit', meridiem: false }}
-          hiddenDays={closedDayNumbers}
           businessHours={{
             daysOfWeek: schedule.workdays,
             startTime: schedule.workdayStart,
@@ -191,9 +192,12 @@ export function CalendarView({
       {/* Legenda dos dias fechados */}
       {closedDayNumbers.length > 0 && (
         <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-          <span>Fechado:</span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded bg-slate-300 dark:bg-slate-600" />
+            Fechado:
+          </span>
           {closedDayNumbers.map((d) => (
-            <span key={d} className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800">
+            <span key={d} className="rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-700">
               {DAY_NAMES[d]}
             </span>
           ))}

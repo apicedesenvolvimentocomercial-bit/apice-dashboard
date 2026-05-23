@@ -191,6 +191,7 @@ export function ClinicEventDialog(props: Props) {
               <Input
                 id="cevent-start-time"
                 type="time"
+                lang="pt-BR"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 disabled={isLinkedActivity}
@@ -213,6 +214,7 @@ export function ClinicEventDialog(props: Props) {
               <Input
                 id="cevent-end-time"
                 type="time"
+                lang="pt-BR"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 disabled={isLinkedActivity}

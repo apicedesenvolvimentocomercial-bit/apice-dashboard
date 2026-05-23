@@ -177,6 +177,7 @@ export function ClinicCreateActivityDialog({
               <Input
                 id="dueTime"
                 type="time"
+                lang="pt-BR"
                 value={dueTime}
                 onChange={(e) => setDueTime(e.target.value)}
                 disabled={!dueDate}
