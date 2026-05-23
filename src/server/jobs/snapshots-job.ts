@@ -77,6 +77,7 @@ export async function runSnapshotsJob(
   referenceDate: Date = new Date(),
   prismaClient = defaultPrisma
 ): Promise<SnapshotsRunResult> {
+  const startedAt = Date.now()
   const clients = await prismaClient.client.findMany({
     where: { deletedAt: null },
     select: { id: true, organizationId: true },
@@ -144,6 +145,6 @@ export async function runSnapshotsJob(
   })
 
   const summary = { scanned: clients.length, daily, monthly, errors }
-  logger.info('KPI snapshots job complete', summary)
+  logger.info('KPI snapshots job complete', { ...summary, durationMs: Date.now() - startedAt })
   return summary
 }

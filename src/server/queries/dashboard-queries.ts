@@ -12,6 +12,7 @@ import {
 import { resolvePeriod } from '@/server/services/kpi/period'
 import type { Period, PeriodRange } from '@/server/services/kpi/types'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { assertCan } from '@/server/auth/assert-can'
 
 /**
  * React cache: dedup de chamadas dentro do mesmo Server Render.
@@ -54,6 +55,8 @@ export const getAdminDashboard = cache(
     customTo?: string
   ): Promise<AdminDashboardData> => {
     const ctx = await getTenantContext()
+    // Dashboard org-wide (agência) — gate admin/STAFF; clínica vê o próprio overview.
+    await assertCan(ctx, 'clients', 'read')
     const range = getRange(period, customFrom, customTo)
 
     const [global, clinics, revAgg, costAgg, leadAgg, apptAgg, wonLeads] = await Promise.all([

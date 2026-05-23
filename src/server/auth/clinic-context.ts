@@ -1,3 +1,4 @@
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { getTenantContext } from '@/server/tenant/context'
 import { ForbiddenError } from '@/types/errors'
 
@@ -25,6 +26,9 @@ export async function getClinicContext(): Promise<ClinicContext> {
   if (!ctx.clientId) {
     throw new ForbiddenError('Sessão de clínica sem clientId')
   }
+  // Fixa o escopo de clínica no request → a extensão do Prisma injeta a GUC de
+  // RLS em toda query subsequente (ver `prompt/rls-gambiarra.md`).
+  enterClientScope(ctx.clientId)
   return {
     userId: ctx.userId,
     organizationId: ctx.organizationId,

@@ -9,7 +9,7 @@ type JobTotals = { dueCreated: number; overdueCreated: number; emailed: number; 
 // clínica (`domain === 'CLINIC'`) usa a rota PT da clínica e carrega `clientId`
 // — sem ele a notificação não apareceria no sino da clínica, que filtra por
 // clientId. Atividade da agência usa a rota admin, sem clientId.
-function domainRouting(a: { domain: string; clientId: string | null }): {
+export function domainRouting(a: { domain: string; clientId: string | null }): {
   link: string
   clientId: string | null
 } {

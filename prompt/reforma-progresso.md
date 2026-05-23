@@ -87,7 +87,7 @@ Construído o núcleo de isolamento (§3.4): camada de dados de clínica tipada 
 - **Membership cargo-agnóstico:** assignee/fan-out/recipients/membros da clínica agora filtram por `clientId` (não `role IN`). clientId só existe em user de clínica → exclui agência e fica pronto p/ cargos futuros.
 - **UI de atividades da clínica = espelho do admin:** `components/clinic/activities/` (ClinicActivitiesPage + Card + CreateDialog + QuickAdd). Pastas por membro, fan-out "Todos", quick-add + dialog completo, mark-seen, abas, banner de atrasadas. Query `getClinicActivitiesPage` (lista+counts+membros+pref). Clínica colaborativa (todo membro vê pastas/atribui). Reusa display puro de `modules/activities/{types,folder-colors}` (realocar Fase 7).
 - **Roles — avaliação:** sistema parcialmente pronto. 2 camadas: enum fixo de cargo + override por usuário (`UserPermission`, tem UI). Dá p/ múltiplos usuários com acesso distinto HOJE (override). NÃO dá p/ criar cargo novo dinâmico (precisa tabela Role+RolePermission no futuro).
-- tsc + lint verdes. **Migration `activity_domain` precisa ir p/ prod no deploy.**
+- tsc + lint verdes. **Migration `activity_domain` aplicada em prod** (confirmado 2026-05-22 via `prisma migrate status`).
 
 **Dívidas/pendências p/ Fases 5-8:**
 
@@ -151,7 +151,7 @@ Construído o núcleo de isolamento (§3.4): camada de dados de clínica tipada 
 
 ## Pendências e riscos abertos
 
-- **APLICAR MIGRATION (bloqueia runtime das Fases 2-4):** `.env` aponta p/ PRODUÇÃO (Accelerate/db.prisma.io, app `assessoriaapice.vercel.app`). Não rodei migration nem backfill. Rodar `npx prisma migrate deploy` (aditivo) contra prod ou um dev DB. Sem isso, qualquer código que leia `Notification.clientId`/`CalendarEvent.clientId` quebra em runtime.
+- ~~**APLICAR MIGRATION (bloqueia runtime das Fases 2-4)**~~ — **RESOLVIDO (2026-05-22):** usuário rodou `npx prisma migrate deploy` contra prod. `prisma migrate status` confirma "Database schema is up to date!" (15 migrations, incluindo `domain_scope` e `activity_domain`). Runtime das Fases 2-4 desbloqueado.
 - **SEGREDOS EM `.env` (não-git? confirmar):** `.env` contém chave do DB (Accelerate+direct), `NEXTAUTH_SECRET`, `RESEND_API_KEY`. Não aparece no git status (provável gitignore). Se algum dia foi commitado, rotacionar.
 - `next` corrigido `^9.3.3`→`^16.2.6` (era bug pré-existente que travava install). Lockfile regenerado.
 - `assertCan` aceitava `TenantContext`; agora `Pick<TenantContext,'userId'|'role'>` (widening seguro).

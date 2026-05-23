@@ -140,8 +140,11 @@ export function AuditLogTable({
       {/* Filtros */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">De</label>
+          <label htmlFor="audit-from" className="text-xs text-muted-foreground">
+            De
+          </label>
           <DateInput
+            id="audit-from"
             value={from}
             onChange={(e) => {
               setFrom(e.target.value)
@@ -151,8 +154,11 @@ export function AuditLogTable({
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Até</label>
+          <label htmlFor="audit-to" className="text-xs text-muted-foreground">
+            Até
+          </label>
           <DateInput
+            id="audit-to"
             value={to}
             onChange={(e) => {
               setTo(e.target.value)
@@ -162,7 +168,9 @@ export function AuditLogTable({
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Ação</label>
+          <label htmlFor="audit-action" className="text-xs text-muted-foreground">
+            Ação
+          </label>
           <Select
             value={action}
             onValueChange={(v) => {
@@ -170,7 +178,7 @@ export function AuditLogTable({
               applyFilters({ action: v })
             }}
           >
-            <SelectTrigger className="h-8 w-44 text-sm">
+            <SelectTrigger id="audit-action" className="h-8 w-44 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -184,7 +192,9 @@ export function AuditLogTable({
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Entidade</label>
+          <label htmlFor="audit-entity" className="text-xs text-muted-foreground">
+            Entidade
+          </label>
           <Select
             value={entityType}
             onValueChange={(v) => {
@@ -192,7 +202,7 @@ export function AuditLogTable({
               applyFilters({ entityType: v })
             }}
           >
-            <SelectTrigger className="h-8 w-44 text-sm">
+            <SelectTrigger id="audit-entity" className="h-8 w-44 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
