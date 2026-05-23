@@ -108,7 +108,10 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
       data: format(new Date(r.date), 'yyyy-MM-dd'),
       descricao: r.description ?? '',
       paciente: r.patient?.name ?? '',
-      procedimento: r.procedure?.name ?? '',
+      procedimento:
+        r.procedures && r.procedures.length > 0
+          ? r.procedures.map((p) => p.name).join(', ')
+          : (r.procedure?.name ?? ''),
       forma_pagamento: r.paymentMethod
         ? (PAYMENT_METHOD_LABELS[r.paymentMethod] ?? r.paymentMethod)
         : '',
@@ -291,7 +294,11 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
                   </td>
                   <td className="px-4 py-2.5">{r.description ?? '—'}</td>
                   <td className="px-4 py-2.5">{r.patient?.name ?? '—'}</td>
-                  <td className="px-4 py-2.5">{r.procedure?.name ?? '—'}</td>
+                  <td className="px-4 py-2.5">
+                    {r.procedures && r.procedures.length > 0
+                      ? r.procedures.map((p) => p.name).join(', ')
+                      : (r.procedure?.name ?? '—')}
+                  </td>
                   <td className="px-4 py-2.5">
                     {r.paymentMethod ? (
                       <Badge variant="secondary" className="text-xs">

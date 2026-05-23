@@ -29,3 +29,15 @@ export function enterClientScope(clientId: string): void {
 export function currentClientId(): string | null {
   return store.getStore()?.clientId ?? null
 }
+
+/**
+ * Roda `fn` SEM escopo de clínica no contexto async (`currentClientId()` → null
+ * dentro de `fn`). Uso: dentro de uma transação interativa sob clínica, a
+ * extensão do Prisma embrulharia cada op de modelo num `$transaction` próprio →
+ * transação dentro de transação (footgun #2 de `rls-gambiarra.md`). Limpamos o
+ * escopo para a extensão passar direto e setamos a GUC manualmente na transação.
+ * O escopo do request (via `enterWith`) volta a valer após `fn`.
+ */
+export function runOutsideClientScope<T>(fn: () => Promise<T>): Promise<T> {
+  return store.run(undefined as unknown as { clientId: string }, fn)
+}

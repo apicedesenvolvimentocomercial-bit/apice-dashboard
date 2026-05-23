@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -22,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createRevenueAction, updateRevenueAction } from '@/server/actions/revenue-actions'
-import { NONE_VALUE, PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from './types'
+import { formatCurrency, NONE_VALUE, PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from './types'
 import type { ProcedureForSelect, RevenueRow } from './types'
 
 type Patient = { id: string; name: string }
@@ -44,7 +45,9 @@ const EMPTY = {
   paymentMethod: '',
   installments: '1',
   patientId: '',
-  procedureId: '',
+  procedureIds: [] as string[],
+  discountEnabled: false,
+  discountPct: '',
 }
 
 export function CreateRevenueDialog({
@@ -58,6 +61,10 @@ export function CreateRevenueDialog({
 }: Props) {
   const [isPending, startTransition] = useTransition()
   const [form, setForm] = useState(EMPTY)
+  // Remonta o Select de procedimentos após cada escolha p/ voltar ao placeholder.
+  const [pickKey, setPickKey] = useState(0)
+
+  const procById = useMemo(() => new Map(procedures.map((p) => [p.id, p])), [procedures])
 
   useEffect(() => {
     if (open) {
@@ -70,10 +77,13 @@ export function CreateRevenueDialog({
               paymentMethod: revenue.paymentMethod ?? '',
               installments: String(revenue.installments ?? 1),
               patientId: revenue.patient?.id ?? '',
-              procedureId: revenue.procedure?.id ?? '',
+              procedureIds: revenue.procedures?.map((p) => p.procedureId) ?? [],
+              discountEnabled: false,
+              discountPct: '',
             }
           : EMPTY
       )
+      setPickKey((k) => k + 1)
     }
   }, [open, revenue])
 
@@ -81,9 +91,42 @@ export function CreateRevenueDialog({
     setForm(EMPTY)
   }
 
+  const hasProcedures = form.procedureIds.length > 0
+  const proceduresSum = useMemo(
+    () => form.procedureIds.reduce((s, id) => s + (procById.get(id)?.price ?? 0), 0),
+    [form.procedureIds, procById]
+  )
+  const discountPctNum = form.discountEnabled ? parseFloat(form.discountPct.replace(',', '.')) : 0
+  const validDiscount =
+    Number.isFinite(discountPctNum) && discountPctNum >= 0 && discountPctNum <= 100
+  const computedTotal = hasProcedures
+    ? Math.round(proceduresSum * (1 - (validDiscount ? discountPctNum : 0) / 100) * 100) / 100
+    : 0
+
+  function addProcedure(id: string) {
+    if (id === NONE_VALUE) return
+    setForm((f) => ({ ...f, procedureIds: [...f.procedureIds, id] }))
+    setPickKey((k) => k + 1)
+  }
+
+  function removeProcedure(index: number) {
+    setForm((f) => ({ ...f, procedureIds: f.procedureIds.filter((_, i) => i !== index) }))
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const amount = parseFloat(form.amount.replace(',', '.'))
+
+    // Valor: derivado da soma dos procedimentos, ou manual quando nenhum selecionado.
+    let amount: number
+    if (hasProcedures) {
+      if (form.discountEnabled && !validDiscount) {
+        toast.error('Desconto deve ser entre 0 e 100%')
+        return
+      }
+      amount = computedTotal
+    } else {
+      amount = parseFloat(form.amount.replace(',', '.'))
+    }
     if (!amount || amount <= 0) {
       toast.error('Informe um valor válido')
       return
@@ -111,7 +154,8 @@ export function CreateRevenueDialog({
       paymentMethod: form.paymentMethod || undefined,
       installments,
       patientId: form.patientId || undefined,
-      procedureId: form.procedureId || undefined,
+      procedureIds: form.procedureIds,
+      discountPct: form.discountEnabled && validDiscount ? discountPctNum : undefined,
     }
 
     startTransition(async () => {
@@ -143,16 +187,89 @@ export function CreateRevenueDialog({
           <DialogTitle>{revenue ? 'Editar Receita' : 'Nova Receita'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Paciente */}
+          <div className="space-y-1">
+            <Label>Paciente</Label>
+            <Select
+              value={form.patientId}
+              onValueChange={(v) =>
+                setForm((f) => ({ ...f, patientId: v === NONE_VALUE ? '' : v }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE_VALUE}>Nenhum</SelectItem>
+                {patients.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Procedimentos (múltiplos) */}
+          <div className="space-y-1">
+            <Label>Procedimentos</Label>
+            <Select key={pickKey} onValueChange={addProcedure}>
+              <SelectTrigger>
+                <SelectValue placeholder="Adicionar procedimento..." />
+              </SelectTrigger>
+              <SelectContent>
+                {procedures.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} — {formatCurrency(p.price)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.procedureIds.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {form.procedureIds.map((id, i) => {
+                  const proc = procById.get(id)
+                  return (
+                    <li
+                      key={`${id}-${i}`}
+                      className="flex items-center justify-between rounded-md border bg-muted/40 px-2 py-1 text-sm"
+                    >
+                      <span>{proc?.name ?? 'Procedimento'}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-muted-foreground">
+                          {formatCurrency(proc?.price ?? 0)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeProcedure(i)}
+                          className="text-muted-foreground hover:text-destructive"
+                          aria-label="Remover procedimento"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* Valor + Data */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="rv-amount">Valor (R$) *</Label>
               <Input
                 id="rv-amount"
-                value={form.amount}
+                value={hasProcedures ? formatCurrency(computedTotal) : form.amount}
                 onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
                 placeholder="0,00"
-                required
+                readOnly={hasProcedures}
+                required={!hasProcedures}
               />
+              {hasProcedures && (
+                <p className="text-[10px] text-muted-foreground">Soma dos procedimentos</p>
+              )}
             </div>
             <div className="space-y-1">
               <Label htmlFor="rv-date">Data *</Label>
@@ -165,51 +282,7 @@ export function CreateRevenueDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Paciente</Label>
-              <Select
-                value={form.patientId}
-                onValueChange={(v) =>
-                  setForm((f) => ({ ...f, patientId: v === NONE_VALUE ? '' : v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE_VALUE}>Nenhum</SelectItem>
-                  {patients.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Procedimento</Label>
-              <Select
-                value={form.procedureId}
-                onValueChange={(v) =>
-                  setForm((f) => ({ ...f, procedureId: v === NONE_VALUE ? '' : v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE_VALUE}>Nenhum</SelectItem>
-                  {procedures.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
+          {/* Forma de pagamento + Parcelas */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Forma de pagamento</Label>
@@ -251,6 +324,44 @@ export function CreateRevenueDialog({
             </div>
           </div>
 
+          {/* Desconto no valor total */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-input"
+                checked={form.discountEnabled}
+                disabled={!hasProcedures}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    discountEnabled: e.target.checked,
+                    discountPct: e.target.checked ? f.discountPct : '',
+                  }))
+                }
+              />
+              <span className={!hasProcedures ? 'text-muted-foreground' : undefined}>
+                Desconto no valor total
+              </span>
+            </label>
+            {form.discountEnabled && hasProcedures && (
+              <div className="space-y-1">
+                <Label htmlFor="rv-discount">Desconto (%)</Label>
+                <Input
+                  id="rv-discount"
+                  value={form.discountPct}
+                  onChange={(e) => setForm((f) => ({ ...f, discountPct: e.target.value }))}
+                  placeholder="0"
+                  inputMode="decimal"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Soma {formatCurrency(proceduresSum)} → total {formatCurrency(computedTotal)}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Descrição */}
           <div className="space-y-1">
             <Label htmlFor="rv-desc">Descrição</Label>
             <Input
