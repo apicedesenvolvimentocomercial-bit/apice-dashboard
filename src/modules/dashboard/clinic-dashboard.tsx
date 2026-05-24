@@ -216,70 +216,69 @@ export function ClinicDashboard({ data }: Props) {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-1.5 text-base">
-              <span>Receita gerada x Custos — últimos 12 meses</span>
-              <InfoHint label="Receita gerada x Custos">
-                <p className="font-medium text-foreground">Receita gerada</p>
-                <p className="mt-1">
-                  Soma do valor cheio das vendas no mês em que foram lançadas, independente do
-                  parcelamento. É a referência contábil de quanto foi faturado.
-                </p>
-                <p className="mt-2">
-                  <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
-                  parcelado em 12x e vendido em maio aparece como{' '}
-                  <span className="font-medium">R$ 5.000 em maio</span> aqui.
-                </p>
-              </InfoHint>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RevenueCostBars data={revenueByMonth} revenueName="Receita gerada" />
-          </CardContent>
-        </Card>
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-1.5 text-base">
+                <span>Receita gerada x Custos — últimos 12 meses</span>
+                <InfoHint label="Receita gerada x Custos">
+                  <p className="font-medium text-foreground">Receita gerada</p>
+                  <p className="mt-1">
+                    Soma do valor cheio das vendas no mês em que foram lançadas, independente do
+                    parcelamento. É a referência contábil de quanto foi faturado.
+                  </p>
+                  <p className="mt-2">
+                    <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
+                    parcelado em 12x e vendido em maio aparece como{' '}
+                    <span className="font-medium">R$ 5.000 em maio</span> aqui.
+                  </p>
+                </InfoHint>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RevenueCostBars data={revenueByMonth} revenueName="Receita gerada" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-1.5 text-base">
+                <span>Receita recebida x Custos</span>
+                <InfoHint label="Receita recebida x Custos">
+                  <p className="font-medium text-foreground">Receita recebida</p>
+                  <p className="mt-1">
+                    Simulação do fluxo de caixa: o valor da venda é distribuído pelos meses conforme
+                    o número de parcelas. Cada mês mostra o que efetivamente entra no caixa.
+                  </p>
+                  <p className="mt-2">
+                    <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
+                    parcelado em 12x vendido em maio aparece como{' '}
+                    <span className="font-medium">R$ 416,67 em maio</span> e o mesmo valor em cada
+                    um dos 11 meses seguintes (até abril do ano seguinte).
+                  </p>
+                  <p className="mt-2">
+                    <span className="font-medium">Custos futuros:</span> incluem a projeção dos
+                    custos fixos cadastrados (custos recorrentes ainda não lançados). Mudanças
+                    nesses custos refletem aqui automaticamente.
+                  </p>
+                  <p className="mt-2 text-muted-foreground">
+                    Use as setas para navegar pelos meses anteriores e posteriores. O mês central
+                    fica sempre destacado no rodapé do gráfico.
+                  </p>
+                </InfoHint>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ReceivedRevenueChart data={receivedByMonth} centerIndex={receivedCenterIndex} />
+            </CardContent>
+          </Card>
+        </div>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Funil de conversão</CardTitle>
           </CardHeader>
           <CardContent>
             <FunnelBars data={funnel} />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-1.5 text-base">
-              <span>Receita recebida x Custos</span>
-              <InfoHint label="Receita recebida x Custos">
-                <p className="font-medium text-foreground">Receita recebida</p>
-                <p className="mt-1">
-                  Simulação do fluxo de caixa: o valor da venda é distribuído pelos meses conforme o
-                  número de parcelas. Cada mês mostra o que efetivamente entra no caixa.
-                </p>
-                <p className="mt-2">
-                  <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
-                  parcelado em 12x vendido em maio aparece como{' '}
-                  <span className="font-medium">R$ 416,67 em maio</span> e o mesmo valor em cada um
-                  dos 11 meses seguintes (até abril do ano seguinte).
-                </p>
-                <p className="mt-2">
-                  <span className="font-medium">Custos futuros:</span> incluem a projeção dos custos
-                  fixos cadastrados (custos recorrentes ainda não lançados). Mudanças nesses custos
-                  refletem aqui automaticamente.
-                </p>
-                <p className="mt-2 text-muted-foreground">
-                  Use as setas para navegar pelos meses anteriores e posteriores. O mês central fica
-                  sempre destacado no rodapé do gráfico.
-                </p>
-              </InfoHint>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ReceivedRevenueChart data={receivedByMonth} centerIndex={receivedCenterIndex} />
           </CardContent>
         </Card>
       </div>
