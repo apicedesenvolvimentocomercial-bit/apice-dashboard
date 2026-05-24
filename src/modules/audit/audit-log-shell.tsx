@@ -20,9 +20,11 @@ type Props = {
   total: number
   page: number
   pageSize: number
+  users: { id: string; name: string; email: string }[]
+  clients: { id: string; name: string }[]
 }
 
-export function AuditLogShell({ rows, total, page, pageSize }: Props) {
+export function AuditLogShell({ rows, total, page, pageSize, users, clients }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -58,6 +60,16 @@ export function AuditLogShell({ rows, total, page, pageSize }: Props) {
       total={total}
       page={page}
       pageSize={pageSize}
+      users={users}
+      clients={clients}
+      initialFilters={{
+        userId: searchParams.get('userId') ?? '__all__',
+        clientId: searchParams.get('clientId') ?? '__all__',
+        action: searchParams.get('action') ?? '__all__',
+        entityType: searchParams.get('entityType') ?? '__all__',
+        from: searchParams.get('from') ?? '',
+        to: searchParams.get('to') ?? '',
+      }}
       onPageChange={handlePageChange}
       onFilterChange={(filters) =>
         updateParams({
@@ -65,6 +77,8 @@ export function AuditLogShell({ rows, total, page, pageSize }: Props) {
           to: filters.to,
           action: filters.action,
           entityType: filters.entityType,
+          userId: filters.userId,
+          clientId: filters.clientId,
         })
       }
     />

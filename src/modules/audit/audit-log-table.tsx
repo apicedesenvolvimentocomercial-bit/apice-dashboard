@@ -61,17 +61,31 @@ type AuditRow = {
   changes: Record<string, unknown> | null
 }
 
+type FilterState = {
+  from: string
+  to: string
+  action: string
+  entityType: string
+  userId: string
+  clientId: string
+}
+
 type Props = {
   rows: AuditRow[]
   total: number
   page: number
   pageSize: number
+  users: { id: string; name: string; email: string }[]
+  clients: { id: string; name: string }[]
+  initialFilters: FilterState
   onPageChange: (page: number) => void
   onFilterChange: (filters: {
     from?: string
     to?: string
     action?: string
     entityType?: string
+    userId?: string
+    clientId?: string
   }) => void
 }
 
@@ -80,25 +94,30 @@ export function AuditLogTable({
   total,
   page,
   pageSize,
+  users,
+  clients,
+  initialFilters,
   onPageChange,
   onFilterChange,
 }: Props) {
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const [action, setAction] = useState('__all__')
-  const [entityType, setEntityType] = useState('__all__')
+  const [from, setFrom] = useState(initialFilters.from)
+  const [to, setTo] = useState(initialFilters.to)
+  const [action, setAction] = useState(initialFilters.action)
+  const [entityType, setEntityType] = useState(initialFilters.entityType)
+  const [userId, setUserId] = useState(initialFilters.userId)
+  const [clientId, setClientId] = useState(initialFilters.clientId)
   const [, startTransition] = useTransition()
 
   const totalPages = Math.ceil(total / pageSize)
 
-  function applyFilters(
-    overrides: Partial<{ from: string; to: string; action: string; entityType: string }> = {}
-  ) {
+  function applyFilters(overrides: Partial<FilterState> = {}) {
     const f = {
       from: overrides.from ?? from,
       to: overrides.to ?? to,
       action: overrides.action ?? action,
       entityType: overrides.entityType ?? entityType,
+      userId: overrides.userId ?? userId,
+      clientId: overrides.clientId ?? clientId,
     }
     startTransition(() => {
       onFilterChange({
@@ -106,6 +125,8 @@ export function AuditLogTable({
         to: f.to || undefined,
         action: f.action === '__all__' ? undefined : f.action,
         entityType: f.entityType === '__all__' ? undefined : f.entityType,
+        userId: f.userId === '__all__' ? undefined : f.userId,
+        clientId: f.clientId === '__all__' ? undefined : f.clientId,
       })
     })
   }
@@ -210,6 +231,54 @@ export function AuditLogTable({
               {Object.entries(ENTITY_LABELS).map(([k, v]) => (
                 <SelectItem key={k} value={k}>
                   {v}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="audit-client" className="text-xs text-muted-foreground">
+            Clínica
+          </label>
+          <Select
+            value={clientId}
+            onValueChange={(v) => {
+              setClientId(v)
+              applyFilters({ clientId: v })
+            }}
+          >
+            <SelectTrigger id="audit-client" className="h-8 w-44 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todas as clínicas</SelectItem>
+              {clients.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="audit-user" className="text-xs text-muted-foreground">
+            Usuário
+          </label>
+          <Select
+            value={userId}
+            onValueChange={(v) => {
+              setUserId(v)
+              applyFilters({ userId: v })
+            }}
+          >
+            <SelectTrigger id="audit-user" className="h-8 w-52 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todos os usuários</SelectItem>
+              {users.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.name}
                 </SelectItem>
               ))}
             </SelectContent>

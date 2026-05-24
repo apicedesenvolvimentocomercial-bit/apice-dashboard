@@ -35,8 +35,31 @@ export type AuditLogFilters = {
   action?: AuditAction
   entityType?: AuditEntityType
   userId?: string
+  clientId?: string
   take?: number
   skip?: number
+}
+
+// AuditLog não tem clientId. Filtro por clínica = restringe aos userId que
+// pertencem àquela clínica. Resolve clientId -> lista de userId antes do where.
+async function resolveClientFilter(
+  ctx: TenantContext,
+  filters: Pick<AuditLogFilters, 'userId' | 'clientId'>
+) {
+  if (!filters.clientId) {
+    return filters.userId ? { userId: filters.userId } : {}
+  }
+
+  const users = await prisma.user.findMany({
+    where: { organizationId: ctx.organizationId, clientId: filters.clientId },
+    select: { id: true },
+  })
+  let ids = users.map((u) => u.id)
+  // Se também filtrar por usuário, intersecta (usuário precisa ser da clínica).
+  if (filters.userId) ids = ids.filter((id) => id === filters.userId)
+
+  // Nenhum usuário casa -> força resultado vazio.
+  return { userId: { in: ids.length > 0 ? ids : ['__none__'] } }
 }
 
 export async function createAuditLog(
@@ -79,8 +102,9 @@ async function withUsers<T extends { userId: string | null }>(rows: T[]) {
 }
 
 export async function listAuditLogs(ctx: TenantContext, filters: AuditLogFilters = {}) {
-  const { from, to, action, entityType, userId, take = 50, skip = 0 } = filters
+  const { from, to, action, entityType, take = 50, skip = 0 } = filters
 
+  const userFilter = await resolveClientFilter(ctx, filters)
   const where = {
     organizationId: ctx.organizationId,
     ...(from || to
@@ -93,7 +117,7 @@ export async function listAuditLogs(ctx: TenantContext, filters: AuditLogFilters
       : {}),
     ...(action ? { action } : {}),
     ...(entityType ? { entityType } : {}),
-    ...(userId ? { userId } : {}),
+    ...userFilter,
   }
 
   const [rows, total] = await Promise.all([
@@ -106,8 +130,9 @@ export async function listAuditLogs(ctx: TenantContext, filters: AuditLogFilters
 }
 
 export async function listAuditLogsForExport(ctx: TenantContext, filters: AuditLogFilters = {}) {
-  const { from, to, action, entityType, userId } = filters
+  const { from, to, action, entityType } = filters
 
+  const userFilter = await resolveClientFilter(ctx, filters)
   const rows = await prisma.auditLog.findMany({
     where: {
       organizationId: ctx.organizationId,
@@ -116,11 +141,28 @@ export async function listAuditLogsForExport(ctx: TenantContext, filters: AuditL
         : {}),
       ...(action ? { action } : {}),
       ...(entityType ? { entityType } : {}),
-      ...(userId ? { userId } : {}),
+      ...userFilter,
     },
     orderBy: { createdAt: 'desc' },
     take: 10_000,
   })
 
   return withUsers(rows)
+}
+
+// Opções p/ os dropdowns de filtro (usuário e clínica), escopadas à org.
+export async function getAuditFilterOptions(ctx: TenantContext) {
+  const [users, clients] = await Promise.all([
+    prisma.user.findMany({
+      where: { organizationId: ctx.organizationId, deletedAt: null },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.client.findMany({
+      where: { organizationId: ctx.organizationId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+  ])
+  return { users, clients }
 }

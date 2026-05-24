@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { auth } from '@/server/auth'
-import { getAuditLogs } from '@/server/queries/audit-queries'
+import { getAuditLogs, getAuditFilters } from '@/server/queries/audit-queries'
 import { AuditLogShell } from '@/modules/audit/audit-log-shell'
 import type { AuditAction, AuditEntityType } from '@/server/repositories/audit-repository'
 
@@ -18,6 +18,8 @@ type Props = {
     to?: string
     action?: string
     entityType?: string
+    userId?: string
+    clientId?: string
   }>
 }
 
@@ -29,14 +31,19 @@ export default async function AuditLogPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(sp.page ?? '1', 10))
   const skip = (page - 1) * PAGE_SIZE
 
-  const { rows, total } = await getAuditLogs({
-    from: sp.from ? new Date(sp.from) : undefined,
-    to: sp.to ? new Date(sp.to + 'T23:59:59') : undefined,
-    action: sp.action as AuditAction | undefined,
-    entityType: sp.entityType as AuditEntityType | undefined,
-    take: PAGE_SIZE,
-    skip,
-  })
+  const [{ rows, total }, filterOptions] = await Promise.all([
+    getAuditLogs({
+      from: sp.from ? new Date(sp.from) : undefined,
+      to: sp.to ? new Date(sp.to + 'T23:59:59') : undefined,
+      action: sp.action as AuditAction | undefined,
+      entityType: sp.entityType as AuditEntityType | undefined,
+      userId: sp.userId || undefined,
+      clientId: sp.clientId || undefined,
+      take: PAGE_SIZE,
+      skip,
+    }),
+    getAuditFilters(),
+  ])
 
   const serialized = rows.map((r) => ({
     ...r,
@@ -56,7 +63,14 @@ export default async function AuditLogPage({ searchParams }: Props) {
           <CardTitle className="text-base">Registros de auditoria</CardTitle>
         </CardHeader>
         <CardContent>
-          <AuditLogShell rows={serialized} total={total} page={page} pageSize={PAGE_SIZE} />
+          <AuditLogShell
+            rows={serialized}
+            total={total}
+            page={page}
+            pageSize={PAGE_SIZE}
+            users={filterOptions.users}
+            clients={filterOptions.clients}
+          />
         </CardContent>
       </Card>
     </div>
