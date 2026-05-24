@@ -10,7 +10,8 @@ type Props = { params: Promise<{ clientId: string }> }
 
 export default async function AdminClinicGoalsPage({ params }: Props) {
   const { clientId } = await params
-  const goals = await getGoalsWithProgress(clientId)
+  // Admin vê todas as metas da clínica (unscoped); não atribui pela UI da clínica.
+  const goals = await getGoalsWithProgress(clientId, { unscoped: true })
   return <GoalsPage clientId={clientId} goals={goals.map(toView)} />
 }
 
@@ -27,5 +28,9 @@ function toView(g: Awaited<ReturnType<typeof getGoalsWithProgress>>[number]): Go
     startDate: g.startDate,
     endDate: g.endDate,
     notes: g.notes,
+    scopeType: g.scopeType,
+    mode: g.mode,
+    scopeLabel: g.scopeLabel,
+    memberUserId: g.memberUserId,
   }
 }

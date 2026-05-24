@@ -85,6 +85,9 @@ model User {
   // Inverso 1:1 de Client.ownerId — null se este usuário não é titular da clínica.
   ownedClient Client? @relation("ClientOwner")
 
+  // Metas atribuídas a este usuário (Etapa 2 — escopo USER).
+  goalsAssigned Goal[] @relation("GoalAssignee")
+
   permissions         UserPermission[]
   sessions            Session[]
   accounts            Account[]
@@ -277,6 +280,7 @@ model ClinicRole {
   updatedAt DateTime @updatedAt
 
   users User[] @relation("UserClinicRole")
+  goals Goal[] @relation("GoalRoleAssignee")
 
   @@unique([clientId, name])
   @@index([clientId])
@@ -664,6 +668,23 @@ enum GoalPeriod {
   YEARLY
 }
 
+// Escopo de uma meta (Etapa 2). CLINIC = coletiva da clínica (legado: toda meta
+// antiga vira CLINIC no backfill). USER = atribuída a um usuário. ROLE =
+// atribuída a um cargo (ClinicRole) — expande em uma meta por membro na UI.
+enum GoalScopeType {
+  CLINIC
+  USER
+  ROLE
+}
+
+// Modo só importa para USER/ROLE. INDIVIDUAL = cada pessoa tem sua cota e o
+// progresso é medido pelo que cada um gerou (autor do registro). SHARED = a
+// meta é do grupo (soma de todos contra um alvo único). CLINIC é sempre SHARED.
+enum GoalMode {
+  INDIVIDUAL
+  SHARED
+}
+
 model Goal {
   id             String     @id @default(cuid())
   organizationId String
@@ -677,11 +698,21 @@ model Goal {
   endDate     DateTime
   notes       String?
 
+  // Escopo (Etapa 2). Default CLINIC para compatibilidade com metas existentes.
+  scopeType      GoalScopeType @default(CLINIC)
+  mode           GoalMode      @default(SHARED)
+  assigneeUserId String?
+  assigneeUser   User?         @relation("GoalAssignee", fields: [assigneeUserId], references: [id], onDelete: Cascade)
+  assigneeRoleId String?
+  assigneeRole   ClinicRole?   @relation("GoalRoleAssignee", fields: [assigneeRoleId], references: [id], onDelete: Cascade)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   @@index([clientId, metric, period])
+  @@index([clientId, assigneeUserId])
+  @@index([clientId, assigneeRoleId])
 }
 
 // =====================================================

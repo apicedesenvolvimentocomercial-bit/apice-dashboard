@@ -69,6 +69,12 @@ export function GoalCard({ clientId, goal }: Props) {
             <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
               <Badge variant="outline">{PERIOD_LABEL[goal.period]}</Badge>
               <Badge variant="secondary">{goal.daysLeft}d restantes</Badge>
+              {goal.scopeType !== 'CLINIC' && (
+                <Badge variant="info">
+                  {goal.scopeLabel}
+                  {goal.mode === 'INDIVIDUAL' ? ' · individual' : ' · compartilhada'}
+                </Badge>
+              )}
             </div>
           </div>
           <Button

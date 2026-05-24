@@ -152,7 +152,7 @@ novos `clinic-role-repository.ts`/`clinic-role-actions.ts`, `client-users.tsx`, 
 
 ---
 
-## ETAPA 2 — Metas/atividades por usuário/cargo (NÃO INICIADA — só após Etapa 1 commitada)
+## ETAPA 2 — Metas por usuário/cargo (✅ COMPLETA — só Metas; atividades adiadas)
 
 ### Contexto
 
@@ -160,17 +160,28 @@ Hoje `Goal(clientId)` sem userId/role (ver memória/exploração). Goal model: `
 repo `goal-repository.ts`, queries `goal-queries.ts`, actions `goal-actions.ts`, UI `src/modules/goals/`,
 dashboard usa `goalsProgress` (dashboard-queries.ts ~357). Progresso calculado em `getCurrentGoalValue()`.
 
-### Tarefas (esboço — detalhar ao iniciar)
+### Decisões adicionais (confirmadas no início da Etapa 2)
 
-- [ ] **2.1 Schema Goal** — escopo: alvo (userId? OU clinicRoleId?) + modo (`INDIVIDUAL|SHARED`). Nullable p/ metas existentes virarem coletivas. Mesma ideia p/ Activity (pessoal).
-- [ ] **2.2 Cálculo** — meta individual atribuída a cargo = cota por pessoa; compartilhada = soma do grupo. `getCurrentGoalValue()` filtra por user/cargo conforme escopo.
-- [ ] **2.3 Visibilidade** — usa `viewAll`(D3): titular/quem-tem vê todas; staff vê suas (atribuídas a ele OU ao cargo dele OU compartilhadas do grupo). Criação respeita `assignToOthers`(D4).
-- [ ] **2.4 UI** — dialog de meta: alvo (usuário/cargo) + modo (individual/compartilhada). Filtro "minhas / todas". Mesmo p/ atividades.
-- [ ] **2.5 Verify + commit.**
+- **D10** Cálculo individual = **autor do registro**: REVENUE→Revenue.createdById, LEADS→Lead.assignedToId, APPOINTMENTS→Appointment.createdById, NEW_PATIENTS→Patient.createdById. (Derivadas CONVERSION/NO_SHOW/AVERAGE_TICKET continuam 0.)
+- **D11** Escopo da Etapa 2 = **só Metas** (atividades pessoais ficam p/ depois; viewAll/assignToOthers já existem no cargo).
+- **D12** Meta de CARGO + INDIVIDUAL = **uma linha por membro, cota igual** (expande na query).
+
+### Tarefas
+
+- [x] **2.1 Schema Goal** — enums GoalScopeType(CLINIC/USER/ROLE) + GoalMode(INDIVIDUAL/SHARED); campos scopeType(def CLINIC)/mode(def SHARED)/assigneeUserId/assigneeRoleId (FK CASCADE). Migration `20260524180000_goal_scope` aplicada no .env.test. Metas existentes → CLINIC+SHARED.
+- [x] **2.2 Cálculo** — `getCurrentGoalValue(ctx,clientId,goal,assigneeUserId?)`: com assignee filtra pelo autor (D10).
+- [x] **2.3 Queries+visibilidade** — `goal-queries.ts` reescrito: GoalWithProgress ganha scopeLabel+memberUserId. Visibilidade: admin/unscoped vê tudo; titular ou goals.viewAll vê tudo; senão só CLINIC+atribuídas a si+ao cargo. Meta ROLE INDIVIDUAL expande 1 linha/membro (progresso por autor); ROLE SHARED = 1 linha agregada; USER conforme modo.
+- [x] **2.4 Actions** — createGoalAction aceita escopo; normaliza alvo; gate `assignToOthers` se delega a outro/cargo (meta p/ si mesmo basta goals:write); valida alvo pertence à clínica.
+- [x] **2.5 UI** — GoalView+scope; create-goal-dialog ganha bloco de escopo (alvo user/cargo + modo) só se canAssign; goal-card mostra badge scopeLabel·modo; goals-page passa users/roles/canAssign + key composta (id:memberUserId); clinic+admin pages carregam alvos e mapeiam campos (admin usa unscoped).
+- [x] **2.6 Verify+commit** — tsc OK. Verify: titular cria meta REVENUE atribuída a usuário (individual), card mostra "Dono Alpha · individual", DB scopeType=USER/mode=INDIVIDUAL. Screenshot confirmou. Progresso 0 correto (mede por autor; sem receitas do usuário no seed).
+
+### Não feito (escopo deliberado)
+
+- Atividades pessoais (D11 adiou). Dashboard `goalsProgress` (dashboard-queries.ts ~357) ainda agrega todas as metas da clínica — não expande por escopo; aceitável (visão geral). Editar meta não expõe escopo no dialog de edição (só criação).
 
 ### Log de progresso
 
-- _(vazio)_
+- 2026-05-24: **ETAPA 2 DONE** (só Metas). 11 arquivos. Ver tarefas acima.
 
 ---
 
