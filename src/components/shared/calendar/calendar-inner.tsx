@@ -34,16 +34,36 @@ export function CalendarInner({ events, holidays, onEventClick }: Props) {
     return () => obs.disconnect()
   }, [])
 
-  // Evento sem `end` (atividade sem duração definida) assume 1h por padrão,
-  // como bloco de tempo real — não vira all-day. Para não esticar a barra
-  // pro dia seguinte quando começa perto da meia-noite (ex.: 23:59), o fim
-  // é clampado no fim do mesmo dia SP. Importante: o clamp NÃO pode ser igual
-  // ao start (duração zero) — o FullCalendar trataria como "sem fim" e
-  // aplicaria a duração default de 1h, transbordando pro dia seguinte. Por
-  // isso fechamos em 23:59:59 (duração positiva, mesmo dia). Eventos com `end`
-  // mantêm o horário.
+  // Atividade "fim do dia" (sentinela 23:59 SP, sem `end`) não tem horário
+  // real: é só um prazo "vence neste dia". No timeGrid (dia/semana) um bloco
+  // às 23:59 cai no rodapé do grid com 1 min de altura e fica cortado pela
+  // borda. Por isso esses eventos viram all-day — caem na faixa all-day do
+  // topo (nunca cortada) na visão dia/semana e como bloco normal no mês. É
+  // pra isso que a faixa all-day existe.
+  //
+  // Demais eventos sem `end` assumem 1h como bloco de tempo real. O fim é
+  // clampado no mesmo dia SP pra barra não esticar pro dia seguinte quando
+  // começa perto da meia-noite. O clamp NÃO pode igualar o start (duração
+  // zero): o FullCalendar trataria como "sem fim" e aplicaria 1h default,
+  // transbordando pro dia seguinte. Por isso fecha em 23:59:59. Eventos com
+  // `end` mantêm o horário.
   const fcEvents = events.map((e) => {
     const start = toSPWallClock(e.start)
+
+    // Sentinela de fim de dia: 23:59 SP sem `end` → all-day.
+    const isEndOfDaySentinel = e.end == null && start.slice(11, 16) === '23:59'
+    if (isEndOfDaySentinel) {
+      return {
+        id: e.id,
+        title: e.title,
+        start: start.slice(0, 10),
+        allDay: true,
+        backgroundColor: e.color,
+        borderColor: e.color,
+        extendedProps: { source: e },
+      }
+    }
+
     let end: string
     if (e.end != null) {
       end = toSPWallClock(e.end)
