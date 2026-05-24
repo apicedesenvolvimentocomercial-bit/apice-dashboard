@@ -9,6 +9,7 @@ export type TenantContext = {
   organizationId: string
   role: UserRole
   clientId: string | null
+  clinicRoleId: string | null
 }
 
 export async function getTenantContext(): Promise<TenantContext> {
@@ -22,6 +23,7 @@ export async function getTenantContext(): Promise<TenantContext> {
     organizationId: session.user.organizationId,
     role: session.user.role as UserRole,
     clientId: session.user.clientId ?? null,
+    clinicRoleId: session.user.clinicRoleId ?? null,
   }
 }
 

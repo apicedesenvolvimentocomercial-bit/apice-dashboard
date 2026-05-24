@@ -1,3 +1,4 @@
+import { prisma } from '@/lib/prisma'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { getTenantContext } from '@/server/tenant/context'
 import { ForbiddenError } from '@/types/errors'
@@ -16,6 +17,12 @@ export type ClinicContext = {
   organizationId: string
   role: 'CLIENT_OWNER' | 'CLIENT_STAFF'
   clientId: string
+  clinicRoleId: string | null
+  // Titular/criador da clínica (Client.ownerId === userId) — a "coroa". Único
+  // com acesso total e que altera dados sensíveis da clínica. Calculado por
+  // request a partir do DB (não vem do JWT) para refletir transferências de
+  // titularidade imediatamente.
+  isOwner: boolean
 }
 
 export async function getClinicContext(): Promise<ClinicContext> {
@@ -29,10 +36,20 @@ export async function getClinicContext(): Promise<ClinicContext> {
   // Fixa o escopo de clínica no request → a extensão do Prisma injeta a GUC de
   // RLS em toda query subsequente (ver `prompt/rls-gambiarra.md`).
   enterClientScope(ctx.clientId)
+
+  // A coroa é lida do DB (não do JWT) p/ refletir transferência de titularidade
+  // sem esperar o re-sync de 10 min do token.
+  const client = await prisma.client.findUnique({
+    where: { id: ctx.clientId },
+    select: { ownerId: true },
+  })
+
   return {
     userId: ctx.userId,
     organizationId: ctx.organizationId,
     role: ctx.role,
     clientId: ctx.clientId,
+    clinicRoleId: ctx.clinicRoleId,
+    isOwner: client?.ownerId === ctx.userId,
   }
 }

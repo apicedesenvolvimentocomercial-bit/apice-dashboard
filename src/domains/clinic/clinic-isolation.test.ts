@@ -41,6 +41,8 @@ const ctxA: ClinicContext = {
   organizationId: 'org-1',
   role: 'CLIENT_OWNER',
   clientId: 'clinic-A',
+  clinicRoleId: null,
+  isOwner: true,
 }
 const OTHER = 'clinic-B' // clínica vizinha — NUNCA deve aparecer num where.
 
