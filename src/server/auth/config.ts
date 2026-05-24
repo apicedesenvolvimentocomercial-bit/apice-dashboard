@@ -75,6 +75,28 @@ export const authConfig = {
         token.role = (user as { role: string }).role
         token.organizationId = (user as { organizationId: string | null }).organizationId
         token.clientId = (user as { clientId: string | null }).clientId
+        token.syncedAt = Date.now()
+        return token
+      }
+      // Re-sincroniza claims com o DB no máximo a cada 10 min. Sem isso, os
+      // claims ficam congelados desde o login (strategy: 'jwt' não bate no DB
+      // por request): um token mintado antes de um reseed da org carrega um
+      // organizationId que não existe mais → FK violation em writes. O throttle
+      // mantém o espírito stateless (não é lookup por request) e ainda faz o
+      // token se auto-curar — e propaga mudança de papel — em até 10 min.
+      const TEN_MIN = 10 * 60 * 1000
+      const last = (token.syncedAt as number | undefined) ?? 0
+      if (token.id && Date.now() - last > TEN_MIN) {
+        const fresh = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { organizationId: true, role: true, clientId: true },
+        })
+        if (fresh) {
+          token.organizationId = fresh.organizationId
+          token.role = fresh.role
+          token.clientId = fresh.clientId
+        }
+        token.syncedAt = Date.now()
       }
       return token
     },

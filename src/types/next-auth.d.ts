@@ -11,3 +11,14 @@ declare module 'next-auth' {
     } & DefaultSession['user']
   }
 }
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id: string
+    role: UserRole
+    organizationId: string | null
+    clientId: string | null
+    // Epoch ms do último re-sync com o DB (throttle de 10 min no jwt callback).
+    syncedAt: number
+  }
+}
