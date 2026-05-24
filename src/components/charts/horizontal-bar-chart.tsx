@@ -31,6 +31,10 @@ export function HorizontalBarChart({
         ? `${COUNT_FORMATTER.format(v)} ${unitLabel}`
         : COUNT_FORMATTER.format(v)
       : formatBRL(v)
+  const maxValue = data.reduce((m, d) => (d.value > m ? d.value : m), 0)
+  // Teto 30% acima do maior valor: barra nunca enche 100% da largura,
+  // mantendo proporção entre clínicas (resolve "1 clínica = barra cheia").
+  const xMax = maxValue > 0 ? maxValue * 1.3 : 1
   if (data.length === 0) {
     return (
       <div
@@ -48,6 +52,7 @@ export function HorizontalBarChart({
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
         <XAxis
           type="number"
+          domain={[0, xMax]}
           tick={{ fontSize: 11 }}
           tickLine={false}
           axisLine={false}
