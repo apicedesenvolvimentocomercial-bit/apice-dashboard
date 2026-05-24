@@ -86,6 +86,22 @@ export async function acceptInviteAction(input: z.infer<typeof acceptInviteSchem
     }
   }
 
+  // Análogo para a CLÍNICA (Etapa 1 — cargos): o primeiro usuário interno que
+  // entra como CLIENT_OWNER vira titular (coroa) da clínica, se ela ainda não
+  // tem dono. Mesmo updateMany com filtro `ownerId: null` para evitar race.
+  if (user.role === 'CLIENT_OWNER' && invitation.clientId) {
+    const result = await prisma.client.updateMany({
+      where: { id: invitation.clientId, ownerId: null },
+      data: { ownerId: user.id },
+    })
+    if (result.count > 0) {
+      logger.info('Clinic owner auto-assigned on invite accept', {
+        userId: user.id,
+        clientId: invitation.clientId,
+      })
+    }
+  }
+
   logger.info('Invite accepted', { userId: user.id, organizationId: invitation.organizationId })
 
   return ok({ email: user.email })

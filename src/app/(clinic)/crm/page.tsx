@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 
 import { auth } from '@/server/auth'
+import { gateClinicTab } from '@/server/auth/clinic-tabs'
 import { getClinicPipeline } from '@/domains/clinic/crm/lead-queries'
 import { PipelineTabs } from '@/modules/crm/pipeline-tabs'
 
 export const metadata: Metadata = { title: 'Pipeline' }
 
 export default async function ClientCrmPage() {
+  await gateClinicTab('crm')
   const session = await auth()
   const clientId = session?.user?.clientId
 

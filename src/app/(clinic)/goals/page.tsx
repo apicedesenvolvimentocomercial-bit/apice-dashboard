@@ -3,11 +3,13 @@ import type { Metadata } from 'next'
 import { GoalsPage } from '@/modules/goals/goals-page'
 import type { GoalView } from '@/modules/goals/types'
 import { auth } from '@/server/auth'
+import { gateClinicTab } from '@/server/auth/clinic-tabs'
 import { getClinicGoals } from '@/domains/clinic/goals/goal-queries'
 
 export const metadata: Metadata = { title: 'Metas' }
 
 export default async function ClientGoalsPage() {
+  await gateClinicTab('goals')
   const session = await auth()
   const clientId = session?.user?.clientId
   if (!clientId) {
