@@ -26,14 +26,14 @@ function buildClinicNav(role: ClinicRole): NavItem[] {
   const isOwner = role === 'CLIENT_OWNER'
   return [
     { href: '/overview', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/insights', label: 'Insights', icon: Lightbulb },
-    { href: '/goals', label: 'Metas', icon: Target },
-    { href: '/crm', label: 'Pipeline', icon: Kanban },
-    { href: '/financial', label: 'Financeiro', icon: DollarSign },
-    { href: '/patients', label: 'Pacientes', icon: UserCheck },
-    { href: '/appointments', label: 'Agenda', icon: Calendar },
-    { href: '/procedures', label: 'Procedimentos', icon: Stethoscope },
     { href: '/atividades', label: 'Atividades', icon: Activity },
+    { href: '/appointments', label: 'Agenda', icon: Calendar },
+    { href: '/crm', label: 'Pipeline', icon: Kanban },
+    { href: '/patients', label: 'Pacientes', icon: UserCheck },
+    { href: '/financial', label: 'Financeiro', icon: DollarSign },
+    { href: '/goals', label: 'Metas', icon: Target },
+    { href: '/insights', label: 'Insights', icon: Lightbulb },
+    { href: '/procedures', label: 'Procedimentos', icon: Stethoscope },
     { href: '/notificacoes', label: 'Notificações', icon: Bell },
     isOwner
       ? { href: '/configuracoes', label: 'Configurações', icon: Settings }
