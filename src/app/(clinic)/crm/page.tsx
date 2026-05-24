@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 import { auth } from '@/server/auth'
 import { getClinicPipeline } from '@/domains/clinic/crm/lead-queries'
-import { KanbanBoard } from '@/modules/crm/kanban-board'
+import { PipelineTabs } from '@/modules/crm/pipeline-tabs'
 
 export const metadata: Metadata = { title: 'Pipeline' }
 
@@ -18,26 +18,22 @@ export default async function ClientCrmPage() {
     )
   }
 
-  const stages = await getClinicPipeline()
+  const [newStages, existingStages] = await Promise.all([
+    getClinicPipeline('NEW'),
+    getClinicPipeline('EXISTING'),
+  ])
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">
-            {stages.reduce((acc, s) => acc + s.leads.length, 0)} leads no funil
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
+        <p className="text-sm text-muted-foreground">
+          {newStages.reduce((acc, s) => acc + s.leads.length, 0)} clientes novos ·{' '}
+          {existingStages.reduce((acc, s) => acc + s.leads.length, 0)} cadastrados no funil
+        </p>
       </div>
 
-      {stages.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">Nenhuma etapa configurada no funil.</p>
-        </div>
-      ) : (
-        <KanbanBoard stages={stages} clientId={clientId} />
-      )}
+      <PipelineTabs clientId={clientId} newStages={newStages} existingStages={existingStages} />
     </div>
   )
 }

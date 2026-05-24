@@ -8,6 +8,8 @@ import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
   createLead,
+  createLeadForPatient,
+  listPatientsWithoutExistingCard,
   updateLead,
   moveLead,
   reorderLead,
@@ -30,7 +32,9 @@ const leadSchema = z.object({
 
 function revalidate(clientId: string) {
   revalidatePath('/crm')
+  revalidatePath('/crm/clientes')
   revalidatePath(`/clients/${clientId}/crm`)
+  revalidatePath(`/clients/${clientId}/crm/clientes`)
 }
 
 export async function createLeadAction(clientId: string, formData: unknown) {
@@ -158,6 +162,45 @@ export async function getLeadAction(leadId: string) {
     ...lead,
     estimatedValue: lead.estimatedValue ? Number(lead.estimatedValue) : null,
   })
+}
+
+/**
+ * Cria um card no funil EXISTING a partir de um paciente já cadastrado.
+ * Diferente de `createLeadAction` (lead novo do zero), aqui o card herda os
+ * dados do paciente e fica vinculado a ele via `patientId`.
+ */
+export async function createPatientCardAction(
+  clientId: string,
+  patientId: string,
+  stageId: string
+) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'write')
+
+  if (!patientId || !stageId) return fail('Paciente e etapa obrigatórios')
+
+  const lead = await createLeadForPatient(ctx, clientId, patientId, stageId)
+  if (!lead) return fail(new NotFoundError('Paciente'))
+
+  createAuditLog(ctx, {
+    action: 'create',
+    entityType: 'Lead',
+    entityId: lead.id,
+    changes: { name: lead.name, patientId },
+  }).catch(() => {})
+  revalidate(clientId)
+  return ok({ id: lead.id, stageId: lead.stageId, name: lead.name })
+}
+
+/** Pacientes da clínica sem card ativo no funil EXISTING (para o dialog). */
+export async function listAvailablePatientsAction(clientId: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'read')
+
+  const patients = await listPatientsWithoutExistingCard(ctx, clientId)
+  return ok(patients)
 }
 
 export async function deleteLeadAction(leadId: string, clientId: string) {

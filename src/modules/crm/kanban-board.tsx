@@ -11,31 +11,39 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
+import type { StageKind } from '@prisma/client'
+import { Pencil } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
 import { positionBetween } from '@/lib/dnd-position'
 import { moveLeadAction, reorderLeadAction } from '@/server/actions/lead-actions'
 
+import { AddPatientCardDialog } from './add-patient-card-dialog'
 import { CreateLeadDialog } from './create-lead-dialog'
 import { KanbanColumn } from './kanban-column'
 import { LeadCard } from './lead-card'
 import { LeadDrawer } from './lead-drawer'
+import { StageEditorDialog } from './stage-editor-dialog'
 import type { KanbanLead, KanbanStage } from './types'
 
 type Props = {
   stages: KanbanStage[]
   clientId: string
+  /** Funil exibido. NEW = leads novos; EXISTING = pacientes já cadastrados. */
+  kind?: StageKind
 }
 
-export function KanbanBoard({ stages: initialStages, clientId }: Props) {
+export function KanbanBoard({ stages: initialStages, clientId, kind = 'NEW' }: Props) {
   const router = useRouter()
   const [stages, setStages] = useState<KanbanStage[]>(initialStages)
   const [activeLead, setActiveLead] = useState<KanbanLead | null>(null)
   const [drawerLeadId, setDrawerLeadId] = useState<string | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createStageId, setCreateStageId] = useState<string>('')
+  const [stageEditorOpen, setStageEditorOpen] = useState(false)
   const [, startTransition] = useTransition()
 
   // Snapshot tirada no início do drag — usada para reverter caso o backend
@@ -226,6 +234,18 @@ export function KanbanBoard({ stages: initialStages, clientId }: Props) {
 
   return (
     <>
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setStageEditorOpen(true)}
+          aria-label="Editar etapas do funil"
+        >
+          <Pencil className="mr-2 h-4 w-4" />
+          Editar etapas
+        </Button>
+      </div>
+
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -233,14 +253,20 @@ export function KanbanBoard({ stages: initialStages, clientId }: Props) {
         onDragEnd={handleDragEnd}
       >
         <div className="flex min-h-[calc(100vh-12rem)] gap-4 overflow-x-auto pb-4">
-          {stages.map((stage) => (
-            <KanbanColumn
-              key={stage.id}
-              stage={stage}
-              onAddLead={() => openCreateDialog(stage.id)}
-              onLeadClick={(leadId) => setDrawerLeadId(leadId)}
-            />
-          ))}
+          {stages.length === 0 ? (
+            <div className="flex w-full items-center justify-center rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
+              Nenhuma etapa configurada. Use “Editar etapas” para criar o funil.
+            </div>
+          ) : (
+            stages.map((stage) => (
+              <KanbanColumn
+                key={stage.id}
+                stage={stage}
+                onAddLead={() => openCreateDialog(stage.id)}
+                onLeadClick={(leadId) => setDrawerLeadId(leadId)}
+              />
+            ))
+          )}
         </div>
 
         <DragOverlay dropAnimation={null}>
@@ -248,13 +274,31 @@ export function KanbanBoard({ stages: initialStages, clientId }: Props) {
         </DragOverlay>
       </DndContext>
 
-      <CreateLeadDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
+      {kind === 'EXISTING' ? (
+        <AddPatientCardDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          clientId={clientId}
+          defaultStageId={createStageId}
+          onCreated={handleLeadCreated}
+        />
+      ) : (
+        <CreateLeadDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          clientId={clientId}
+          stages={stages}
+          defaultStageId={createStageId}
+          onCreated={handleLeadCreated}
+        />
+      )}
+
+      <StageEditorDialog
+        open={stageEditorOpen}
+        onOpenChange={setStageEditorOpen}
         clientId={clientId}
+        kind={kind}
         stages={stages}
-        defaultStageId={createStageId}
-        onCreated={handleLeadCreated}
       />
 
       <LeadDrawer

@@ -251,21 +251,29 @@ model ClinicHoliday {
 // PIPELINE INTERNO DA CLÍNICA
 // =====================================================
 
+enum StageKind {
+  NEW // funil de clientes novos (leads)
+  EXISTING // funil de clientes já cadastrados (pacientes)
+}
+
 model PipelineStage {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   clientId  String
-  client    Client   @relation(fields: [clientId], references: [id])
+  client    Client    @relation(fields: [clientId], references: [id])
   name      String
+  // Cada clínica tem dois funis independentes (NEW vs EXISTING); `order` é
+  // único dentro de cada funil, não entre eles.
+  kind      StageKind @default(NEW)
   order     Int
   color     String?
-  isWon     Boolean  @default(false)
-  isLost    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isWon     Boolean   @default(false)
+  isLost    Boolean   @default(false)
+  createdAt DateTime  @default(now())
 
   leads Lead[]
 
-  @@unique([clientId, order])
-  @@index([clientId])
+  @@unique([clientId, kind, order])
+  @@index([clientId, kind])
 }
 
 enum LeadSource {

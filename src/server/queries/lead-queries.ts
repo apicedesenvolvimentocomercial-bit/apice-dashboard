@@ -1,12 +1,14 @@
+import type { StageKind } from '@prisma/client'
+
 import { getPipeline, findLeadById } from '@/server/repositories/lead-repository'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { assertCan } from '@/server/auth/assert-can'
 
-export async function getPipelineData(clientId: string) {
+export async function getPipelineData(clientId: string, kind: StageKind = 'NEW') {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
   await assertCan(ctx, 'crm', 'read')
-  return getPipeline(ctx, clientId)
+  return getPipeline(ctx, clientId, kind)
 }
 
 export async function getLead(leadId: string) {
