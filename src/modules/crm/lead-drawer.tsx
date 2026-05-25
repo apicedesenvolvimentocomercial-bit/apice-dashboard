@@ -247,7 +247,7 @@ export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpda
                       {wonStage && (
                         <Button
                           size="sm"
-                          className="flex-1 bg-green-600 text-white hover:bg-green-700"
+                          className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600"
                           onClick={handleWin}
                           disabled={isPending}
                         >

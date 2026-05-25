@@ -65,7 +65,7 @@ export function TopbarShell({
   isOwner,
 }: TopbarShellProps) {
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-white px-6 dark:bg-zinc-900">
+    <header className="flex h-14 items-center justify-between border-b bg-card px-6 text-card-foreground">
       <div className="flex-1" />
 
       <div className="flex items-center gap-3">

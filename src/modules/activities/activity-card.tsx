@@ -55,7 +55,7 @@ const PRIORITY_BORDER: Record<ActivityView['priority'], string> = {
 }
 
 const PRIORITY_BADGE: Record<ActivityView['priority'], string> = {
-  LOW: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+  LOW: 'bg-muted text-muted-foreground',
   MEDIUM: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   HIGH: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
   URGENT: 'bg-red-200 text-red-900 dark:bg-red-950 dark:text-red-200',

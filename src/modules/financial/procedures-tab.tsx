@@ -122,7 +122,7 @@ export function ProceduresTab({ procedures, clientId }: Props) {
                     <td className="px-4 py-2.5 text-center">
                       <button
                         onClick={() => handleToggle(p.id, p.isActive)}
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${p.isActive ? 'bg-green-100 text-green-800' : 'bg-zinc-100 text-zinc-500'}`}
+                        className={`rounded px-2 py-0.5 text-xs font-medium ${p.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : 'bg-muted text-muted-foreground'}`}
                       >
                         {p.isActive ? 'Ativo' : 'Inativo'}
                       </button>

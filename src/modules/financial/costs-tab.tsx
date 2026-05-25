@@ -21,12 +21,12 @@ import {
 import type { CostRow } from './types'
 
 const TYPE_COLORS: Record<string, string> = {
-  FIXED: 'bg-blue-100 text-blue-800',
-  VARIABLE: 'bg-zinc-100 text-zinc-800',
-  MARKETING: 'bg-purple-100 text-purple-800',
-  PAYROLL: 'bg-amber-100 text-amber-800',
-  TAX: 'bg-red-100 text-red-800',
-  OTHER: 'bg-gray-100 text-gray-800',
+  FIXED: 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200',
+  VARIABLE: 'bg-muted text-muted-foreground',
+  MARKETING: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-200',
+  PAYROLL: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200',
+  TAX: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200',
+  OTHER: 'bg-muted text-muted-foreground',
 }
 
 type Props = {

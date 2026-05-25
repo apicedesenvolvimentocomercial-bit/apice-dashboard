@@ -178,7 +178,7 @@ export function CalendarView({
       {schedule.holidays.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-slate-200" />
+            <span className="inline-block h-3 w-3 rounded bg-muted" />
             Feriado
           </span>
           {schedule.holidays.map((h) => (
@@ -193,11 +193,11 @@ export function CalendarView({
       {closedDayNumbers.length > 0 && (
         <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-slate-300 dark:bg-slate-600" />
+            <span className="inline-block h-3 w-3 rounded bg-secondary" />
             Fechado:
           </span>
           {closedDayNumbers.map((d) => (
-            <span key={d} className="rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-700">
+            <span key={d} className="rounded bg-muted px-1 py-0.5 text-muted-foreground">
               {DAY_NAMES[d]}
             </span>
           ))}

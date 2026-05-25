@@ -38,7 +38,7 @@ export function SidebarShell({ navItems }: { navItems: NavItem[] }) {
   return (
     <aside
       className={cn(
-        'relative flex h-full flex-col border-r bg-white dark:bg-zinc-900',
+        'relative flex h-full flex-col border-r bg-card text-card-foreground',
         collapsed ? 'w-16' : 'w-60'
       )}
     >
@@ -96,7 +96,7 @@ export function SidebarShell({ navItems }: { navItems: NavItem[] }) {
       {/* z-10 keeps the button above the main content area */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-[10px] top-16 z-10 flex h-5 w-5 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-accent dark:bg-zinc-900"
+        className="absolute -right-[10px] top-16 z-10 flex h-5 w-5 items-center justify-center rounded-full border bg-card shadow-sm hover:bg-accent"
         aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
       >
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}

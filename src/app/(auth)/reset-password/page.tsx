@@ -12,7 +12,7 @@ export default async function ResetPasswordPage({ searchParams }: Props) {
 
   if (!token) {
     return (
-      <div className="space-y-4 rounded-xl border bg-white p-8 text-center shadow-sm dark:bg-zinc-900">
+      <div className="space-y-4 rounded-xl border bg-card p-8 text-center text-card-foreground shadow-sm">
         <h1 className="text-2xl font-bold">Link inválido</h1>
         <p className="text-sm text-muted-foreground">
           O link de recuperação não contém um token. Solicite um novo.
@@ -25,7 +25,7 @@ export default async function ResetPasswordPage({ searchParams }: Props) {
   }
 
   return (
-    <div className="space-y-6 rounded-xl border bg-white p-8 shadow-sm dark:bg-zinc-900">
+    <div className="space-y-6 rounded-xl border bg-card p-8 text-card-foreground shadow-sm">
       <div className="space-y-2 text-center">
         <h1 className="text-2xl font-bold">Redefinir senha</h1>
         <p className="text-sm text-muted-foreground">Escolha uma nova senha para sua conta</p>

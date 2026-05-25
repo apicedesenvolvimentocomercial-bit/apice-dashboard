@@ -35,10 +35,10 @@ export function NotificationColor(type: NotificationType): string {
     case 'ACTIVITY_OVERDUE':
       return 'text-red-600 dark:text-red-400'
     case 'CLIENT_INACTIVE':
-      return 'text-zinc-500'
+      return 'text-muted-foreground'
     case 'SYSTEM':
     default:
-      return 'text-zinc-600 dark:text-zinc-300'
+      return 'text-muted-foreground'
   }
 }
 
