@@ -92,7 +92,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
         // Grid fluido: os cards preenchem o espaço sozinhos via auto-fill, então
         // qualquer nº de KPIs visíveis (1 a 16, conforme o cargo) flui sem deixar
         // buraco nem card órfão. minmax garante largura mínima legível + esticar.
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
           {vis('commercialKpis', 'leads') && (
             <KpiCard label="Leads totais" value={String(kpis.commercial.leadsCount)} />
           )}
