@@ -43,6 +43,8 @@ export default async function ClientGoalsPage() {
         mode: g.mode,
         scopeLabel: g.scopeLabel,
         memberUserId: g.memberUserId,
+        assigneeUserId: g.assigneeUserId,
+        assigneeRoleId: g.assigneeRoleId,
       }))}
     />
   )

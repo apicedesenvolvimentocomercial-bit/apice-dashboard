@@ -44,6 +44,9 @@ type Props = {
   currentUserId: string
   selectedUserId: string | null
   activityCalendarSync?: 'AUTO' | 'ASK' | 'NEVER'
+  // Etapa 3 / lacuna 3: pode delegar a outros / fan-out "Todos". Quando false,
+  // o seletor de responsável e o fan-out somem (só cria atividade pra si).
+  canAssignOthers?: boolean
 }
 
 export function ClinicActivitiesPage({
@@ -54,6 +57,7 @@ export function ClinicActivitiesPage({
   currentUserId,
   selectedUserId,
   activityCalendarSync = 'ASK',
+  canAssignOthers = false,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -113,7 +117,7 @@ export function ClinicActivitiesPage({
         <ClinicCreateActivityDialog
           members={members}
           defaultAssigneeId={defaultAssigneeId}
-          allowFanOut
+          allowFanOut={canAssignOthers}
           activityCalendarSync={activityCalendarSync}
         />
       </div>

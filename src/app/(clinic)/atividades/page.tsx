@@ -32,7 +32,7 @@ export default async function ClinicAtividadesRoute({ searchParams }: Props) {
   else selectedUserId = currentUserId
 
   // getClinicActivitiesPage usa getClinicContext — escopo clientId+domain=CLINIC.
-  const { rows, counts, members, syncPref } = await getClinicActivitiesPage({
+  const { rows, counts, members, syncPref, canAssignOthers } = await getClinicActivitiesPage({
     view,
     assignedToId: selectedUserId ?? undefined,
   })
@@ -63,6 +63,7 @@ export default async function ClinicAtividadesRoute({ searchParams }: Props) {
       currentUserId={currentUserId}
       selectedUserId={selectedUserId}
       activityCalendarSync={syncPref}
+      canAssignOthers={canAssignOthers}
     />
   )
 }

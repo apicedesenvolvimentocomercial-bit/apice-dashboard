@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -23,9 +23,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createGoalAction } from '@/server/actions/goal-actions'
+import { createGoalAction, updateGoalAction } from '@/server/actions/goal-actions'
 
 import { METRIC_LABEL, PERIOD_LABEL, type GoalAssignTarget, type GoalView } from './types'
+
+// Meta existente para o modo edição: campos que o form edita.
+export type GoalEditInitial = Pick<
+  GoalView,
+  | 'id'
+  | 'metric'
+  | 'period'
+  | 'targetValue'
+  | 'startDate'
+  | 'endDate'
+  | 'notes'
+  | 'scopeType'
+  | 'mode'
+> & { assigneeUserId: string | null; assigneeRoleId: string | null }
 
 type Props = {
   clientId: string
@@ -33,6 +47,11 @@ type Props = {
   users?: GoalAssignTarget[]
   roles?: GoalAssignTarget[]
   canAssign?: boolean
+  // Edição (Etapa 3 / lacuna 1). Ausente ⇒ criação (com trigger próprio).
+  // Presente ⇒ edição, controlada externamente via open/onOpenChange.
+  initial?: GoalEditInitial
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 type ScopeType = 'CLINIC' | 'USER' | 'ROLE'
@@ -45,6 +64,10 @@ function isoToday(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+function isoOf(d: Date): string {
+  return new Date(d).toISOString().slice(0, 10)
+}
+
 function defaultEndForPeriod(period: GoalView['period']): string {
   const d = new Date()
   if (period === 'MONTHLY') d.setMonth(d.getMonth() + 1)
@@ -53,49 +76,84 @@ function defaultEndForPeriod(period: GoalView['period']): string {
   return d.toISOString().slice(0, 10)
 }
 
-export function CreateGoalDialog({ clientId, users = [], roles = [], canAssign = false }: Props) {
-  const [open, setOpen] = useState(false)
+export function CreateGoalDialog({
+  clientId,
+  users = [],
+  roles = [],
+  canAssign = false,
+  initial,
+  open: controlledOpen,
+  onOpenChange,
+}: Props) {
+  const isEdit = !!initial
+  // Em edição o open é controlado pelo pai; em criação é interno.
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = isEdit ? !!controlledOpen : internalOpen
+  const setOpen = (v: boolean) => (isEdit ? onOpenChange?.(v) : setInternalOpen(v))
+
   const [isPending, startTransition] = useTransition()
 
-  const [metric, setMetric] = useState<GoalView['metric']>('REVENUE')
-  const [period, setPeriod] = useState<GoalView['period']>('MONTHLY')
-  const [targetValue, setTargetValue] = useState('')
-  const [startDate, setStartDate] = useState(isoToday())
-  const [endDate, setEndDate] = useState(defaultEndForPeriod('MONTHLY'))
-  const [notes, setNotes] = useState('')
+  const [metric, setMetric] = useState<GoalView['metric']>(initial?.metric ?? 'REVENUE')
+  const [period, setPeriod] = useState<GoalView['period']>(initial?.period ?? 'MONTHLY')
+  const [targetValue, setTargetValue] = useState(initial ? String(initial.targetValue) : '')
+  const [startDate, setStartDate] = useState(initial ? isoOf(initial.startDate) : isoToday())
+  const [endDate, setEndDate] = useState(
+    initial ? isoOf(initial.endDate) : defaultEndForPeriod('MONTHLY')
+  )
+  const [notes, setNotes] = useState(initial?.notes ?? '')
 
   // Escopo (Etapa 2). Só aparece se o usuário pode atribuir a outros.
-  const [scopeType, setScopeType] = useState<ScopeType>('CLINIC')
-  const [mode, setMode] = useState<Mode>('INDIVIDUAL')
-  const [assigneeUserId, setAssigneeUserId] = useState('')
-  const [assigneeRoleId, setAssigneeRoleId] = useState('')
+  const [scopeType, setScopeType] = useState<ScopeType>(initial?.scopeType ?? 'CLINIC')
+  const [mode, setMode] = useState<Mode>(initial?.mode ?? 'INDIVIDUAL')
+  const [assigneeUserId, setAssigneeUserId] = useState(initial?.assigneeUserId ?? '')
+  const [assigneeRoleId, setAssigneeRoleId] = useState(initial?.assigneeRoleId ?? '')
+
+  // Reidrata o form quando o alvo da edição muda (cards reaproveitam a instância).
+  useEffect(() => {
+    if (!initial) return
+    setMetric(initial.metric)
+    setPeriod(initial.period)
+    setTargetValue(String(initial.targetValue))
+    setStartDate(isoOf(initial.startDate))
+    setEndDate(isoOf(initial.endDate))
+    setNotes(initial.notes ?? '')
+    setScopeType(initial.scopeType)
+    setMode(initial.mode)
+    setAssigneeUserId(initial.assigneeUserId ?? '')
+    setAssigneeRoleId(initial.assigneeRoleId ?? '')
+  }, [initial])
 
   const handlePeriodChange = (next: GoalView['period']) => {
     setPeriod(next)
-    setEndDate(defaultEndForPeriod(next))
+    if (!isEdit) setEndDate(defaultEndForPeriod(next))
   }
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    const payload = {
+      metric,
+      period,
+      targetValue: Number(targetValue),
+      startDate,
+      endDate,
+      notes: notes || undefined,
+      scopeType,
+      mode: scopeType === 'CLINIC' ? ('SHARED' as Mode) : mode,
+      assigneeUserId: scopeType === 'USER' ? assigneeUserId || null : null,
+      assigneeRoleId: scopeType === 'ROLE' ? assigneeRoleId || null : null,
+    }
     startTransition(async () => {
-      const r = await createGoalAction(clientId, {
-        metric,
-        period,
-        targetValue: Number(targetValue),
-        startDate,
-        endDate,
-        notes: notes || undefined,
-        scopeType,
-        mode: scopeType === 'CLINIC' ? 'SHARED' : mode,
-        assigneeUserId: scopeType === 'USER' ? assigneeUserId || null : null,
-        assigneeRoleId: scopeType === 'ROLE' ? assigneeRoleId || null : null,
-      })
+      const r = initial
+        ? await updateGoalAction(initial.id, clientId, payload)
+        : await createGoalAction(clientId, payload)
       if (r.success) {
-        toast.success('Meta criada')
+        toast.success(isEdit ? 'Meta atualizada' : 'Meta criada')
         setOpen(false)
-        setTargetValue('')
-        setNotes('')
-        setScopeType('CLINIC')
+        if (!isEdit) {
+          setTargetValue('')
+          setNotes('')
+          setScopeType('CLINIC')
+        }
       } else {
         toast.error(r.error.message)
       }
@@ -104,15 +162,17 @@ export function CreateGoalDialog({ clientId, users = [], roles = [], canAssign =
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="h-4 w-4" />
-          Nova meta
-        </Button>
-      </DialogTrigger>
+      {!isEdit && (
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <Plus className="h-4 w-4" />
+            Nova meta
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nova meta</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar meta' : 'Nova meta'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -269,7 +329,7 @@ export function CreateGoalDialog({ clientId, users = [], roles = [], canAssign =
               Cancelar
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? 'Salvando...' : 'Criar meta'}
+              {isPending ? 'Salvando...' : isEdit ? 'Salvar' : 'Criar meta'}
             </Button>
           </DialogFooter>
         </form>

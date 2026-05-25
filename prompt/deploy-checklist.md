@@ -6,16 +6,16 @@
 
 ## 1. Variáveis de ambiente (Vercel → Project Settings → Environment Variables)
 
-| Var                             | Valor                                                                                                 |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                  | Pooled (transaction, 6543) **do role restrito** (ver §3) + `?pgbouncer=true`                          |
-| `DIRECT_URL`                    | Session pooler (5432) do **dono** (migrations)                                                        |
-| `NEXTAUTH_URL`                  | `https://<seu-dominio>`                                                                               |
-| `NEXTAUTH_SECRET`               | segredo forte (já existe em prod)                                                                     |
-| `AUTH_TRUST_HOST`               | `true` (se não-Vercel; no Vercel é dispensável)                                                       |
-| `RESEND_API_KEY` / `EMAIL_FROM` | credenciais reais de e-mail                                                                           |
-| `WEBHOOK_SECRET`                | **setar antes de ligar integração** (webhook é fail-closed/401 sem ele — ver `auditoria-decisoes.md`) |
-| `NEXT_PUBLIC_APP_URL`           | `https://<seu-dominio>`                                                                               |
+| Var                             | Valor                                                                                                                                                                                                                                                             |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | Pooled (transaction, 6543) **do role restrito** (ver §3) + `?pgbouncer=true`                                                                                                                                                                                      |
+| `DIRECT_URL`                    | Session pooler (5432) do **dono** (migrations)                                                                                                                                                                                                                    |
+| `NEXTAUTH_URL`                  | `https://<seu-dominio>`                                                                                                                                                                                                                                           |
+| `NEXTAUTH_SECRET`               | segredo forte (já existe em prod)                                                                                                                                                                                                                                 |
+| `AUTH_TRUST_HOST`               | `true` (se não-Vercel; no Vercel é dispensável)                                                                                                                                                                                                                   |
+| `RESEND_API_KEY` / `EMAIL_FROM` | credenciais reais de e-mail                                                                                                                                                                                                                                       |
+| `WEBHOOK_SECRET`                | **setar antes de ligar integração** — o webhook é fail-closed: `POST /api/webhooks/*` responde **401** sem `WEBHOOK_SECRET` + header `x-webhook-secret` batendo. Mock hoje; ao ligar integração real, idealmente trocar por validação de assinatura por provider. |
+| `NEXT_PUBLIC_APP_URL`           | `https://<seu-dominio>`                                                                                                                                                                                                                                           |
 
 ## 2. Migrations
 
@@ -62,3 +62,11 @@ npx prisma migrate deploy        # usa DIRECT_URL (dono). Aplica TODAS, incl. RL
 
 - `tsc` 0 · `eslint src` 0 erros · `vitest` 131 · **E2E 11** (público + auth +
   isolamento de clínica + a11y) verdes contra o banco de teste (Neon).
+
+## 7. Otimização pendente (medir antes de fazer)
+
+- **Índice das atividades (PERF-001·B):** os crons `findDue/OverdueActivities`
+  varrem a tabela filtrando só `status`+`dueDate` (ambos domínios). Os crons já
+  logam `durationMs`. Se a medição em prod justificar, criar índice
+  `[status, dueDate]` (ou `[domain, status, dueDate]`) + paginação por clínica.
+  Não é bloqueador; decisão por dado, não por suposição.

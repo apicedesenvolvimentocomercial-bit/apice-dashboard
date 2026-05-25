@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -20,11 +20,15 @@ import { Card, CardContent } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'
 import { deleteGoalAction } from '@/server/actions/goal-actions'
 
-import { METRIC_LABEL, PERIOD_LABEL, type GoalView } from './types'
+import { CreateGoalDialog } from './create-goal-dialog'
+import { METRIC_LABEL, PERIOD_LABEL, type GoalAssignTarget, type GoalView } from './types'
 
 type Props = {
   clientId: string
   goal: GoalView
+  users?: GoalAssignTarget[]
+  roles?: GoalAssignTarget[]
+  canAssign?: boolean
 }
 
 function formatValue(metric: GoalView['metric'], value: number): string {
@@ -35,9 +39,10 @@ function formatValue(metric: GoalView['metric'], value: number): string {
   return value.toLocaleString('pt-BR')
 }
 
-export function GoalCard({ clientId, goal }: Props) {
+export function GoalCard({ clientId, goal, users, roles, canAssign }: Props) {
   const [isPending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   const projectionTone =
     goal.projectedAtPace == null
@@ -77,15 +82,48 @@ export function GoalCard({ clientId, goal }: Props) {
               )}
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setConfirmOpen(true)}
-            disabled={isPending}
-            aria-label="Excluir meta"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditOpen(true)}
+              disabled={isPending}
+              aria-label="Editar meta"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmOpen(true)}
+              disabled={isPending}
+              aria-label="Excluir meta"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <CreateGoalDialog
+            clientId={clientId}
+            users={users}
+            roles={roles}
+            canAssign={canAssign}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            initial={{
+              id: goal.id,
+              metric: goal.metric,
+              period: goal.period,
+              targetValue: goal.targetValue,
+              startDate: goal.startDate,
+              endDate: goal.endDate,
+              notes: goal.notes,
+              scopeType: goal.scopeType,
+              mode: goal.mode,
+              assigneeUserId: goal.assigneeUserId,
+              assigneeRoleId: goal.assigneeRoleId,
+            }}
+          />
 
           <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
             <AlertDialogContent>

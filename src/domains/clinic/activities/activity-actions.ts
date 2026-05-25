@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { getClinicContext } from '@/server/auth/clinic-context'
 import { assertCan } from '@/server/auth/assert-can'
+import { can } from '@/server/auth/permissions'
 import { dispatchNotification } from '@/server/services/notification-service'
 import { fail, NotFoundError, runAction } from '@/types/errors'
 
@@ -85,6 +86,15 @@ async function shouldSyncToCalendar(userId: string, uiFlag: boolean | undefined)
   return decideCalendarSync(u?.activityCalendarSync ?? 'ASK', uiFlag)
 }
 
+/**
+ * Pode delegar atividade a outro/fan-out? Titular sempre; senão exige
+ * activities:assignToOthers (Etapa 3 / lacuna 3). Defesa server-side — a UI já
+ * esconde o seletor, mas a action não confia no input.
+ */
+async function canAssignOthers(ctx: ClinicContext): Promise<boolean> {
+  return ctx.isOwner || (await can(ctx.userId, ctx.role, 'activities', 'assignToOthers'))
+}
+
 export async function createClinicActivityAction(formData: unknown) {
   const parsed = activitySchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
@@ -95,7 +105,10 @@ export async function createClinicActivityAction(formData: unknown) {
 
     const due = combineDateTime(parsed.data.dueDate, parsed.data.dueTime)
     const syncCalendar = await shouldSyncToCalendar(ctx.userId, parsed.data.addToCalendar)
-    const requested = parsed.data.assignedToId
+    // Sem permissão de delegar, ignora o alvo do input e cai no próprio usuário
+    // (vale também para 'all'): a atividade vira pessoal.
+    const mayAssign = await canAssignOthers(ctx)
+    const requested = mayAssign ? parsed.data.assignedToId : ctx.userId
 
     // Fan-out "Todos" da clínica: uma cópia por usuário CLIENT_* da MESMA
     // clínica. Nunca varre a org nem inclui agência.
@@ -204,7 +217,13 @@ export async function updateClinicActivityAction(activityId: string, formData: u
     let assignedToId: string | null | undefined = undefined
     if (parsed.data.assignedToId !== undefined) {
       const requested = parsed.data.assignedToId
-      assignedToId = requested ? await resolveClinicAssignee(ctx, requested) : null
+      // Sem permissão de delegar, não reatribui para outro: mantém o dono atual
+      // (ou cai no próprio usuário se estava sem responsável).
+      if (await canAssignOthers(ctx)) {
+        assignedToId = requested ? await resolveClinicAssignee(ctx, requested) : null
+      } else {
+        assignedToId = existing.assignedToId ?? ctx.userId
+      }
     }
 
     const completedAt =

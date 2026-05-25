@@ -9,6 +9,8 @@ import {
   getClinicOverviewDashboard,
 } from '@/domains/clinic/dashboard/dashboard-queries'
 import { auth } from '@/server/auth'
+import { getClinicContext } from '@/server/auth/clinic-context'
+import { resolveDashboardVisibility } from '@/server/auth/dashboard-visibility'
 import { parsePeriodParam } from '@/server/services/kpi'
 
 export const metadata: Metadata = { title: 'Dashboard' }
@@ -64,8 +66,12 @@ async function Content({
   from?: string
   to?: string
 }) {
-  const data = await getClinicOverviewDashboard(period, from, to)
-  return <ClinicDashboard data={data} />
+  const [data, ctx] = await Promise.all([
+    getClinicOverviewDashboard(period, from, to),
+    getClinicContext(),
+  ])
+  const visibility = await resolveDashboardVisibility(ctx)
+  return <ClinicDashboard data={data} visibility={visibility} />
 }
 
 function ClinicSkeleton() {

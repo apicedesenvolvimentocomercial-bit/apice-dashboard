@@ -31,7 +31,14 @@ export function GoalsPage({ clientId, goals, users, roles, canAssign }: Props) {
           {goals.map((g) => (
             // Metas de cargo INDIVIDUAL expandem em 1 linha por membro com o
             // mesmo goal.id → key composta com o membro.
-            <GoalCard key={`${g.id}:${g.memberUserId ?? 'base'}`} clientId={clientId} goal={g} />
+            <GoalCard
+              key={`${g.id}:${g.memberUserId ?? 'base'}`}
+              clientId={clientId}
+              goal={g}
+              users={users}
+              roles={roles}
+              canAssign={canAssign}
+            />
           ))}
         </div>
       )}

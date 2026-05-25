@@ -22,6 +22,9 @@ export type GoalView = {
   mode: 'INDIVIDUAL' | 'SHARED'
   scopeLabel: string
   memberUserId: string | null
+  // Alvo bruto (p/ pré-preencher o dialog de edição — lacuna 1).
+  assigneeUserId: string | null
+  assigneeRoleId: string | null
 }
 
 export type GoalAssignTarget = { id: string; name: string }
