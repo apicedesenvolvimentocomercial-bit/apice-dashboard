@@ -78,6 +78,14 @@ export function ClinicDashboard({ data, visibility }: Props) {
   const chartsTwoCol = hasRevenueCol && hasSideCol
   const showChartsBlock = hasRevenueCol || hasSideCol
 
+  // Faixa "Receita por procedimento (2/3) + Insights (1/3)". Cada lado depende
+  // do cargo, então só vira 2 colunas quando ambos aparecem; senão o presente
+  // estica. Progresso de metas fica numa faixa própria abaixo.
+  const showInsights = vis('tracking', 'insights')
+  const showGoals = vis('tracking', 'goals')
+  const procInsightsTwoCol = showRevByProcedure && showInsights
+  const showProcInsightsBlock = showRevByProcedure || showInsights
+
   return (
     <div className="space-y-6">
       {showKpiGrid && (
@@ -404,22 +412,23 @@ export function ClinicDashboard({ data, visibility }: Props) {
         </div>
       )}
 
-      {showRevByProcedure && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Receita por procedimento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <HorizontalBarChart
-              data={revenueByProcedure.map((p) => ({ label: p.name, value: p.total }))}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {(vis('tracking', 'insights') || vis('tracking', 'goals')) && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {vis('tracking', 'insights') && (
+      {showProcInsightsBlock && (
+        // Receita por procedimento (2/3) + Insights ativos (1/3). Vira 2 colunas
+        // só quando os dois aparecem; senão o presente ocupa a largura toda.
+        <div className={procInsightsTwoCol ? 'grid gap-4 lg:grid-cols-3' : 'grid gap-4'}>
+          {showRevByProcedure && (
+            <Card className={procInsightsTwoCol ? 'lg:col-span-2' : undefined}>
+              <CardHeader>
+                <CardTitle className="text-base">Receita por procedimento</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <HorizontalBarChart
+                  data={revenueByProcedure.map((p) => ({ label: p.name, value: p.total }))}
+                />
+              </CardContent>
+            </Card>
+          )}
+          {showInsights && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Insights ativos</CardTitle>
@@ -444,39 +453,40 @@ export function ClinicDashboard({ data, visibility }: Props) {
               </CardContent>
             </Card>
           )}
-          {vis('tracking', 'goals') && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Progresso de metas</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {goalsProgress.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma meta ativa.</p>
-                ) : (
-                  goalsProgress.map((g) => (
-                    <div key={g.id}>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{g.metric}</span>
-                        <span className="text-muted-foreground">{g.progressPct.toFixed(0)}%</span>
-                      </div>
-                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full bg-primary transition-all"
-                          style={{ width: `${Math.min(100, g.progressPct)}%` }}
-                        />
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {g.currentValue.toLocaleString('pt-BR')} de{' '}
-                        {g.targetValue.toLocaleString('pt-BR')} · termina{' '}
-                        {new Intl.DateTimeFormat('pt-BR').format(g.endDate)}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          )}
         </div>
+      )}
+
+      {showGoals && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Progresso de metas</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {goalsProgress.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma meta ativa.</p>
+            ) : (
+              goalsProgress.map((g) => (
+                <div key={g.id}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{g.metric}</span>
+                    <span className="text-muted-foreground">{g.progressPct.toFixed(0)}%</span>
+                  </div>
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${Math.min(100, g.progressPct)}%` }}
+                    />
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {g.currentValue.toLocaleString('pt-BR')} de{' '}
+                    {g.targetValue.toLocaleString('pt-BR')} · termina{' '}
+                    {new Intl.DateTimeFormat('pt-BR').format(g.endDate)}
+                  </p>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   )

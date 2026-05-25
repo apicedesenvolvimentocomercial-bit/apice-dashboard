@@ -69,7 +69,16 @@ export function HorizontalBarChart({
           axisLine={false}
         />
         <Tooltip formatter={(v: number) => formatter(v)} />
-        <Bar dataKey="value" fill={color} radius={[0, 3, 3, 0]} animationDuration={300} />
+        <Bar
+          dataKey="value"
+          fill={color}
+          radius={[0, 3, 3, 0]}
+          animationDuration={300}
+          // Espessura máxima da barra: com poucos itens (ex: 1 procedimento) o
+          // Recharts engrossa a barra para preencher a altura — o teto mantém
+          // uma faixa fina e legível em vez de um bloco gigante.
+          maxBarSize={48}
+        />
       </BarChart>
     </ResponsiveContainer>
   )
