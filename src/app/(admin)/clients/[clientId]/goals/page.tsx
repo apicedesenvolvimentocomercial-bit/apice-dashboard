@@ -32,5 +32,7 @@ function toView(g: Awaited<ReturnType<typeof getGoalsWithProgress>>[number]): Go
     mode: g.mode,
     scopeLabel: g.scopeLabel,
     memberUserId: g.memberUserId,
+    assigneeUserId: g.assigneeUserId,
+    assigneeRoleId: g.assigneeRoleId,
   }
 }
