@@ -13,13 +13,14 @@ import type { ClinicRolePermissions } from '@/server/auth/clinic-permissions'
 export async function listClinicRoles(ctx: ClinicContext) {
   return prisma.clinicRole.findMany({
     where: { clientId: ctx.clientId },
-    orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+    orderBy: [{ level: 'asc' }, { isSystem: 'desc' }, { name: 'asc' }],
     select: {
       id: true,
       name: true,
       permissions: true,
       canManageRoles: true,
       isSystem: true,
+      level: true,
       _count: { select: { users: true } },
     },
   })
@@ -34,21 +35,22 @@ export async function findClinicRole(ctx: ClinicContext, roleId: string) {
       permissions: true,
       canManageRoles: true,
       isSystem: true,
+      level: true,
     },
   })
 }
 
 export async function createClinicRole(
   ctx: ClinicContext,
-  data: { name: string; permissions: ClinicRolePermissions; canManageRoles: boolean }
+  data: { name: string; permissions: ClinicRolePermissions; canManageRoles: boolean; level: number }
 ) {
   return prisma.clinicRole.create({
     data: {
-      organizationId: ctx.organizationId,
       clientId: ctx.clientId,
       name: data.name,
       permissions: data.permissions as Prisma.InputJsonValue,
       canManageRoles: data.canManageRoles,
+      level: data.level,
     },
     select: { id: true },
   })
@@ -57,7 +59,12 @@ export async function createClinicRole(
 export async function updateClinicRole(
   ctx: ClinicContext,
   roleId: string,
-  data: { name?: string; permissions?: ClinicRolePermissions; canManageRoles?: boolean }
+  data: {
+    name?: string
+    permissions?: ClinicRolePermissions
+    canManageRoles?: boolean
+    level?: number
+  }
 ) {
   // updateMany p/ garantir o filtro por clientId no WHERE (findFirst+update
   // abriria janela). Retorna count.
@@ -69,8 +76,21 @@ export async function updateClinicRole(
         ? { permissions: data.permissions as Prisma.InputJsonValue }
         : {}),
       ...(data.canManageRoles !== undefined ? { canManageRoles: data.canManageRoles } : {}),
+      ...(data.level !== undefined ? { level: data.level } : {}),
     },
   })
+}
+
+/** Nível efetivo do ator p/ gate de hierarquia: coroa (titular) ⇒ null (acima
+ *  de tudo); senão o level do próprio cargo. */
+export async function resolveClinicActorLevel(ctx: ClinicContext): Promise<number | null> {
+  if (ctx.isOwner) return null
+  if (!ctx.clinicRoleId) return null
+  const role = await prisma.clinicRole.findUnique({
+    where: { id: ctx.clinicRoleId },
+    select: { level: true },
+  })
+  return role?.level ?? null
 }
 
 export async function deleteClinicRole(ctx: ClinicContext, roleId: string) {

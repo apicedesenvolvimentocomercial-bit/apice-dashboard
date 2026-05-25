@@ -10,11 +10,7 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/resend'
 import { assertCan } from '@/server/auth/assert-can'
 import { createAuditLog } from '@/server/repositories/audit-repository'
-import {
-  setUserActive,
-  updateUserRole,
-  upsertUserPermissions,
-} from '@/server/repositories/user-repository'
+import { setUserActive, updateUserRole } from '@/server/repositories/user-repository'
 import { getTenantContext } from '@/server/tenant/context'
 import { ConflictError, ForbiddenError, NotFoundError, runAction } from '@/types/errors'
 
@@ -117,6 +113,20 @@ export async function updateStaffRoleAction(input: z.infer<typeof updateRoleSche
       )
     }
 
+    // "ADMIN não mexe em ADMIN" (ledger agency-roles D5 / mesmo nível): ADMINs
+    // são todos o topo. Alterar o acesso total de quem JÁ é ADMIN (rebaixar) ou
+    // promover alguém a ADMIN só o TITULAR pode — um ADMIN comum não rebaixa par.
+    const isViewerOwner = org?.ownerId === ctx.userId
+    const target = await prisma.user.findFirst({
+      where: { id: parsed.data.userId, organizationId: ctx.organizationId, deletedAt: null },
+      select: { role: true },
+    })
+    if (!target) throw new NotFoundError('Funcionário')
+    const touchesAdmin = target.role === 'ADMIN' || parsed.data.role === 'ADMIN'
+    if (touchesAdmin && !isViewerOwner) {
+      throw new ConflictError('Apenas o titular pode conceder ou remover acesso total (ADMIN).')
+    }
+
     const result = await updateUserRole(ctx, parsed.data.userId, parsed.data.role)
     if (result.count === 0) throw new NotFoundError('Funcionário')
 
@@ -172,53 +182,6 @@ export async function setStaffActiveAction(input: z.infer<typeof setActiveSchema
       entityType: 'User',
       entityId: parsed.data.userId,
       changes: { isActive: parsed.data.isActive },
-    }).catch(() => {})
-
-    revalidatePath('/staff')
-    return null
-  })
-}
-
-const permissionItemSchema = z.object({
-  module: z.string().min(1),
-  canRead: z.boolean(),
-  canWrite: z.boolean(),
-  canDelete: z.boolean(),
-})
-
-const updatePermissionsSchema = z.object({
-  userId: z.string().cuid(),
-  permissions: z.array(permissionItemSchema).min(1),
-})
-
-export async function updateStaffPermissionsAction(input: z.infer<typeof updatePermissionsSchema>) {
-  return runAction(async () => {
-    const ctx = await getTenantContext()
-    await assertCan(ctx, 'staff', 'write')
-
-    const parsed = updatePermissionsSchema.safeParse(input)
-    if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
-
-    const target = await prisma.user.findFirst({
-      where: {
-        id: parsed.data.userId,
-        organizationId: ctx.organizationId,
-        deletedAt: null,
-      },
-      select: { id: true, role: true },
-    })
-    if (!target) throw new NotFoundError('Funcionário')
-    if (target.role === 'ADMIN') {
-      throw new ConflictError('ADMIN possui acesso total e não usa matriz')
-    }
-
-    await upsertUserPermissions(parsed.data.userId, parsed.data.permissions)
-
-    createAuditLog(ctx, {
-      action: 'update',
-      entityType: 'UserPermission',
-      entityId: parsed.data.userId,
-      changes: { permissions: parsed.data.permissions },
     }).catch(() => {})
 
     revalidatePath('/staff')

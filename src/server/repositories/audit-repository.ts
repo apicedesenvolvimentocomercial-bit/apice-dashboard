@@ -27,7 +27,8 @@ export type AuditEntityType =
   | 'Organization'
   | 'PipelineDeal'
   | 'PipelineStage'
-  | 'UserPermission'
+  | 'ClinicRole'
+  | 'AgencyRole'
 
 export type AuditLogFilters = {
   from?: Date
@@ -63,7 +64,7 @@ async function resolveClientFilter(
 }
 
 export async function createAuditLog(
-  ctx: TenantContext,
+  ctx: Pick<TenantContext, 'userId' | 'organizationId'>,
   data: {
     action: AuditAction
     entityType: AuditEntityType

@@ -1,11 +1,11 @@
-import type { Prisma, UserRole } from '@prisma/client'
+import type { UserRole } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
 
 export type StaffUser = Awaited<ReturnType<typeof listStaff>>[number]
 
-export async function listStaff(ctx: TenantContext) {
+export async function listStaff(ctx: Pick<TenantContext, 'organizationId'>) {
   return prisma.user.findMany({
     where: {
       organizationId: ctx.organizationId,
@@ -21,9 +21,8 @@ export async function listStaff(ctx: TenantContext) {
       isActive: true,
       lastLoginAt: true,
       createdAt: true,
-      permissions: {
-        select: { module: true, canRead: true, canWrite: true, canDelete: true },
-      },
+      agencyRoleId: true,
+      agencyRole: { select: { id: true, name: true, level: true } },
     },
   })
 }
@@ -41,9 +40,8 @@ export async function findUserById(ctx: TenantContext, userId: string) {
       email: true,
       role: true,
       isActive: true,
-      permissions: {
-        select: { module: true, canRead: true, canWrite: true, canDelete: true },
-      },
+      agencyRoleId: true,
+      agencyRole: { select: { id: true, name: true, level: true } },
     },
   })
 }
@@ -92,28 +90,4 @@ export async function updateUserRole(ctx: TenantContext, userId: string, role: U
     },
     data: { role },
   })
-}
-
-export async function upsertUserPermissions(
-  userId: string,
-  permissions: { module: string; canRead: boolean; canWrite: boolean; canDelete: boolean }[]
-) {
-  const operations: Prisma.PrismaPromise<unknown>[] = permissions.map((p) =>
-    prisma.userPermission.upsert({
-      where: { userId_module: { userId, module: p.module } },
-      create: {
-        userId,
-        module: p.module,
-        canRead: p.canRead,
-        canWrite: p.canWrite,
-        canDelete: p.canDelete,
-      },
-      update: {
-        canRead: p.canRead,
-        canWrite: p.canWrite,
-        canDelete: p.canDelete,
-      },
-    })
-  )
-  return prisma.$transaction(operations)
 }

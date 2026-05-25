@@ -1,76 +1,34 @@
 import type { UserRole } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
-import {
-  clinicRoleCan,
-  parseClinicRolePermissions,
-  type ClinicPermAction,
-} from './clinic-permissions'
+import { roleCan, parseRolePermissions, type RolePermAction } from './role-permissions'
 
-const ROLE_DEFAULTS: Record<
-  UserRole,
-  Record<string, { read: boolean; write: boolean; delete: boolean }>
-> = {
-  ADMIN: {
-    '*': { read: true, write: true, delete: true },
-  },
-  STAFF: {
-    crm: { read: true, write: true, delete: false },
-    financial: { read: true, write: false, delete: false },
-    insights: { read: true, write: false, delete: false },
-    goals: { read: true, write: false, delete: false },
-    clients: { read: true, write: true, delete: false },
-    patients: { read: true, write: false, delete: false },
-    appointments: { read: true, write: false, delete: false },
-    procedures: { read: true, write: false, delete: false },
-    activities: { read: true, write: true, delete: false },
-    reports: { read: true, write: false, delete: false },
-    staff: { read: true, write: false, delete: false },
-    settings: { read: false, write: false, delete: false },
-  },
-  CLIENT_OWNER: {
-    crm: { read: true, write: true, delete: true },
-    financial: { read: true, write: true, delete: true },
-    insights: { read: true, write: true, delete: false },
-    goals: { read: true, write: true, delete: true },
-    patients: { read: true, write: true, delete: true },
-    appointments: { read: true, write: true, delete: true },
-    procedures: { read: true, write: true, delete: false },
-    // Atividades/Calendário da clínica (reforma divisão total, Fases 3-4).
-    // `activities` cobre tanto a aba Atividades quanto o CalendarEvent (o
-    // calendário usa o mesmo módulo de permissão).
-    activities: { read: true, write: true, delete: true },
-    reports: { read: true, write: false, delete: false },
-    settings: { read: true, write: true, delete: false },
-  },
-  CLIENT_STAFF: {
-    crm: { read: true, write: true, delete: false },
-    financial: { read: true, write: false, delete: false },
-    insights: { read: true, write: false, delete: false },
-    goals: { read: true, write: false, delete: false },
-    patients: { read: true, write: true, delete: false },
-    appointments: { read: true, write: true, delete: false },
-    procedures: { read: true, write: false, delete: false },
-    activities: { read: true, write: true, delete: false },
-    reports: { read: true, write: false, delete: false },
-    settings: { read: false, write: false, delete: false },
-  },
-}
+/**
+ * DENY-BY-DEFAULT (ledger agency-roles, D3). O role NÃO concede mais nenhuma
+ * permissão por si — ele só discrimina o domínio (ADMIN/STAFF = agência;
+ * CLIENT_OWNER/CLIENT_STAFF = clínica). Toda permissão vem da COROA (titular/
+ * ADMIN) ou de um CARGO atribuído (AgencyRole/ClinicRole). Sem cargo e sem coroa
+ * ⇒ zero acesso (o gate de rota redireciona p/ /login).
+ *
+ * Mantido só p/ enumerar os módulos conhecidos por domínio (sidebar/validação),
+ * todos com acesso negado — nunca mais como fonte de concessão.
+ */
+const ALL_FALSE = { read: false, write: false, delete: false } as const
 
-type Action = ClinicPermAction
+type Action = RolePermAction
 
+const AGENCY_ROLES: ReadonlySet<UserRole> = new Set<UserRole>(['ADMIN', 'STAFF'])
 const CLINIC_ROLES: ReadonlySet<UserRole> = new Set<UserRole>(['CLIENT_OWNER', 'CLIENT_STAFF'])
 
 /**
- * Resolução de permissão (ver `prompt/cargos-progresso.md`):
- *   1. ADMIN → `*` (tudo).
- *   2. Titular da clínica (Client.ownerId === userId) → tudo (a coroa).
- *   3. Role de clínica COM cargo (clinicRoleId) → lê ClinicRole.permissions.
- *   4. Fallback (sem cargo / STAFF) → ROLE_DEFAULTS + override UserPermission.
+ * Resolução de permissão (ledger agency-roles, D3 — deny-by-default):
+ *   1. ADMIN → tudo (a coroa da agência; titularidade de org não importa p/ acesso).
+ *   2. Titular da clínica (Client.ownerId === userId) → tudo (a coroa da clínica).
+ *   3. STAFF com cargo de agência (agencyRoleId) → lê AgencyRole.permissions.
+ *   4. CLIENT_STAFF/OWNER com cargo de clínica (clinicRoleId) → lê ClinicRole.permissions.
+ *   5. Qualquer outro (sem cargo, sem coroa) → NEGADO. (deny-by-default)
  *
- * As ações `assignToOthers`/`viewAll` só são concedidas pelo cargo (3) ou pela
- * coroa/ADMIN (1,2); no fallback (4) elas nunca passam — o caller que usa essas
- * ações deve tratar a ausência de cargo como "só vê/edita o que é seu".
+ * `assignToOthers`/`viewAll` só vêm do cargo (3,4) ou da coroa/ADMIN (1,2).
  */
 export async function can(
   userId: string,
@@ -78,60 +36,53 @@ export async function can(
   module: string,
   action: Action
 ): Promise<boolean> {
+  // 1. ADMIN = coroa da agência → acesso total.
   if (role === 'ADMIN') return true
 
-  // Roles de clínica: titularidade (coroa) e cargo configurável têm prioridade.
+  // Domínio agência: STAFF resolve pelo cargo de agência.
+  if (AGENCY_ROLES.has(role)) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { agencyRole: { select: { permissions: true } } },
+    })
+    if (user?.agencyRole) {
+      return roleCan(parseRolePermissions(user.agencyRole.permissions), module, action)
+    }
+    // STAFF sem cargo → deny-by-default.
+    return false
+  }
+
+  // Domínio clínica: titularidade (coroa) e cargo têm prioridade.
   if (CLINIC_ROLES.has(role)) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        clinicRoleId: true,
         ownedClient: { select: { id: true } },
         clinicRole: { select: { permissions: true } },
       },
     })
-    // Titular da clínica = acesso total.
+    // 2. Titular da clínica = acesso total.
     if (user?.ownedClient) return true
-    // Tem cargo → decide pelo JSON do cargo.
+    // 4. Tem cargo → decide pelo JSON do cargo.
     if (user?.clinicRole) {
-      return clinicRoleCan(parseClinicRolePermissions(user.clinicRole.permissions), module, action)
+      return roleCan(parseRolePermissions(user.clinicRole.permissions), module, action)
     }
-    // Sem cargo e sem coroa → cai no fallback de ROLE_DEFAULTS abaixo.
+    // 5. Sem cargo e sem coroa → deny-by-default.
+    return false
   }
-
-  const defaults = ROLE_DEFAULTS[role]
-  const defaultPerm = defaults[module] ?? defaults['*']
-
-  if (!defaultPerm) return false
-
-  // Ações que o fallback (ROLE_DEFAULTS/UserPermission) não modela.
-  if (action === 'assignToOthers' || action === 'viewAll') return false
-
-  // Verifica override granular salvo no banco
-  const override = await prisma.userPermission.findUnique({
-    where: { userId_module: { userId, module } },
-  })
-
-  if (!override) return defaultPerm[action]
-
-  if (action === 'read') return override.canRead
-  if (action === 'write') return override.canWrite
-  if (action === 'delete') return override.canDelete
 
   return false
 }
 
 /**
- * Versão síncrona — NÃO consulta o DB, então NÃO enxerga cargo (ClinicRole) nem
- * titularidade. Use só onde o cargo é irrelevante (defaults de role) e nunca
- * como gate de segurança para roles de clínica com cargo. As ações novas
- * (`assignToOthers`/`viewAll`) não são modeladas no sync ⇒ false.
+ * Versão síncrona — NÃO consulta o DB, então NÃO enxerga cargo nem titularidade.
+ * Com deny-by-default, sem DB não há como conceder nada exceto ADMIN. Use só
+ * onde a ausência de concessão é o resultado seguro desejado; nunca como gate
+ * que precise enxergar cargo.
  */
-export function canSync(role: UserRole, module: string, action: Action): boolean {
-  if (role === 'ADMIN') return true
-  if (action === 'assignToOthers' || action === 'viewAll') return false
-  const defaults = ROLE_DEFAULTS[role]
-  const perm = defaults[module] ?? defaults['*']
-  if (!perm) return false
-  return perm[action]
+export function canSync(role: UserRole, _module: string, _action: Action): boolean {
+  return role === 'ADMIN'
 }
+
+// Re-export p/ quem listava módulos conhecidos (todos negados agora).
+export { ALL_FALSE }

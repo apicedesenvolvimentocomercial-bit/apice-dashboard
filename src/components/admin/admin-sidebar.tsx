@@ -36,10 +36,16 @@ function buildAdminNav(role: AdminRole): NavItem[] {
 
 /**
  * Sidebar EXCLUSIVA do domínio Admin/agência (Fase 5). Não conhece rotas de
- * clínica. O único branch interno (`role === 'ADMIN'`) é permissão granular
- * intra-admin (Audit Log), não escolha de domínio.
+ * clínica. O branch `role === 'ADMIN'` é permissão granular intra-admin (Audit
+ * Log). `visibleHrefs` (deny-by-default por cargo) filtra os itens: undefined =
+ * sem filtro (coroa/ADMIN vê tudo); array = só os hrefs liberados pelo cargo.
  */
-export function AdminSidebar({ role }: { role: AdminRole }) {
-  const navItems = useMemo(() => buildAdminNav(role), [role])
+export function AdminSidebar({ role, visibleHrefs }: { role: AdminRole; visibleHrefs?: string[] }) {
+  const navItems = useMemo(() => {
+    const all = buildAdminNav(role)
+    if (!visibleHrefs) return all
+    const allowed = new Set(visibleHrefs)
+    return all.filter((i) => allowed.has(i.href))
+  }, [role, visibleHrefs])
   return <SidebarShell navItems={navItems} />
 }

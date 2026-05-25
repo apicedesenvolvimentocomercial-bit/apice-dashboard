@@ -39,10 +39,39 @@ async function main() {
     })
   }
 
+  // Cargo de agência de exemplo. Com deny-by-default, STAFF SEM cargo fica sem
+  // nenhum acesso — então o seed cria um "Gerente" (nível 1) com acesso amplo e
+  // o atribui ao STAFF demo, senão ele cairia direto no /login.
+  const managerPermissions = {
+    clients: { access: true, read: true, write: true, delete: false },
+    crm: { access: true, read: true, write: true, delete: false },
+    activities: {
+      access: true,
+      read: true,
+      write: true,
+      delete: false,
+      assignToOthers: true,
+      viewAll: true,
+    },
+    calendar: { access: true, read: true, write: true, delete: false },
+    staff: { access: true, read: true, write: false, delete: false },
+  }
+  const managerRole = await prisma.agencyRole.upsert({
+    where: { organizationId_name: { organizationId: org.id, name: 'Gerente' } },
+    update: { permissions: managerPermissions, level: 1 },
+    create: {
+      organizationId: org.id,
+      name: 'Gerente',
+      permissions: managerPermissions,
+      canManageRoles: false,
+      level: 1,
+    },
+  })
+
   const staffHash = await hash('staff123', 12)
   await prisma.user.upsert({
     where: { email: 'staff@apice.dev' },
-    update: {},
+    update: { agencyRoleId: managerRole.id },
     create: {
       email: 'staff@apice.dev',
       name: 'Staff Demo',
@@ -50,13 +79,14 @@ async function main() {
       role: 'STAFF',
       isActive: true,
       organizationId: org.id,
+      agencyRoleId: managerRole.id,
     },
   })
 
   console.log('✅ Seed concluído!')
   console.log(`   Org: ${org.name} (${org.slug})`)
   console.log(`   Admin: ${admin.email} / admin123`)
-  console.log(`   Staff: staff@apice.dev / staff123`)
+  console.log(`   Staff: staff@apice.dev / staff123 (cargo: Gerente)`)
 }
 
 main()

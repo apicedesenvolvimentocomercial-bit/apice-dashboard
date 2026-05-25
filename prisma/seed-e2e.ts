@@ -33,9 +33,34 @@ async function main() {
     await prisma.organization.update({ where: { id: org.id }, data: { ownerId: admin.id } })
   }
 
+  // Cargo de agência p/ o STAFF (deny-by-default: STAFF sem cargo fica trancado).
+  const agencyManager = await prisma.agencyRole.upsert({
+    where: { organizationId_name: { organizationId: org.id, name: 'Gerente' } },
+    update: { level: 1 },
+    create: {
+      organizationId: org.id,
+      name: 'Gerente',
+      level: 1,
+      permissions: {
+        clients: { access: true, read: true, write: true, delete: false },
+        crm: { access: true, read: true, write: true, delete: false },
+        activities: {
+          access: true,
+          read: true,
+          write: true,
+          delete: false,
+          assignToOthers: true,
+          viewAll: true,
+        },
+        calendar: { access: true, read: true, write: true, delete: false },
+        staff: { access: true, read: true, write: false, delete: false },
+      },
+    },
+  })
+
   await prisma.user.upsert({
     where: { email: 'staff@apice.dev' },
-    update: {},
+    update: { agencyRoleId: agencyManager.id },
     create: {
       email: 'staff@apice.dev',
       name: 'Staff Demo',
@@ -43,6 +68,7 @@ async function main() {
       role: 'STAFF',
       isActive: true,
       organizationId: org.id,
+      agencyRoleId: agencyManager.id,
     },
   })
 
@@ -70,7 +96,7 @@ async function main() {
 
   // Owner de cada clínica (role CLIENT_OWNER, clientId fixado).
   const ownerHash = await hash('owner123', 12)
-  await prisma.user.upsert({
+  const ownerA = await prisma.user.upsert({
     where: { email: 'owner-a@apice.dev' },
     update: { clientId: clinicA.id },
     create: {
@@ -83,7 +109,7 @@ async function main() {
       clientId: clinicA.id,
     },
   })
-  await prisma.user.upsert({
+  const ownerB = await prisma.user.upsert({
     where: { email: 'owner-b@apice.dev' },
     update: { clientId: clinicB.id },
     create: {
@@ -96,6 +122,11 @@ async function main() {
       clientId: clinicB.id,
     },
   })
+
+  // Coroa de cada clínica: sem isto, o deny-by-default tranca os owners (eles
+  // não têm cargo e a titularidade é o que dá acesso total).
+  await prisma.client.update({ where: { id: clinicA.id }, data: { ownerId: ownerA.id } })
+  await prisma.client.update({ where: { id: clinicB.id }, data: { ownerId: ownerB.id } })
 
   // Um paciente distinguível em cada clínica — usado p/ provar isolamento na UI.
   await prisma.patient.upsert({

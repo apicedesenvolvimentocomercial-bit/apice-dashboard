@@ -5,18 +5,10 @@ import { useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { StaffUser } from '@/server/repositories/user-repository'
 
 import { InviteStaffDialog } from './invite-staff-dialog'
-import { PermissionMatrix } from './permission-matrix'
 import { StaffRowActions } from './staff-row-actions'
 import { TransferOwnershipDialog } from './transfer-ownership-dialog'
 
@@ -36,10 +28,8 @@ type Props = {
 
 export function StaffList({ rows, currentUserId, canWrite, ownerId, currentUserIsOwner }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
   const [transferTargetId, setTransferTargetId] = useState<string | null>(null)
 
-  const editing = editingId ? rows.find((r) => r.id === editingId) : null
   const transferTarget = transferTargetId ? rows.find((r) => r.id === transferTargetId) : null
 
   return (
@@ -120,9 +110,13 @@ export function StaffList({ rows, currentUserId, canWrite, ownerId, currentUserI
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
-                        {user.role}
-                      </Badge>
+                      {user.role === 'ADMIN' ? (
+                        <Badge variant="default">Acesso total</Badge>
+                      ) : user.agencyRole ? (
+                        <Badge variant="secondary">{user.agencyRole.name}</Badge>
+                      ) : (
+                        <Badge variant="outline">Sem cargo</Badge>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={user.isActive ? 'default' : 'outline'}>
@@ -143,7 +137,6 @@ export function StaffList({ rows, currentUserId, canWrite, ownerId, currentUserI
                           isSelf={user.id === currentUserId}
                           isOwner={isOwner}
                           currentUserIsOwner={currentUserIsOwner}
-                          onEditPermissions={() => setEditingId(user.id)}
                           onTransferOwnership={() => setTransferTargetId(user.id)}
                         />
                       </td>
@@ -159,25 +152,6 @@ export function StaffList({ rows, currentUserId, canWrite, ownerId, currentUserI
       {canWrite && (
         <>
           <InviteStaffDialog open={inviteOpen} onOpenChange={setInviteOpen} />
-
-          <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditingId(null)}>
-            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>Permissões de {editing?.name}</DialogTitle>
-                <DialogDescription>
-                  Ajuste finamente o que este funcionário pode ler, escrever ou excluir em cada
-                  módulo. Os defaults do cargo já são aplicados — sobreposições aqui têm prioridade.
-                </DialogDescription>
-              </DialogHeader>
-              {editing && (
-                <PermissionMatrix
-                  userId={editing.id}
-                  initial={editing.permissions}
-                  onSaved={() => setEditingId(null)}
-                />
-              )}
-            </DialogContent>
-          </Dialog>
 
           <TransferOwnershipDialog
             open={transferTarget !== null}

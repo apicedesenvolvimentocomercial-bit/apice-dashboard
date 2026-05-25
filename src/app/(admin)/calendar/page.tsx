@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 
 import { UserCalendar } from '@/modules/calendar/user-calendar'
+import { gateAgencyTab } from '@/server/auth/agency-tabs'
 import { getUserCalendar } from '@/server/queries/calendar-queries'
 import { getTenantContext } from '@/server/tenant/context'
 
 export const metadata: Metadata = { title: 'Calendário' }
 
 export default async function AdminCalendarPage() {
+  await gateAgencyTab('calendar')
   // Janela ampla (±90 dias) — cobre views de mês adjacente sem nova fetch.
   const now = new Date()
   const from = new Date(now)

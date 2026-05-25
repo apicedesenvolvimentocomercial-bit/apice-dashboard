@@ -53,12 +53,30 @@ compartilhado. Só primitivos de UI, display burro (`components/shared`), tipos
   esquecer vira erro de tipo, não vazamento. Atividades também forçam `domain=CLINIC`.
 - `ClinicContext` também expõe `clinicRoleId` e `isOwner` (a "coroa", lida do DB por
   request para refletir transferência de titularidade na hora — não vem do JWT).
+- **`organizationId` desnormalizado (invariante assumida):** modelos operacionais
+  (`Lead`, `Revenue`, `Cost`, `Procedure`, `Patient`, `Appointment`, `Goal`, `Insight`,
+  `PipelineDeal`, `KpiSnapshot`) carregam `organizationId` **além** de `clientId`. É
+  desnormalização proposital — permite queries cross-clínica do admin (filtrar por org
+  sem join a `Client`). **A invariante `organizationId == client.organizationId` é mantida
+  só pelo código** (todo write grava ambos do mesmo `ctx`); não há FK p/ `Organization`
+  nesses modelos nem `CHECK`/trigger no banco. Hoje é seguro porque nenhum caminho escolhe
+  `organizationId` independente do `clientId` (ambos vêm do mesmo JWT/sessão). **Se um dia
+  entrar transferência de lead/cliente entre orgs, adicione FK + verificação** antes — a
+  barreira de tenant da app confia nesse campo.
 
 ### Permissões (`src/server/auth/`)
 
 - `permissions.ts` — **ponto único de decisão.** `can()` (async) / `canSync()` (sync, sem DB).
-  Ordem: ADMIN → `*`; titular da clínica → tudo; com `clinicRoleId` → lê
-  `ClinicRole.permissions[module]`; senão fallback `ROLE_DEFAULTS` + `UserPermission`.
+  **DENY-BY-DEFAULT** (ledger `agency-roles-progresso.md`): o role só discrimina domínio; toda
+  permissão vem da coroa ou de um cargo. Ordem: ADMIN → tudo; titular da clínica → tudo;
+  STAFF com `agencyRoleId` → lê `AgencyRole.permissions[module]`; CLIENT\_\* com `clinicRoleId` →
+  lê `ClinicRole.permissions[module]`; **sem cargo e sem coroa → NEGADO** (gate de rota expulsa
+  p/ /login). Não há mais `UserPermission` nem concessão via `ROLE_DEFAULTS`.
+- **Cargos** (`ClinicRole` p/ clínica, `AgencyRole` p/ agência — isolados, espelhados): mesmo JSON
+  de permissões; helpers neutros em `role-permissions.ts` (`roleCan`, `canActOnRoleLevel`).
+  `clinic-permissions.ts` é só reexport compat. **Hierarquia LINEAR:** cada cargo tem `level`
+  (menor = mais alto); quem gerencia cargos (`canManageRoles`) só atua sobre cargos de level maior
+  que o seu — não promove acima de si nem mexe em par. Coroa/ADMIN está acima de tudo.
 - `assert-can.ts` — `assertCan(ctx, module, action)` no topo de cada action/query.
 - **Cargos de clínica** (`ClinicRole`): permissões por aba num JSON
   (`access` master + `read/write/delete/assignToOthers/viewAll`). Aba sem `access`

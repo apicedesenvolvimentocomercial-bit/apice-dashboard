@@ -29,6 +29,7 @@ export type RoleItem = {
   permissions: ClinicRolePermissions
   canManageRoles: boolean
   isSystem: boolean
+  level: number
   userCount: number
 }
 
@@ -48,11 +49,14 @@ type Props = {
   users: UserItem[]
   // Quem está vendo é o titular? (controla o botão de transferir titularidade)
   viewerIsOwner: boolean
+  // Nível do ator (null = titular, acima de tudo). Controla mínimo de nível ao
+  // criar e quais cargos pode editar/atribuir.
+  viewerLevel: number | null
 }
 
 const NO_ROLE = '__none__'
 
-export function ClinicRolesManager({ roles, users, viewerIsOwner }: Props) {
+export function ClinicRolesManager({ roles, users, viewerIsOwner, viewerLevel }: Props) {
   const router = useRouter()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<RoleDialogInitial | undefined>(undefined)
@@ -69,9 +73,13 @@ export function ClinicRolesManager({ roles, users, viewerIsOwner }: Props) {
       name: role.name,
       permissions: role.permissions,
       canManageRoles: role.canManageRoles,
+      level: role.level,
     })
     setDialogOpen(true)
   }
+
+  // Menor nível que o ator pode criar (estritamente abaixo do seu).
+  const minLevel = viewerLevel === null ? 1 : viewerLevel + 1
 
   function removeRole(role: RoleItem) {
     if (role.userCount > 0) {
@@ -252,6 +260,7 @@ export function ClinicRolesManager({ roles, users, viewerIsOwner }: Props) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         initial={editing}
+        minLevel={editing ? Math.min(editing.level, minLevel) : minLevel}
         onSaved={() => router.refresh()}
       />
     </>

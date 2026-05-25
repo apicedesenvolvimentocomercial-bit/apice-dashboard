@@ -24,7 +24,6 @@ type Props = {
   isOwner: boolean
   /** O usuário logado é o dono — pode iniciar a transferência. */
   currentUserIsOwner: boolean
-  onEditPermissions: () => void
   onTransferOwnership: () => void
 }
 
@@ -35,7 +34,6 @@ export function StaffRowActions({
   isSelf,
   isOwner,
   currentUserIsOwner,
-  onEditPermissions,
   onTransferOwnership,
 }: Props) {
   const router = useRouter()
@@ -74,7 +72,9 @@ export function StaffRowActions({
 
   // O dono não pode ter cargo alterado nem ser desativado por terceiros.
   // Para "remover" o dono, ele precisa transferir a titularidade primeiro.
-  const canChangeRole = !isOwner && !isSelf
+  // Conceder/remover acesso total (ADMIN) é "mexer em ADMIN" → só o titular
+  // (ledger agency-roles: ADMIN não mexe em ADMIN). O servidor reforça isto.
+  const canChangeRole = !isOwner && !isSelf && currentUserIsOwner
   const canToggleActive = !isOwner && !isSelf
   const canTransferToThisUser = currentUserIsOwner && !isSelf && !isOwner && isActive
 
@@ -90,16 +90,13 @@ export function StaffRowActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={() => onEditPermissions()} disabled={role === 'ADMIN'}>
-          Editar permissões
-        </DropdownMenuItem>
         {role === 'STAFF' ? (
           <DropdownMenuItem onSelect={() => changeRole('ADMIN')} disabled={!canChangeRole}>
-            Tornar ADMIN
+            Conceder acesso total
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem onSelect={() => changeRole('STAFF')} disabled={!canChangeRole}>
-            Rebaixar para STAFF
+            Remover acesso total
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onSelect={toggleActive} disabled={!canToggleActive}>

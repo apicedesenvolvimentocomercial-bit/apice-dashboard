@@ -8,7 +8,11 @@ import { ClinicRolesManager } from '@/modules/clinic-roles/clinic-roles-manager'
 import { getClinicContext } from '@/server/auth/clinic-context'
 import { parseClinicRolePermissions } from '@/server/auth/clinic-permissions'
 import { findClientById } from '@/server/repositories/client-repository'
-import { listClinicRoles, listClinicUsers } from '@/server/repositories/clinic-role-repository'
+import {
+  listClinicRoles,
+  listClinicUsers,
+  resolveClinicActorLevel,
+} from '@/server/repositories/clinic-role-repository'
 import { findUserProfileById } from '@/server/repositories/user-repository'
 import { prisma } from '@/lib/prisma'
 
@@ -34,11 +38,12 @@ export default async function ClinicSettingsPage() {
     canManageRoles = !!role?.canManageRoles
   }
 
-  const [profile, client, roles, users] = await Promise.all([
+  const [profile, client, roles, users, viewerLevel] = await Promise.all([
     findUserProfileById(ctx.userId),
     findClientById(ctx, ctx.clientId),
     canManageRoles ? listClinicRoles(ctx) : Promise.resolve([]),
     canManageRoles ? listClinicUsers(ctx) : Promise.resolve([]),
+    canManageRoles ? resolveClinicActorLevel(ctx) : Promise.resolve(null),
   ])
   // Dados sensíveis da clínica: só o TITULAR edita (Bloco B). O card antes usava
   // qualquer CLIENT_OWNER; agora reflete a coroa real.
@@ -50,6 +55,7 @@ export default async function ClinicSettingsPage() {
     permissions: parseClinicRolePermissions(r.permissions),
     canManageRoles: r.canManageRoles,
     isSystem: r.isSystem,
+    level: r.level,
     userCount: r._count.users,
   }))
   const userItems = users.map((u) => ({
@@ -115,7 +121,12 @@ export default async function ClinicSettingsPage() {
       )}
 
       {canManageRoles && (
-        <ClinicRolesManager roles={roleItems} users={userItems} viewerIsOwner={ctx.isOwner} />
+        <ClinicRolesManager
+          roles={roleItems}
+          users={userItems}
+          viewerIsOwner={ctx.isOwner}
+          viewerLevel={viewerLevel}
+        />
       )}
     </div>
   )
