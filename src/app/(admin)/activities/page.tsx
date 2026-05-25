@@ -8,6 +8,7 @@ import {
   listOrgClients,
   listOrgUsers,
 } from '@/server/queries/activity-queries'
+import { gateAgencyTab } from '@/server/auth/agency-tabs'
 import { getTenantContext } from '@/server/tenant/context'
 
 export const metadata: Metadata = { title: 'Atividades' }
@@ -24,6 +25,7 @@ export default async function AdminActivitiesPage({ searchParams }: Props) {
   const sp = await searchParams
   const view = parseView(sp.view)
 
+  await gateAgencyTab('activities')
   const ctx = await getTenantContext()
   const isAdmin = ctx.role === 'ADMIN'
 

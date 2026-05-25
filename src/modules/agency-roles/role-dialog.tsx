@@ -16,24 +16,17 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  createClinicRoleAction,
-  updateClinicRoleAction,
-} from '@/server/actions/clinic-role-actions'
-import {
-  DASHBOARD_PERM_KEY,
-  parseDashboardPermissions,
-  type ClinicModulePerm,
-  type ClinicRolePermissions,
-  type DashboardPermissions,
-} from '@/server/auth/clinic-permissions'
+  createAgencyRoleAction,
+  updateAgencyRoleAction,
+} from '@/server/actions/agency-role-actions'
+import type { RoleModulePerm, RolePermissions } from '@/server/auth/role-permissions'
 
-import { CLINIC_MODULES } from './clinic-modules'
-import { DASHBOARD_SECTIONS } from './dashboard-catalog'
+import { AGENCY_MODULES } from './agency-modules'
 
 export type RoleDialogInitial = {
   id: string
   name: string
-  permissions: ClinicRolePermissions
+  permissions: RolePermissions
   canManageRoles: boolean
   level: number
 }
@@ -43,24 +36,22 @@ type Props = {
   onOpenChange: (open: boolean) => void
   initial?: RoleDialogInitial // ausente = criar
   onSaved?: () => void
-  // Nível mínimo permitido (estritamente abaixo do nível do ator).
+  // Nível mínimo que este cargo pode ter (estritamente abaixo do nível do ator).
+  // O criador não pode posicionar um cargo no seu nível ou acima.
   minLevel: number
 }
 
-// Estado por aba: access controla o master; o resto são ações.
-type ModuleState = ClinicModulePerm
+type ModuleState = RoleModulePerm
 
 function blankState(): Record<string, ModuleState> {
   const out: Record<string, ModuleState> = {}
-  for (const m of CLINIC_MODULES) {
-    out[m.key] = { access: false }
-  }
+  for (const m of AGENCY_MODULES) out[m.key] = { access: false }
   return out
 }
 
-function fromPermissions(perms: ClinicRolePermissions): Record<string, ModuleState> {
+function fromPermissions(perms: RolePermissions): Record<string, ModuleState> {
   const base = blankState()
-  for (const m of CLINIC_MODULES) {
+  for (const m of AGENCY_MODULES) {
     const p = perms[m.key]
     if (p) base[m.key] = { ...p }
   }
@@ -74,50 +65,23 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
   const [modules, setModules] = useState<Record<string, ModuleState>>(() =>
     initial ? fromPermissions(initial.permissions) : blankState()
   )
-  // Visibilidade do dashboard (lacuna 2). Opt-in: começa tudo oculto.
-  const [dashboard, setDashboard] = useState<DashboardPermissions>(() =>
-    initial ? parseDashboardPermissions(initial.permissions) : {}
-  )
   const [pending, startTransition] = useTransition()
 
-  // Liga/desliga uma seção inteira do dashboard (master). Desligar limpa os
-  // itens; ligar deixa items indefinido = todos visíveis dentro da seção.
-  function setSectionAccess(section: string, on: boolean) {
-    setDashboard((prev) => ({ ...prev, [section]: on ? { access: true } : { access: false } }))
-  }
-
-  // Liga/desliga um item dentro de uma seção liberada. Ausência = visível, então
-  // só gravamos quando o usuário desmarca (false) ou remarca (true).
-  function setSectionItem(section: string, item: string, on: boolean) {
-    setDashboard((prev) => {
-      const sec = prev[section] ?? { access: true }
-      const items = { ...(sec.items ?? {}), [item]: on }
-      return { ...prev, [section]: { ...sec, access: true, items } }
-    })
-  }
-
-  // Marca "bloquear acesso": access=false zera as sub-ações (recolhe).
   function setAccess(key: string, blocked: boolean) {
-    setModules((prev) => ({
-      ...prev,
-      [key]: blocked ? { access: false } : { access: true },
-    }))
+    setModules((prev) => ({ ...prev, [key]: blocked ? { access: false } : { access: true } }))
   }
 
-  function toggleAction(key: string, action: keyof ClinicModulePerm) {
+  function toggleAction(key: string, action: keyof RoleModulePerm) {
     setModules((prev) => {
       const cur = prev[key]
       const next: ModuleState = { ...cur, [action]: !cur[action] }
-      // Coerência: write/delete/assign/view exigem read.
       if (action === 'read' && !next.read) {
         next.write = false
         next.delete = false
         next.assignToOthers = false
         next.viewAll = false
       }
-      if (action !== 'read' && action !== 'access' && next[action]) {
-        next.read = true
-      }
+      if (action !== 'read' && action !== 'access' && next[action]) next.read = true
       return { ...prev, [key]: next }
     })
   }
@@ -127,31 +91,26 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
       toast.error('Dê um nome ao cargo (mín. 2 caracteres)')
       return
     }
-    // Só serializa as abas com `access`; as bloqueadas viram { access: false }.
-    const permissions: ClinicRolePermissions = {}
-    for (const m of CLINIC_MODULES) {
-      const s = modules[m.key]
-      permissions[m.key] = s.access ? { ...s, access: true } : { access: false }
-    }
-    // Visibilidade do dashboard vive sob a chave reservada `dashboard`. O cast é
-    // necessário porque o tipo do mapa de abas não cobre este shape distinto.
-    ;(permissions as Record<string, unknown>)[DASHBOARD_PERM_KEY] = dashboard
-
     if (level < minLevel) {
       toast.error('Nível inválido: não pode ficar no seu nível ou acima')
       return
     }
+    const permissions: RolePermissions = {}
+    for (const m of AGENCY_MODULES) {
+      const s = modules[m.key]
+      permissions[m.key] = s.access ? { ...s, access: true } : { access: false }
+    }
 
     startTransition(async () => {
       const result = initial
-        ? await updateClinicRoleAction({
+        ? await updateAgencyRoleAction({
             roleId: initial.id,
             name,
             permissions,
             canManageRoles,
             level,
           })
-        : await createClinicRoleAction({ name, permissions, canManageRoles, level })
+        : await createAgencyRoleAction({ name, permissions, canManageRoles, level })
       if (!result.success) {
         toast.error(result.error.message)
         return
@@ -168,8 +127,8 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
         <DialogHeader>
           <DialogTitle>{initial ? 'Editar cargo' : 'Novo cargo'}</DialogTitle>
           <DialogDescription>
-            Defina o nome e as permissões por aba. Bloquear o acesso a uma aba esconde-a da barra
-            lateral e bloqueia a rota.
+            Defina o nome, a posição na hierarquia e as permissões por aba. Bloquear o acesso a uma
+            aba esconde-a da barra lateral e bloqueia a rota.
           </DialogDescription>
         </DialogHeader>
 
@@ -181,7 +140,7 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
                 id="role-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ex: Atendente de caixa"
+                placeholder="Ex: Gerente de vendas"
               />
             </div>
             <div className="space-y-1.5">
@@ -206,13 +165,13 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
               checked={canManageRoles}
               onChange={() => setCanManageRoles((v) => !v)}
             />
-            <span>Pode criar cargos e atribuir pessoas</span>
+            <span>Pode criar cargos e atribuir pessoas (abaixo do próprio nível)</span>
           </label>
 
           <div className="space-y-2">
             <p className="text-sm font-medium">Permissões por aba</p>
             <div className="divide-y rounded-md border">
-              {CLINIC_MODULES.map((mod) => {
+              {AGENCY_MODULES.map((mod) => {
                 const s = modules[mod.key]
                 const blocked = !s.access
                 return (
@@ -241,7 +200,6 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
                       </label>
                     </div>
 
-                    {/* Sub-ações recolhem quando a aba está bloqueada. */}
                     {!blocked && (
                       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 pl-6">
                         <ActionBox
@@ -273,63 +231,6 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
                             onChange={() => toggleAction(mod.key, 'assignToOthers')}
                           />
                         )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Visibilidade do dashboard</p>
-            <p className="text-xs text-muted-foreground">
-              Marque as seções que este cargo vê na visão geral. Dentro de cada seção, desmarque
-              itens específicos para escondê-los. O titular vê tudo, independente disto.
-            </p>
-            <div className="divide-y rounded-md border">
-              {DASHBOARD_SECTIONS.map((sec) => {
-                const on = dashboard[sec.key]?.access === true
-                const items = dashboard[sec.key]?.items
-                return (
-                  <div key={sec.key} className="p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        {on ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <div>
-                          <div className="text-sm font-medium">{sec.label}</div>
-                          <div className="text-xs text-muted-foreground">{sec.description}</div>
-                        </div>
-                      </div>
-                      <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4"
-                          checked={on}
-                          onChange={(e) => setSectionAccess(sec.key, e.target.checked)}
-                          aria-label={`Mostrar seção ${sec.label}`}
-                        />
-                        Mostrar seção
-                      </label>
-                    </div>
-
-                    {on && (
-                      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 pl-6">
-                        {sec.items.map((it) => (
-                          <ActionBox
-                            key={it.key}
-                            label={it.label}
-                            // Ausência em items = visível (a seção liga tudo).
-                            checked={items?.[it.key] !== false}
-                            onChange={() =>
-                              setSectionItem(sec.key, it.key, !(items?.[it.key] !== false))
-                            }
-                          />
-                        ))}
                       </div>
                     )}
                   </div>

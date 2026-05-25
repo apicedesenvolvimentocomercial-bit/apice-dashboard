@@ -17,7 +17,7 @@ export async function getClinicSchedule(clientId: string): Promise<ClinicSchedul
   return {
     workdayStart: client?.workdayStart ?? '07:00',
     workdayEnd: client?.workdayEnd ?? '20:00',
-    workdays: (client?.workdays ?? '1,2,3,4,5,6').split(',').map(Number),
+    workdays: client?.workdays ?? [1, 2, 3, 4, 5, 6],
     holidays,
   }
 }
@@ -31,7 +31,7 @@ export async function updateClinicSchedule(
     data: {
       workdayStart: data.workdayStart,
       workdayEnd: data.workdayEnd,
-      workdays: data.workdays.join(','),
+      workdays: data.workdays,
     },
   })
 }

@@ -51,21 +51,24 @@ export const TAB_MODULE: Record<string, ClinicTab> = {
 const ALWAYS_VISIBLE: ReadonlySet<ClinicTab> = new Set(['overview', 'notificacoes', 'settings'])
 
 /**
- * Conjunto de abas que este contexto pode ver.
+ * Conjunto de abas que este contexto pode ver (DENY-BY-DEFAULT, ledger
+ * agency-roles D3).
  * - Titular (coroa) → todas.
- * - Sem cargo → todas (comportamento legado preservado; o gate fino fica nas
- *   server actions via `assertCan`).
+ * - Sem cargo (e sem coroa) → NENHUMA (deny-by-default; o gate manda p/ login).
  * - Com cargo → ALWAYS_VISIBLE + as abas com `access !== false` no cargo.
  */
 export async function getVisibleTabs(ctx: ClinicContext): Promise<Set<ClinicTab>> {
   const all = new Set<ClinicTab>(Object.values(TAB_MODULE))
-  if (ctx.isOwner || !ctx.clinicRoleId) return all
+  if (ctx.isOwner) return all
+  // Sem cargo → zero acesso.
+  if (!ctx.clinicRoleId) return new Set()
 
   const role = await prisma.clinicRole.findUnique({
     where: { id: ctx.clinicRoleId },
     select: { permissions: true },
   })
-  if (!role) return all // cargo sumiu → não tranca o usuário pra fora
+  // Cargo sumiu → trata como sem cargo (deny-by-default).
+  if (!role) return new Set()
 
   const perms = parseClinicRolePermissions(role.permissions)
   const visible = new Set<ClinicTab>(ALWAYS_VISIBLE)
@@ -76,12 +79,23 @@ export async function getVisibleTabs(ctx: ClinicContext): Promise<Set<ClinicTab>
 }
 
 /**
- * Gate de rota: redireciona p/ /overview se a aba não é visível ao contexto.
- * Chamar no topo da page da clínica correspondente.
+ * Deny-by-default: usuário de clínica sem coroa e sem cargo (ou com cargo que
+ * sumiu) não tem nenhum acesso → expulso para /login até receber um cargo.
+ */
+function hasAnyClinicAccess(ctx: ClinicContext): boolean {
+  return ctx.isOwner || !!ctx.clinicRoleId
+}
+
+/**
+ * Gate de rota (deny-by-default):
+ *  - Sem cargo e sem coroa → redirect /login (zero acesso).
+ *  - Aba sempre-visível → ok (mas só pra quem tem algum acesso).
+ *  - Senão, redireciona p/ /overview se a aba não é visível ao cargo.
  */
 export async function assertTabAccess(ctx: ClinicContext, tab: ClinicTab): Promise<void> {
+  if (ctx.isOwner) return
+  if (!hasAnyClinicAccess(ctx)) redirect('/login')
   if (ALWAYS_VISIBLE.has(tab)) return
-  if (ctx.isOwner || !ctx.clinicRoleId) return
 
   const visible = await getVisibleTabs(ctx)
   if (!visible.has(tab)) redirect('/overview')

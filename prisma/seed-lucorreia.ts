@@ -80,7 +80,7 @@ async function main() {
 
   // Usuário CLIENT_OWNER — idempotente por email (único).
   const passwordHash = await hash(OWNER_PASSWORD, 12)
-  await prisma.user.upsert({
+  const owner = await prisma.user.upsert({
     where: { email: OWNER_EMAIL },
     update: {
       // Reativa e reanexa caso já exista (mantém o acesso utilizável).
@@ -101,6 +101,13 @@ async function main() {
       clientId: clinic.id,
     },
   })
+
+  // Coroa da clínica: com deny-by-default, um CLIENT_OWNER que NÃO é titular e
+  // não tem cargo fica trancado (gate expulsa p/ /login). Setar Client.ownerId
+  // = a coroa, que dá acesso total. Ela é a dona da própria clínica.
+  if (clinic.ownerId !== owner.id) {
+    await prisma.client.update({ where: { id: clinic.id }, data: { ownerId: owner.id } })
+  }
 
   console.log('✅ Pronto!')
   console.log(`   Clínica: ${CLINIC_NAME}`)

@@ -15,9 +15,11 @@ export default async function ClientLayout({ children }: { children: React.React
   const role = session.user.role
   if (role !== 'CLIENT_OWNER' && role !== 'CLIENT_STAFF') redirect('/dashboard')
 
-  // Abas liberadas pelo cargo (Etapa 1 — D2). Titular/sem-cargo veem tudo.
+  // Abas liberadas pelo cargo (deny-by-default, ledger agency-roles D3). Titular
+  // vê tudo; com cargo vê o liberado; SEM cargo → zero acesso, expulso p/ login.
   const ctx = await getClinicContext()
   const visibleTabs = await getVisibleTabs(ctx)
+  if (!ctx.isOwner && visibleTabs.size === 0) redirect('/login')
   const visibleHrefs = Object.entries(TAB_MODULE)
     .filter(([, mod]) => visibleTabs.has(mod))
     .map(([href]) => href)

@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation'
 import { AdminSidebar } from '@/components/admin/admin-sidebar'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { auth } from '@/server/auth'
+import { getAdminContext } from '@/server/auth/admin-context'
+import { getVisibleAgencyTabs } from '@/server/auth/agency-tabs'
+import { AGENCY_TAB_MODULE } from '@/server/auth/agency-tabs'
 import { getNotificationsForCurrentUser } from '@/server/queries/notification-queries'
-import { isOrganizationOwner } from '@/server/queries/organization-queries'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -14,14 +16,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const role = session.user.role
   if (role !== 'ADMIN' && role !== 'STAFF') redirect('/crm')
 
-  const [notifResult, isOwner] = await Promise.all([
-    getNotificationsForCurrentUser({ take: 10 }).catch(() => ({ rows: [], unread: 0 })),
-    isOrganizationOwner(session.user.id, session.user.organizationId).catch(() => false),
-  ])
+  // Deny-by-default (ledger agency-roles D3): ADMIN/titular veem tudo; STAFF com
+  // cargo vê o liberado; STAFF SEM cargo → zero acesso, expulso p/ login.
+  const ctx = await getAdminContext()
+  const visibleTabs = await getVisibleAgencyTabs(ctx)
+  if (!ctx.isOwner && role !== 'ADMIN' && visibleTabs.size === 0) redirect('/login')
+  const isOwner = ctx.isOwner
+  // Coroa/ADMIN: sem filtro (vê tudo). STAFF com cargo: só hrefs liberados.
+  const visibleHrefs =
+    ctx.isOwner || role === 'ADMIN'
+      ? undefined
+      : Object.entries(AGENCY_TAB_MODULE)
+          .filter(([, mod]) => visibleTabs.has(mod))
+          .map(([href]) => href)
+
+  const notifResult = await getNotificationsForCurrentUser({ take: 10 }).catch(() => ({
+    rows: [],
+    unread: 0,
+  }))
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AdminSidebar role={role} />
+      <AdminSidebar role={role} visibleHrefs={visibleHrefs} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <AdminTopbar
           user={session.user}

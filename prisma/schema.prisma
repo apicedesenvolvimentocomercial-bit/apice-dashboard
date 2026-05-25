@@ -18,12 +18,12 @@ datasource db {
 // =====================================================
 
 model Organization {
-  id          String    @id @default(cuid())
-  name        String
-  slug        String    @unique
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // Dono/titular da organização — único privilegiado que pode transferir a
   // titularidade. Não pode ser rebaixado ou desativado por terceiros. Nullable
@@ -37,6 +37,7 @@ model Organization {
   auditLogs      AuditLog[]
   calendarEvents CalendarEvent[]
   holidays       OrgHoliday[]
+  agencyRoles    AgencyRole[]
 
   @@index([slug])
 }
@@ -76,11 +77,17 @@ model User {
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id])
 
-  // Cargo configurável dentro da clínica (Etapa 1 — cargos). Null = sem cargo,
-  // cai no fallback de ROLE_DEFAULTS + UserPermission. O titular da clínica
-  // (Client.ownerId) ignora o cargo: tem acesso total como a coroa do admin.
+  // Cargo configurável dentro da clínica. Null = sem cargo → DENY-BY-DEFAULT
+  // (zero acesso, redirect no gate de rota). O titular da clínica (Client.ownerId)
+  // ignora o cargo: tem acesso total como a coroa do admin.
   clinicRoleId String?
   clinicRole   ClinicRole? @relation("UserClinicRole", fields: [clinicRoleId], references: [id])
+
+  // Cargo configurável dentro da agência (domínio admin). Espelha clinicRoleId.
+  // Null = sem cargo → deny-by-default. ADMIN titular (Organization.ownerId)
+  // ignora o cargo (coroa). Escopo: AgencyRole é por organizationId.
+  agencyRoleId String?
+  agencyRole   AgencyRole? @relation("UserAgencyRole", fields: [agencyRoleId], references: [id])
 
   // Inverso 1:1 de Client.ownerId — null se este usuário não é titular da clínica.
   ownedClient Client? @relation("ClientOwner")
@@ -88,7 +95,6 @@ model User {
   // Metas atribuídas a este usuário (Etapa 2 — escopo USER).
   goalsAssigned Goal[] @relation("GoalAssignee")
 
-  permissions         UserPermission[]
   sessions            Session[]
   accounts            Account[]
   activities          Activity[]           @relation("AssignedActivities")
@@ -107,19 +113,8 @@ model User {
   @@index([organizationId])
   @@index([clientId])
   @@index([clinicRoleId])
+  @@index([agencyRoleId])
   @@index([email])
-}
-
-model UserPermission {
-  id        String  @id @default(cuid())
-  userId    String
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module    String
-  canRead   Boolean @default(true)
-  canWrite  Boolean @default(false)
-  canDelete Boolean @default(false)
-
-  @@unique([userId, module])
 }
 
 model Account {
@@ -147,21 +142,24 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expires])
 }
 
 model Invitation {
-  id             String    @id @default(cuid())
+  id             String       @id @default(cuid())
   email          String
   role           UserRole
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   clientId       String?
-  client         Client?   @relation(fields: [clientId], references: [id])
-  token          String    @unique
+  client         Client?      @relation(fields: [clientId], references: [id])
+  token          String       @unique
   expiresAt      DateTime
   acceptedAt     DateTime?
   invitedById    String
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime     @default(now())
 
   @@index([token])
   @@index([email])
@@ -172,13 +170,13 @@ model Invitation {
 /// no banco. Uso único: `usedAt` é setado ao consumir; verificação rejeita
 /// tokens expirados ou já utilizados.
 model PasswordResetToken {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash  String    @unique
-  expiresAt  DateTime
-  usedAt     DateTime?
-  createdAt  DateTime  @default(now())
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }
@@ -223,33 +221,35 @@ model Client {
   // Configuração de expediente
   workdayStart String @default("07:00") // "HH:MM"
   workdayEnd   String @default("20:00") // "HH:MM"
-  workdays     String @default("1,2,3,4,5,6") // CSV: 0=Dom … 6=Sáb
+  // Dias úteis como Int[] nativo (0=Dom … 6=Sáb). Era CSV; normalizado p/ array
+  // (a UI sempre tratou como number[]; só o repo serializava). 1ª NF respeitada.
+  workdays     Int[]  @default([1, 2, 3, 4, 5, 6])
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  users                User[]
-  invitations          Invitation[]
-  leads                Lead[]
-  patients             Patient[]
-  procedures           Procedure[]
-  procedureCategories  ProcedureCategory[]
-  revenues             Revenue[]
-  revenueProcedures    RevenueProcedure[]
-  costs                Cost[]
-  appointments         Appointment[]
-  activities           Activity[]
-  insights             Insight[]
-  goals                Goal[]
-  pipelineStages       PipelineStage[]
-  marketingCampaigns   MarketingCampaign[]
-  kpiSnapshots         KpiSnapshot[]
-  pipelineDeals        PipelineDeal[]
-  holidays             ClinicHoliday[]
-  calendarEvents       CalendarEvent[]
-  notifications        Notification[]
-  clinicRoles          ClinicRole[]
+  users               User[]
+  invitations         Invitation[]
+  leads               Lead[]
+  patients            Patient[]
+  procedures          Procedure[]
+  procedureCategories ProcedureCategory[]
+  revenues            Revenue[]
+  revenueProcedures   RevenueProcedure[]
+  costs               Cost[]
+  appointments        Appointment[]
+  activities          Activity[]
+  insights            Insight[]
+  goals               Goal[]
+  pipelineStages      PipelineStage[]
+  marketingCampaigns  MarketingCampaign[]
+  kpiSnapshots        KpiSnapshot[]
+  pipelineDeals       PipelineDeal[]
+  holidays            ClinicHoliday[]
+  calendarEvents      CalendarEvent[]
+  notifications       Notification[]
+  clinicRoles         ClinicRole[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -266,15 +266,20 @@ model Client {
 // `assignToOthers`/`viewAll` só fazem sentido nas abas relevantes (goals,
 // activities). O cargo `isSystem` ("Titular") não é editável nem deletável.
 model ClinicRole {
-  id             String   @id @default(cuid())
-  organizationId String
-  clientId       String
-  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   name           String
   permissions    Json
-  canManageRoles Boolean  @default(false)
-  isSystem       Boolean  @default(false)
+  canManageRoles Boolean @default(false)
+  isSystem       Boolean @default(false)
+
+  // Hierarquia LINEAR (deny-by-default + delegação). Menor level = mais alto.
+  // Quem gerencia cargos só atua sobre cargos de level estritamente MAIOR que o
+  // seu. O titular (coroa) está acima de tudo e ordena os cargos. Único por
+  // clínica. isSystem "Titular" = level 0.
+  level Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -283,14 +288,43 @@ model ClinicRole {
   goals Goal[] @relation("GoalRoleAssignee")
 
   @@unique([clientId, name])
+  @@unique([clientId, level])
   @@index([clientId])
+}
+
+// Cargo configurável da AGÊNCIA (domínio admin). Espelho isolado de ClinicRole
+// (Isolamento Total / D1 do ledger agency-roles): mesma forma de JSON de
+// permissões, escopado por organizationId. NÃO tem cargo de sistema "Titular" —
+// a coroa da agência é Organization.ownerId + role ADMIN, que ignora o cargo.
+// `permissions` Json segue o mesmo shape de ClinicRole (access master + ações).
+model AgencyRole {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name           String
+  permissions    Json
+  canManageRoles Boolean @default(false)
+
+  // Hierarquia LINEAR (igual ClinicRole). Menor level = mais alto. ADMIN titular
+  // está acima de todos os cargos (tratado em código como acima de qualquer level).
+  level Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[] @relation("UserAgencyRole")
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, level])
+  @@index([organizationId])
 }
 
 model ClinicHoliday {
   id        String   @id @default(cuid())
   clientId  String
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  date      String   // "YYYY-MM-DD"
+  date      String // "YYYY-MM-DD"
   name      String
   createdAt DateTime @default(now())
 
@@ -359,10 +393,10 @@ model MarketingCampaign {
 }
 
 model Lead {
-  id             String    @id @default(cuid())
+  id             String @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client    @relation(fields: [clientId], references: [id])
+  client         Client @relation(fields: [clientId], references: [id])
 
   name              String
   phone             String?
@@ -371,13 +405,13 @@ model Lead {
   campaignId        String?
   campaign          MarketingCampaign? @relation(fields: [campaignId], references: [id])
   procedureInterest String?
-  notes             String?    @db.Text
+  notes             String?            @db.Text
 
-  stageId String
-  stage   PipelineStage @relation(fields: [stageId], references: [id])
+  stageId  String
+  stage    PipelineStage @relation(fields: [stageId], references: [id])
   // Posição manual dentro da coluna. Float fracionário permite inserir entre
   // dois cards sem renumerar (1.0 → 1.5 → 2.0). Mesmo padrão do PipelineDeal.
-  position Float @default(0)
+  position Float         @default(0)
 
   firstContactAt DateTime?
   scheduledAt    DateTime?
@@ -387,8 +421,8 @@ model Lead {
   lostReason     String?
 
   patientId      String?
-  patient        Patient?  @relation(fields: [patientId], references: [id])
-  estimatedValue Decimal?  @db.Decimal(12, 2)
+  patient        Patient? @relation(fields: [patientId], references: [id])
+  estimatedValue Decimal? @db.Decimal(12, 2)
 
   assignedToId String?
   tags         String[]
@@ -426,18 +460,18 @@ model LeadInteraction {
 // =====================================================
 
 model Patient {
-  id             String    @id @default(cuid())
+  id             String @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client    @relation(fields: [clientId], references: [id])
+  client         Client @relation(fields: [clientId], references: [id])
 
-  name        String
-  phone       String?
-  email       String?
-  birthDate   DateTime?
-  cpf         String?
-  notes       String?   @db.Text
-  tags        String[]
+  name      String
+  phone     String?
+  email     String?
+  birthDate DateTime?
+  cpf       String?
+  notes     String?   @db.Text
+  tags      String[]
 
   firstVisitAt DateTime?
   lastVisitAt  DateTime?
@@ -474,19 +508,19 @@ model ProcedureCategory {
 }
 
 model Procedure {
-  id             String    @id @default(cuid())
+  id             String             @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client    @relation(fields: [clientId], references: [id])
+  client         Client             @relation(fields: [clientId], references: [id])
   categoryId     String?
   category       ProcedureCategory? @relation(fields: [categoryId], references: [id])
 
   name            String
-  description     String?  @db.Text
-  price           Decimal  @db.Decimal(12, 2)
-  cost            Decimal  @db.Decimal(12, 2)
+  description     String? @db.Text
+  price           Decimal @db.Decimal(12, 2)
+  cost            Decimal @db.Decimal(12, 2)
   durationMinutes Int?
-  isActive        Boolean  @default(true)
+  isActive        Boolean @default(true)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -514,14 +548,14 @@ enum AppointmentStatus {
 }
 
 model Appointment {
-  id             String            @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client            @relation(fields: [clientId], references: [id])
+  client         Client    @relation(fields: [clientId], references: [id])
   patientId      String
-  patient        Patient           @relation(fields: [patientId], references: [id])
+  patient        Patient   @relation(fields: [patientId], references: [id])
   procedureId    String
-  procedure      Procedure         @relation(fields: [procedureId], references: [id])
+  procedure      Procedure @relation(fields: [procedureId], references: [id])
 
   scheduledAt     DateTime
   durationMinutes Int
@@ -560,22 +594,22 @@ enum CostType {
 }
 
 model Revenue {
-  id             String    @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client    @relation(fields: [clientId], references: [id])
+  client         Client       @relation(fields: [clientId], references: [id])
   patientId      String?
-  patient        Patient?  @relation(fields: [patientId], references: [id])
+  patient        Patient?     @relation(fields: [patientId], references: [id])
   procedureId    String?
-  procedure      Procedure? @relation(fields: [procedureId], references: [id])
-  appointmentId  String?    @unique
+  procedure      Procedure?   @relation(fields: [procedureId], references: [id])
+  appointmentId  String?      @unique
   appointment    Appointment? @relation(fields: [appointmentId], references: [id])
 
-  amount        Decimal @db.Decimal(12, 2)
+  amount        Decimal  @db.Decimal(12, 2)
   date          DateTime
   description   String?
   paymentMethod String?
-  installments  Int?    @default(1)
+  installments  Int?     @default(1)
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -612,15 +646,15 @@ model RevenueProcedure {
 }
 
 model Cost {
-  id             String    @id @default(cuid())
+  id             String             @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client    @relation(fields: [clientId], references: [id])
+  client         Client             @relation(fields: [clientId], references: [id])
   campaignId     String?
   campaign       MarketingCampaign? @relation(fields: [campaignId], references: [id])
   // Custo gerado automaticamente a partir de um procedimento de receita.
   revenueId      String?
-  revenue        Revenue?  @relation(fields: [revenueId], references: [id], onDelete: SetNull)
+  revenue        Revenue?           @relation(fields: [revenueId], references: [id], onDelete: SetNull)
 
   type         CostType
   category     String?
@@ -633,8 +667,8 @@ model Cost {
   // Self-relation: instances generated from a recurring template point back to it.
   // null on templates and on standalone costs; set on auto-generated children.
   recurringSourceId  String?
-  recurringSource    Cost?    @relation("RecurringInstances", fields: [recurringSourceId], references: [id], onDelete: SetNull)
-  recurringInstances Cost[]   @relation("RecurringInstances")
+  recurringSource    Cost?   @relation("RecurringInstances", fields: [recurringSourceId], references: [id], onDelete: SetNull)
+  recurringInstances Cost[]  @relation("RecurringInstances")
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -686,10 +720,10 @@ enum GoalMode {
 }
 
 model Goal {
-  id             String     @id @default(cuid())
+  id             String @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client     @relation(fields: [clientId], references: [id])
+  client         Client @relation(fields: [clientId], references: [id])
 
   metric      GoalMetric
   period      GoalPeriod
@@ -742,15 +776,15 @@ enum InsightStatus {
 }
 
 model Insight {
-  id             String          @id @default(cuid())
+  id             String @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client          @relation(fields: [clientId], references: [id])
+  client         Client @relation(fields: [clientId], references: [id])
 
-  ruleKey         String
-  category        InsightCategory
-  severity        InsightSeverity
-  status          InsightStatus   @default(OPEN)
+  ruleKey  String
+  category InsightCategory
+  severity InsightSeverity
+  status   InsightStatus   @default(OPEN)
 
   title           String
   diagnosis       String   @db.Text
@@ -808,13 +842,13 @@ enum ActivityPriority {
 }
 
 model Activity {
-  id             String           @id @default(cuid())
+  id             String         @id @default(cuid())
   organizationId String
   clientId       String?
-  client         Client?          @relation(fields: [clientId], references: [id])
+  client         Client?        @relation(fields: [clientId], references: [id])
   // ADMIN por padrão (toda atividade existente é da agência). Clínica grava
   // CLINIC. Queries de cada domínio filtram por este campo — ver §3.4.
-  domain         ActivityDomain   @default(ADMIN)
+  domain         ActivityDomain @default(ADMIN)
 
   title       String
   description String?          @db.Text
@@ -841,7 +875,7 @@ model Activity {
   // Evento ligado no calendário pessoal do responsável — quando a atividade
   // é criada com "Adicionar ao calendário". Edit/delete da atividade
   // sincroniza com o evento (handled na camada de actions).
-  calendarEvent    CalendarEvent?
+  calendarEvent CalendarEvent?
 
   @@index([organizationId, status])
   @@index([assignedToId, status])
@@ -873,7 +907,7 @@ model CalendarEvent {
   title    String
   startAt  DateTime
   endAt    DateTime?
-  notes    String?  @db.Text
+  notes    String?   @db.Text
   // Opcionais: cor (hex) e categoria livre (ex.: "Pessoal", "Reunião") para
   // visualização. Não afetam o filtro/permissão.
   color    String?
@@ -897,7 +931,7 @@ model OrgHoliday {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  date           String       // YYYY-MM-DD (sem TZ — feriado é dia inteiro)
+  date           String // YYYY-MM-DD (sem TZ — feriado é dia inteiro)
   name           String
   createdAt      DateTime     @default(now())
 
@@ -919,10 +953,10 @@ enum DealStage {
 }
 
 model PipelineDeal {
-  id             String    @id @default(cuid())
+  id             String @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client    @relation(fields: [clientId], references: [id])
+  client         Client @relation(fields: [clientId], references: [id])
 
   stage           DealStage @default(PROSPECT)
   // Posição manual dentro da coluna. Usa Float fracionário para permitir
@@ -953,21 +987,21 @@ model PipelineDeal {
 // =====================================================
 
 model KpiSnapshot {
-  id             String   @id @default(cuid())
+  id             String @id @default(cuid())
   organizationId String
   clientId       String
-  client         Client   @relation(fields: [clientId], references: [id])
+  client         Client @relation(fields: [clientId], references: [id])
 
   periodType  String
   periodStart DateTime
   periodEnd   DateTime
 
-  leadsCount        Int     @default(0)
-  appointmentsCount Int     @default(0)
-  attendedCount     Int     @default(0)
-  noShowCount       Int     @default(0)
-  conversionRate    Decimal? @db.Decimal(5, 4)
-  noShowRate        Decimal? @db.Decimal(5, 4)
+  leadsCount            Int      @default(0)
+  appointmentsCount     Int      @default(0)
+  attendedCount         Int      @default(0)
+  noShowCount           Int      @default(0)
+  conversionRate        Decimal? @db.Decimal(5, 4)
+  noShowRate            Decimal? @db.Decimal(5, 4)
   avgTimeToFirstContact Int?
 
   totalRevenue  Decimal  @default(0) @db.Decimal(15, 2)

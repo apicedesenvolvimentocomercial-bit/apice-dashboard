@@ -94,7 +94,7 @@ export function InviteStaffDialog({ open, onOpenChange }: Props) {
               name="role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Cargo</FormLabel>
+                  <FormLabel>Tipo de acesso</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -102,8 +102,8 @@ export function InviteStaffDialog({ open, onOpenChange }: Props) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="STAFF">STAFF — acesso operacional</SelectItem>
-                      <SelectItem value="ADMIN">ADMIN — acesso total</SelectItem>
+                      <SelectItem value="STAFF">Membro — receberá um cargo depois</SelectItem>
+                      <SelectItem value="ADMIN">Acesso total (admin)</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
