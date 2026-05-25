@@ -62,10 +62,29 @@ export function ClinicDashboard({ data, visibility }: Props) {
   const showFinancial = vis('financialKpis')
   const showKpiGrid = showCommercial || showFinancial
 
+  // Bloco de gráficos: coluna esquerda (2/3) = gráficos de receita empilhados;
+  // coluna direita (1/3) = Funil + Origem dos leads empilhados (a Origem
+  // preenche o vão abaixo do funil). Como a contagem visível varia por cargo,
+  // só usamos o layout 2-colunas quando há conteúdo dos DOIS lados; senão o
+  // que sobra estica para a largura toda (sem vão lateral).
+  const showRevGenerated = vis('revenueCharts', 'revenueGenerated')
+  const showRevReceived = vis('revenueCharts', 'revenueReceived')
+  const showFunnel = vis('revenueCharts', 'funnel')
+  const showLeadsSource = vis('distributions', 'leadsBySource')
+  const showRevByProcedure = vis('distributions', 'revenueByProcedure')
+
+  const hasRevenueCol = showRevGenerated || showRevReceived // coluna esquerda
+  const hasSideCol = showFunnel || showLeadsSource // coluna direita
+  const chartsTwoCol = hasRevenueCol && hasSideCol
+  const showChartsBlock = hasRevenueCol || hasSideCol
+
   return (
     <div className="space-y-6">
       {showKpiGrid && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        // Grid fluido: os cards preenchem o espaço sozinhos via auto-fill, então
+        // qualquer nº de KPIs visíveis (1 a 16, conforme o cargo) flui sem deixar
+        // buraco nem card órfão. minmax garante largura mínima legível + esticar.
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4">
           {vis('commercialKpis', 'leads') && (
             <KpiCard label="Leads totais" value={String(kpis.commercial.leadsCount)} />
           )}
@@ -274,116 +293,128 @@ export function ClinicDashboard({ data, visibility }: Props) {
         </div>
       )}
 
-      {(vis('revenueCharts', 'revenueGenerated') ||
-        vis('revenueCharts', 'revenueReceived') ||
-        vis('revenueCharts', 'funnel')) && (
-        <div className="grid items-start gap-4 lg:grid-cols-3">
-          <div className="grid gap-4 lg:col-span-2">
-            {vis('revenueCharts', 'revenueGenerated') && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-1.5 text-base">
-                    <span>Receita gerada x Custos — últimos 12 meses</span>
-                    <InfoHint label="Receita gerada x Custos">
-                      <p className="font-medium text-foreground">Receita gerada</p>
-                      <p className="mt-1">
-                        Soma do valor cheio das vendas no mês em que foram lançadas, independente do
-                        parcelamento. É a referência contábil de quanto foi faturado.
-                      </p>
-                      <p className="mt-2">
-                        <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
-                        parcelado em 12x e vendido em maio aparece como{' '}
-                        <span className="font-medium">R$ 5.000 em maio</span> aqui.
-                      </p>
-                    </InfoHint>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <RevenueCostBars data={revenueByMonth} revenueName="Receita gerada" />
-                </CardContent>
-              </Card>
-            )}
-            {vis('revenueCharts', 'revenueReceived') && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-1.5 text-base">
-                    <span>Receita recebida x Custos</span>
-                    <InfoHint label="Receita recebida x Custos">
-                      <p className="font-medium text-foreground">Receita recebida</p>
-                      <p className="mt-1">
-                        Simulação do fluxo de caixa: o valor da venda é distribuído pelos meses
-                        conforme o número de parcelas. Cada mês mostra o que efetivamente entra no
-                        caixa.
-                      </p>
-                      <p className="mt-2">
-                        <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
-                        parcelado em 12x vendido em maio aparece como{' '}
-                        <span className="font-medium">R$ 416,67 em maio</span> e o mesmo valor em
-                        cada um dos 11 meses seguintes (até abril do ano seguinte).
-                      </p>
-                      <p className="mt-2">
-                        <span className="font-medium">Custos futuros:</span> incluem a projeção dos
-                        custos fixos cadastrados (custos recorrentes ainda não lançados). Mudanças
-                        nesses custos refletem aqui automaticamente.
-                      </p>
-                      <p className="mt-2 text-muted-foreground">
-                        Use as setas para navegar pelos meses anteriores e posteriores. O mês
-                        central fica sempre destacado no rodapé do gráfico.
-                      </p>
-                    </InfoHint>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ReceivedRevenueChart data={receivedByMonth} centerIndex={receivedCenterIndex} />
-                </CardContent>
-              </Card>
-            )}
-          </div>
-          {vis('revenueCharts', 'funnel') && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Funil de conversão</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <FunnelBars data={funnel} />
-              </CardContent>
-            </Card>
+      {showChartsBlock && (
+        // 2/3 + 1/3 só quando há conteúdo dos dois lados; senão a coluna presente
+        // estica para a largura toda (sem vão lateral feio quando o cargo esconde).
+        <div
+          className={
+            chartsTwoCol ? 'grid items-start gap-4 lg:grid-cols-3' : 'grid items-start gap-4'
+          }
+        >
+          {hasRevenueCol && (
+            <div className={chartsTwoCol ? 'grid gap-4 lg:col-span-2' : 'grid gap-4'}>
+              {showRevGenerated && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-1.5 text-base">
+                      <span>Receita gerada x Custos — últimos 12 meses</span>
+                      <InfoHint label="Receita gerada x Custos">
+                        <p className="font-medium text-foreground">Receita gerada</p>
+                        <p className="mt-1">
+                          Soma do valor cheio das vendas no mês em que foram lançadas, independente
+                          do parcelamento. É a referência contábil de quanto foi faturado.
+                        </p>
+                        <p className="mt-2">
+                          <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
+                          parcelado em 12x e vendido em maio aparece como{' '}
+                          <span className="font-medium">R$ 5.000 em maio</span> aqui.
+                        </p>
+                      </InfoHint>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <RevenueCostBars data={revenueByMonth} revenueName="Receita gerada" />
+                  </CardContent>
+                </Card>
+              )}
+              {showRevReceived && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-1.5 text-base">
+                      <span>Receita recebida x Custos</span>
+                      <InfoHint label="Receita recebida x Custos">
+                        <p className="font-medium text-foreground">Receita recebida</p>
+                        <p className="mt-1">
+                          Simulação do fluxo de caixa: o valor da venda é distribuído pelos meses
+                          conforme o número de parcelas. Cada mês mostra o que efetivamente entra no
+                          caixa.
+                        </p>
+                        <p className="mt-2">
+                          <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
+                          parcelado em 12x vendido em maio aparece como{' '}
+                          <span className="font-medium">R$ 416,67 em maio</span> e o mesmo valor em
+                          cada um dos 11 meses seguintes (até abril do ano seguinte).
+                        </p>
+                        <p className="mt-2">
+                          <span className="font-medium">Custos futuros:</span> incluem a projeção
+                          dos custos fixos cadastrados (custos recorrentes ainda não lançados).
+                          Mudanças nesses custos refletem aqui automaticamente.
+                        </p>
+                        <p className="mt-2 text-muted-foreground">
+                          Use as setas para navegar pelos meses anteriores e posteriores. O mês
+                          central fica sempre destacado no rodapé do gráfico.
+                        </p>
+                      </InfoHint>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ReceivedRevenueChart
+                      data={receivedByMonth}
+                      centerIndex={receivedCenterIndex}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {hasSideCol && (
+            // Coluna direita: Funil + Origem dos leads empilhados. A Origem
+            // encaixa no espaço que sobra ao lado dos gráficos de receita.
+            <div className="grid gap-4">
+              {showFunnel && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Funil de conversão</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FunnelBars data={funnel} />
+                  </CardContent>
+                </Card>
+              )}
+              {showLeadsSource && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Origem dos leads</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <SharePieChart
+                      data={leadsBySource.map((s) => ({
+                        name: LEAD_SOURCE_LABEL[s.source] ?? s.source,
+                        value: s.count,
+                      }))}
+                      valueFormat="count"
+                      unitLabel="leads"
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
         </div>
       )}
 
-      {(vis('distributions', 'revenueByProcedure') || vis('distributions', 'leadsBySource')) && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {vis('distributions', 'revenueByProcedure') && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Receita por procedimento</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <HorizontalBarChart
-                  data={revenueByProcedure.map((p) => ({ label: p.name, value: p.total }))}
-                />
-              </CardContent>
-            </Card>
-          )}
-          {vis('distributions', 'leadsBySource') && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Origem dos leads</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <SharePieChart
-                  data={leadsBySource.map((s) => ({
-                    name: LEAD_SOURCE_LABEL[s.source] ?? s.source,
-                    value: s.count,
-                  }))}
-                  valueFormat="count"
-                  unitLabel="leads"
-                />
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      {showRevByProcedure && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Receita por procedimento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={revenueByProcedure.map((p) => ({ label: p.name, value: p.total }))}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {(vis('tracking', 'insights') || vis('tracking', 'goals')) && (
