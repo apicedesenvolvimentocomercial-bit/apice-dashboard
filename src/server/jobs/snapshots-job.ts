@@ -28,7 +28,13 @@ async function persistSnapshot(opts: {
   prisma: typeof defaultPrisma
 }) {
   const { organizationId, clientId, periodType, range, prisma } = opts
-  const ctx = { organizationId, userId: 'system', role: 'ADMIN' as const, clientId: null }
+  const ctx = {
+    organizationId,
+    userId: 'system',
+    role: 'ADMIN' as const,
+    clientId: null,
+    clinicRoleId: null,
+  }
   const kpi = await computeClinicKpis(ctx, clientId, range)
 
   const data = {

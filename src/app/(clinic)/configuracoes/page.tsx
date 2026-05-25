@@ -4,9 +4,13 @@ import { ClinicSettingsForm } from '@/components/clinic/settings/clinic-settings
 import { ChangePasswordForm } from '@/components/shared/settings/change-password-form'
 import { ProfileForm } from '@/components/shared/settings/profile-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ClinicRolesManager } from '@/modules/clinic-roles/clinic-roles-manager'
 import { getClinicContext } from '@/server/auth/clinic-context'
+import { parseClinicRolePermissions } from '@/server/auth/clinic-permissions'
 import { findClientById } from '@/server/repositories/client-repository'
+import { listClinicRoles, listClinicUsers } from '@/server/repositories/clinic-role-repository'
 import { findUserProfileById } from '@/server/repositories/user-repository'
+import { prisma } from '@/lib/prisma'
 
 export const metadata: Metadata = { title: 'Configurações' }
 
@@ -20,11 +24,44 @@ export const metadata: Metadata = { title: 'Configurações' }
 export default async function ClinicSettingsPage() {
   const ctx = await getClinicContext()
 
-  const [profile, client] = await Promise.all([
+  // Pode gerenciar cargos? Titular (coroa) ou cargo com canManageRoles.
+  let canManageRoles = ctx.isOwner
+  if (!canManageRoles && ctx.clinicRoleId) {
+    const role = await prisma.clinicRole.findUnique({
+      where: { id: ctx.clinicRoleId },
+      select: { canManageRoles: true },
+    })
+    canManageRoles = !!role?.canManageRoles
+  }
+
+  const [profile, client, roles, users] = await Promise.all([
     findUserProfileById(ctx.userId),
     findClientById(ctx, ctx.clientId),
+    canManageRoles ? listClinicRoles(ctx) : Promise.resolve([]),
+    canManageRoles ? listClinicUsers(ctx) : Promise.resolve([]),
   ])
-  const isOwner = ctx.role === 'CLIENT_OWNER'
+  // Dados sensíveis da clínica: só o TITULAR edita (Bloco B). O card antes usava
+  // qualquer CLIENT_OWNER; agora reflete a coroa real.
+  const isOwner = ctx.isOwner
+
+  const roleItems = roles.map((r) => ({
+    id: r.id,
+    name: r.name,
+    permissions: parseClinicRolePermissions(r.permissions),
+    canManageRoles: r.canManageRoles,
+    isSystem: r.isSystem,
+    userCount: r._count.users,
+  }))
+  const userItems = users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role as 'CLIENT_OWNER' | 'CLIENT_STAFF',
+    isActive: u.isActive,
+    isOwner: u.isOwner,
+    clinicRoleId: u.clinicRoleId,
+    clinicRoleName: u.clinicRole?.name ?? null,
+  }))
 
   return (
     <div className="space-y-6">
@@ -75,6 +112,10 @@ export default async function ClinicSettingsPage() {
             />
           </CardContent>
         </Card>
+      )}
+
+      {canManageRoles && (
+        <ClinicRolesManager roles={roleItems} users={userItems} viewerIsOwner={ctx.isOwner} />
       )}
     </div>
   )

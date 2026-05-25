@@ -8,6 +8,7 @@ declare module 'next-auth' {
       role: UserRole
       organizationId: string | null
       clientId: string | null
+      clinicRoleId: string | null
     } & DefaultSession['user']
   }
 }
@@ -18,6 +19,7 @@ declare module 'next-auth/jwt' {
     role: UserRole
     organizationId: string | null
     clientId: string | null
+    clinicRoleId: string | null
     // Epoch ms do último re-sync com o DB (throttle de 10 min no jwt callback).
     syncedAt: number
   }

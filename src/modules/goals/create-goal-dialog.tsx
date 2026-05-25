@@ -25,9 +25,18 @@ import {
 } from '@/components/ui/select'
 import { createGoalAction } from '@/server/actions/goal-actions'
 
-import { METRIC_LABEL, PERIOD_LABEL, type GoalView } from './types'
+import { METRIC_LABEL, PERIOD_LABEL, type GoalAssignTarget, type GoalView } from './types'
 
-type Props = { clientId: string }
+type Props = {
+  clientId: string
+  // Etapa 2: alvos p/ atribuição. Vazios + canAssign=false ⇒ só meta da clínica.
+  users?: GoalAssignTarget[]
+  roles?: GoalAssignTarget[]
+  canAssign?: boolean
+}
+
+type ScopeType = 'CLINIC' | 'USER' | 'ROLE'
+type Mode = 'INDIVIDUAL' | 'SHARED'
 
 const METRICS = Object.keys(METRIC_LABEL) as GoalView['metric'][]
 const PERIODS = Object.keys(PERIOD_LABEL) as GoalView['period'][]
@@ -44,7 +53,7 @@ function defaultEndForPeriod(period: GoalView['period']): string {
   return d.toISOString().slice(0, 10)
 }
 
-export function CreateGoalDialog({ clientId }: Props) {
+export function CreateGoalDialog({ clientId, users = [], roles = [], canAssign = false }: Props) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -54,6 +63,12 @@ export function CreateGoalDialog({ clientId }: Props) {
   const [startDate, setStartDate] = useState(isoToday())
   const [endDate, setEndDate] = useState(defaultEndForPeriod('MONTHLY'))
   const [notes, setNotes] = useState('')
+
+  // Escopo (Etapa 2). Só aparece se o usuário pode atribuir a outros.
+  const [scopeType, setScopeType] = useState<ScopeType>('CLINIC')
+  const [mode, setMode] = useState<Mode>('INDIVIDUAL')
+  const [assigneeUserId, setAssigneeUserId] = useState('')
+  const [assigneeRoleId, setAssigneeRoleId] = useState('')
 
   const handlePeriodChange = (next: GoalView['period']) => {
     setPeriod(next)
@@ -70,12 +85,17 @@ export function CreateGoalDialog({ clientId }: Props) {
         startDate,
         endDate,
         notes: notes || undefined,
+        scopeType,
+        mode: scopeType === 'CLINIC' ? 'SHARED' : mode,
+        assigneeUserId: scopeType === 'USER' ? assigneeUserId || null : null,
+        assigneeRoleId: scopeType === 'ROLE' ? assigneeRoleId || null : null,
       })
       if (r.success) {
         toast.success('Meta criada')
         setOpen(false)
         setTargetValue('')
         setNotes('')
+        setScopeType('CLINIC')
       } else {
         toast.error(r.error.message)
       }
@@ -130,6 +150,80 @@ export function CreateGoalDialog({ clientId }: Props) {
               </Select>
             </div>
           </div>
+
+          {canAssign && (
+            <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+              <div className="space-y-1">
+                <Label>Para quem é a meta?</Label>
+                <Select value={scopeType} onValueChange={(v) => setScopeType(v as ScopeType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CLINIC">Clínica (coletiva)</SelectItem>
+                    <SelectItem value="USER">Um usuário</SelectItem>
+                    <SelectItem value="ROLE">Um cargo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {scopeType === 'USER' && (
+                <div className="space-y-1">
+                  <Label>Usuário</Label>
+                  <Select value={assigneeUserId} onValueChange={setAssigneeUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {scopeType === 'ROLE' && (
+                <div className="space-y-1">
+                  <Label>Cargo</Label>
+                  <Select value={assigneeRoleId} onValueChange={setAssigneeRoleId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {scopeType !== 'CLINIC' && (
+                <div className="space-y-1">
+                  <Label>Modo</Label>
+                  <Select value={mode} onValueChange={(v) => setMode(v as Mode)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="INDIVIDUAL">Individual — cada um cumpre a cota</SelectItem>
+                      <SelectItem value="SHARED">Compartilhada — soma do grupo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {mode === 'INDIVIDUAL'
+                      ? 'O valor alvo vale para cada pessoa.'
+                      : 'O valor alvo é a soma de todos juntos.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1">
             <Label htmlFor="target">Valor alvo</Label>

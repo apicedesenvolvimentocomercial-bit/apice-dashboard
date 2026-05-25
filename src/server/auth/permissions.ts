@@ -1,6 +1,11 @@
 import type { UserRole } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
+import {
+  clinicRoleCan,
+  parseClinicRolePermissions,
+  type ClinicPermAction,
+} from './clinic-permissions'
 
 const ROLE_DEFAULTS: Record<
   UserRole,
@@ -52,8 +57,21 @@ const ROLE_DEFAULTS: Record<
   },
 }
 
-type Action = 'read' | 'write' | 'delete'
+type Action = ClinicPermAction
 
+const CLINIC_ROLES: ReadonlySet<UserRole> = new Set<UserRole>(['CLIENT_OWNER', 'CLIENT_STAFF'])
+
+/**
+ * Resolução de permissão (ver `prompt/cargos-progresso.md`):
+ *   1. ADMIN → `*` (tudo).
+ *   2. Titular da clínica (Client.ownerId === userId) → tudo (a coroa).
+ *   3. Role de clínica COM cargo (clinicRoleId) → lê ClinicRole.permissions.
+ *   4. Fallback (sem cargo / STAFF) → ROLE_DEFAULTS + override UserPermission.
+ *
+ * As ações `assignToOthers`/`viewAll` só são concedidas pelo cargo (3) ou pela
+ * coroa/ADMIN (1,2); no fallback (4) elas nunca passam — o caller que usa essas
+ * ações deve tratar a ausência de cargo como "só vê/edita o que é seu".
+ */
 export async function can(
   userId: string,
   role: UserRole,
@@ -62,10 +80,32 @@ export async function can(
 ): Promise<boolean> {
   if (role === 'ADMIN') return true
 
+  // Roles de clínica: titularidade (coroa) e cargo configurável têm prioridade.
+  if (CLINIC_ROLES.has(role)) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        clinicRoleId: true,
+        ownedClient: { select: { id: true } },
+        clinicRole: { select: { permissions: true } },
+      },
+    })
+    // Titular da clínica = acesso total.
+    if (user?.ownedClient) return true
+    // Tem cargo → decide pelo JSON do cargo.
+    if (user?.clinicRole) {
+      return clinicRoleCan(parseClinicRolePermissions(user.clinicRole.permissions), module, action)
+    }
+    // Sem cargo e sem coroa → cai no fallback de ROLE_DEFAULTS abaixo.
+  }
+
   const defaults = ROLE_DEFAULTS[role]
   const defaultPerm = defaults[module] ?? defaults['*']
 
   if (!defaultPerm) return false
+
+  // Ações que o fallback (ROLE_DEFAULTS/UserPermission) não modela.
+  if (action === 'assignToOthers' || action === 'viewAll') return false
 
   // Verifica override granular salvo no banco
   const override = await prisma.userPermission.findUnique({
@@ -81,8 +121,15 @@ export async function can(
   return false
 }
 
+/**
+ * Versão síncrona — NÃO consulta o DB, então NÃO enxerga cargo (ClinicRole) nem
+ * titularidade. Use só onde o cargo é irrelevante (defaults de role) e nunca
+ * como gate de segurança para roles de clínica com cargo. As ações novas
+ * (`assignToOthers`/`viewAll`) não são modeladas no sync ⇒ false.
+ */
 export function canSync(role: UserRole, module: string, action: Action): boolean {
   if (role === 'ADMIN') return true
+  if (action === 'assignToOthers' || action === 'viewAll') return false
   const defaults = ROLE_DEFAULTS[role]
   const perm = defaults[module] ?? defaults['*']
   if (!perm) return false

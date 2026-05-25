@@ -12,7 +12,7 @@ import { updateOrganization } from '@/server/repositories/organization-repositor
 import { updateClient } from '@/server/repositories/client-repository'
 import { updateUserProfile } from '@/server/repositories/user-repository'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
-import { ConflictError, fail, ok, runAction } from '@/types/errors'
+import { ConflictError, fail, ForbiddenError, ok, runAction } from '@/types/errors'
 
 const updateOrgSchema = z.object({
   name: z.string().trim().min(2, 'Nome muito curto'),
@@ -117,6 +117,16 @@ export async function updateClinicSettingsAction(
     const { clientId, email, ...rest } = parsed.data
     await assertClientAccess(ctx, clientId)
     await assertCan(ctx, 'settings', 'write')
+
+    // Dados sensíveis da clínica (nome, email, cidade, telefone, estado) só o
+    // TITULAR altera (Etapa 1 — D9), mesmo que outro cargo tenha settings:write.
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { ownerId: true },
+    })
+    if (client?.ownerId !== ctx.userId) {
+      throw new ForbiddenError('Apenas o titular da clínica pode alterar os dados da clínica')
+    }
 
     await updateClient(ctx, clientId, {
       ...rest,

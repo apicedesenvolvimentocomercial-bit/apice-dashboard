@@ -40,6 +40,7 @@ export const authConfig = {
             role: true,
             organizationId: true,
             clientId: true,
+            clinicRoleId: true,
             passwordHash: true,
             isActive: true,
           },
@@ -64,6 +65,7 @@ export const authConfig = {
           role: user.role,
           organizationId: user.organizationId,
           clientId: user.clientId,
+          clinicRoleId: user.clinicRoleId,
         }
       },
     }),
@@ -75,6 +77,7 @@ export const authConfig = {
         token.role = (user as { role: string }).role
         token.organizationId = (user as { organizationId: string | null }).organizationId
         token.clientId = (user as { clientId: string | null }).clientId
+        token.clinicRoleId = (user as { clinicRoleId: string | null }).clinicRoleId
         token.syncedAt = Date.now()
         return token
       }
@@ -89,12 +92,13 @@ export const authConfig = {
       if (token.id && Date.now() - last > TEN_MIN) {
         const fresh = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { organizationId: true, role: true, clientId: true },
+          select: { organizationId: true, role: true, clientId: true, clinicRoleId: true },
         })
         if (fresh) {
           token.organizationId = fresh.organizationId
           token.role = fresh.role
           token.clientId = fresh.clientId
+          token.clinicRoleId = fresh.clinicRoleId
         }
         token.syncedAt = Date.now()
       }
@@ -106,6 +110,7 @@ export const authConfig = {
         session.user.role = token.role as import('@prisma/client').UserRole
         session.user.organizationId = token.organizationId as string | null
         session.user.clientId = token.clientId as string | null
+        session.user.clinicRoleId = token.clinicRoleId as string | null
       }
       return session
     },

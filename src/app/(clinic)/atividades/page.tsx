@@ -4,6 +4,7 @@ import { ClinicActivitiesPage } from '@/components/clinic/activities/clinic-acti
 import { getClinicActivitiesPage } from '@/domains/clinic/activities/activity-queries'
 import type { ActivityView } from '@/components/shared/activities/types'
 import { auth } from '@/server/auth'
+import { gateClinicTab } from '@/server/auth/clinic-tabs'
 
 export const metadata: Metadata = { title: 'Atividades' }
 
@@ -16,6 +17,7 @@ function parseView(v: string | undefined): 'today' | 'week' | 'overdue' | 'all' 
 }
 
 export default async function ClinicAtividadesRoute({ searchParams }: Props) {
+  await gateClinicTab('activities')
   const sp = await searchParams
   const view = parseView(sp.view)
 

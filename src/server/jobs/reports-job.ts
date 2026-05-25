@@ -53,6 +53,7 @@ export async function runReportsJob(now: Date = new Date()) {
         role: 'ADMIN' as const,
         userId: 'cron',
         clientId: null,
+        clinicRoleId: null,
       }
       const kpis = await computeClinicKpis(ctx, client.id, range)
 

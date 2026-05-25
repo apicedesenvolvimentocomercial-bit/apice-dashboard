@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 
 import { auth } from '@/server/auth'
+import { gateClinicTab } from '@/server/auth/clinic-tabs'
 import { ProceduresTab } from '@/modules/financial/procedures-tab'
 import { getClinicProceduresWithStats } from '@/domains/clinic/procedures/procedure-queries'
 
 export const metadata: Metadata = { title: 'Procedimentos' }
 
 export default async function ClientProceduresPage() {
+  await gateClinicTab('procedures')
   const session = await auth()
   const clientId = session?.user?.clientId
 

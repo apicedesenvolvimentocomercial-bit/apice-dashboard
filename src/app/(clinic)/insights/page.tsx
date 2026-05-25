@@ -2,11 +2,13 @@ import type { Metadata } from 'next'
 
 import { InsightsPage } from '@/modules/insights/insights-page'
 import { auth } from '@/server/auth'
+import { gateClinicTab } from '@/server/auth/clinic-tabs'
 import { getClinicInsights } from '@/domains/clinic/insights/insight-queries'
 
 export const metadata: Metadata = { title: 'Insights' }
 
 export default async function ClientInsightsPage() {
+  await gateClinicTab('insights')
   const session = await auth()
   const clientId = session?.user?.clientId
   if (!clientId) {

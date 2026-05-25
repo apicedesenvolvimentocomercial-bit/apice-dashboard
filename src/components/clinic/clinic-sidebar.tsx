@@ -46,8 +46,24 @@ function buildClinicNav(role: ClinicRole): NavItem[] {
  * calendário pessoal não tem item próprio: vive embutido na aba Agenda
  * (`/appointments`, Fase 4). O branch interno (owner vs staff) é só rótulo de
  * permissão intra-clínica, não escolha de domínio.
+ *
+ * `visibleHrefs` (Etapa 1 — cargos): só os hrefs liberados pelo cargo são
+ * renderizados. Calculado server-side no layout via `getVisibleTabs`; ausente
+ * (undefined) = mostra tudo (titular / fallback). O gate de rota é redundante
+ * no server (`assertTabAccess`) — a sidebar é só a camada visual.
  */
-export function ClinicSidebar({ role }: { role: ClinicRole }) {
-  const navItems = useMemo(() => buildClinicNav(role), [role])
+export function ClinicSidebar({
+  role,
+  visibleHrefs,
+}: {
+  role: ClinicRole
+  visibleHrefs?: string[]
+}) {
+  const navItems = useMemo(() => {
+    const items = buildClinicNav(role)
+    if (!visibleHrefs) return items
+    const allowed = new Set(visibleHrefs)
+    return items.filter((item) => allowed.has(item.href))
+  }, [role, visibleHrefs])
   return <SidebarShell navItems={navItems} />
 }

@@ -1,4 +1,4 @@
-import type { GoalMetric, GoalPeriod } from '@prisma/client'
+import type { GoalMetric, GoalMode, GoalPeriod, GoalScopeType } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
@@ -33,6 +33,10 @@ export async function createGoal(
     startDate: Date
     endDate: Date
     notes?: string
+    scopeType?: GoalScopeType
+    mode?: GoalMode
+    assigneeUserId?: string | null
+    assigneeRoleId?: string | null
   }
 ) {
   return prisma.goal.create({
@@ -69,36 +73,44 @@ export async function softDeleteGoal(ctx: TenantContext, goalId: string) {
   })
 }
 
+/**
+ * Progresso atual de uma meta. Com `assigneeUserId` (escopo USER individual), o
+ * progresso é medido pelo AUTOR do registro (Etapa 2 — decisão: usar o autor):
+ *   REVENUE → Revenue.createdById · LEADS → Lead.assignedToId ·
+ *   APPOINTMENTS → Appointment.createdById · NEW_PATIENTS → Patient.createdById.
+ * Sem `assigneeUserId`, mede o total da clínica (metas CLINIC ou SHARED).
+ */
 export async function getCurrentGoalValue(
   ctx: TenantContext,
   clientId: string,
-  goal: { metric: string; startDate: Date; endDate: Date }
+  goal: { metric: string; startDate: Date; endDate: Date },
+  assigneeUserId?: string | null
 ): Promise<number> {
   const range = { gte: goal.startDate, lte: goal.endDate }
+  const base = { organizationId: ctx.organizationId, clientId, deletedAt: null }
+  // Filtro por autor — coluna varia por métrica.
+  const byUser = (col: 'createdById' | 'assignedToId') =>
+    assigneeUserId ? { [col]: assigneeUserId } : {}
+
   switch (goal.metric) {
     case 'REVENUE': {
       const r = await prisma.revenue.aggregate({
-        where: { organizationId: ctx.organizationId, clientId, deletedAt: null, date: range },
+        where: { ...base, date: range, ...byUser('createdById') },
         _sum: { amount: true },
       })
       return Number(r._sum.amount ?? 0)
     }
     case 'LEADS':
       return prisma.lead.count({
-        where: { organizationId: ctx.organizationId, clientId, deletedAt: null, createdAt: range },
+        where: { ...base, createdAt: range, ...byUser('assignedToId') },
       })
     case 'APPOINTMENTS':
       return prisma.appointment.count({
-        where: {
-          organizationId: ctx.organizationId,
-          clientId,
-          deletedAt: null,
-          scheduledAt: range,
-        },
+        where: { ...base, scheduledAt: range, ...byUser('createdById') },
       })
     case 'NEW_PATIENTS':
       return prisma.patient.count({
-        where: { organizationId: ctx.organizationId, clientId, deletedAt: null, createdAt: range },
+        where: { ...base, createdAt: range, ...byUser('createdById') },
       })
     case 'CONVERSION_RATE':
     case 'NO_SHOW_RATE':

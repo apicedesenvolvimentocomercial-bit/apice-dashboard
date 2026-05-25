@@ -11,10 +11,12 @@ import { getClinicCalendar } from '@/domains/clinic/calendar/calendar-queries'
 import { getClinicPatients } from '@/domains/clinic/patients/patient-queries'
 import { AppointmentsCalendar } from '@/modules/appointments/appointments-calendar'
 import { auth } from '@/server/auth'
+import { gateClinicTab } from '@/server/auth/clinic-tabs'
 
 export const metadata: Metadata = { title: 'Agendamentos' }
 
 export default async function ClientAppointmentsPage() {
+  await gateClinicTab('appointments')
   const session = await auth()
   const clientId = session?.user?.clientId
 

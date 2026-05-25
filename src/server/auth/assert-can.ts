@@ -1,6 +1,7 @@
 import { ForbiddenError } from '@/types/errors'
 
 import { can } from './permissions'
+import type { ClinicPermAction } from './clinic-permissions'
 import type { TenantContext } from '@/server/tenant/context'
 
 /**
@@ -14,7 +15,7 @@ import type { TenantContext } from '@/server/tenant/context'
 export async function assertCan(
   ctx: Pick<TenantContext, 'userId' | 'role'>,
   module: string,
-  action: 'read' | 'write' | 'delete'
+  action: ClinicPermAction
 ): Promise<void> {
   const ok = await can(ctx.userId, ctx.role, module, action)
   if (!ok) {

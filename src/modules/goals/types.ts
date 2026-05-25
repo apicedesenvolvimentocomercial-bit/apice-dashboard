@@ -17,7 +17,14 @@ export type GoalView = {
   startDate: Date
   endDate: Date
   notes: string | null
+  // Etapa 2 — escopo.
+  scopeType: 'CLINIC' | 'USER' | 'ROLE'
+  mode: 'INDIVIDUAL' | 'SHARED'
+  scopeLabel: string
+  memberUserId: string | null
 }
+
+export type GoalAssignTarget = { id: string; name: string }
 
 export const METRIC_LABEL: Record<GoalView['metric'], string> = {
   REVENUE: 'Receita',
