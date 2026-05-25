@@ -82,6 +82,14 @@ Isolamento entre clínicas no **nível do banco**, além do filtro de app:
   senão nasce sem defesa no banco. Raw queries não passam pela extensão — evite-as para
   dado de clínica, ou injete a GUC manualmente. A RLS é a 2ª camada; **nunca** remova o
   filtro de app "porque agora tem RLS".
+- **SEMPRE fixe o escopo de RLS em todo entrypoint de clínica.** Páginas/actions/queries
+  da clínica resolvem via `getClinicContext()`, que já chama `enterClientScope`. Mas
+  **entrypoints que NÃO passam por ele** — rotas de API (`src/app/api/**`), jobs, webhooks —
+  rodam com GUC nula (= contexto admin, policy libera a org inteira) e a RLS fica inerte.
+  Em qualquer rota/handler que sirva dado de UMA clínica, chame `enterClientScope(clientId)`
+  logo após `assertClientAccess(ctx, clientId)` (ver `api/reports/[clientId]` e
+  `api/export/[clientId]`). Jobs cross-clínica (crons admin) são exceção legítima: GUC nula
+  é o correto. Cobertura: `e2e/clinic-isolation.spec.ts` (rotas) + `npm run rls:check` (banco).
 
 ## Cores / tema (dark-mode-safe)
 

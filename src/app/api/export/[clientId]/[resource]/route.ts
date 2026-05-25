@@ -4,6 +4,7 @@ import { ptBR } from 'date-fns/locale'
 
 import { auth } from '@/server/auth'
 import { getTenantContext, assertClientAccess } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { ForbiddenError } from '@/types/errors'
@@ -84,6 +85,11 @@ export async function GET(req: Request, { params }: { params: Promise<Params> })
   try {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    // Ativa a 2ª camada (RLS): injeta a GUC `app.current_client_id` em todas as
+    // queries Prisma seguintes deste request (ver `prompt/rls-gambiarra.md`). Sem
+    // isso a rota roda como contexto admin (GUC nula) e o isolamento desta clínica
+    // dependeria só do `clientId` literal nos `where` abaixo.
+    enterClientScope(clientId)
 
     const url = new URL(req.url)
     const from = url.searchParams.get('from')

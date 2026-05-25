@@ -5,6 +5,7 @@ import React from 'react'
 
 import { auth } from '@/server/auth'
 import { getTenantContext, assertClientAccess } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { prisma } from '@/lib/prisma'
 import { computeClinicKpis } from '@/server/services/kpi/clinic-kpis'
 import { resolvePeriod } from '@/server/services/kpi/period'
@@ -28,6 +29,11 @@ export async function GET(req: Request, { params }: { params: Promise<Params> })
   try {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    // Ativa a 2ª camada (RLS): injeta a GUC `app.current_client_id` em todas as
+    // queries Prisma seguintes deste request (ver `prompt/rls-gambiarra.md`). Sem
+    // isso a rota roda como contexto admin (GUC nula). Também faz os helpers do
+    // revenue-repository (`scopedTransaction`) setarem a GUC corretamente.
+    enterClientScope(clientId)
 
     const url = new URL(req.url)
     const fromStr = url.searchParams.get('from')
