@@ -159,7 +159,10 @@ export async function getAuditFilterOptions(ctx: TenantContext) {
       orderBy: { name: 'asc' },
     }),
     prisma.client.findMany({
-      where: { organizationId: ctx.organizationId },
+      // Exclui clínicas soft-deleted (deletedAt setado) — senão uma clínica
+      // apagada ainda apareceria no dropdown de filtro. Mesmo critério da
+      // busca de `users` acima.
+      where: { organizationId: ctx.organizationId, deletedAt: null },
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     }),
