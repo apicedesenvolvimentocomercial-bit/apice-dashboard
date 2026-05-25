@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { assertCan } from '@/server/auth/assert-can'
+import { can } from '@/server/auth/permissions'
 import { getClinicContext } from '@/server/auth/clinic-context'
 
 import {
@@ -31,7 +32,15 @@ export async function getClinicActivitiesPage(
   // override em UserPermission pode revogar. Defesa em profundidade junto do
   // escopo clientId+domain do repo.
   await assertCan(ctx, 'activities', 'read')
-  const assignedToId = filters.assignedToId
+
+  // Visibilidade (Etapa 3 / lacuna 3): titular OU quem tem activities:viewAll
+  // vê as atividades de todos; os demais veem só as próprias. Quando o viewer
+  // não pode ver tudo, o filtro de responsável é FORÇADO ao próprio usuário,
+  // ignorando qualquer assignedToId vindo de input (defesa server-side).
+  const canViewAll = ctx.isOwner || (await can(ctx.userId, ctx.role, 'activities', 'viewAll'))
+  const canAssignOthers =
+    ctx.isOwner || (await can(ctx.userId, ctx.role, 'activities', 'assignToOthers'))
+  const assignedToId = canViewAll ? filters.assignedToId : ctx.userId
 
   const [rows, today, week, overdue, all, done, members, prefRow] = await Promise.all([
     listClinicActivities(ctx, { view: filters.view ?? 'today', assignedToId }),
@@ -48,12 +57,17 @@ export async function getClinicActivitiesPage(
   ])
 
   const counts: ClinicActivityCounts = { today, week, overdue, all, done }
+  // Sem permissão de delegar, o seletor de responsável some: a UI só enxerga o
+  // próprio usuário (a action também força isso, defesa em profundidade).
+  const visibleMembers = canAssignOthers ? members : members.filter((m) => m.id === ctx.userId)
   return {
     rows,
     counts,
-    members,
+    members: visibleMembers,
     currentUserId: ctx.userId,
     role: ctx.role,
+    canViewAll,
+    canAssignOthers,
     syncPref: prefRow?.activityCalendarSync ?? 'ASK',
   }
 }
