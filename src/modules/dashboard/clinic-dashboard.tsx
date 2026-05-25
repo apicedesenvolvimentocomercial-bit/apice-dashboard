@@ -89,10 +89,10 @@ export function ClinicDashboard({ data, visibility }: Props) {
   return (
     <div className="space-y-6">
       {showKpiGrid && (
-        // Grid fluido: os cards preenchem o espaço sozinhos via auto-fill, então
-        // qualquer nº de KPIs visíveis (1 a 16, conforme o cargo) flui sem deixar
-        // buraco nem card órfão. minmax garante largura mínima legível + esticar.
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
+        // 4 KPIs por linha no desktop (xl), degradando para 3/2/1 em telas
+        // menores. Cards maiores e legíveis; vãos só no fim da última linha
+        // quando o cargo mostra menos itens (sem card órfão no meio).
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {vis('commercialKpis', 'leads') && (
             <KpiCard label="Leads totais" value={String(kpis.commercial.leadsCount)} />
           )}
@@ -236,7 +236,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
             <KpiCard
               label="Receita perdida"
               value={formatCurrency(kpis.financial.estimatedLostRevenue)}
-              hint="Soma do preço dos procedimentos em no-show"
+              info={<p>Soma do preço dos procedimentos em no-show.</p>}
             />
           )}
           {vis('financialKpis', 'healthScore') && (
