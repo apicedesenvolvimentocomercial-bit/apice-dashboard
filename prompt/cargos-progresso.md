@@ -185,6 +185,61 @@ dashboard usa `goalsProgress` (dashboard-queries.ts ~357). Progresso calculado e
 
 ---
 
+## ETAPA 3 — Fechar lacunas + visibilidade de dashboard por cargo (✅ COMPLETA)
+
+Pedido do usuário: fechar as 3 lacunas deixadas nas Etapas 1-2, e AMPLIAR a #2 —
+no cargo, poder marcar a visibilidade de cada item do dashboard (por seção,
+seção editável item a item).
+
+### Decisões (confirmadas)
+
+- **D13** Editar meta: NÃO existia (card só excluía). Generalizou `create-goal-dialog`
+  em create+edit (prop `initial`/`open`/`onOpenChange`); botão lápis no goal-card.
+- **D14** Atividades (lacuna 3): `Activity` JÁ tem `assignedToId`/`createdById` → SEM migration.
+  Cargo já tinha `viewAll`/`assignToOthers` p/ activities. Faltava query+actions+UI respeitarem.
+- **D15** Visibilidade de dashboard: armazenar na chave reservada `dashboard` DENTRO do
+  `ClinicRole.permissions` JSON (sem coluna/tabela nova — questionado pelo usuário, decisão dele).
+- **D16** Granularidade: SEÇÃO com itens editáveis (master + filhos), padrão igual à matriz de abas.
+- **D17** Default OPT-IN: cargo sem chave `dashboard` não vê seções. Titular + admin SEMPRE veem tudo.
+- **D18** Itens ocultos somem; card de Metas no dashboard mostra só metas do viewer (titular/viewAll = todas).
+
+### Catálogo dashboard (5 seções) — `src/modules/clinic-roles/dashboard-catalog.ts`
+
+commercialKpis (leads/appointments/attendance/noShow/conversion/timeToFirstContact),
+financialKpis (revenue/costs/netProfit/averageTicket/grossMargin/netMargin/roi/cac/lostRevenue/healthScore),
+revenueCharts (revenueGenerated/revenueReceived/funnel), distributions (revenueByProcedure/leadsBySource),
+tracking (insights/goals). Ao add KPI/gráfico no clinic-dashboard, espelhar aqui + no gate.
+
+### Feito
+
+- **Lacuna 1** (editar meta): `create-goal-dialog.tsx` generalizado (create+edit, reidrata via useEffect);
+  `goal-card.tsx` ganha lápis + dialog edit, recebe users/roles/canAssign; `GoalView` + as 2 goals pages
+  (clinic+admin) propagam `assigneeUserId`/`assigneeRoleId`. `updateGoalAction` já existia.
+- **Lacuna 3** (atividades pessoais): `activity-queries.ts` força `assignedToId=ctx.userId` quando
+  viewer não é titular e sem `activities:viewAll`; expõe `canViewAll`/`canAssignOthers` + reduz members.
+  `activity-actions.ts` helper `canAssignOthers(ctx)`; create/update ignoram alvo-outro/'all' sem permissão
+  (defesa server). `clinic-activities-page.tsx` + page passam `canAssignOthers` → controla fan-out/seletor.
+- **Lacuna 2** (dashboard por cargo): `clinic-permissions.ts` +tipos `DashboardPermissions` +helpers
+  (`parseDashboardPermissions`/`dashboardSectionVisible`/`dashboardItemVisible`, chave `DASHBOARD_PERM_KEY`).
+  `role-dialog.tsx` bloco "Visibilidade do dashboard" (master seção + itens filhos), serializa em `permissions.dashboard`.
+  `dashboard-visibility.ts` (NOVO server): `resolveDashboardVisibility(ctx)` (titular/sem-cargo=tudo, senão lê cargo),
+  `allDashboardVisible()`. `clinic-dashboard.tsx` recebe `visibility?` + helper `vis(section,item?)` gateia cada KPI/card/seção
+  (seção sem itens visíveis some). `(clinic)/overview/page.tsx` resolve via getClinicContext e passa; admin overview = default (tudo).
+  Lacuna 2d: `dashboard-queries.ts` `filterGoalsForViewer(ctx,clientId,goals)` filtra goalsProgress (titular/viewAll=todas; senão CLINIC+atribuídas a si/cargo).
+
+### Não aplicado / pendências
+
+- SEM migration nesta etapa (tudo em JSON existente + colunas já existentes).
+- NÃO commitado ainda nesta sessão (aguarda usuário). tsc OK, lint OK (só 5 warnings pré-existentes alheios).
+- Falta verify manual/Playwright no .env.test (criar cargo com dashboard restrito, logar como staff, conferir gate).
+- `quickAdd` da clínica pode mandar assignee 'all' por URL; a action força self sem permissão (defesa server cobre UX).
+
+### Log
+
+- 2026-05-24: **ETAPA 3 DONE** (lacunas 1+2+3). ~14 arquivos, 2 novos (dashboard-catalog.ts, dashboard-visibility.ts). Sem migration.
+
+---
+
 ## Ambiente / cuidados
 
 - `.env` = **produção**. Migrations: usuário aplica em prod; eu aplico no `.env.test` (Neon) via `npm run migrate:test`.

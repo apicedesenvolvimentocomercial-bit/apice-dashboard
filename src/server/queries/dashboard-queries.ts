@@ -12,8 +12,9 @@ import {
 import { getRevenueMonthlySeries } from '@/server/queries/revenue-series'
 import { resolvePeriod } from '@/server/services/kpi/period'
 import type { Period, PeriodRange } from '@/server/services/kpi/types'
-import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { assertClientAccess, getTenantContext, type TenantContext } from '@/server/tenant/context'
 import { assertCan } from '@/server/auth/assert-can'
+import { can } from '@/server/auth/permissions'
 
 /**
  * React cache: dedup de chamadas dentro do mesmo Server Render.
@@ -393,8 +394,14 @@ export const getClinicDashboard = cache(
       isLost: s.isLost,
     }))
 
+    // Visibilidade de metas no dashboard (Etapa 3 / lacuna 2d): para um viewer
+    // de clínica sem goals:viewAll e que não seja titular, mostra só CLINIC +
+    // metas atribuídas a si ou ao seu cargo (mesma regra da página de Metas).
+    // Admin / outros papéis veem tudo (unscoped).
+    const visibleGoals = await filterGoalsForViewer(ctx, clientId, goals)
+
     const goalsProgress = await Promise.all(
-      goals.map(async (g) => {
+      visibleGoals.map(async (g) => {
         const current = await currentGoalValue(ctx.organizationId, clientId, g)
         const target = Number(g.targetValue)
         const progressPct = target > 0 ? Math.min(100, (current / target) * 100) : 0
@@ -433,6 +440,36 @@ export const getClinicDashboard = cache(
     }
   }
 )
+
+/**
+ * Filtra metas para o dashboard conforme o viewer (lacuna 2d). Espelha a regra
+ * de visibilidade da página de Metas (Etapa 2 / D3): titular da clínica ou quem
+ * tem goals:viewAll vê tudo; demais membros de clínica veem só CLINIC + metas
+ * atribuídas a si ou ao próprio cargo. Papéis não-clínica (admin) veem tudo.
+ */
+async function filterGoalsForViewer<
+  T extends { scopeType: string; assigneeUserId: string | null; assigneeRoleId: string | null },
+>(ctx: TenantContext, clientId: string, goals: T[]): Promise<T[]> {
+  const isClinic = ctx.role === 'CLIENT_OWNER' || ctx.role === 'CLIENT_STAFF'
+  if (!isClinic) return goals
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { ownerId: true },
+  })
+  const isOwner = client?.ownerId === ctx.userId
+  if (isOwner) return goals
+  if (await can(ctx.userId, ctx.role, 'goals', 'viewAll')) return goals
+
+  return goals.filter((g) => {
+    if (g.scopeType === 'CLINIC') return true
+    if (g.scopeType === 'USER' && g.assigneeUserId === ctx.userId) return true
+    if (g.scopeType === 'ROLE' && g.assigneeRoleId && g.assigneeRoleId === ctx.clinicRoleId) {
+      return true
+    }
+    return false
+  })
+}
 
 async function currentGoalValue(
   organizationId: string,

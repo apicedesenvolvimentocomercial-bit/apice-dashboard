@@ -1,0 +1,81 @@
+/**
+ * Catálogo dos ITENS do dashboard da clínica para a matriz de visibilidade por
+ * cargo (Etapa 3 / lacuna 2). Hierárquico: seção (master) → itens (filhos). As
+ * `key`s são estáveis e usadas tanto no JSON de permissões do cargo
+ * (`permissions.dashboard`) quanto no gate de renderização do dashboard.
+ *
+ * Derivado de `src/modules/dashboard/clinic-dashboard.tsx`. Ao adicionar um KPI
+ * ou gráfico lá, espelhe aqui (e no gate) para que possa ser ocultado por cargo.
+ *
+ * Default OPT-IN: cargo sem entrada `dashboard` não vê nada (titular/admin
+ * sempre veem tudo, fora deste catálogo).
+ */
+
+export type DashboardItemDef = { key: string; label: string }
+export type DashboardSectionDef = {
+  key: string
+  label: string
+  description: string
+  items: DashboardItemDef[]
+}
+
+export const DASHBOARD_SECTIONS: DashboardSectionDef[] = [
+  {
+    key: 'commercialKpis',
+    label: 'Indicadores comerciais',
+    description: 'Cartões de leads, agendamentos e conversão',
+    items: [
+      { key: 'leads', label: 'Leads totais' },
+      { key: 'appointments', label: 'Agendamentos' },
+      { key: 'attendance', label: 'Comparecimento' },
+      { key: 'noShow', label: 'No-show' },
+      { key: 'conversion', label: 'Conversão' },
+      { key: 'timeToFirstContact', label: 'Tempo até 1º contato' },
+    ],
+  },
+  {
+    key: 'financialKpis',
+    label: 'Indicadores financeiros',
+    description: 'Cartões de faturamento, custos e margens',
+    items: [
+      { key: 'revenue', label: 'Faturamento' },
+      { key: 'costs', label: 'Custos' },
+      { key: 'netProfit', label: 'Lucro líquido' },
+      { key: 'averageTicket', label: 'Ticket médio' },
+      { key: 'grossMargin', label: 'Margem bruta' },
+      { key: 'netMargin', label: 'Margem líquida' },
+      { key: 'roi', label: 'ROI marketing' },
+      { key: 'cac', label: 'CAC' },
+      { key: 'lostRevenue', label: 'Receita perdida' },
+      { key: 'healthScore', label: 'Health Score' },
+    ],
+  },
+  {
+    key: 'revenueCharts',
+    label: 'Gráficos de receita',
+    description: 'Séries de receita, custos e funil',
+    items: [
+      { key: 'revenueGenerated', label: 'Receita gerada x Custos' },
+      { key: 'revenueReceived', label: 'Receita recebida x Custos' },
+      { key: 'funnel', label: 'Funil de conversão' },
+    ],
+  },
+  {
+    key: 'distributions',
+    label: 'Distribuições',
+    description: 'Receita por procedimento e origem dos leads',
+    items: [
+      { key: 'revenueByProcedure', label: 'Receita por procedimento' },
+      { key: 'leadsBySource', label: 'Origem dos leads' },
+    ],
+  },
+  {
+    key: 'tracking',
+    label: 'Acompanhamento',
+    description: 'Insights ativos e progresso de metas',
+    items: [
+      { key: 'insights', label: 'Insights ativos' },
+      { key: 'goals', label: 'Progresso de metas' },
+    ],
+  },
+]

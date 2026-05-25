@@ -19,9 +19,16 @@ import {
   createClinicRoleAction,
   updateClinicRoleAction,
 } from '@/server/actions/clinic-role-actions'
-import type { ClinicModulePerm, ClinicRolePermissions } from '@/server/auth/clinic-permissions'
+import {
+  DASHBOARD_PERM_KEY,
+  parseDashboardPermissions,
+  type ClinicModulePerm,
+  type ClinicRolePermissions,
+  type DashboardPermissions,
+} from '@/server/auth/clinic-permissions'
 
 import { CLINIC_MODULES } from './clinic-modules'
+import { DASHBOARD_SECTIONS } from './dashboard-catalog'
 
 export type RoleDialogInitial = {
   id: string
@@ -63,7 +70,27 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved }: Props) {
   const [modules, setModules] = useState<Record<string, ModuleState>>(() =>
     initial ? fromPermissions(initial.permissions) : blankState()
   )
+  // Visibilidade do dashboard (lacuna 2). Opt-in: começa tudo oculto.
+  const [dashboard, setDashboard] = useState<DashboardPermissions>(() =>
+    initial ? parseDashboardPermissions(initial.permissions) : {}
+  )
   const [pending, startTransition] = useTransition()
+
+  // Liga/desliga uma seção inteira do dashboard (master). Desligar limpa os
+  // itens; ligar deixa items indefinido = todos visíveis dentro da seção.
+  function setSectionAccess(section: string, on: boolean) {
+    setDashboard((prev) => ({ ...prev, [section]: on ? { access: true } : { access: false } }))
+  }
+
+  // Liga/desliga um item dentro de uma seção liberada. Ausência = visível, então
+  // só gravamos quando o usuário desmarca (false) ou remarca (true).
+  function setSectionItem(section: string, item: string, on: boolean) {
+    setDashboard((prev) => {
+      const sec = prev[section] ?? { access: true }
+      const items = { ...(sec.items ?? {}), [item]: on }
+      return { ...prev, [section]: { ...sec, access: true, items } }
+    })
+  }
 
   // Marca "bloquear acesso": access=false zera as sub-ações (recolhe).
   function setAccess(key: string, blocked: boolean) {
@@ -102,6 +129,9 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved }: Props) {
       const s = modules[m.key]
       permissions[m.key] = s.access ? { ...s, access: true } : { access: false }
     }
+    // Visibilidade do dashboard vive sob a chave reservada `dashboard`. O cast é
+    // necessário porque o tipo do mapa de abas não cobre este shape distinto.
+    ;(permissions as Record<string, unknown>)[DASHBOARD_PERM_KEY] = dashboard
 
     startTransition(async () => {
       const result = initial
@@ -213,6 +243,63 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved }: Props) {
                             onChange={() => toggleAction(mod.key, 'assignToOthers')}
                           />
                         )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Visibilidade do dashboard</p>
+            <p className="text-xs text-muted-foreground">
+              Marque as seções que este cargo vê na visão geral. Dentro de cada seção, desmarque
+              itens específicos para escondê-los. O titular vê tudo, independente disto.
+            </p>
+            <div className="divide-y rounded-md border">
+              {DASHBOARD_SECTIONS.map((sec) => {
+                const on = dashboard[sec.key]?.access === true
+                const items = dashboard[sec.key]?.items
+                return (
+                  <div key={sec.key} className="p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        {on ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <div>
+                          <div className="text-sm font-medium">{sec.label}</div>
+                          <div className="text-xs text-muted-foreground">{sec.description}</div>
+                        </div>
+                      </div>
+                      <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={on}
+                          onChange={(e) => setSectionAccess(sec.key, e.target.checked)}
+                          aria-label={`Mostrar seção ${sec.label}`}
+                        />
+                        Mostrar seção
+                      </label>
+                    </div>
+
+                    {on && (
+                      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 pl-6">
+                        {sec.items.map((it) => (
+                          <ActionBox
+                            key={it.key}
+                            label={it.label}
+                            // Ausência em items = visível (a seção liga tudo).
+                            checked={items?.[it.key] !== false}
+                            onChange={() =>
+                              setSectionItem(sec.key, it.key, !(items?.[it.key] !== false))
+                            }
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
