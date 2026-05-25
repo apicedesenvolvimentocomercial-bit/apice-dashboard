@@ -2,8 +2,8 @@
 
 > Ledger multi-sessão da Fase 11 do [`prompt.Md`](./prompt.Md) (SEÇÃO 14).
 > Aceite global: sistema usável por usuários reais, cumpre tudo do prompt.
-> Contexto: reforma divisão + auditoria já fechadas (ver `reforma-relatorio.md`,
-> `auditoria-relatorio.md`, `auditoria-decisoes.md`). Branch atual já tem `(client)`→`(clinic)`.
+> Contexto: reforma divisão + auditoria de hardening já fechadas (ver
+> `reforma-relatorio.md`). Branch atual já tem `(client)`→`(clinic)`.
 
 ## Restrições do ambiente (herdadas)
 
