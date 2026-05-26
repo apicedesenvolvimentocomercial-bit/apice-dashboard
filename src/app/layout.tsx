@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { CookieConsent } from '@/components/cookie-consent'
 import { DismissibleToaster } from '@/components/dismissible-toaster'
 import { QueryProvider } from '@/components/providers/query-provider'
+import { ThemeProvider } from '@/components/providers/theme-provider'
 
 import './globals.css'
 
@@ -20,9 +21,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.className}>
-        <QueryProvider>{children}</QueryProvider>
-        <CookieConsent />
-        <DismissibleToaster />
+        <ThemeProvider>
+          <QueryProvider>{children}</QueryProvider>
+          <CookieConsent />
+          <DismissibleToaster />
+        </ThemeProvider>
       </body>
     </html>
   )

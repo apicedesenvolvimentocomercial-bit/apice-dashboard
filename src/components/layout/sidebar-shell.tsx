@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 
 import { cn } from '@/lib/utils'
+import { ThemeToggle } from '@/components/layout/theme-toggle'
 
 export type NavItem = {
   href: string
@@ -91,6 +92,12 @@ export function SidebarShell({ navItems }: { navItems: NavItem[] }) {
             )
           })}
         </nav>
+
+        {/* Rodapé: switch de tema (claro/escuro) no canto inferior esquerdo.
+            Dentro do wrapper overflow-hidden → o rótulo recolhe junto com a nav. */}
+        <div className="border-t py-2 pl-2 pr-3">
+          <ThemeToggle collapsed={collapsed} />
+        </div>
       </div>
 
       {/* z-10 keeps the button above the main content area */}
