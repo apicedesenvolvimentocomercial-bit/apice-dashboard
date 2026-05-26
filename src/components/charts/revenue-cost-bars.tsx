@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 
-import { CHART_COLORS, formatBRL, formatBRLCompact } from './chart-theme'
+import { CHART_COLORS, chartTooltipProps, formatBRL, formatBRLCompact } from './chart-theme'
 
 export type Datum = { month: string; revenue: number; costs: number }
 
@@ -137,7 +137,7 @@ export function RevenueCostBars({
             // Eixo oculto mantém o domínio Y consistente com o eixo estático externo.
             <YAxis hide domain={yDomain} width={0} />
           )}
-          <Tooltip cursor={false} formatter={(v: number) => formatBRL(v)} />
+          <Tooltip {...chartTooltipProps} cursor={false} formatter={(v: number) => formatBRL(v)} />
           {showLegend && <Legend />}
           <Bar
             dataKey="revenue"

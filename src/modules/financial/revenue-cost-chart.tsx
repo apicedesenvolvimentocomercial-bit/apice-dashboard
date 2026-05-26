@@ -11,6 +11,8 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
+import { chartTooltipProps } from '@/components/charts/chart-theme'
+
 import type { ChartMonth } from './types'
 
 type Props = { data: ChartMonth[] }
@@ -35,6 +37,7 @@ export function RevenueCostChart({ data }: Props) {
           }
         />
         <Tooltip
+          {...chartTooltipProps}
           formatter={(value: number) =>
             new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
           }

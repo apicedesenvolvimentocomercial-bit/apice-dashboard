@@ -2,7 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
-import { CHART_COLORS, formatBRL, formatBRLCompact } from './chart-theme'
+import { CHART_COLORS, chartTooltipProps, formatBRL, formatBRLCompact } from './chart-theme'
 
 type Props = {
   data: { label: string; value: number }[]
@@ -68,7 +68,7 @@ export function HorizontalBarChart({
           tickLine={false}
           axisLine={false}
         />
-        <Tooltip formatter={(v: number) => formatter(v)} />
+        <Tooltip {...chartTooltipProps} formatter={(v: number) => formatter(v)} />
         <Bar
           dataKey="value"
           fill={color}

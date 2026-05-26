@@ -2,7 +2,7 @@
 
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
-import { CHART_PIE_PALETTE, formatBRL } from './chart-theme'
+import { CHART_PIE_PALETTE, chartTooltipProps, formatBRL } from './chart-theme'
 
 type Datum = { name: string; value: number }
 
@@ -56,7 +56,7 @@ export function SharePieChart({ data, height = 280, valueFormat = 'currency', un
             <Cell key={i} fill={CHART_PIE_PALETTE[i % CHART_PIE_PALETTE.length]} />
           ))}
         </Pie>
-        <Tooltip formatter={(v: number) => formatter(v)} />
+        <Tooltip {...chartTooltipProps} formatter={(v: number) => formatter(v)} />
         <Legend
           verticalAlign="bottom"
           wrapperStyle={{ fontSize: 11 }}

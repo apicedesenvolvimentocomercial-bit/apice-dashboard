@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 
-import { CHART_COLORS } from './chart-theme'
+import { CHART_COLORS, chartTooltipProps } from './chart-theme'
 
 type Datum = { stage: string; count: number; isWon: boolean; isLost: boolean }
 
@@ -45,7 +45,7 @@ export function FunnelBars({ data, height = 240 }: Props) {
           tickLine={false}
           axisLine={false}
         />
-        <Tooltip />
+        <Tooltip {...chartTooltipProps} />
         <Bar dataKey="count" radius={[0, 3, 3, 0]} animationDuration={300}>
           {data.map((d, i) => (
             <Cell
