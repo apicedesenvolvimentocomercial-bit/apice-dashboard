@@ -8,15 +8,16 @@ import { ThemeProvider as NextThemesProvider } from 'next-themes'
  * `globals.css` resolvem por cascata — nenhuma tela precisa consumir o hook.
  *
  * `attribute="class"` + `disableTransitionOnChange` evita flash de transição ao
- * trocar. `defaultTheme="light"` mantém o comportamento atual (app nascia fixo
- * no claro) como fallback antes da primeira escolha do usuário.
+ * trocar. `defaultTheme="system"` faz a app seguir o SO até o usuário escolher
+ * explicitamente claro/escuro nas configurações; `enableSystem` habilita esse
+ * terceiro modo (a preferência mora no localStorage, sem persistência no banco).
  */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="light"
-      enableSystem={false}
+      defaultTheme="system"
+      enableSystem
       disableTransitionOnChange
     >
       {children}

@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 
-import { CHART_COLORS, formatBRL, formatBRLCompact } from './chart-theme'
+import { CHART_COLORS, chartTooltipProps, formatBRL, formatBRLCompact } from './chart-theme'
 
 type Datum = { month: string; revenue: number; previousYear?: number }
 
@@ -44,7 +44,7 @@ export function RevenueLineChart({ data, showPreviousYear = true, height = 280 }
           axisLine={false}
           tickFormatter={formatBRLCompact}
         />
-        <Tooltip formatter={(v: number) => formatBRL(v)} />
+        <Tooltip {...chartTooltipProps} formatter={(v: number) => formatBRL(v)} />
         <Legend />
         <Line
           type="monotone"

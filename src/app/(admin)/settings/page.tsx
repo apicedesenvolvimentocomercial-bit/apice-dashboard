@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { AppearanceForm } from '@/components/shared/settings/appearance-form'
 import { ChangePasswordForm } from '@/components/shared/settings/change-password-form'
 import { ProfileForm } from '@/components/shared/settings/profile-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -78,6 +79,16 @@ export default async function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           <ChangePasswordForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Aparência</CardTitle>
+          <CardDescription>Escolha o tema padrão da interface.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AppearanceForm />
         </CardContent>
       </Card>
 
