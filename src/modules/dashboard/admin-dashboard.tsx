@@ -104,7 +104,10 @@ export function AdminDashboard({ data }: Props) {
               <p className="text-sm text-muted-foreground">Nenhum insight crítico aberto.</p>
             ) : (
               insightsCritical.map((i) => (
-                <div key={i.id} className="rounded-md border bg-rose-50/50 p-3 text-sm">
+                <div
+                  key={i.id}
+                  className="rounded-md border bg-rose-50/50 p-3 text-sm dark:bg-rose-950/40"
+                >
                   <p className="font-medium leading-tight">{i.title}</p>
                   <p className="text-xs text-muted-foreground">{i.clientName}</p>
                 </div>

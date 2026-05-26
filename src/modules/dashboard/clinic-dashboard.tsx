@@ -23,9 +23,9 @@ const LEAD_SOURCE_LABEL: Record<string, string> = {
 }
 
 const SEVERITY_TONE: Record<string, string> = {
-  CRITICAL: 'border-rose-300 bg-rose-50/60',
-  WARNING: 'border-amber-300 bg-amber-50/60',
-  INFO: 'border-sky-300 bg-sky-50/60',
+  CRITICAL: 'border-rose-300 bg-rose-50/60 dark:border-rose-900 dark:bg-rose-950/40',
+  WARNING: 'border-amber-300 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/40',
+  INFO: 'border-sky-300 bg-sky-50/60 dark:border-sky-900 dark:bg-sky-950/40',
 }
 
 type Props = {
