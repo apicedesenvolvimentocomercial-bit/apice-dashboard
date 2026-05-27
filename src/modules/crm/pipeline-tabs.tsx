@@ -18,17 +18,20 @@ type Props = {
  */
 export function PipelineTabs({ clientId, newStages, existingStages }: Props) {
   return (
-    <Tabs defaultValue="new" className="space-y-4">
-      <TabsList>
+    // Coluna flex de altura total: a lista de abas tem altura natural e o
+    // conteúdo ativo (min-h-0) toma o resto, dando à board uma altura fixa
+    // dentro da qual rolar horizontalmente.
+    <Tabs defaultValue="new" className="flex min-h-0 flex-1 flex-col gap-4">
+      <TabsList className="shrink-0 self-start">
         <TabsTrigger value="new">Clientes novos</TabsTrigger>
         <TabsTrigger value="existing">Clientes cadastrados</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="new" className="space-y-4">
+      <TabsContent value="new" className="mt-0 flex min-h-0 flex-1 flex-col gap-4">
         <KanbanBoard stages={newStages} clientId={clientId} kind="NEW" />
       </TabsContent>
 
-      <TabsContent value="existing" className="space-y-4">
+      <TabsContent value="existing" className="mt-0 flex min-h-0 flex-1 flex-col gap-4">
         <KanbanBoard stages={existingStages} clientId={clientId} kind="EXISTING" />
       </TabsContent>
     </Tabs>
