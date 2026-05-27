@@ -234,7 +234,7 @@ export function KanbanBoard({ stages: initialStages, clientId, kind = 'NEW' }: P
 
   return (
     <>
-      <div className="flex justify-end">
+      <div className="flex shrink-0 justify-end">
         <Button
           variant="outline"
           size="sm"
@@ -252,7 +252,9 @@ export function KanbanBoard({ stages: initialStages, clientId, kind = 'NEW' }: P
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex min-h-[calc(100vh-12rem)] gap-4 overflow-x-auto pb-4">
+        {/* min-h-0 + flex-1: a board toma a altura restante e rola só na
+            horizontal; a rolagem vertical fica dentro de cada coluna. */}
+        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-2">
           {stages.length === 0 ? (
             <div className="flex w-full items-center justify-center rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
               Nenhuma etapa configurada. Use “Editar etapas” para criar o funil.
