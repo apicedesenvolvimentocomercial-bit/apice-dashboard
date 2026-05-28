@@ -143,8 +143,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,UPDATE,DELETE ON T
 ## 8. Tabelas cobertas
 
 Patient, Appointment, Procedure, ProcedureCategory, Lead, Revenue, Cost, Goal,
-Insight, Activity, CalendarEvent, Notification, PipelineDeal, PipelineStage,
-MarketingCampaign, KpiSnapshot, ClinicHoliday, Invitation.
+Insight, Activity, CalendarEvent, Notification, PipelineDeal, Pipeline,
+PipelineStage, MarketingCampaign, KpiSnapshot, ClinicHoliday, Invitation.
 
 **Fora:** `User` (login roda sem GUC); tabelas-filhas sem `clientId` direto
 (ex.: `LeadInteraction`) — protegidas via app + tabela-pai. Se precisar de RLS

@@ -305,7 +305,9 @@ export const getClinicDashboard = cache(
         computeClinicKpis(ctx, clientId, range),
         getRevenueMonthlySeries(ctx, clientId),
         prisma.pipelineStage.findMany({
-          where: { clientId },
+          // Funil do dashboard = pipeline comercial (nativa). Mantém o
+          // comportamento anterior ao multi-pipeline (era o funil NEW).
+          where: { clientId, pipeline: { kind: 'COMMERCIAL' } },
           orderBy: { order: 'asc' },
           select: {
             id: true,

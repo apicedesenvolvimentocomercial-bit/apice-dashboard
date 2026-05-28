@@ -66,7 +66,7 @@ export async function createClientAction(formData: z.infer<typeof createClientSc
     notes,
   })
 
-  await createDefaultPipelineStages(client.id)
+  await createDefaultPipelineStages(client.id, ctx.organizationId)
 
   logger.info('Client created', { clientId: client.id, organizationId: ctx.organizationId })
   createAuditLog(ctx, {

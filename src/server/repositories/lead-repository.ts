@@ -1,4 +1,4 @@
-import type { LeadSource, StageKind } from '@prisma/client'
+import type { LeadSource } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
@@ -6,42 +6,18 @@ import type { TenantContext } from '@/server/tenant/context'
 export type PipelineData = Awaited<ReturnType<typeof getPipeline>>
 export type FullLead = Awaited<ReturnType<typeof findLeadById>>
 
-// Etapas iniciais do funil EXISTING, criadas sob demanda (ids cuid via
-// createMany). Editáveis depois pelo usuário no editor de etapas.
-const DEFAULT_EXISTING_STAGES = [
-  { name: 'Ativo', order: 0, color: '#22c55e' },
-  { name: 'Em tratamento', order: 1, color: '#f59e0b' },
-  { name: 'Inativo', order: 2, color: '#94a3b8' },
-]
-
 /**
- * Garante que o funil EXISTING tenha etapas: se a clínica nunca o usou, cria as
- * defaults. Idempotente — `skipDuplicates` + checagem prévia evitam corrida no
- * unique (clientId, kind, order). Só roda para EXISTING (o NEW é semeado na
- * criação da clínica).
+ * Etapas de uma pipeline (com seus leads). Escopa via `pipeline.organizationId`
+ * para a barreira de org no nível do repo (SEC-002). A pipeline em si (e as
+ * nativas semeadas) é garantida fora daqui — ver pipeline-repository.
  */
-async function ensureExistingStages(clientId: string) {
-  const count = await prisma.pipelineStage.count({ where: { clientId, kind: 'EXISTING' } })
-  if (count > 0) return
-  await prisma.pipelineStage.createMany({
-    data: DEFAULT_EXISTING_STAGES.map((s) => ({ ...s, clientId, kind: 'EXISTING' as const })),
-    skipDuplicates: true,
-  })
-}
-
-export async function getPipeline(ctx: TenantContext, clientId: string, kind: StageKind = 'NEW') {
-  if (kind === 'EXISTING') {
-    // Escopo de org garantido antes de semear: confirma que o client é da org.
-    const client = await prisma.client.findFirst({
-      where: { id: clientId, organizationId: ctx.organizationId },
-      select: { id: true },
-    })
-    if (client) await ensureExistingStages(clientId)
-  }
+export async function getPipeline(ctx: TenantContext, clientId: string, pipelineId: string) {
   return prisma.pipelineStage.findMany({
-    // PipelineStage não tem organizationId próprio; escopa via relação `client`
-    // para garantir a barreira de org no nível do repo (SEC-002).
-    where: { clientId, kind, client: { organizationId: ctx.organizationId } },
+    where: {
+      pipelineId,
+      clientId,
+      pipeline: { organizationId: ctx.organizationId },
+    },
     orderBy: { order: 'asc' },
     select: {
       id: true,
@@ -49,6 +25,8 @@ export async function getPipeline(ctx: TenantContext, clientId: string, kind: St
       color: true,
       isWon: true,
       isLost: true,
+      isNative: true,
+      nativeKey: true,
       order: true,
       leads: {
         where: { organizationId: ctx.organizationId, clientId, deletedAt: null },
@@ -159,7 +137,7 @@ export async function listPatientsWithoutExistingCard(ctx: TenantContext, client
       leads: {
         none: {
           deletedAt: null,
-          stage: { kind: 'EXISTING' },
+          stage: { pipeline: { kind: 'RETENTION' } },
         },
       },
     },

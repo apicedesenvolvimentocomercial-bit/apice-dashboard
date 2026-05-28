@@ -1,4 +1,4 @@
-import type { LeadSource } from '@prisma/client'
+import type { LeadSource, StageNativeKey } from '@prisma/client'
 
 export type KanbanLead = {
   id: string
@@ -18,6 +18,8 @@ export type KanbanStage = {
   color: string | null
   isWon: boolean
   isLost: boolean
+  isNative: boolean
+  nativeKey: StageNativeKey | null
   order: number
   leads: KanbanLead[]
 }

@@ -1,7 +1,7 @@
 'use client'
 
-import type { StageKind } from '@prisma/client'
-import { ChevronDown, ChevronUp, Loader2, Plus, Trash2 } from 'lucide-react'
+import type { PipelineKind } from '@prisma/client'
+import { ChevronDown, ChevronUp, Loader2, Lock, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { deletePipelineAction, renamePipelineAction } from '@/server/actions/pipeline-actions'
 import {
   createStageAction,
   deleteStageAction,
@@ -31,6 +32,8 @@ type Row = {
   color: string
   isWon: boolean
   isLost: boolean
+  isNative: boolean
+  nativeKey: KanbanStage['nativeKey']
   // Marca linhas alteradas para salvar só o que mudou.
   dirty: boolean
 }
@@ -39,24 +42,39 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   clientId: string
-  kind: StageKind
+  pipelineId: string
+  pipelineKind: PipelineKind
+  pipelineName: string
   stages: KanbanStage[]
 }
 
 /**
- * Editor de etapas do funil (botão lápis). Permite renomear, recolorir,
- * reordenar (setas) e excluir etapas, além de criar novas. As mudanças de
- * nome/cor são acumuladas localmente e persistidas em lote ao salvar; ordem,
- * criação e exclusão persistem na hora (precisam de id do servidor).
+ * Editor de etapas + da própria pipeline (botão lápis). Permite renomear a
+ * pipeline (e excluí-la se for CUSTOM), além de renomear/recolorir/reordenar/
+ * excluir etapas e criar novas. Etapas nativas (`isNative`) não podem ser
+ * excluídas. As mudanças de nome/cor de etapa são acumuladas localmente e
+ * persistidas em lote ao salvar; ordem, criação e exclusão persistem na hora.
  */
-export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }: Props) {
+export function StageEditorDialog({
+  open,
+  onOpenChange,
+  clientId,
+  pipelineId,
+  pipelineKind,
+  pipelineName,
+  stages,
+}: Props) {
   const router = useRouter()
   const [rows, setRows] = useState<Row[]>([])
+  const [name, setName] = useState(pipelineName)
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
 
+  const isNativePipeline = pipelineKind !== 'CUSTOM'
+
   useEffect(() => {
     if (!open) return
+    setName(pipelineName)
     setRows(
       stages.map((s) => ({
         id: s.id,
@@ -64,10 +82,12 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
         color: s.color ?? DEFAULT_COLOR,
         isWon: s.isWon,
         isLost: s.isLost,
+        isNative: s.isNative,
+        nativeKey: s.nativeKey,
         dirty: false,
       }))
     )
-  }, [open, stages])
+  }, [open, stages, pipelineName])
 
   function patchRow(id: string, patch: Partial<Row>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch, dirty: true } : r)))
@@ -81,8 +101,8 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
     setRows(next)
     setBusy(true)
     const res = await reorderStagesAction(
+      pipelineId,
       clientId,
-      kind,
       next.map((r) => r.id)
     )
     setBusy(false)
@@ -96,7 +116,7 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
 
   async function addStage() {
     setBusy(true)
-    const res = await createStageAction(clientId, kind, {
+    const res = await createStageAction(pipelineId, clientId, {
       name: 'Nova etapa',
       color: DEFAULT_COLOR,
     })
@@ -113,6 +133,8 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
         color: DEFAULT_COLOR,
         isWon: false,
         isLost: false,
+        isNative: false,
+        nativeKey: null,
         dirty: false,
       },
     ])
@@ -131,13 +153,33 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
     router.refresh()
   }
 
-  async function save() {
-    const dirty = rows.filter((r) => r.dirty)
-    if (dirty.length === 0) {
-      onOpenChange(false)
+  async function removePipeline() {
+    if (!confirm(`Excluir a pipeline "${name}"? Os cards precisam estar vazios.`)) return
+    setBusy(true)
+    const res = await deletePipelineAction(pipelineId, clientId)
+    setBusy(false)
+    if (!res.success) {
+      toast.error(res.error.message)
       return
     }
+    toast.success('Pipeline excluída')
+    onOpenChange(false)
+    router.refresh()
+  }
+
+  async function save() {
     setSaving(true)
+    // Nome da pipeline (se mudou).
+    if (name.trim() && name.trim() !== pipelineName) {
+      const r = await renamePipelineAction(pipelineId, clientId, name.trim())
+      if (!r.success) {
+        setSaving(false)
+        toast.error(r.error.message)
+        return
+      }
+    }
+    // Etapas alteradas.
+    const dirty = rows.filter((r) => r.dirty)
     const results = await Promise.all(
       dirty.map((r) => updateStageAction(r.id, clientId, { name: r.name, color: r.color }))
     )
@@ -147,7 +189,7 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
       toast.error(failed.error.message)
       return
     }
-    toast.success('Etapas atualizadas')
+    toast.success('Pipeline atualizada')
     onOpenChange(false)
     router.refresh()
   }
@@ -156,8 +198,15 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>Editar etapas do funil</DialogTitle>
+          <DialogTitle>Editar pipeline</DialogTitle>
         </DialogHeader>
+
+        <div className="space-y-1">
+          <label htmlFor="pipeline-name" className="text-xs font-medium text-muted-foreground">
+            Nome da pipeline
+          </label>
+          <Input id="pipeline-name" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
 
         <div className="space-y-2">
           {rows.map((row, i) => (
@@ -166,7 +215,7 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
                 <button
                   type="button"
                   className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  disabled={i === 0 || busy}
+                  disabled={i === 0 || busy || row.isNative}
                   onClick={() => move(i, -1)}
                   aria-label="Mover etapa para cima"
                 >
@@ -175,7 +224,7 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
                 <button
                   type="button"
                   className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  disabled={i === rows.length - 1 || busy}
+                  disabled={i === rows.length - 1 || busy || row.isNative}
                   onClick={() => move(i, 1)}
                   aria-label="Mover etapa para baixo"
                 >
@@ -197,15 +246,25 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
                 className="flex-1"
               />
 
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-destructive disabled:opacity-30"
-                disabled={busy}
-                onClick={() => removeStage(row.id)}
-                aria-label={`Excluir etapa ${row.name}`}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {row.isNative ? (
+                <span
+                  className="text-muted-foreground/60"
+                  title="Etapa nativa — não pode ser excluída"
+                  aria-label="Etapa nativa"
+                >
+                  <Lock className="h-4 w-4" />
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-destructive disabled:opacity-30"
+                  disabled={busy}
+                  onClick={() => removeStage(row.id)}
+                  aria-label={`Excluir etapa ${row.name}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           ))}
 
@@ -215,14 +274,30 @@ export function StageEditorDialog({ open, onOpenChange, clientId, kind, stages }
           </Button>
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
-          <Button type="button" onClick={save} disabled={saving || busy}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Salvar alterações
-          </Button>
+        <DialogFooter className="sm:justify-between">
+          {!isNativePipeline ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={removePipeline}
+              disabled={busy || saving}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Excluir pipeline
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Fechar
+            </Button>
+            <Button type="button" onClick={save} disabled={saving || busy}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar alterações
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

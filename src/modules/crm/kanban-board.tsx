@@ -11,7 +11,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { StageKind } from '@prisma/client'
+import type { PipelineKind } from '@prisma/client'
 import { Pencil } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
@@ -19,24 +19,46 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { positionBetween } from '@/lib/dnd-position'
-import { moveLeadAction, reorderLeadAction } from '@/server/actions/lead-actions'
+import { moveLeadAction, reorderLeadAction, regressLeadAction } from '@/server/actions/lead-actions'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 import { AddPatientCardDialog } from './add-patient-card-dialog'
 import { CreateLeadDialog } from './create-lead-dialog'
 import { KanbanColumn } from './kanban-column'
 import { LeadCard } from './lead-card'
 import { LeadDrawer } from './lead-drawer'
+import { ScheduleLeadDialog, type ProcedureOption } from './schedule-lead-dialog'
 import { StageEditorDialog } from './stage-editor-dialog'
 import type { KanbanLead, KanbanStage } from './types'
 
 type Props = {
   stages: KanbanStage[]
   clientId: string
-  /** Funil exibido. NEW = leads novos; EXISTING = pacientes já cadastrados. */
-  kind?: StageKind
+  pipelineId: string
+  /** Tipo do funil. RETENTION puxa pacientes já cadastrados; demais = leads. */
+  pipelineKind: PipelineKind
+  pipelineName: string
+  /** Procedimentos da clínica p/ o dialog de Agendado (2a). */
+  procedures: ProcedureOption[]
 }
 
-export function KanbanBoard({ stages: initialStages, clientId, kind = 'NEW' }: Props) {
+export function KanbanBoard({
+  stages: initialStages,
+  clientId,
+  pipelineId,
+  pipelineKind,
+  pipelineName,
+  procedures,
+}: Props) {
   const router = useRouter()
   const [stages, setStages] = useState<KanbanStage[]>(initialStages)
   const [activeLead, setActiveLead] = useState<KanbanLead | null>(null)
@@ -44,6 +66,30 @@ export function KanbanBoard({ stages: initialStages, clientId, kind = 'NEW' }: P
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createStageId, setCreateStageId] = useState<string>('')
   const [stageEditorOpen, setStageEditorOpen] = useState(false)
+  // Move para Agendado pendente de confirmação (dialog bloqueante 2a). Guarda o
+  // snapshot p/ reverter o card se o usuário cancelar.
+  const [pendingSchedule, setPendingSchedule] = useState<{
+    leadId: string
+    leadName: string
+    stageId: string
+    snapshot: KanbanStage[]
+  } | null>(null)
+  // Retrocesso pendente de confirmação (2d): desfaz efeitos ao confirmar.
+  const [pendingRegress, setPendingRegress] = useState<{
+    leadId: string
+    leadName: string
+    stageId: string
+    position: number
+    snapshot: KanbanStage[]
+  } | null>(null)
+  // Fechar antes do horário do agendamento pendente de confirmação (2c).
+  const [pendingCloseEarly, setPendingCloseEarly] = useState<{
+    leadId: string
+    stageId: string
+    position: number
+    scheduledAt: Date
+    snapshot: KanbanStage[]
+  } | null>(null)
   const [, startTransition] = useTransition()
 
   // Snapshot tirada no início do drag — usada para reverter caso o backend
@@ -167,6 +213,24 @@ export function KanbanBoard({ stages: initialStages, clientId, kind = 'NEW' }: P
     const originalStage = snapshot.find((s) => s.leads.some((l) => l.id === leadId))
     const movingColumns = originalStage?.id !== destStage.id
 
+    // 2a — Mover para a etapa Agendado (nativeKey SCHEDULED) vindo de outra etapa
+    // exige criar um agendamento ANTES de persistir. Abre o dialog bloqueante; o
+    // move só é gravado se o agendamento for criado (via scheduleLeadAction).
+    if (
+      movingColumns &&
+      destStage.nativeKey === 'SCHEDULED' &&
+      originalStage?.nativeKey !== 'SCHEDULED'
+    ) {
+      const movedLead = destStage.leads.find((l) => l.id === leadId)
+      setPendingSchedule({
+        leadId,
+        leadName: movedLead?.name ?? 'Lead',
+        stageId: destStage.id,
+        snapshot,
+      })
+      return
+    }
+
     if (movingColumns) {
       persistMove(leadId, destStage.id, newPosition, snapshot)
     } else {
@@ -178,12 +242,40 @@ export function KanbanBoard({ stages: initialStages, clientId, kind = 'NEW' }: P
     }
   }
 
-  function persistMove(leadId: string, stageId: string, position: number, snapshot: KanbanStage[]) {
+  function persistMove(
+    leadId: string,
+    stageId: string,
+    position: number,
+    snapshot: KanbanStage[],
+    force?: boolean
+  ) {
+    const leadName = snapshot.flatMap((s) => s.leads).find((l) => l.id === leadId)?.name ?? 'Lead'
     startTransition(async () => {
-      const result = await moveLeadAction(leadId, stageId, clientId, position)
+      const result = await moveLeadAction(leadId, stageId, clientId, position, force)
       if (!result.success) {
-        toast.error('Erro ao mover lead')
+        toast.error(result.error.message)
         setStages(snapshot)
+        return
+      }
+      const data = result.data
+      if (data.status === 'needs-appointment') {
+        toast.error('Agende o cliente (mova para Agendado) antes desta etapa.')
+        setStages(snapshot)
+        return
+      }
+      if (data.status === 'confirm-regress') {
+        // Mantém o card já na etapa destino visualmente; pede confirmação.
+        setPendingRegress({ leadId, leadName, stageId, position, snapshot })
+        return
+      }
+      if (data.status === 'confirm-close-early') {
+        setPendingCloseEarly({
+          leadId,
+          stageId,
+          position,
+          scheduledAt: new Date(data.scheduledAt),
+          snapshot,
+        })
         return
       }
       router.refresh()
@@ -276,7 +368,7 @@ export function KanbanBoard({ stages: initialStages, clientId, kind = 'NEW' }: P
         </DragOverlay>
       </DndContext>
 
-      {kind === 'EXISTING' ? (
+      {pipelineKind === 'RETENTION' ? (
         <AddPatientCardDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
@@ -299,9 +391,127 @@ export function KanbanBoard({ stages: initialStages, clientId, kind = 'NEW' }: P
         open={stageEditorOpen}
         onOpenChange={setStageEditorOpen}
         clientId={clientId}
-        kind={kind}
+        pipelineId={pipelineId}
+        pipelineKind={pipelineKind}
+        pipelineName={pipelineName}
         stages={stages}
       />
+
+      <ScheduleLeadDialog
+        open={pendingSchedule !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingSchedule(null)
+        }}
+        clientId={clientId}
+        leadId={pendingSchedule?.leadId ?? null}
+        leadName={pendingSchedule?.leadName ?? ''}
+        stageId={pendingSchedule?.stageId ?? ''}
+        procedures={procedures}
+        onScheduled={() => {
+          setPendingSchedule(null)
+          router.refresh()
+        }}
+        onCancel={() => {
+          // Reverte o card para a etapa de origem.
+          if (pendingSchedule) setStages(pendingSchedule.snapshot)
+          setPendingSchedule(null)
+        }}
+      />
+
+      {/* 2d — Confirmação de retrocesso: desfaz os efeitos já aplicados. */}
+      <AlertDialog
+        open={pendingRegress !== null}
+        onOpenChange={(o) => {
+          if (!o && pendingRegress) {
+            setStages(pendingRegress.snapshot)
+            setPendingRegress(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retroceder card?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Mover {pendingRegress?.leadName ?? 'este card'} para uma etapa anterior vai desfazer
+              os efeitos já aplicados (agendamento, comparecimento e baixa financeira, conforme o
+              caso). Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                if (pendingRegress) setStages(pendingRegress.snapshot)
+                setPendingRegress(null)
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingRegress) return
+                const p = pendingRegress
+                setPendingRegress(null)
+                startTransition(async () => {
+                  const res = await regressLeadAction(p.leadId, p.stageId, clientId, p.position)
+                  if (!res.success) {
+                    toast.error(res.error.message)
+                    setStages(p.snapshot)
+                    return
+                  }
+                  toast.success('Card retrocedido — efeitos desfeitos.')
+                  router.refresh()
+                })
+              }}
+            >
+              Sim, retroceder
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 2c — Confirmação de fechar antes do horário do agendamento. */}
+      <AlertDialog
+        open={pendingCloseEarly !== null}
+        onOpenChange={(o) => {
+          if (!o && pendingCloseEarly) {
+            setStages(pendingCloseEarly.snapshot)
+            setPendingCloseEarly(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fechar antes do horário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O agendamento deste cliente ainda não ocorreu
+              {pendingCloseEarly
+                ? ` (marcado para ${pendingCloseEarly.scheduledAt.toLocaleString('pt-BR')})`
+                : ''}
+              . Fechar agora marcará como comparecido e dará baixa financeira. Continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                if (pendingCloseEarly) setStages(pendingCloseEarly.snapshot)
+                setPendingCloseEarly(null)
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingCloseEarly) return
+                const p = pendingCloseEarly
+                setPendingCloseEarly(null)
+                persistMove(p.leadId, p.stageId, p.position, p.snapshot, true)
+              }}
+            >
+              Sim, fechar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <LeadDrawer
         open={drawerLeadId !== null}
