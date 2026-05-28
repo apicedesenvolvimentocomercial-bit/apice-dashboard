@@ -244,5 +244,5 @@ tracking (insights/goals). Ao add KPI/gráfico no clinic-dashboard, espelhar aqu
 
 - `.env` = **produção**. Migrations: usuário aplica em prod; eu aplico no `.env.test` (Neon) via `npm run migrate:test`.
 - DB de teste já está em dia até migration `pipeline_stage_kind` (aplicada nesta sessão).
-- Verify usa seed-e2e (owner-a@apice.dev/owner123 → /overview). Pre-commit roda eslint+prettier (lint-staged).
+- Verify usa seed-e2e (owner-a@senno.dev/owner123 → /overview). Pre-commit roda eslint+prettier (lint-staged).
 - Branch: trabalhar conforme o usuário pedir (sessão anterior commitou direto na main a pedido dele).

@@ -47,7 +47,7 @@ const envSchema = z
     NEXT_PUBLIC_SENTRY_DSN: optionalUrl('NEXT_PUBLIC_SENTRY_DSN'),
 
     NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
-    NEXT_PUBLIC_APP_NAME: z.string().default('KPI Clinic OS'),
+    NEXT_PUBLIC_APP_NAME: z.string().default('Senno'),
 
     WHATSAPP_API_ENABLED: z
       .string()

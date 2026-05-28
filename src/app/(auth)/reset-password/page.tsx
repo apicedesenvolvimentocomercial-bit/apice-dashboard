@@ -3,7 +3,7 @@ import Link from 'next/link'
 
 import { ResetPasswordForm } from '@/modules/settings/reset-password-form'
 
-export const metadata: Metadata = { title: 'Redefinir senha | KPI Clinic OS' }
+export const metadata: Metadata = { title: 'Redefinir senha | Senno' }
 
 type Props = { searchParams: Promise<{ token?: string }> }
 

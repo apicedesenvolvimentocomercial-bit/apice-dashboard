@@ -31,7 +31,7 @@ export function MonthlyReportEmail({ clinicName, period, kpis, dashboardUrl, pdf
       </Preview>
       <Body style={body}>
         <Container style={container}>
-          <Heading style={heading}>KPI Clinic OS</Heading>
+          <Heading style={heading}>Senno</Heading>
           <Text style={subheading}>{clinicName}</Text>
           <Text style={text}>
             Segue o resumo de desempenho do período <strong>{period}</strong>.
@@ -59,8 +59,8 @@ export function MonthlyReportEmail({ clinicName, period, kpis, dashboardUrl, pdf
 
           <Hr style={hr} />
           <Text style={muted}>
-            Este relatório é gerado automaticamente pelo KPI Clinic OS. Para deixar de receber,
-            entre em contato com o seu gestor.
+            Este relatório é gerado automaticamente pelo Senno. Para deixar de receber, entre em
+            contato com o seu gestor.
           </Text>
         </Container>
       </Body>
@@ -107,7 +107,7 @@ const container = {
   maxWidth: 560,
   borderRadius: 8,
 }
-const heading = { color: '#059669', fontSize: 20, fontWeight: 700, margin: 0 }
+const heading = { color: '#A88234', fontSize: 20, fontWeight: 700, margin: 0 }
 const subheading = {
   color: '#18181b',
   fontSize: 16,
@@ -123,7 +123,7 @@ const kpiRow = { marginBottom: 4 }
 const kpiLabel = { color: '#71717a', fontSize: 12, width: '60%' }
 const kpiValue = { color: '#18181b', fontSize: 13, fontWeight: 600, textAlign: 'right' as const }
 const button = {
-  backgroundColor: '#059669',
+  backgroundColor: '#A88234',
   color: '#ffffff',
   padding: '11px 22px',
   borderRadius: 6,

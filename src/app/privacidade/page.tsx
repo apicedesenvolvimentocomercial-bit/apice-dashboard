@@ -3,7 +3,7 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Política de Privacidade',
-  description: 'Política de Privacidade e uso de cookies do KPI Clinic OS, conforme a LGPD.',
+  description: 'Política de Privacidade e uso de cookies do Senno, conforme a LGPD.',
 }
 
 const UPDATED_AT = '22 de maio de 2026'
@@ -15,16 +15,16 @@ export default function PrivacyPolicyPage() {
       <p className="mt-1 text-sm text-muted-foreground">Última atualização: {UPDATED_AT}</p>
 
       <p className="mt-6">
-        Esta Política descreve como o <strong>KPI Clinic OS</strong> trata dados pessoais, em
-        conformidade com a Lei nº 13.709/2018 (Lei Geral de Proteção de Dados — LGPD).
+        Esta Política descreve como o <strong>Senno</strong> trata dados pessoais, em conformidade
+        com a Lei nº 13.709/2018 (Lei Geral de Proteção de Dados — LGPD).
       </p>
 
       <h2 className="mt-8 text-xl font-semibold">1. Controlador dos dados</h2>
       <p className="mt-2">
         {/* TODO(usuário): preencher razão social, CNPJ e contato do Encarregado/DPO. */}O
-        controlador é a empresa operadora do KPI Clinic OS. Para exercer seus direitos ou tirar
-        dúvidas sobre privacidade, contate o Encarregado de Dados (DPO) pelo e-mail informado no
-        rodapé do contrato de serviço.
+        controlador é a empresa operadora do Senno. Para exercer seus direitos ou tirar dúvidas
+        sobre privacidade, contate o Encarregado de Dados (DPO) pelo e-mail informado no rodapé do
+        contrato de serviço.
       </p>
 
       <h2 className="mt-8 text-xl font-semibold">2. Dados que tratamos</h2>

@@ -20,13 +20,13 @@ export function InviteEmail({ clinicName, inviteUrl }: Props) {
   return (
     <Html lang="pt-BR">
       <Head />
-      <Preview>Convite para gerenciar {clinicName} no KPI Clinic OS</Preview>
+      <Preview>Convite para gerenciar {clinicName} no Senno</Preview>
       <Body style={body}>
         <Container style={container}>
-          <Heading style={heading}>KPI Clinic OS</Heading>
+          <Heading style={heading}>Senno</Heading>
           <Text style={text}>Olá!</Text>
           <Text style={text}>
-            Você foi convidado para gerenciar <strong>{clinicName}</strong> no KPI Clinic OS.
+            Você foi convidado para gerenciar <strong>{clinicName}</strong> no Senno.
           </Text>
           <Section style={{ textAlign: 'center' as const, marginTop: 24 }}>
             <Button href={inviteUrl} style={button}>
@@ -51,13 +51,13 @@ const container = {
   maxWidth: 560,
   borderRadius: 8,
 }
-const heading = { color: '#6366f1', fontSize: 20, fontWeight: 700, margin: 0 }
+const heading = { color: '#A88234', fontSize: 20, fontWeight: 700, margin: 0 }
 const text = { color: '#111827', fontSize: 14, lineHeight: '22px' }
 const muted = { color: '#6b7280', fontSize: 12, lineHeight: '18px' }
-const link = { color: '#6366f1', fontSize: 12, wordBreak: 'break-all' as const }
+const link = { color: '#A88234', fontSize: 12, wordBreak: 'break-all' as const }
 const hr = { borderColor: '#e5e7eb', margin: '24px 0' }
 const button = {
-  backgroundColor: '#6366f1',
+  backgroundColor: '#A88234',
   color: '#ffffff',
   padding: '12px 24px',
   borderRadius: 6,

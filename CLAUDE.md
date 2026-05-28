@@ -6,8 +6,8 @@ este arquivo é o índice + as convenções que valem para todo código novo.
 
 ## O produto
 
-**KPI Clinic OS** (`kpi-clinic-os`) — dashboard SaaS multi-tenant para uma agência
-("Ápice") que gere várias clínicas de estética. Dois domínios coabitam o mesmo
+**Senno** (`senno`) — dashboard SaaS multi-tenant para uma agência
+("Senno") que gere várias clínicas de estética. Dois domínios coabitam o mesmo
 deploy/banco:
 
 - **Admin / agência** — visão cross-clínica (ranking, KPIs globais, gestão de clientes).
@@ -134,7 +134,7 @@ fixas (`white`, `black`, `gray-*`, `slate-*`, `zinc-*`) nesses papéis.
 
 - Texto secundário → `text-muted-foreground` (não `text-gray-500`).
 - Bordas → `border-border`; input → `border-input`; foco/anel → `ring-ring`.
-- Cor da marca (verde Ápice) = `--primary`, **igual nos dois temas** → use `bg-primary`/`text-primary`, nunca hex.
+- Cor da marca (dourado Senno) = `--primary`. Light = dourado escurecido (`hsl(42 53% 42%)`, ≈`#A88234`); dark = dourado mais claro (`hsl(42 65% 58%)`) p/ contraste. Use `bg-primary`/`text-primary`, nunca hex.
 
 **De → para** (erro comum → certo):
 
@@ -176,7 +176,7 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
 - **E2E / verificação** usa o Neon descartável via `.env.test`:
   - `npm run test:e2e` — Playwright (sobe `next dev` herdando `DATABASE_URL`=Neon via
     `dotenv -e .env.test`). Cold-start pode estourar; pré-aqueça `/login`.
-  - `npm run seed:test` — seed E2E (admin@apice.dev/admin123, owner-a@apice.dev/owner123 →
+  - `npm run seed:test` — seed E2E (admin@senno.dev/admin123, owner-a@senno.dev/owner123 →
     Clínica Alpha, owner-b → Clínica Bravo).
   - `npm run migrate:test` — aplica migrations no Neon.
   - `npm run rls:diag` / `rls:check` — provam que a RLS enforça.

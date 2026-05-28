@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 import { ForgotPasswordForm } from '@/modules/settings/forgot-password-form'
 
-export const metadata: Metadata = { title: 'Esqueci a senha | KPI Clinic OS' }
+export const metadata: Metadata = { title: 'Esqueci a senha | Senno' }
 
 export default function ForgotPasswordPage() {
   return (

@@ -44,12 +44,12 @@ test('a11y — política de privacidade', async ({ page }) => {
 })
 
 test('a11y — dashboard do admin', async ({ page }) => {
-  await login(page, 'admin@apice.dev', 'admin123', /\/dashboard/)
+  await login(page, 'admin@senno.dev', 'admin123', /\/dashboard/)
   await expectNoSeriousA11y(page, 'dashboard admin')
 })
 
 test('a11y — pacientes da clínica', async ({ page }) => {
-  await login(page, 'owner-a@apice.dev', 'owner123', /\/overview/)
+  await login(page, 'owner-a@senno.dev', 'owner123', /\/overview/)
   await page.goto('/patients')
   await expectNoSeriousA11y(page, 'patients clínica')
 })

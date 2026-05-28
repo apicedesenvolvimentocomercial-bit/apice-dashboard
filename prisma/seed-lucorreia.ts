@@ -13,7 +13,7 @@ import { hash } from 'bcryptjs'
  * - O email é gravado em minúsculas porque o login faz match exato por email.
  */
 
-const ORG_SLUG = 'apice-desenvolvimento'
+const ORG_SLUG = 'senno'
 const CLINIC_NAME = 'LuCorreia Estética'
 const CLINIC_SLUG = 'lucorreia-estetica'
 const OWNER_EMAIL = 'lucorreiaesteticacwb@gmail.com'

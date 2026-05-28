@@ -2,10 +2,10 @@ import { expect, test } from '@playwright/test'
 
 /**
  * Fluxo autenticado contra o banco de teste (Neon, seed `db:seed`).
- * Credenciais do seed: admin@apice.dev / admin123.
+ * Credenciais do seed: admin@senno.dev / admin123.
  */
 
-const ADMIN = { email: 'admin@apice.dev', password: 'admin123' }
+const ADMIN = { email: 'admin@senno.dev', password: 'admin123' }
 
 async function dismissCookieBanner(page: import('@playwright/test').Page) {
   const accept = page.getByRole('dialog', { name: 'Aviso de cookies' }).getByRole('button', {

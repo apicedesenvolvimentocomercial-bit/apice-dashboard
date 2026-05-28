@@ -1,23 +1,23 @@
 export const CHART_COLORS = {
-  primary: '#6366f1',
-  primarySoft: '#a5b4fc',
+  primary: '#A88234',
+  primarySoft: '#D9BE7A',
   success: '#10b981',
   successSoft: '#6ee7b7',
   danger: '#f43f5e',
   warning: '#f59e0b',
   info: '#3b82f6',
-  muted: '#94a3b8',
+  muted: '#8B7A65',
 } as const
 
 export const CHART_PIE_PALETTE = [
-  '#6366f1',
+  '#A88234',
+  '#5C3A21',
+  '#3b82f6',
   '#10b981',
   '#f59e0b',
-  '#3b82f6',
   '#a855f7',
-  '#ec4899',
   '#14b8a6',
-  '#f97316',
+  '#ec4899',
 ]
 
 export function formatBRLCompact(value: number): string {
