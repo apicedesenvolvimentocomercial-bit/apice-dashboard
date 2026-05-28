@@ -26,6 +26,7 @@ export type AuditEntityType =
   | 'Procedure'
   | 'Organization'
   | 'PipelineDeal'
+  | 'Pipeline'
   | 'PipelineStage'
   | 'ClinicRole'
   | 'AgencyRole'

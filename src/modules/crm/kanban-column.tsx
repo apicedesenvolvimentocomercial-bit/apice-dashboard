@@ -33,15 +33,21 @@ export function KanbanColumn({ stage, onAddLead, onLeadClick }: Props) {
             {stage.leads.length}
           </span>
         </div>
-        {!stage.isWon && !stage.isLost && (
-          <button
-            onClick={onAddLead}
-            className="text-muted-foreground transition-colors hover:text-foreground"
-            aria-label={`Adicionar lead em ${stage.name}`}
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        )}
+        {/* Etapas nativas de desfecho/processo não aceitam card criado direto:
+            só Lead (e etapas livres) ganham o "+". Agendado/Compareceu exigem
+            o fluxo de drag (que dispara agenda/KPI). */}
+        {!stage.isWon &&
+          !stage.isLost &&
+          stage.nativeKey !== 'SCHEDULED' &&
+          stage.nativeKey !== 'ATTENDED' && (
+            <button
+              onClick={onAddLead}
+              className="text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={`Adicionar lead em ${stage.name}`}
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          )}
       </div>
 
       <SortableContext items={leadIds} strategy={verticalListSortingStrategy}>

@@ -55,7 +55,7 @@ compartilhado. Só primitivos de UI, display burro (`components/shared`), tipos
   request para refletir transferência de titularidade na hora — não vem do JWT).
 - **`organizationId` desnormalizado (invariante assumida):** modelos operacionais
   (`Lead`, `Revenue`, `Cost`, `Procedure`, `Patient`, `Appointment`, `Goal`, `Insight`,
-  `PipelineDeal`, `KpiSnapshot`) carregam `organizationId` **além** de `clientId`. É
+  `PipelineDeal`, `Pipeline`, `KpiSnapshot`) carregam `organizationId` **além** de `clientId`. É
   desnormalização proposital — permite queries cross-clínica do admin (filtrar por org
   sem join a `Client`). **A invariante `organizationId == client.organizationId` é mantida
   só pelo código** (todo write grava ambos do mesmo `ctx`); não há FK p/ `Organization`
@@ -190,5 +190,8 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   query/tenant/conexão/tabela com clientId.**
 - `cargos-progresso.md` — cargos configuráveis + titularidade (Etapa 1), metas por
   usuário/cargo (Etapa 2), lacunas + visibilidade de dashboard por cargo (Etapa 3).
+- `pipelines-progresso.md` — pipelines variáveis por clínica (≤6). Fase 1 (estrutura:
+  modelo `Pipeline`+`PipelineKind`, etapas nativas, abas dinâmicas) FEITA; Fase 2
+  (funções de negócio das etapas nativas) pendente.
 - `fase11-progresso.md` — infra de testes E2E.
 - `auditoria-*.md`, `deploy-checklist.md` — achados de auditoria e checklist de deploy.

@@ -1,15 +1,10 @@
-import { prisma } from '@/lib/prisma'
+import { ensureNativePipelines } from '@/server/repositories/pipeline-repository'
 
-export async function createDefaultPipelineStages(clientId: string) {
-  const stages = [
-    { name: 'Lead', order: 1, color: '#6366f1', isWon: false, isLost: false },
-    { name: 'Agendado', order: 2, color: '#f59e0b', isWon: false, isLost: false },
-    { name: 'Compareceu', order: 3, color: '#3b82f6', isWon: false, isLost: false },
-    { name: 'Fechado', order: 4, color: '#10b981', isWon: true, isLost: false },
-    { name: 'No-show', order: 5, color: '#ef4444', isWon: false, isLost: true },
-  ]
-
-  return prisma.pipelineStage.createMany({
-    data: stages.map((s) => ({ ...s, clientId })),
-  })
+/**
+ * Semeia as pipelines nativas (Comercial + Retenção) de uma clínica recém-criada.
+ * Mantém o nome antigo (`createDefaultPipelineStages`) para os callers; a lógica
+ * agora vive em `ensureNativePipelines` (cria a Pipeline + suas etapas nativas).
+ */
+export async function createDefaultPipelineStages(clientId: string, organizationId: string) {
+  return ensureNativePipelines(clientId, organizationId)
 }

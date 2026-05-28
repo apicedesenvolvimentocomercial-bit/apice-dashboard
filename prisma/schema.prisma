@@ -225,6 +225,10 @@ model Client {
   // (a UI sempre tratou como number[]; só o repo serializava). 1ª NF respeitada.
   workdays     Int[]  @default([1, 2, 3, 4, 5, 6])
 
+  // Dias sem operação/procedimento após os quais um paciente cai p/ INACTIVE na
+  // pipeline RETENTION (Fase 2e). Movido pelo cron de retenção.
+  inactivityDays Int @default(30)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -242,6 +246,7 @@ model Client {
   activities          Activity[]
   insights            Insight[]
   goals               Goal[]
+  pipelines           Pipeline[]
   pipelineStages      PipelineStage[]
   marketingCampaigns  MarketingCampaign[]
   kpiSnapshots        KpiSnapshot[]
@@ -336,29 +341,75 @@ model ClinicHoliday {
 // PIPELINE INTERNO DA CLÍNICA
 // =====================================================
 
-enum StageKind {
-  NEW // funil de clientes novos (leads)
-  EXISTING // funil de clientes já cadastrados (pacientes)
+// Tipo de funil. As duas pipelines "nativas" da clínica têm semântica fixa:
+// COMMERCIAL (Lead→Agendado→Compareceu→Fechado→No-show, etapas com função de
+// negócio) e RETENTION (Ativo/Inativo por inatividade). CUSTOM = funis livres
+// que a clínica cria (sem etapas com função). Máx. 6 pipelines por clínica.
+enum PipelineKind {
+  COMMERCIAL // funil comercial padrão (antigo StageKind.NEW)
+  RETENTION // funil de retenção (antigo StageKind.EXISTING)
+  CUSTOM // funil livre criado pela clínica
+}
+
+// Identidade ESTÁVEL da função de uma etapa nativa (Fase 2). O nome é renomeável
+// e isWon/isLost só cobrem 2 das 5; o código decide o efeito de negócio do drag
+// por este campo, não pelo nome. Cadeia COMMERCIAL: LEAD<SCHEDULED<ATTENDED<CLOSED
+// (NO_SHOW é desfecho fora da cadeia). RETENTION: ACTIVE/INACTIVE. null = etapa
+// livre (sem efeito).
+enum StageNativeKey {
+  LEAD
+  SCHEDULED
+  ATTENDED
+  CLOSED
+  NO_SHOW
+  ACTIVE
+  INACTIVE
+}
+
+// Um funil da clínica. Substitui o antigo `StageKind` em PipelineStage: agora
+// uma clínica tem N pipelines (≤6) em vez de dois funis fixos. As duas nativas
+// (COMMERCIAL/RETENTION) nascem com a clínica e não podem ser excluídas.
+model Pipeline {
+  id             String       @id @default(cuid())
+  organizationId String // desnormalizado (invariante == client.organizationId)
+  clientId       String
+  client         Client       @relation(fields: [clientId], references: [id])
+  name           String
+  kind           PipelineKind @default(CUSTOM)
+  order          Int // posição entre as abas da clínica
+  createdAt      DateTime     @default(now())
+
+  stages PipelineStage[]
+
+  @@unique([clientId, order])
+  @@index([clientId])
+  @@index([organizationId, clientId])
 }
 
 model PipelineStage {
-  id        String    @id @default(cuid())
-  clientId  String
-  client    Client    @relation(fields: [clientId], references: [id])
-  name      String
-  // Cada clínica tem dois funis independentes (NEW vs EXISTING); `order` é
-  // único dentro de cada funil, não entre eles.
-  kind      StageKind @default(NEW)
+  id         String   @id @default(cuid())
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id])
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  name       String
+  // `order` é único dentro de cada pipeline, não entre elas.
   order     Int
   color     String?
-  isWon     Boolean   @default(false)
-  isLost    Boolean   @default(false)
-  createdAt DateTime  @default(now())
+  isWon     Boolean  @default(false)
+  isLost    Boolean  @default(false)
+  // Etapa nativa de pipeline nativa: não pode ser excluída pelo usuário
+  // (recebe função de negócio: agenda/financeiro/KPI). Etapas livres = false.
+  isNative  Boolean  @default(false)
+  // Função estável da etapa nativa (Fase 2). null = etapa livre, sem efeito.
+  nativeKey StageNativeKey?
+  createdAt DateTime @default(now())
 
   leads Lead[]
 
-  @@unique([clientId, kind, order])
-  @@index([clientId, kind])
+  @@unique([pipelineId, order])
+  @@index([clientId])
+  @@index([pipelineId])
 }
 
 enum LeadSource {
@@ -423,6 +474,11 @@ model Lead {
   patientId      String?
   patient        Patient? @relation(fields: [patientId], references: [id])
   estimatedValue Decimal? @db.Decimal(12, 2)
+
+  // Agendamento gerado quando o card entra em SCHEDULED (Fase 2). Usado pelo
+  // Fechado (verificar/baixar) e pelo retrocesso (desfazer). 1:1 com Appointment.
+  appointmentId String?      @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
 
   assignedToId String?
   tags         String[]
@@ -574,6 +630,7 @@ model Appointment {
   deletedAt   DateTime?
 
   revenue Revenue?
+  lead    Lead? // card do CRM que gerou este agendamento (Fase 2)
 
   @@index([organizationId, clientId])
   @@index([clientId, scheduledAt])

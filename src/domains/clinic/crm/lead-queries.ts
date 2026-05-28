@@ -1,14 +1,21 @@
-import type { StageKind } from '@prisma/client'
-
 import { getClinicContext } from '@/server/auth/clinic-context'
-import { getPipelineData } from '@/server/queries/lead-queries'
+import {
+  getClinicPipelinesWithStages,
+  getProceduresForScheduling,
+} from '@/server/queries/lead-queries'
 
 /**
  * Porta do CRM/Pipeline do DOMÍNIO CLÍNICA (reforma C — híbrido). `clientId` da
- * sessão via `getClinicContext()`; reusa a query compartilhada (com guards).
- * `kind` seleciona o funil: NEW (clientes novos) ou EXISTING (já cadastrados).
+ * sessão via `getClinicContext()`; reusa as queries compartilhadas (com guards).
+ * Multi-pipeline: a clínica tem N funis (≤6) carregados de uma vez para as abas.
  */
-export async function getClinicPipeline(kind: StageKind = 'NEW') {
+export async function getClinicPipelines() {
   const { clientId } = await getClinicContext()
-  return getPipelineData(clientId, kind)
+  return getClinicPipelinesWithStages(clientId)
+}
+
+/** Procedimentos da clínica p/ o dialog de Agendado (2a). */
+export async function getClinicProceduresForScheduling() {
+  const { clientId } = await getClinicContext()
+  return getProceduresForScheduling(clientId)
 }

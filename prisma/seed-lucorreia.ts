@@ -19,14 +19,74 @@ const CLINIC_SLUG = 'lucorreia-estetica'
 const OWNER_EMAIL = 'lucorreiaesteticacwb@gmail.com'
 const OWNER_PASSWORD = '123456'
 
-// Mesmo funil padrão de createDefaultPipelineStages (inline para manter o
+// Mesmas pipelines nativas de ensureNativePipelines (inline para manter o
 // script standalone, sem depender do alias @/ da app).
-const DEFAULT_STAGES = [
-  { name: 'Lead', order: 1, color: '#6366f1', isWon: false, isLost: false },
-  { name: 'Agendado', order: 2, color: '#f59e0b', isWon: false, isLost: false },
-  { name: 'Compareceu', order: 3, color: '#3b82f6', isWon: false, isLost: false },
-  { name: 'Fechado', order: 4, color: '#10b981', isWon: true, isLost: false },
-  { name: 'No-show', order: 5, color: '#ef4444', isWon: false, isLost: true },
+const COMMERCIAL_STAGES = [
+  {
+    name: 'Lead',
+    order: 0,
+    color: '#6366f1',
+    isWon: false,
+    isLost: false,
+    isNative: true,
+    nativeKey: 'LEAD' as const,
+  },
+  {
+    name: 'Agendado',
+    order: 1,
+    color: '#f59e0b',
+    isWon: false,
+    isLost: false,
+    isNative: true,
+    nativeKey: 'SCHEDULED' as const,
+  },
+  {
+    name: 'Compareceu',
+    order: 2,
+    color: '#3b82f6',
+    isWon: false,
+    isLost: false,
+    isNative: true,
+    nativeKey: 'ATTENDED' as const,
+  },
+  {
+    name: 'Fechado',
+    order: 3,
+    color: '#10b981',
+    isWon: true,
+    isLost: false,
+    isNative: true,
+    nativeKey: 'CLOSED' as const,
+  },
+  {
+    name: 'No-show',
+    order: 4,
+    color: '#ef4444',
+    isWon: false,
+    isLost: true,
+    isNative: true,
+    nativeKey: 'NO_SHOW' as const,
+  },
+]
+const RETENTION_STAGES = [
+  {
+    name: 'Ativo',
+    order: 0,
+    color: '#22c55e',
+    isWon: false,
+    isLost: false,
+    isNative: true,
+    nativeKey: 'ACTIVE' as const,
+  },
+  {
+    name: 'Inativo',
+    order: 1,
+    color: '#94a3b8',
+    isWon: false,
+    isLost: false,
+    isNative: true,
+    nativeKey: 'INACTIVE' as const,
+  },
 ]
 
 const prisma = new PrismaClient()
@@ -69,13 +129,30 @@ async function main() {
     console.log(`   Clínica já existia: ${clinic.name} (reaproveitada)`)
   }
 
-  // Funil padrão — só cria se ainda não houver etapas.
-  const stageCount = await prisma.pipelineStage.count({ where: { clientId: clinic.id } })
-  if (stageCount === 0) {
-    await prisma.pipelineStage.createMany({
-      data: DEFAULT_STAGES.map((s) => ({ ...s, clientId: clinic.id })),
+  // Pipelines nativas — só cria as que faltam.
+  const pipelineCount = await prisma.pipeline.count({ where: { clientId: clinic.id } })
+  if (pipelineCount === 0) {
+    await prisma.pipeline.create({
+      data: {
+        organizationId: org.id,
+        clientId: clinic.id,
+        name: 'Comercial',
+        kind: 'COMMERCIAL',
+        order: 0,
+        stages: { create: COMMERCIAL_STAGES.map((s) => ({ ...s, clientId: clinic.id })) },
+      },
     })
-    console.log('   Funil padrão criado.')
+    await prisma.pipeline.create({
+      data: {
+        organizationId: org.id,
+        clientId: clinic.id,
+        name: 'Retenção',
+        kind: 'RETENTION',
+        order: 1,
+        stages: { create: RETENTION_STAGES.map((s) => ({ ...s, clientId: clinic.id })) },
+      },
+    })
+    console.log('   Pipelines nativas criadas.')
   }
 
   // Usuário CLIENT_OWNER — idempotente por email (único).

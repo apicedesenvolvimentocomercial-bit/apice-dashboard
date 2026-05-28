@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 
 import { logger } from '@/lib/logger'
+import { ingestLead } from '@/server/services/lead-ingest'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -28,10 +29,13 @@ function isWebhookAuthorized(req: Request): boolean {
 }
 
 /**
- * Endpoint genérico para receber callbacks dos providers externos. No MVP
- * apenas registra o payload — a fábrica `getXProvider()` em `src/server/integrations`
- * retorna mocks, então não há nada real para processar ainda. Quando o
- * adapter de produção for plugado, este handler delega ao provider concreto.
+ * Recebe callbacks dos providers externos e ingere o contato como Lead na etapa
+ * LEAD da pipeline COMMERCIAL da clínica (Fase 2f). Contrato do payload (JSON):
+ *   { clientId: string, name: string, phone?, email?, procedureInterest? }
+ * O provider da URL define o `LeadSource` (meta-ads/google-ads/whatsapp).
+ *
+ * RLS: `ingestLead` chama `enterClientScope(clientId)` antes de tocar dados de
+ * clínica — esta rota não passa por `getClinicContext` (rls-gambiarra §entrypoints).
  */
 export async function POST(req: Request, ctx: { params: Promise<{ provider: string }> }) {
   const { provider } = await ctx.params
@@ -43,21 +47,31 @@ export async function POST(req: Request, ctx: { params: Promise<{ provider: stri
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: unknown = null
+  let body: Record<string, unknown> = {}
   try {
-    body = await req.json()
+    const parsed: unknown = await req.json()
+    if (parsed && typeof parsed === 'object') body = parsed as Record<string, unknown>
   } catch {
-    // Alguns providers enviam form-urlencoded — capturamos o cru.
-    body = await req.text().catch(() => null)
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  logger.info('Webhook received', {
-    provider,
-    hasBody: body != null,
-    contentType: req.headers.get('content-type') ?? null,
+  const result = await ingestLead(provider, {
+    clientId: body.clientId,
+    name: body.name,
+    phone: body.phone,
+    email: body.email,
+    procedureInterest: body.procedureInterest,
   })
 
-  return NextResponse.json({ ok: true, provider, received: true })
+  if (!result.ok) {
+    const status =
+      result.reason === 'client-not-found' || result.reason === 'no-lead-stage' ? 404 : 400
+    logger.warn('Webhook lead ingest rejected', { provider, reason: result.reason })
+    return NextResponse.json({ ok: false, error: result.reason }, { status })
+  }
+
+  logger.info('Webhook lead ingested', { provider, leadId: result.leadId })
+  return NextResponse.json({ ok: true, provider, leadId: result.leadId })
 }
 
 export async function GET(_req: Request, ctx: { params: Promise<{ provider: string }> }) {

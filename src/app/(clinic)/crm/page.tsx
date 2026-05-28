@@ -2,7 +2,10 @@ import type { Metadata } from 'next'
 
 import { auth } from '@/server/auth'
 import { gateClinicTab } from '@/server/auth/clinic-tabs'
-import { getClinicPipeline } from '@/domains/clinic/crm/lead-queries'
+import {
+  getClinicPipelines,
+  getClinicProceduresForScheduling,
+} from '@/domains/clinic/crm/lead-queries'
 import { PipelineTabs } from '@/modules/crm/pipeline-tabs'
 
 export const metadata: Metadata = { title: 'Pipeline' }
@@ -20,10 +23,14 @@ export default async function ClientCrmPage() {
     )
   }
 
-  const [newStages, existingStages] = await Promise.all([
-    getClinicPipeline('NEW'),
-    getClinicPipeline('EXISTING'),
+  const [pipelines, procedures] = await Promise.all([
+    getClinicPipelines(),
+    getClinicProceduresForScheduling(),
   ])
+  const totalLeads = pipelines.reduce(
+    (acc, p) => acc + p.stages.reduce((s, st) => s + st.leads.length, 0),
+    0
+  )
 
   return (
     // Ocupa a altura total do <main> (h-full) e vira coluna flex: o cabeçalho
@@ -34,12 +41,11 @@ export default async function ClientCrmPage() {
       <div className="shrink-0">
         <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
         <p className="text-sm text-muted-foreground">
-          {newStages.reduce((acc, s) => acc + s.leads.length, 0)} clientes novos ·{' '}
-          {existingStages.reduce((acc, s) => acc + s.leads.length, 0)} cadastrados no funil
+          {pipelines.length} {pipelines.length === 1 ? 'funil' : 'funis'} · {totalLeads} cards
         </p>
       </div>
 
-      <PipelineTabs clientId={clientId} newStages={newStages} existingStages={existingStages} />
+      <PipelineTabs clientId={clientId} pipelines={pipelines} procedures={procedures} />
     </div>
   )
 }

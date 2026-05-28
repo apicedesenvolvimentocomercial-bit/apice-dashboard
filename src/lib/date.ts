@@ -67,6 +67,34 @@ export function parseLocalDate(raw: string): Date | null {
 }
 
 /**
+ * Parseia o valor de um input `datetime-local` ("YYYY-MM-DDTHH:mm" sem fuso)
+ * como wall-clock de SP → UTC correto. Strings ISO com fuso explícito (Z / ±hh:mm)
+ * caem no `new Date` direto. Use em agendamentos (mesma lógica que estava inline
+ * em appointment-actions).
+ */
+export function parseScheduledAt(raw: string): Date {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(raw)
+  if (m) {
+    return spDate(
+      Number(m[1]),
+      Number(m[2]) - 1,
+      Number(m[3]),
+      Number(m[4]),
+      Number(m[5]),
+      Number(m[6] ?? 0)
+    )
+  }
+  return new Date(raw)
+}
+
+/** Data mínima permitida para agendar: 1 ano atrás (bloqueia retroativos antigos). */
+export function isTooOldToSchedule(scheduledAt: Date, now: Date = new Date()): boolean {
+  const min = new Date(now)
+  min.setFullYear(min.getFullYear() - 1)
+  return scheduledAt.getTime() < min.getTime()
+}
+
+/**
  * Constrói um intervalo a partir de strings YYYY-MM-DD (UI) interpretando-as
  * como dias-cheios no fuso de SP. `to` inclui o dia inteiro até 23:59:59.999.
  */

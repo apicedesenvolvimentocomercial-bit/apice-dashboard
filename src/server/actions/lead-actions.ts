@@ -11,13 +11,18 @@ import {
   createLeadForPatient,
   listPatientsWithoutExistingCard,
   updateLead,
-  moveLead,
   reorderLead,
   findLeadById,
   softDeleteLead,
 } from '@/server/repositories/lead-repository'
 import { winLead, loseLead, addInteraction } from '@/server/services/lead-service'
+import {
+  scheduleLeadAppointment,
+  moveLeadWithEffect,
+  regressLeadStage,
+} from '@/server/services/pipeline-stage-effects'
 import { createAuditLog } from '@/server/repositories/audit-repository'
+import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
 
 const leadSchema = z.object({
   name: z.string().min(2, 'Nome obrigatório'),
@@ -75,7 +80,58 @@ export async function updateLeadAction(leadId: string, clientId: string, formDat
   return ok(null)
 }
 
+/**
+ * Move um lead aplicando os efeitos de etapa nativa (2b/2c) e detectando
+ * retrocesso (2d). Retorna um payload de status que o cliente interpreta:
+ *   - `{ status: 'moved' }` — move concluído (com efeito, se houver).
+ *   - `{ status: 'needs-appointment' }` — etapa exige agendamento (sem appointment).
+ *   - `{ status: 'confirm-regress' }` — retrocesso: cliente deve confirmar e chamar
+ *     `regressLeadAction`.
+ *   - `{ status: 'confirm-close-early' }` — fechar antes do horário: confirmar e
+ *     re-chamar com `force: true`.
+ * `force` pula a confirmação de fechar-antes-do-horário.
+ */
 export async function moveLeadAction(
+  leadId: string,
+  stageId: string,
+  clientId: string,
+  position?: number,
+  force?: boolean
+) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'write')
+
+  const res = await moveLeadWithEffect(ctx, { leadId, stageId, position, force })
+
+  if ('needsConfirm' in res) {
+    if (res.needsConfirm === 'regress') {
+      return ok({ status: 'confirm-regress' as const, fromKey: res.fromKey, toKey: res.toKey })
+    }
+    return ok({ status: 'confirm-close-early' as const, scheduledAt: res.scheduledAt })
+  }
+  if (!res.ok) {
+    if (res.reason === 'no-appointment') {
+      return ok({ status: 'needs-appointment' as const, key: res.key })
+    }
+    return fail(new NotFoundError('Lead'))
+  }
+
+  createAuditLog(ctx, {
+    action: 'stage_change',
+    entityType: 'Lead',
+    entityId: leadId,
+    changes: { stageId },
+  }).catch(() => {})
+  revalidate(clientId)
+  return ok({ status: 'moved' as const })
+}
+
+/**
+ * 2d — Retrocesso CONFIRMADO pelo usuário: desfaz os efeitos das etapas já
+ * percorridas e move para a etapa destino. Ver `regressLeadStage`.
+ */
+export async function regressLeadAction(
   leadId: string,
   stageId: string,
   clientId: string,
@@ -85,15 +141,77 @@ export async function moveLeadAction(
   await assertClientAccess(ctx, clientId)
   await assertCan(ctx, 'crm', 'write')
 
-  await moveLead(ctx, leadId, stageId, position)
+  const res = await regressLeadStage(ctx, { leadId, stageId, position })
+  if (!res.ok) return fail(new NotFoundError('Lead'))
+
   createAuditLog(ctx, {
     action: 'stage_change',
     entityType: 'Lead',
     entityId: leadId,
-    changes: { stageId },
+    changes: { stageId, regressed: true },
   }).catch(() => {})
   revalidate(clientId)
-  return ok(null)
+  return ok({ status: 'moved' as const })
+}
+
+const scheduleSchema = z.object({
+  stageId: z.string().min(1),
+  procedureId: z.string().min(1, 'Procedimento obrigatório'),
+  scheduledAt: z.string().min(1, 'Data obrigatória'),
+  durationMinutes: z.number().int().positive(),
+  notes: z.string().optional(),
+  position: z.number().optional(),
+})
+
+/**
+ * 2a — Move o lead p/ a etapa Agendado criando o Appointment obrigatório.
+ * Exige permissão de CRM e de agenda. Converte o lead em paciente e liga o
+ * appointment ao card. Ver `pipeline-stage-effects.scheduleLeadAppointment`.
+ */
+export async function scheduleLeadAction(leadId: string, clientId: string, formData: unknown) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  await assertCan(ctx, 'crm', 'write')
+  await assertCan(ctx, 'appointments', 'write')
+
+  const parsed = scheduleSchema.safeParse(formData)
+  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+
+  const scheduledAt = parseScheduledAt(parsed.data.scheduledAt)
+  if (isTooOldToSchedule(scheduledAt)) {
+    return fail('Data inválida: não é possível agendar mais de 1 ano no passado')
+  }
+
+  const result = await scheduleLeadAppointment(ctx, {
+    leadId,
+    stageId: parsed.data.stageId,
+    procedureId: parsed.data.procedureId,
+    scheduledAt,
+    durationMinutes: parsed.data.durationMinutes,
+    position: parsed.data.position,
+    notes: parsed.data.notes,
+  })
+
+  if (!result.ok) {
+    const msg =
+      result.reason === 'procedure-not-found'
+        ? 'Procedimento não encontrado'
+        : result.reason === 'stage-not-found'
+          ? 'Etapa inválida'
+          : 'Lead não encontrado'
+    return fail(msg)
+  }
+
+  createAuditLog(ctx, {
+    action: 'stage_change',
+    entityType: 'Lead',
+    entityId: leadId,
+    changes: { stageId: parsed.data.stageId, appointmentId: result.appointmentId, scheduled: true },
+  }).catch(() => {})
+  revalidate(clientId)
+  revalidatePath('/appointments')
+  revalidatePath(`/clients/${clientId}/appointments`)
+  return ok({ appointmentId: result.appointmentId, patientId: result.patientId })
 }
 
 export async function reorderLeadAction(leadId: string, clientId: string, position: number) {
