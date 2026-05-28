@@ -54,7 +54,7 @@ function fmtDate(d: Date): string {
 // Styles
 // ---------------------------------------------------------------------------
 const C = {
-  primary: '#059669', // emerald-600
+  primary: '#A88234', // dourado Senno
   danger: '#dc2626',
   warning: '#d97706',
   info: '#2563eb',
