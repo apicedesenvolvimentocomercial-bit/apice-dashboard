@@ -185,7 +185,7 @@ export async function inviteClientOwnerAction(formData: z.infer<typeof inviteCli
   const { InviteEmail } = await import('@/emails/invite-email')
   const inviteEmailRes = await sendEmail({
     to: email,
-    subject: `Convite para gerenciar ${client.name} — KPI Clinic OS`,
+    subject: `Convite para gerenciar ${client.name} — Senno`,
     react: InviteEmail({ clinicName: client.name, inviteUrl }),
   })
   if (!inviteEmailRes.ok) {
@@ -286,7 +286,7 @@ export async function resendClinicInvitationAction(formData: z.infer<typeof invi
     const { InviteEmail } = await import('@/emails/invite-email')
     const resendEmailRes = await sendEmail({
       to: invitation.email,
-      subject: `Convite para gerenciar ${clinicName} — KPI Clinic OS`,
+      subject: `Convite para gerenciar ${clinicName} — Senno`,
       react: InviteEmail({ clinicName, inviteUrl }),
     })
     if (!resendEmailRes.ok) {

@@ -37,7 +37,7 @@ O usuário (Admin) é um **consultor/gestor que atende múltiplas clínicas est�
 
 | Persona | Quem é | O que faz no sistema |
 |---|---|---|
-| **ADMIN** | Dono do KPI Clinic OS (você) | Acessa tudo: todas as clínicas, dashboards globais, configurações |
+| **ADMIN** | Dono do Senno (você) | Acessa tudo: todas as clínicas, dashboards globais, configurações |
 | **STAFF** | Funcionários do Admin | Acesso parcial baseado em permissões granulares |
 | **CLIENT_OWNER** | Dono/gestor da clínica cliente | Vê apenas dados da clínica dele, opera CRM da clínica, dá baixa em leads, vê dashboard próprio |
 | **CLIENT_STAFF** | Funcionário da clínica | Acesso operacional limitado dentro da clínica (cadastrar leads, mover funil, marcar comparecimento) |
@@ -103,7 +103,7 @@ NEXT_PUBLIC_SENTRY_DSN=
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_APP_NAME="KPI Clinic OS"
+NEXT_PUBLIC_APP_NAME="Senno"
 
 # Feature flags (para integrações futuras)
 WHATSAPP_API_ENABLED=false
@@ -1580,7 +1580,7 @@ Checklist visível no dashboard da clínica até completar.
 
 Criar dados realistas que permitam ver TODAS as funcionalidades:
 
-- 1 Organization "KPI Clinic OS Demo"
+- 1 Organization "Senno Demo"
 - 1 User ADMIN (`admin@demo.com` / senha: `admin123`)
 - 1 User STAFF (`staff@demo.com` / `staff123`)
 - **3 Clients (clínicas)** com perfis distintos:

@@ -11,16 +11,16 @@ async function main() {
   console.log('🌱 Seeding E2E database...')
 
   const org = await prisma.organization.upsert({
-    where: { slug: 'apice-desenvolvimento' },
+    where: { slug: 'senno' },
     update: {},
-    create: { name: 'Ápice Desenvolvimento', slug: 'apice-desenvolvimento' },
+    create: { name: 'Senno', slug: 'senno' },
   })
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@apice.dev' },
+    where: { email: 'admin@senno.dev' },
     update: {},
     create: {
-      email: 'admin@apice.dev',
+      email: 'admin@senno.dev',
       name: 'Admin',
       passwordHash: await hash('admin123', 12),
       role: 'ADMIN',
@@ -59,10 +59,10 @@ async function main() {
   })
 
   await prisma.user.upsert({
-    where: { email: 'staff@apice.dev' },
+    where: { email: 'staff@senno.dev' },
     update: { agencyRoleId: agencyManager.id },
     create: {
-      email: 'staff@apice.dev',
+      email: 'staff@senno.dev',
       name: 'Staff Demo',
       passwordHash: await hash('staff123', 12),
       role: 'STAFF',
@@ -97,10 +97,10 @@ async function main() {
   // Owner de cada clínica (role CLIENT_OWNER, clientId fixado).
   const ownerHash = await hash('owner123', 12)
   const ownerA = await prisma.user.upsert({
-    where: { email: 'owner-a@apice.dev' },
+    where: { email: 'owner-a@senno.dev' },
     update: { clientId: clinicA.id },
     create: {
-      email: 'owner-a@apice.dev',
+      email: 'owner-a@senno.dev',
       name: 'Dono Alpha',
       passwordHash: ownerHash,
       role: 'CLIENT_OWNER',
@@ -110,10 +110,10 @@ async function main() {
     },
   })
   const ownerB = await prisma.user.upsert({
-    where: { email: 'owner-b@apice.dev' },
+    where: { email: 'owner-b@senno.dev' },
     update: { clientId: clinicB.id },
     create: {
-      email: 'owner-b@apice.dev',
+      email: 'owner-b@senno.dev',
       name: 'Dono Bravo',
       passwordHash: ownerHash,
       role: 'CLIENT_OWNER',
@@ -151,9 +151,9 @@ async function main() {
   })
 
   console.log('✅ Seed E2E concluído!')
-  console.log('   Admin: admin@apice.dev / admin123')
-  console.log('   Owner A: owner-a@apice.dev / owner123 (Clínica Alpha → Paciente Alpha)')
-  console.log('   Owner B: owner-b@apice.dev / owner123 (Clínica Bravo → Paciente Bravo)')
+  console.log('   Admin: admin@senno.dev / admin123')
+  console.log('   Owner A: owner-a@senno.dev / owner123 (Clínica Alpha → Paciente Alpha)')
+  console.log('   Owner B: owner-b@senno.dev / owner123 (Clínica Bravo → Paciente Bravo)')
 }
 
 main()

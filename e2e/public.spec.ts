@@ -17,7 +17,7 @@ test.describe('Páginas públicas', () => {
 
   test('login mostra a marca e link para a política', async ({ page }) => {
     await page.goto('/login')
-    await expect(page.getByRole('heading', { name: 'KPI Clinic OS' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Senno' })).toBeVisible()
     // Dispensa o banner de cookies primeiro — ele também tem um link p/ a
     // política, o que criaria duas correspondências (strict mode). Sobra o link
     // do rodapé do login.

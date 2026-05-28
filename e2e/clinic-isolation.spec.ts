@@ -20,14 +20,14 @@ async function login(page: Page, email: string, password: string) {
 }
 
 test('owner da Clínica Alpha vê só o paciente da Alpha', async ({ page }) => {
-  await login(page, 'owner-a@apice.dev', 'owner123')
+  await login(page, 'owner-a@senno.dev', 'owner123')
   await page.goto('/patients')
   await expect(page.getByText('Paciente Alpha')).toBeVisible()
   await expect(page.getByText('Paciente Bravo')).toHaveCount(0)
 })
 
 test('owner da Clínica Bravo vê só o paciente da Bravo', async ({ page }) => {
-  await login(page, 'owner-b@apice.dev', 'owner123')
+  await login(page, 'owner-b@senno.dev', 'owner123')
   await page.goto('/patients')
   await expect(page.getByText('Paciente Bravo')).toBeVisible()
   await expect(page.getByText('Paciente Alpha')).toHaveCount(0)
@@ -42,7 +42,7 @@ test('owner da Clínica Bravo vê só o paciente da Bravo', async ({ page }) => 
 test('rota de export barra clínica de outro tenant (403) e libera a própria (200)', async ({
   page,
 }) => {
-  await login(page, 'owner-a@apice.dev', 'owner123')
+  await login(page, 'owner-a@senno.dev', 'owner123')
 
   // Própria clínica → 200.
   const own = await page.request.get('/api/export/e2e-clinic-a/patients')
@@ -57,7 +57,7 @@ test('rota de export barra clínica de outro tenant (403) e libera a própria (2
 })
 
 test('rota de relatório PDF barra clínica de outro tenant (403)', async ({ page }) => {
-  await login(page, 'owner-a@apice.dev', 'owner123')
+  await login(page, 'owner-a@senno.dev', 'owner123')
 
   const own = await page.request.get('/api/reports/e2e-clinic-a/pdf')
   expect(own.status()).toBe(200)

@@ -11,8 +11,8 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: {
-    default: 'KPI Clinic OS',
-    template: '%s | KPI Clinic OS',
+    default: 'Senno',
+    template: '%s | Senno',
   },
   description: 'Sistema operacional para gestão e crescimento de clínicas estéticas',
 }

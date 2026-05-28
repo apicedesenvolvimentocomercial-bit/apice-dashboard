@@ -141,7 +141,7 @@ export async function forgotPasswordAction(input: z.infer<typeof forgotPasswordS
   const { ResetPasswordEmail } = await import('@/emails/reset-password-email')
   const emailRes = await sendEmail({
     to: user.email,
-    subject: 'Recuperação de senha — KPI Clinic OS',
+    subject: 'Recuperação de senha — Senno',
     react: ResetPasswordEmail({ userName: user.name, resetUrl }),
   })
   if (!emailRes.ok) {

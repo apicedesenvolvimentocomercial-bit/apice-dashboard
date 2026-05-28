@@ -7,20 +7,20 @@ async function main() {
   console.log('🌱 Seeding database...')
 
   const org = await prisma.organization.upsert({
-    where: { slug: 'apice-desenvolvimento' },
+    where: { slug: 'senno' },
     update: {},
     create: {
-      name: 'Ápice Desenvolvimento',
-      slug: 'apice-desenvolvimento',
+      name: 'Senno',
+      slug: 'senno',
     },
   })
 
   const adminHash = await hash('admin123', 12)
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@apice.dev' },
+    where: { email: 'admin@senno.dev' },
     update: {},
     create: {
-      email: 'admin@apice.dev',
+      email: 'admin@senno.dev',
       name: 'Admin',
       passwordHash: adminHash,
       role: 'ADMIN',
@@ -70,10 +70,10 @@ async function main() {
 
   const staffHash = await hash('staff123', 12)
   await prisma.user.upsert({
-    where: { email: 'staff@apice.dev' },
+    where: { email: 'staff@senno.dev' },
     update: { agencyRoleId: managerRole.id },
     create: {
-      email: 'staff@apice.dev',
+      email: 'staff@senno.dev',
       name: 'Staff Demo',
       passwordHash: staffHash,
       role: 'STAFF',
@@ -86,7 +86,7 @@ async function main() {
   console.log('✅ Seed concluído!')
   console.log(`   Org: ${org.name} (${org.slug})`)
   console.log(`   Admin: ${admin.email} / admin123`)
-  console.log(`   Staff: staff@apice.dev / staff123 (cargo: Gerente)`)
+  console.log(`   Staff: staff@senno.dev / staff123 (cargo: Gerente)`)
 }
 
 main()

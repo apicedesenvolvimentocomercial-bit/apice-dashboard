@@ -65,7 +65,7 @@ export async function inviteStaffAction(input: z.infer<typeof inviteSchema>) {
     const { InviteEmail } = await import('@/emails/invite-email')
     const emailRes = await sendEmail({
       to: email,
-      subject: 'Convite para a equipe — KPI Clinic OS',
+      subject: 'Convite para a equipe — Senno',
       react: InviteEmail({ clinicName: 'a equipe', inviteUrl }),
     })
     if (!emailRes.ok) {

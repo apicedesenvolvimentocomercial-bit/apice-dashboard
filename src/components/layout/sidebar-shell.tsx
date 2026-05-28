@@ -56,7 +56,7 @@ export function SidebarShell({ navItems }: { navItems: NavItem[] }) {
                 : 'translate-x-0 opacity-100'
             )}
           >
-            KPI Clinic OS
+            Senno
           </span>
         </div>
 

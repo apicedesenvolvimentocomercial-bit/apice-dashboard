@@ -180,11 +180,7 @@ export function ClinicReportPdf({ data }: { data: ClinicReportData }) {
   const maxRevenue = Math.max(...data.revenueByMonth.map((m) => Math.max(m.revenue, m.costs)), 1)
 
   return (
-    <Document
-      title={`Relatório — ${data.clinicName}`}
-      author="KPI Clinic OS"
-      subject="Relatório mensal"
-    >
+    <Document title={`Relatório — ${data.clinicName}`} author="Senno" subject="Relatório mensal">
       <Page size="A4" style={s.page}>
         {/* Header */}
         <View style={s.header}>
@@ -192,7 +188,7 @@ export function ClinicReportPdf({ data }: { data: ClinicReportData }) {
           <Text style={s.headerSub}>
             Relatório de desempenho · {fmtDate(data.period.from)} a {fmtDate(data.period.to)}
           </Text>
-          <Text style={s.headerSub}>Gerado em {fmtDate(data.generatedAt)} · KPI Clinic OS</Text>
+          <Text style={s.headerSub}>Gerado em {fmtDate(data.generatedAt)} · Senno</Text>
         </View>
 
         {/* KPIs */}
@@ -337,7 +333,7 @@ export function ClinicReportPdf({ data }: { data: ClinicReportData }) {
 
         {/* Footer */}
         <View style={s.footer} fixed>
-          <Text style={s.footerText}>KPI Clinic OS · {data.clinicName}</Text>
+          <Text style={s.footerText}>Senno · {data.clinicName}</Text>
           <Text
             style={s.footerText}
             render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`}
