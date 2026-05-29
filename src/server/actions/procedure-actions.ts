@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { ok, fail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import {
   createProcedure,
   updateProcedure,
@@ -31,6 +32,7 @@ function revalidate(clientId: string) {
 export async function createProcedureAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
   await assertCan(ctx, 'procedures', 'write')
 
   const parsed = procedureSchema.safeParse(formData)
@@ -51,12 +53,13 @@ export async function updateProcedureAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'procedures', 'write')
 
   const parsed = procedureSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
-  await updateProcedure(ctx, procedureId, {
+  await updateProcedure(ctx, procedureId, clientId, {
     ...parsed.data,
     categoryId: parsed.data.categoryId || undefined,
   })
@@ -71,8 +74,9 @@ export async function toggleProcedureActiveAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'procedures', 'write')
-  await updateProcedure(ctx, procedureId, { isActive })
+  await updateProcedure(ctx, procedureId, clientId, { isActive })
   revalidate(clientId)
   return ok(null)
 }
@@ -80,8 +84,9 @@ export async function toggleProcedureActiveAction(
 export async function deleteProcedureAction(procedureId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'procedures', 'delete')
-  await softDeleteProcedure(ctx, procedureId)
+  await softDeleteProcedure(ctx, procedureId, clientId)
   revalidate(clientId)
   return ok(null)
 }

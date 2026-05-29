@@ -1,30 +1,9 @@
-import { Prisma } from '@prisma/client'
-
 import { prisma } from '@/lib/prisma'
 import { monthKey, shortMonthLabel, spDate } from '@/lib/date'
 import type { TenantContext } from '@/server/tenant/context'
-import { currentClientId, runOutsideClientScope } from '@/server/tenant/client-scope'
+import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 
 export type RevenueRow = Awaited<ReturnType<typeof listRevenues>>[number]
-
-/**
- * Transação interativa segura sob escopo de clínica (footgun #2 de
- * `rls-gambiarra.md`): sob clínica, a extensão de RLS embrulharia CADA op de
- * modelo em seu próprio `$transaction` → transação aninhada → erro. Aqui limpamos
- * o escopo (extensão passa direto) e setamos a GUC `app.current_client_id`
- * manualmente como 1ª instrução, mantendo a RLS enforçando dentro da transação.
- */
-function scopedTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
-  const scoped = currentClientId()
-  return runOutsideClientScope(() =>
-    prisma.$transaction(async (tx) => {
-      if (scoped) {
-        await tx.$executeRaw`SELECT set_config('app.current_client_id', ${scoped}, true)`
-      }
-      return fn(tx)
-    })
-  )
-}
 
 export async function listRevenues(
   ctx: TenantContext,
@@ -204,6 +183,7 @@ export async function createRevenuesBulk(
 export async function updateRevenue(
   ctx: TenantContext,
   revenueId: string,
+  clientId: string,
   data: Partial<{
     amount: number
     date: Date
@@ -216,9 +196,10 @@ export async function updateRevenue(
   procedures?: RevenueProcedureInput[]
 ) {
   // Sem mudança de procedimentos: update simples dos campos escalares.
+  // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.
   if (!procedures) {
     return prisma.revenue.updateMany({
-      where: { id: revenueId, organizationId: ctx.organizationId, deletedAt: null },
+      where: { id: revenueId, clientId, organizationId: ctx.organizationId, deletedAt: null },
       data,
     })
   }
@@ -229,7 +210,7 @@ export async function updateRevenue(
 
   return scopedTransaction(async (tx) => {
     const updated = await tx.revenue.updateMany({
-      where: { id: revenueId, organizationId: ctx.organizationId, deletedAt: null },
+      where: { id: revenueId, clientId, organizationId: ctx.organizationId, deletedAt: null },
       data: { ...data, procedureId: primaryProcedureId },
     })
     if (updated.count === 0) return updated
@@ -263,16 +244,16 @@ export async function updateRevenue(
   })
 }
 
-export async function softDeleteRevenue(ctx: TenantContext, revenueId: string) {
+export async function softDeleteRevenue(ctx: TenantContext, revenueId: string, clientId: string) {
   const now = new Date()
   return scopedTransaction(async (tx) => {
     const result = await tx.revenue.updateMany({
-      where: { id: revenueId, organizationId: ctx.organizationId, deletedAt: null },
+      where: { id: revenueId, clientId, organizationId: ctx.organizationId, deletedAt: null },
       data: { deletedAt: now },
     })
     // Soft-delete dos custos de procedimento gerados por esta receita.
     await tx.cost.updateMany({
-      where: { revenueId, organizationId: ctx.organizationId, deletedAt: null },
+      where: { revenueId, clientId, organizationId: ctx.organizationId, deletedAt: null },
       data: { deletedAt: now },
     })
     return result

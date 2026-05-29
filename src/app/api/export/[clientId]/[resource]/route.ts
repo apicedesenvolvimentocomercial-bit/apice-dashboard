@@ -14,7 +14,13 @@ export const dynamic = 'force-dynamic'
 const UTF8_BOM = '﻿'
 
 function escapeCsv(value: unknown): string {
-  const str = value == null ? '' : String(value)
+  let str = value == null ? '' : String(value)
+  // CSV/formula injection: célula iniciada por = + - @ (ou TAB/CR) é executada
+  // como fórmula por Excel/Sheets. Como parte do conteúdo vem de input do usuário
+  // (nome de lead via webhook, descrições), prefixa com aspa simples p/ neutralizar.
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`
+  }
   if (str.includes('"') || str.includes(',') || str.includes('\n')) {
     return `"${str.replace(/"/g, '""')}"`
   }

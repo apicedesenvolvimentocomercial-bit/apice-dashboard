@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { ok, fail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import {
   createPipeline,
   renamePipeline,
@@ -23,6 +24,7 @@ const nameSchema = z.string().min(1, 'Nome obrigatório').max(60, 'Nome muito lo
 export async function createPipelineAction(clientId: string, name: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
   await assertCan(ctx, 'crm', 'write')
 
   const parsed = nameSchema.safeParse(name)
@@ -45,12 +47,13 @@ export async function createPipelineAction(clientId: string, name: string) {
 export async function renamePipelineAction(pipelineId: string, clientId: string, name: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
   const parsed = nameSchema.safeParse(name)
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Nome inválido')
 
-  await renamePipeline(ctx, pipelineId, parsed.data)
+  await renamePipeline(ctx, pipelineId, clientId, parsed.data)
   revalidate(clientId)
   return ok(null)
 }
@@ -58,9 +61,10 @@ export async function renamePipelineAction(pipelineId: string, clientId: string,
 export async function deletePipelineAction(pipelineId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'delete')
 
-  const result = await deletePipeline(ctx, pipelineId)
+  const result = await deletePipeline(ctx, pipelineId, clientId)
   if (result.native) return fail('Pipelines nativas não podem ser excluídas')
   if (result.hasLeads) return fail('Mova ou remova os cards desta pipeline antes de excluí-la.')
   if (!result.deleted) return fail('Pipeline não encontrada')

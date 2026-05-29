@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma'
 import { createGoal, softDeleteGoal, updateGoal } from '@/server/repositories/goal-repository'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 
 const METRICS = [
   'REVENUE',
@@ -66,6 +67,7 @@ export async function createGoalAction(clientId: string, formData: unknown) {
   return runAction(async () => {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
     await assertCan(ctx, 'goals', 'write')
 
     // Delegar a OUTRO (usuário diferente de si, ou cargo, ou clínica) exige
@@ -128,8 +130,9 @@ export async function updateGoalAction(goalId: string, clientId: string, formDat
   return runAction(async () => {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId)
     await assertCan(ctx, 'goals', 'write')
-    await updateGoal(ctx, goalId, { ...parsed.data, startDate, endDate })
+    await updateGoal(ctx, goalId, clientId, { ...parsed.data, startDate, endDate })
     revalidate(clientId)
     return null
   })
@@ -139,8 +142,9 @@ export async function deleteGoalAction(goalId: string, clientId: string) {
   return runAction(async () => {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId)
     await assertCan(ctx, 'goals', 'delete')
-    await softDeleteGoal(ctx, goalId)
+    await softDeleteGoal(ctx, goalId, clientId)
     revalidate(clientId)
     return null
   })

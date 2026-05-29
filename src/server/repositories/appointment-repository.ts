@@ -51,10 +51,15 @@ export async function listAppointments(
   })
 }
 
-export async function findAppointmentById(ctx: TenantContext, appointmentId: string) {
+export async function findAppointmentById(
+  ctx: TenantContext,
+  clientId: string,
+  appointmentId: string
+) {
   return prisma.appointment.findFirst({
     where: {
       id: appointmentId,
+      clientId,
       organizationId: ctx.organizationId,
       deletedAt: null,
     },
@@ -107,6 +112,7 @@ export async function createAppointment(
 export async function updateAppointmentStatus(
   ctx: TenantContext,
   appointmentId: string,
+  clientId: string,
   status: AppointmentStatus,
   extra?: { cancelReason?: string }
 ) {
@@ -117,8 +123,9 @@ export async function updateAppointmentStatus(
     ...(status === 'CANCELED' ? { canceledAt: new Date() } : {}),
   }
 
+  // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.
   return prisma.appointment.updateMany({
-    where: { id: appointmentId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: {
       status,
       ...timestamps,
@@ -130,6 +137,7 @@ export async function updateAppointmentStatus(
 export async function updateAppointment(
   ctx: TenantContext,
   appointmentId: string,
+  clientId: string,
   data: Partial<{
     patientId: string
     procedureId: string
@@ -139,14 +147,18 @@ export async function updateAppointment(
   }>
 ) {
   return prisma.appointment.updateMany({
-    where: { id: appointmentId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data,
   })
 }
 
-export async function softDeleteAppointment(ctx: TenantContext, appointmentId: string) {
+export async function softDeleteAppointment(
+  ctx: TenantContext,
+  appointmentId: string,
+  clientId: string
+) {
   return prisma.appointment.updateMany({
-    where: { id: appointmentId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { deletedAt: new Date() },
   })
 }

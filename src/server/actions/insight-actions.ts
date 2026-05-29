@@ -8,6 +8,7 @@ import { NotFoundError, fail, runAction } from '@/types/errors'
 import { runInsightsForClinic } from '@/server/services/insights/engine'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 
 function revalidate(clientId: string) {
   revalidatePath('/overview')
@@ -24,6 +25,7 @@ async function loadInsight(insightId: string) {
   })
   if (!insight) throw new NotFoundError('Insight')
   await assertClientAccess(ctx, insight.clientId)
+  enterClientScope(insight.clientId) // suspenders: RLS p/ os updates por-id seguintes
   await assertCan(ctx, 'insights', 'write')
   return { ctx, insight }
 }
@@ -89,6 +91,7 @@ export async function recalculateInsightsAction(clientId: string) {
   return runAction(async () => {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId)
     await assertCan(ctx, 'insights', 'write')
     const result = await runInsightsForClinic(ctx.organizationId, clientId)
     revalidate(clientId)

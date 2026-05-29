@@ -8,11 +8,25 @@ export async function createRevenueFromAppointment(
   patientId: string,
   procedureId: string
 ) {
-  const procedure = await prisma.procedure.findFirst({
-    where: { id: procedureId, organizationId: ctx.organizationId },
-    select: { price: true, name: true },
-  })
-  if (!procedure) return null
+  // Belt: appointment, procedimento e paciente precisam ser DESTA clínica. O
+  // caller passa ids vindos da UI; sem validar, dava p/ anexar a receita a
+  // registros de clínica-irmã da mesma org (a RLS cobre o WRITE da Revenue, mas
+  // não valida os FKs apontados).
+  const [appointment, procedure, patient] = await Promise.all([
+    prisma.appointment.findFirst({
+      where: { id: appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+      select: { id: true },
+    }),
+    prisma.procedure.findFirst({
+      where: { id: procedureId, clientId, organizationId: ctx.organizationId },
+      select: { price: true, name: true },
+    }),
+    prisma.patient.findFirst({
+      where: { id: patientId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+      select: { id: true },
+    }),
+  ])
+  if (!appointment || !procedure || !patient) return null
 
   return prisma.revenue.create({
     data: {

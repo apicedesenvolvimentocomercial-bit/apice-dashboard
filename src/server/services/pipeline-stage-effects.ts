@@ -2,6 +2,7 @@ import type { Prisma, StageNativeKey } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
+import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 
 /**
  * Efeitos de negócio disparados quando um card (Lead) entra numa etapa NATIVA
@@ -68,6 +69,7 @@ export type ScheduleResult =
 export async function scheduleLeadAppointment(
   ctx: TenantContext,
   params: {
+    clientId: string
     leadId: string
     stageId: string // etapa SCHEDULED destino
     procedureId: string
@@ -77,8 +79,14 @@ export async function scheduleLeadAppointment(
     notes?: string
   }
 ): Promise<ScheduleResult> {
+  // clientId no lookup (belt): rejeita lead de clínica-irmã da mesma org.
   const lead = await prisma.lead.findFirst({
-    where: { id: params.leadId, organizationId: ctx.organizationId, deletedAt: null },
+    where: {
+      id: params.leadId,
+      clientId: params.clientId,
+      organizationId: ctx.organizationId,
+      deletedAt: null,
+    },
     select: { id: true, clientId: true, name: true, phone: true, email: true, patientId: true },
   })
   if (!lead) return { ok: false, reason: 'lead-not-found' }
@@ -97,7 +105,7 @@ export async function scheduleLeadAppointment(
   })
   if (!procedure) return { ok: false, reason: 'procedure-not-found' }
 
-  return prisma.$transaction(async (tx) => {
+  return scopedTransaction(async (tx) => {
     const patientId = await ensurePatientForLead(tx, ctx, lead)
 
     const appointment = await tx.appointment.create({
@@ -140,9 +148,14 @@ export async function scheduleLeadAppointment(
 }
 
 // Carrega o contexto de um move: lead (com appointment) + etapa origem/destino.
-async function loadMoveContext(ctx: TenantContext, leadId: string, stageId: string) {
+async function loadMoveContext(
+  ctx: TenantContext,
+  clientId: string,
+  leadId: string,
+  stageId: string
+) {
   const lead = await prisma.lead.findFirst({
-    where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     select: {
       id: true,
       clientId: true,
@@ -183,9 +196,9 @@ export type MoveEffectResult =
  */
 export async function moveLeadWithEffect(
   ctx: TenantContext,
-  params: { leadId: string; stageId: string; position?: number; force?: boolean }
+  params: { clientId: string; leadId: string; stageId: string; position?: number; force?: boolean }
 ): Promise<MoveEffectResult> {
-  const loaded = await loadMoveContext(ctx, params.leadId, params.stageId)
+  const loaded = await loadMoveContext(ctx, params.clientId, params.leadId, params.stageId)
   if (!loaded) return { ok: false, reason: 'not-found' }
   const { lead, fromKey, destKey } = loaded
 
@@ -215,7 +228,7 @@ export async function moveLeadWithEffect(
   if (destKey === 'ATTENDED' || destKey === 'NO_SHOW') {
     if (!lead.appointmentId) return { ok: false, reason: 'no-appointment', key: destKey }
     const status = destKey === 'ATTENDED' ? 'ATTENDED' : 'NO_SHOW'
-    await prisma.$transaction(async (tx) => {
+    await scopedTransaction(async (tx) => {
       await tx.appointment.update({
         where: { id: lead.appointmentId! },
         data: {
@@ -245,7 +258,7 @@ export async function moveLeadWithEffect(
     if (!params.force && lead.appointment.scheduledAt.getTime() > Date.now()) {
       return { needsConfirm: 'close-early', scheduledAt: lead.appointment.scheduledAt }
     }
-    await prisma.$transaction(async (tx) => {
+    await scopedTransaction(async (tx) => {
       // Marca ATTENDED se ainda não foi (compareceu, logo fechou).
       if (lead.appointment!.status !== 'ATTENDED') {
         await tx.appointment.update({
@@ -317,9 +330,9 @@ export async function moveLeadWithEffect(
  */
 export async function regressLeadStage(
   ctx: TenantContext,
-  params: { leadId: string; stageId: string; position?: number }
+  params: { clientId: string; leadId: string; stageId: string; position?: number }
 ): Promise<{ ok: boolean }> {
-  const loaded = await loadMoveContext(ctx, params.leadId, params.stageId)
+  const loaded = await loadMoveContext(ctx, params.clientId, params.leadId, params.stageId)
   if (!loaded) return { ok: false }
   const { lead, fromKey, destKey } = loaded
 
@@ -331,7 +344,7 @@ export async function regressLeadStage(
   // está abaixo dele (destRank < r).
   const undo = (r: number) => fromRank >= r && destRank < r
 
-  await prisma.$transaction(async (tx) => {
+  await scopedTransaction(async (tx) => {
     // CLOSED (rank 3): baixa financeira.
     if (undo(3)) {
       if (lead.appointmentId) {

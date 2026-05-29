@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 
 import { NextResponse } from 'next/server'
 
+import { env } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import { ingestLead } from '@/server/services/lead-ingest'
 
@@ -18,7 +19,7 @@ const VALID_PROVIDERS = new Set(['whatsapp', 'meta-ads', 'google-ads'])
  * WhatsApp, Google) ANTES de processar.
  */
 function isWebhookAuthorized(req: Request): boolean {
-  const secret = process.env.WEBHOOK_SECRET
+  const secret = env.WEBHOOK_SECRET
   if (!secret) return false
   const provided = req.headers.get('x-webhook-secret')
   if (!provided) return false

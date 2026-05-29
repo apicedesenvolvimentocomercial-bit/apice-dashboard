@@ -2,6 +2,7 @@ import type { InsightCategory, InsightSeverity, InsightStatus } from '@prisma/cl
 
 import { prisma } from '@/lib/prisma'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { assertCan } from '@/server/auth/assert-can'
 
 export type InsightRow = Awaited<ReturnType<typeof listInsights>>[number]
@@ -34,6 +35,7 @@ export async function listInsights(
 > {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'insights', 'read')
 
   const rows = await prisma.insight.findMany({

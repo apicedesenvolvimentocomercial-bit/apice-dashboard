@@ -13,6 +13,7 @@ import { getRevenueMonthlySeries } from '@/server/queries/revenue-series'
 import { resolvePeriod } from '@/server/services/kpi/period'
 import type { Period, PeriodRange } from '@/server/services/kpi/types'
 import { assertClientAccess, getTenantContext, type TenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { assertCan } from '@/server/auth/assert-can'
 import { can } from '@/server/auth/permissions'
 
@@ -298,6 +299,7 @@ export const getClinicDashboard = cache(
   ): Promise<ClinicDashboardData> => {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
     const range = getRange(period, customFrom, customTo)
 
     const [kpis, revenueSeries, stages, proceduresAgg, leadsBySource, insightsOpen, goals] =

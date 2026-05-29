@@ -4,12 +4,14 @@ import { getPipeline, findLeadById, type PipelineData } from '@/server/repositor
 import { listProceduresForSelect } from '@/server/repositories/procedure-repository'
 import { ensureNativePipelines, listPipelines } from '@/server/repositories/pipeline-repository'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { assertCan } from '@/server/auth/assert-can'
 
 /** Etapas (+leads) de uma pipeline específica da clínica. */
 export async function getPipelineData(clientId: string, pipelineId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'crm', 'read')
   return getPipeline(ctx, clientId, pipelineId)
 }
@@ -21,6 +23,7 @@ export async function getPipelineData(clientId: string, pipelineId: string) {
 export async function listClinicPipelines(clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'crm', 'read')
   await ensureNativePipelines(clientId, ctx.organizationId)
   return listPipelines(ctx, clientId)
@@ -34,6 +37,7 @@ export async function listClinicPipelines(clientId: string) {
 export async function getProceduresForScheduling(clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'crm', 'read')
   const procs = await listProceduresForSelect(ctx, clientId)
   return procs.map((p) => ({ id: p.id, name: p.name, durationMinutes: p.durationMinutes ?? 60 }))
@@ -56,6 +60,7 @@ export async function getClinicPipelinesWithStages(
 ): Promise<PipelineWithStages[]> {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'crm', 'read')
   await ensureNativePipelines(clientId, ctx.organizationId)
   const pipelines = await listPipelines(ctx, clientId)
@@ -65,8 +70,10 @@ export async function getClinicPipelinesWithStages(
   return withStages
 }
 
-export async function getLead(leadId: string) {
+export async function getLead(clientId: string, leadId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'read')
-  return findLeadById(ctx, leadId)
+  return findLeadById(ctx, clientId, leadId)
 }

@@ -2,6 +2,7 @@ import type { StageNativeKey } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
+import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 
 // Ordem canônica das etapas nativas (Fase 2). A subsequência das etapas com
 // `nativeKey` precisa respeitar isto após qualquer reordenação — o usuário pode
@@ -36,11 +37,12 @@ async function nextOrder(pipelineId: string) {
 export async function createStage(
   ctx: TenantContext,
   pipelineId: string,
+  clientId: string,
   data: { name: string; color?: string | null }
 ) {
-  // Garante que a pipeline pertence à org antes de inserir; pega o clientId dela.
+  // Garante que a pipeline pertence à clínica (belt) antes de inserir.
   const pipeline = await prisma.pipeline.findFirst({
-    where: { id: pipelineId, organizationId: ctx.organizationId },
+    where: { id: pipelineId, clientId, organizationId: ctx.organizationId },
     select: { id: true, clientId: true },
   })
   if (!pipeline) return null
@@ -59,10 +61,11 @@ export async function createStage(
 export async function updateStage(
   ctx: TenantContext,
   stageId: string,
+  clientId: string,
   data: { name?: string; color?: string | null }
 ) {
   return prisma.pipelineStage.updateMany({
-    where: { id: stageId, pipeline: { organizationId: ctx.organizationId } },
+    where: { id: stageId, clientId, pipeline: { organizationId: ctx.organizationId } },
     data,
   })
 }
@@ -72,9 +75,14 @@ export async function updateStage(
  * `order` 0..n. Para evitar colisão no unique (pipelineId, order) durante a
  * troca, joga primeiro para um offset alto e depois assenta.
  */
-export async function reorderStages(ctx: TenantContext, pipelineId: string, orderedIds: string[]) {
+export async function reorderStages(
+  ctx: TenantContext,
+  pipelineId: string,
+  clientId: string,
+  orderedIds: string[]
+) {
   const owned = await prisma.pipelineStage.findMany({
-    where: { pipelineId, pipeline: { organizationId: ctx.organizationId } },
+    where: { pipelineId, clientId, pipeline: { organizationId: ctx.organizationId } },
     select: { id: true, nativeKey: true },
   })
   const ownedSet = new Set(owned.map((s) => s.id))
@@ -93,12 +101,16 @@ export async function reorderStages(ctx: TenantContext, pipelineId: string, orde
     }
   }
 
-  await prisma.$transaction([
-    ...ids.map((id, i) =>
-      prisma.pipelineStage.update({ where: { id }, data: { order: i + 1000 } })
-    ),
-    ...ids.map((id, i) => prisma.pipelineStage.update({ where: { id }, data: { order: i } })),
-  ])
+  // scopedTransaction (não $transaction cru): sob escopo de clínica a extensão de
+  // RLS embrulharia cada update → tx aninhada. Mantém RLS + atomicidade (F3).
+  await scopedTransaction(async (tx) => {
+    for (let i = 0; i < ids.length; i++) {
+      await tx.pipelineStage.update({ where: { id: ids[i] }, data: { order: i + 1000 } })
+    }
+    for (let i = 0; i < ids.length; i++) {
+      await tx.pipelineStage.update({ where: { id: ids[i] }, data: { order: i } })
+    }
+  })
   return { ok: true as const }
 }
 
@@ -106,9 +118,9 @@ export async function reorderStages(ctx: TenantContext, pipelineId: string, orde
  * Exclui uma etapa. Bloqueia se for nativa (`isNative`) ou se ainda houver leads
  * (não-deletados) nela. Retorna flags para a action traduzir em mensagem.
  */
-export async function deleteStage(ctx: TenantContext, stageId: string) {
+export async function deleteStage(ctx: TenantContext, stageId: string, clientId: string) {
   const stage = await prisma.pipelineStage.findFirst({
-    where: { id: stageId, pipeline: { organizationId: ctx.organizationId } },
+    where: { id: stageId, clientId, pipeline: { organizationId: ctx.organizationId } },
     select: {
       id: true,
       isNative: true,

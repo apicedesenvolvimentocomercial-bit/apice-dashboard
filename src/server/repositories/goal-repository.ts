@@ -17,9 +17,9 @@ export async function listGoals(ctx: TenantContext, clientId: string, includePas
   })
 }
 
-export async function findGoalById(ctx: TenantContext, goalId: string) {
+export async function findGoalById(ctx: TenantContext, clientId: string, goalId: string) {
   return prisma.goal.findFirst({
-    where: { id: goalId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: goalId, clientId, organizationId: ctx.organizationId, deletedAt: null },
   })
 }
 
@@ -51,6 +51,7 @@ export async function createGoal(
 export async function updateGoal(
   ctx: TenantContext,
   goalId: string,
+  clientId: string,
   data: Partial<{
     metric: GoalMetric
     period: GoalPeriod
@@ -60,15 +61,16 @@ export async function updateGoal(
     notes: string
   }>
 ) {
+  // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.
   return prisma.goal.updateMany({
-    where: { id: goalId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: goalId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data,
   })
 }
 
-export async function softDeleteGoal(ctx: TenantContext, goalId: string) {
+export async function softDeleteGoal(ctx: TenantContext, goalId: string, clientId: string) {
   return prisma.goal.updateMany({
-    where: { id: goalId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: goalId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { deletedAt: new Date() },
   })
 }

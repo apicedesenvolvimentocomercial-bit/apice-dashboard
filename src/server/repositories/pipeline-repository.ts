@@ -131,9 +131,15 @@ export async function createPipeline(ctx: TenantContext, clientId: string, name:
   return { pipeline }
 }
 
-export async function renamePipeline(ctx: TenantContext, pipelineId: string, name: string) {
+export async function renamePipeline(
+  ctx: TenantContext,
+  pipelineId: string,
+  clientId: string,
+  name: string
+) {
+  // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.
   return prisma.pipeline.updateMany({
-    where: { id: pipelineId, organizationId: ctx.organizationId },
+    where: { id: pipelineId, clientId, organizationId: ctx.organizationId },
     data: { name },
   })
 }
@@ -143,9 +149,9 @@ export async function renamePipeline(ctx: TenantContext, pipelineId: string, nam
  * remove as etapas; os leads das etapas são apagados junto pela FK — por isso
  * bloqueamos se houver leads não-deletados. Retorna flags para a action.
  */
-export async function deletePipeline(ctx: TenantContext, pipelineId: string) {
+export async function deletePipeline(ctx: TenantContext, pipelineId: string, clientId: string) {
   const pipeline = await prisma.pipeline.findFirst({
-    where: { id: pipelineId, organizationId: ctx.organizationId },
+    where: { id: pipelineId, clientId, organizationId: ctx.organizationId },
     select: {
       id: true,
       kind: true,
