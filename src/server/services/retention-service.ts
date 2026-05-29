@@ -1,0 +1,122 @@
+import type { Prisma } from '@prisma/client'
+
+import { prisma } from '@/lib/prisma'
+
+/**
+ * Regras de membresia da pipeline de RETENÇÃO (itens 6/7).
+ *
+ * Modelo: um cliente "vira paciente" ao FECHAR (procedimento + baixa). O card
+ * fica em Fechado o resto do dia e, no dia seguinte, o cron de retenção migra o
+ * MESMO card para Retenção/Ativo (ver retention-job). Cadastro manual de paciente
+ * entra em Retenção na hora (addPatientToRetention). Em ambos os casos, cards
+ * duplicados do mesmo cliente em etapas comerciais ATIVAS são removidos.
+ *
+ * Dedup por phone/email/name (escolha do produto) — pode haver falso-positivo em
+ * homônimos sem telefone/email; aceito conforme decisão.
+ */
+
+type Person = {
+  name: string
+  phone: string | null
+  email: string | null
+  patientId?: string | null
+}
+
+/** Etapa ACTIVE da pipeline RETENTION da clínica (ou null se ausente). */
+export async function getRetentionActiveStageId(clientId: string): Promise<string | null> {
+  const retention = await prisma.pipeline.findFirst({
+    where: { clientId, kind: 'RETENTION' },
+    select: { stages: { select: { id: true, nativeKey: true } } },
+  })
+  return retention?.stages.find((s) => s.nativeKey === 'ACTIVE')?.id ?? null
+}
+
+/**
+ * `where` dos cards comerciais ATIVOS (ainda prospectando: não won/lost) do mesmo
+ * cliente — para remover duplicatas ao entrar em retenção. Casa por patientId OU
+ * telefone OU email OU nome (case-insensitive). `excludeLeadId` evita apagar o
+ * próprio card que está migrando.
+ */
+export function activeCommercialDuplicatesWhere(
+  clientId: string,
+  organizationId: string,
+  person: Person,
+  excludeLeadId?: string
+): Prisma.LeadWhereInput {
+  const or: Prisma.LeadWhereInput[] = [{ name: { equals: person.name, mode: 'insensitive' } }]
+  if (person.patientId) or.push({ patientId: person.patientId })
+  if (person.phone) or.push({ phone: person.phone })
+  if (person.email) or.push({ email: { equals: person.email, mode: 'insensitive' } })
+
+  return {
+    clientId,
+    organizationId,
+    deletedAt: null,
+    ...(excludeLeadId ? { id: { not: excludeLeadId } } : {}),
+    // Etapa comercial ainda em prospecção (não Fechado/Cancelado).
+    stage: { pipeline: { kind: 'COMMERCIAL' }, isWon: false, isLost: false },
+    OR: or,
+  }
+}
+
+/** Soft-delete dos cards comerciais ativos duplicados do cliente. */
+export async function removeActiveCommercialDuplicates(
+  clientId: string,
+  organizationId: string,
+  person: Person,
+  excludeLeadId?: string
+): Promise<number> {
+  const res = await prisma.lead.updateMany({
+    where: activeCommercialDuplicatesWhere(clientId, organizationId, person, excludeLeadId),
+    data: { deletedAt: new Date() },
+  })
+  return res.count
+}
+
+/**
+ * Entra um paciente na pipeline de Retenção AGORA (cadastro manual). Idempotente:
+ * não duplica se já houver card de retenção. Remove duplicatas comerciais ativas.
+ * Chamado sob `enterClientScope(clientId)` (RLS ok — Lead tem clientId no where).
+ */
+export async function addPatientToRetention(
+  clientId: string,
+  organizationId: string,
+  patientId: string
+): Promise<void> {
+  const activeStageId = await getRetentionActiveStageId(clientId)
+  if (!activeStageId) return
+
+  const patient = await prisma.patient.findFirst({
+    where: { id: patientId, clientId, organizationId, deletedAt: null },
+    select: { id: true, name: true, phone: true, email: true },
+  })
+  if (!patient) return
+
+  // Remove cards comerciais ativos do mesmo cliente (evita prospect + cliente).
+  await removeActiveCommercialDuplicates(clientId, organizationId, patient)
+
+  // Garante UM card de retenção (não duplica).
+  const existing = await prisma.lead.findFirst({
+    where: {
+      clientId,
+      patientId,
+      deletedAt: null,
+      stage: { pipeline: { kind: 'RETENTION' } },
+    },
+    select: { id: true },
+  })
+  if (existing) return
+
+  await prisma.lead.create({
+    data: {
+      organizationId,
+      clientId,
+      name: patient.name,
+      phone: patient.phone,
+      email: patient.email,
+      source: 'WALK_IN',
+      stageId: activeStageId,
+      patientId,
+    },
+  })
+}

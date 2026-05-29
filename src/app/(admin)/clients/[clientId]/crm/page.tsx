@@ -5,6 +5,7 @@ import { getClient } from '@/server/queries/client-queries'
 import {
   getClinicPipelinesWithStages,
   getProceduresForScheduling,
+  getScheduleForScheduling,
 } from '@/server/queries/lead-queries'
 import { PipelineTabs } from '@/modules/crm/pipeline-tabs'
 
@@ -18,10 +19,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function AdminClientCrmPage({ params }: Props) {
   const { clientId } = await params
-  const [client, pipelines, procedures] = await Promise.all([
+  const [client, pipelines, procedures, schedule] = await Promise.all([
     getClient(clientId),
     getClinicPipelinesWithStages(clientId),
     getProceduresForScheduling(clientId),
+    getScheduleForScheduling(clientId),
   ])
 
   if (!client) notFound()
@@ -40,7 +42,12 @@ export default async function AdminClientCrmPage({ params }: Props) {
         </p>
       </div>
 
-      <PipelineTabs clientId={clientId} pipelines={pipelines} procedures={procedures} />
+      <PipelineTabs
+        clientId={clientId}
+        pipelines={pipelines}
+        procedures={procedures}
+        schedule={schedule}
+      />
     </div>
   )
 }

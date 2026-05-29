@@ -41,5 +41,5 @@ export const INTERACTION_LABELS: Record<string, string> = {
   NOTE: 'Nota',
   MEETING: 'Reunião',
   WON: 'Ganho',
-  LOST: 'No-show',
+  LOST: 'Cancelado',
 }

@@ -32,6 +32,7 @@ const leadSchema = z.object({
   source: z.enum(['META_ADS', 'GOOGLE_ADS', 'ORGANIC', 'REFERRAL', 'WHATSAPP', 'WALK_IN', 'OTHER']),
   stageId: z.string().min(1),
   procedureInterest: z.string().optional(),
+  procedureInterestIds: z.array(z.string()).optional(),
   estimatedValue: z.number().positive().optional(),
   notes: z.string().optional(),
 })

@@ -229,6 +229,13 @@ model Client {
   // pipeline RETENTION (Fase 2e). Movido pelo cron de retenção.
   inactivityDays Int @default(30)
 
+  // Janela de cancelamento → no-show. Ao arrastar um card para "Cancelado":
+  // null (default) = regra do MESMO DIA (cancelar no dia do procedimento conta
+  // como no-show; antes do dia = cancelamento, fora da média de no-show). Um Int
+  // N = conta como no-show se cancelado dentro de N horas antes do horário; mais
+  // cedo = cancelamento. Ver `decideCancellationStatus` em lib/no-show-window.
+  noShowWindowHours Int?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -455,7 +462,12 @@ model Lead {
   source            LeadSource
   campaignId        String?
   campaign          MarketingCampaign? @relation(fields: [campaignId], references: [id])
+  // Rótulo livre dos procedimentos de interesse (nomes concatenados) — mantido
+  // para exibição/compat. A lista estruturada vive em `procedureInterestIds`.
   procedureInterest String?
+  // Procedimentos de interesse (ids de Procedure). Permite >1 e alimenta o
+  // "valor estimado" (soma dos preços) na criação do lead.
+  procedureInterestIds String[] @default([])
   notes             String?            @db.Text
 
   stageId  String
@@ -528,6 +540,12 @@ model Patient {
   cpf       String?
   notes     String?   @db.Text
   tags      String[]
+
+  // true = registro criado automaticamente ao AGENDAR um lead (pode nunca ter
+  // comparecido). A lista de Pacientes só mostra "pacientes reais": ou este flag
+  // é false (cadastro manual / ganho) ou existe ≥1 Appointment ATTENDED. Evita
+  // que no-shows/cancelamentos virem "pacientes fantasmas" na aba.
+  fromScheduledLead Boolean @default(false)
 
   firstVisitAt DateTime?
   lastVisitAt  DateTime?

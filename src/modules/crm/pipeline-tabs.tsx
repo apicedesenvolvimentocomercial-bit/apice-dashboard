@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type { ClinicSchedule } from '@/modules/appointments/types'
 import { createPipelineAction } from '@/server/actions/pipeline-actions'
 
 import { KanbanBoard } from './kanban-board'
@@ -27,6 +28,7 @@ type Props = {
   clientId: string
   pipelines: PipelineTab[]
   procedures: ProcedureOption[]
+  schedule: ClinicSchedule
 }
 
 /**
@@ -34,7 +36,7 @@ type Props = {
  * cada aba é uma `Pipeline` da clínica; a aba "+" cria uma nova pipeline CUSTOM.
  * Cada aba monta um KanbanBoard com seu `pipelineId`/`kind`.
  */
-export function PipelineTabs({ clientId, pipelines, procedures }: Props) {
+export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Props) {
   const router = useRouter()
   const [active, setActive] = useState<string>(pipelines[0]?.id ?? '')
   const [creating, setCreating] = useState(false)
@@ -102,6 +104,7 @@ export function PipelineTabs({ clientId, pipelines, procedures }: Props) {
             pipelineKind={p.kind}
             pipelineName={p.name}
             procedures={procedures}
+            schedule={schedule}
           />
         </TabsContent>
       ))}

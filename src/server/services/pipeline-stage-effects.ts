@@ -1,6 +1,7 @@
 import type { Prisma, StageNativeKey } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
+import { decideCancellationStatus } from '@/lib/no-show-window'
 import type { TenantContext } from '@/server/tenant/context'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 
@@ -51,6 +52,8 @@ async function ensurePatientForLead(
       phone: lead.phone ?? undefined,
       email: lead.email ?? undefined,
       firstVisitAt: new Date(),
+      // Criado ao agendar — só vira "paciente real" na aba se comparecer.
+      fromScheduledLead: true,
     },
   })
   return patient.id
@@ -224,16 +227,18 @@ export async function moveLeadWithEffect(
 
   const position = params.position
 
-  // 2b — Compareceu / No-show: exige appointment; marca o status.
-  if (destKey === 'ATTENDED' || destKey === 'NO_SHOW') {
+  // 2b — Compareceu: exige appointment; marca ATTENDED (limpa marcas de falta/cancel).
+  if (destKey === 'ATTENDED') {
     if (!lead.appointmentId) return { ok: false, reason: 'no-appointment', key: destKey }
-    const status = destKey === 'ATTENDED' ? 'ATTENDED' : 'NO_SHOW'
     await scopedTransaction(async (tx) => {
       await tx.appointment.update({
         where: { id: lead.appointmentId! },
         data: {
-          status,
-          ...(status === 'ATTENDED' ? { attendedAt: new Date() } : { noShowAt: new Date() }),
+          status: 'ATTENDED',
+          attendedAt: new Date(),
+          noShowAt: null,
+          canceledAt: null,
+          cancelReason: null,
         },
       })
       await tx.lead.update({
@@ -241,11 +246,65 @@ export async function moveLeadWithEffect(
         data: {
           stageId: params.stageId,
           ...(position !== undefined ? { position } : {}),
-          ...(status === 'ATTENDED' ? { attendedAt: new Date() } : { lostAt: new Date() }),
+          attendedAt: new Date(),
+          lostAt: null,
           updatedById: ctx.userId,
         },
       })
     })
+    return { ok: true, moved: true }
+  }
+
+  // 2b — Cancelado: o sistema decide se conta como NO_SHOW (entra na média) ou
+  // CANCELED (cancelamento comum, fora da média), pela janela de cancelamento da
+  // clínica. Sem agendamento, é só um lead perdido (sem efeito de appointment).
+  if (destKey === 'NO_SHOW') {
+    const now = new Date()
+    if (lead.appointmentId && lead.appointment) {
+      const client = await prisma.client.findFirst({
+        where: { id: lead.clientId },
+        select: { noShowWindowHours: true },
+      })
+      const status = decideCancellationStatus(
+        lead.appointment.scheduledAt,
+        now,
+        client?.noShowWindowHours ?? null
+      )
+      await scopedTransaction(async (tx) => {
+        await tx.appointment.update({
+          where: { id: lead.appointmentId! },
+          data:
+            status === 'NO_SHOW'
+              ? { status: 'NO_SHOW', noShowAt: now, canceledAt: null, cancelReason: null }
+              : {
+                  status: 'CANCELED',
+                  canceledAt: now,
+                  cancelReason: 'Cancelado antes do dia do procedimento',
+                  noShowAt: null,
+                },
+        })
+        await tx.lead.update({
+          where: { id: lead.id },
+          data: {
+            stageId: params.stageId,
+            ...(position !== undefined ? { position } : {}),
+            lostAt: now,
+            updatedById: ctx.userId,
+          },
+        })
+      })
+    } else {
+      // Sem agendamento: cancelamento de um lead que nunca chegou a ser agendado.
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          stageId: params.stageId,
+          ...(position !== undefined ? { position } : {}),
+          lostAt: now,
+          updatedById: ctx.userId,
+        },
+      })
+    }
     return { ok: true, moved: true }
   }
 
@@ -259,11 +318,18 @@ export async function moveLeadWithEffect(
       return { needsConfirm: 'close-early', scheduledAt: lead.appointment.scheduledAt }
     }
     await scopedTransaction(async (tx) => {
-      // Marca ATTENDED se ainda não foi (compareceu, logo fechou).
+      // Marca ATTENDED se ainda não foi (compareceu, logo fechou). Limpa marcas
+      // de falta/cancelamento caso o card tenha passado por "Cancelado".
       if (lead.appointment!.status !== 'ATTENDED') {
         await tx.appointment.update({
           where: { id: lead.appointmentId! },
-          data: { status: 'ATTENDED', attendedAt: new Date() },
+          data: {
+            status: 'ATTENDED',
+            attendedAt: new Date(),
+            noShowAt: null,
+            canceledAt: null,
+            cancelReason: null,
+          },
         })
       }
       // Baixa financeira: cria Revenue do procedimento se ainda não houver uma
@@ -353,12 +419,19 @@ export async function regressLeadStage(
       await tx.lead.update({ where: { id: lead.id }, data: { closedAt: null } })
     }
 
-    // ATTENDED/NO_SHOW (rank 2): comparecimento. Volta agendamento p/ SCHEDULED.
+    // ATTENDED/NO_SHOW/Cancelado (rank 2): comparecimento/cancelamento. Volta
+    // agendamento p/ SCHEDULED limpando todas as marcas de desfecho.
     if (undo(2)) {
       if (lead.appointmentId) {
         await tx.appointment.update({
           where: { id: lead.appointmentId },
-          data: { status: 'SCHEDULED', attendedAt: null, noShowAt: null },
+          data: {
+            status: 'SCHEDULED',
+            attendedAt: null,
+            noShowAt: null,
+            canceledAt: null,
+            cancelReason: null,
+          },
         })
       }
       await tx.lead.update({ where: { id: lead.id }, data: { attendedAt: null, lostAt: null } })

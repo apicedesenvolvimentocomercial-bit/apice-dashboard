@@ -9,7 +9,7 @@ import { getPatients } from '@/server/queries/patient-queries'
  * compartilhada (cálculo idêntico ao admin + `assertClientAccess`/`assertCan`); só
  * a barreira de acesso (origem do clientId) é isolada por domínio.
  */
-export async function getClinicPatients(filters?: { search?: string }) {
+export async function getClinicPatients(filters?: { search?: string; onlyCompleted?: boolean }) {
   const { clientId } = await getClinicContext()
   return getPatients(clientId, filters)
 }

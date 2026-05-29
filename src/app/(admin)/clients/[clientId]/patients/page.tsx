@@ -11,7 +11,10 @@ type Props = { params: Promise<{ clientId: string }> }
 
 export default async function AdminClientPatientsPage({ params }: Props) {
   const { clientId } = await params
-  const [client, patients] = await Promise.all([getClient(clientId), getPatients(clientId)])
+  const [client, patients] = await Promise.all([
+    getClient(clientId),
+    getPatients(clientId, { onlyCompleted: true }),
+  ])
 
   if (!client) notFound()
 

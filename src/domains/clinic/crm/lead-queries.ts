@@ -2,6 +2,7 @@ import { getClinicContext } from '@/server/auth/clinic-context'
 import {
   getClinicPipelinesWithStages,
   getProceduresForScheduling,
+  getScheduleForScheduling,
 } from '@/server/queries/lead-queries'
 
 /**
@@ -18,4 +19,10 @@ export async function getClinicPipelines() {
 export async function getClinicProceduresForScheduling() {
   const { clientId } = await getClinicContext()
   return getProceduresForScheduling(clientId)
+}
+
+/** Expediente da clínica p/ as validações do dialog de Agendado (2a). */
+export async function getClinicCrmSchedule() {
+  const { clientId } = await getClinicContext()
+  return getScheduleForScheduling(clientId)
 }

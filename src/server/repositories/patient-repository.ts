@@ -7,7 +7,7 @@ export type PatientFull = Awaited<ReturnType<typeof findPatientById>>
 export async function listPatients(
   ctx: TenantContext,
   clientId: string,
-  filters?: { search?: string }
+  filters?: { search?: string; onlyCompleted?: boolean }
 ) {
   return prisma.patient.findMany({
     where: {
@@ -16,6 +16,15 @@ export async function listPatients(
       deletedAt: null,
       ...(filters?.search && {
         name: { contains: filters.search, mode: 'insensitive' },
+      }),
+      // "Pacientes reais": exclui fantasmas de agendamento (criados ao agendar e
+      // que nunca compareceram). Mostra quem foi cadastrado manualmente/ganho
+      // (fromScheduledLead=false) OU já teve ≥1 comparecimento (Appointment ATTENDED).
+      ...(filters?.onlyCompleted && {
+        OR: [
+          { fromScheduledLead: false },
+          { appointments: { some: { status: 'ATTENDED', deletedAt: null } } },
+        ],
       }),
     },
     orderBy: { name: 'asc' },

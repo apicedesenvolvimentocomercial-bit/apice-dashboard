@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { auth } from '@/server/auth'
 import { gateClinicTab } from '@/server/auth/clinic-tabs'
 import {
+  getClinicCrmSchedule,
   getClinicPipelines,
   getClinicProceduresForScheduling,
 } from '@/domains/clinic/crm/lead-queries'
@@ -23,9 +24,10 @@ export default async function ClientCrmPage() {
     )
   }
 
-  const [pipelines, procedures] = await Promise.all([
+  const [pipelines, procedures, schedule] = await Promise.all([
     getClinicPipelines(),
     getClinicProceduresForScheduling(),
+    getClinicCrmSchedule(),
   ])
   const totalLeads = pipelines.reduce(
     (acc, p) => acc + p.stages.reduce((s, st) => s + st.leads.length, 0),
@@ -45,7 +47,12 @@ export default async function ClientCrmPage() {
         </p>
       </div>
 
-      <PipelineTabs clientId={clientId} pipelines={pipelines} procedures={procedures} />
+      <PipelineTabs
+        clientId={clientId}
+        pipelines={pipelines}
+        procedures={procedures}
+        schedule={schedule}
+      />
     </div>
   )
 }
