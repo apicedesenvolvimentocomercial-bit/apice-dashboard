@@ -26,7 +26,7 @@ const OPTIONS: { value: Mode; label: string; description: string }[] = [
     value: 'ASK',
     label: 'Perguntar para adicionar atividades ao calendário',
     description:
-      'Aparece uma caixa "Adicionar ao calendário" na tarefa rápida e no diálogo de Nova atividade. Você decide a cada criação.',
+      'Aparece uma caixa "Adicionar ao calendário" no diálogo de Nova atividade. Você decide a cada criação.',
   },
   {
     value: 'NEVER',

@@ -13,12 +13,11 @@ import type { ActivityView, ActivityView_Counts } from '@/components/shared/acti
 
 import { ClinicActivityCard } from './clinic-activity-card'
 import { ClinicCreateActivityDialog } from './clinic-create-activity-dialog'
-import { ClinicQuickAdd } from './clinic-quick-add'
 
 /**
  * Página de Atividades do DOMÍNIO CLÍNICA (Fase 3). Espelha o design do painel
  * admin (modules/activities/activities-page) — pastas por membro, fan-out
- * "Todos", quick-add + dialog completo — mas TODA action/query é de clínica
+ * "Todos", diálogo de Nova atividade — mas TODA action/query é de clínica
  * (escopo clientId + domain=CLINIC). Nenhuma informação cruza pro admin.
  *
  * Clínica é colaborativa: qualquer membro vê pastas e pode atribuir/fan-out
@@ -91,13 +90,6 @@ export function ClinicActivitiesPage({
   const showFolders = members.length > 1
 
   const defaultAssigneeId = selectedUserId ?? currentUserId ?? members[0]?.id ?? ''
-  const quickAddAssigneeId = selectedUserId ?? 'all'
-  const quickAddFolderLabel = (() => {
-    if (!selectedUserId) return 'Todos'
-    const u = members.find((x) => x.id === selectedUserId)
-    if (!u) return null
-    return u.id === currentUserId ? `${u.name} (você)` : u.name
-  })()
 
   const orderedMembers = [...members].sort((a, b) => {
     if (a.id === currentUserId) return -1
@@ -148,14 +140,6 @@ export function ClinicActivitiesPage({
           />
         </div>
       )}
-
-      <div className="mt-4">
-        <ClinicQuickAdd
-          assignedToId={quickAddAssigneeId}
-          folderLabel={quickAddFolderLabel}
-          activityCalendarSync={activityCalendarSync}
-        />
-      </div>
 
       <div className="mt-5 flex flex-wrap gap-1 border-b">
         {TABS.map((t) => {

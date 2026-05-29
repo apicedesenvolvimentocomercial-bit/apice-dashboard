@@ -12,7 +12,6 @@ import { markActivitiesSeenAction } from '@/server/actions/activity-actions'
 import { ActivityCard } from './activity-card'
 import { CreateActivityDialog } from './create-activity-dialog'
 import { folderColor } from '@/components/shared/activities/folder-colors'
-import { QuickAdd } from './quick-add'
 import type { ActivityView, ActivityView_Counts } from '@/components/shared/activities/types'
 
 type View = 'today' | 'week' | 'overdue' | 'all' | 'done'
@@ -96,17 +95,6 @@ export function ActivitiesPage({
     ? (selectedUserId ?? currentUserId ?? users[0]?.id ?? '')
     : (currentUserId ?? users[0]?.id ?? '')
 
-  // Tarefa rápida em "Todos" do admin faz fan-out (sentinel 'all'), igual
-  // a escolher "Todos" no select do diálogo. Em pasta de usuário, cai nele.
-  const quickAddAssigneeId = isAdmin ? (selectedUserId ?? 'all') : (currentUserId ?? null)
-  const quickAddFolderLabel = (() => {
-    if (!isAdmin) return null
-    if (!selectedUserId) return 'Todos'
-    const u = users.find((x) => x.id === selectedUserId)
-    if (!u) return null
-    return u.id === currentUserId ? `${u.name} (você)` : u.name
-  })()
-
   // Coloca o usuário atual (admin) na frente da lista de pastas.
   const orderedUsers = isAdmin
     ? [...users].sort((a, b) => {
@@ -163,14 +151,6 @@ export function ActivitiesPage({
           />
         </div>
       )}
-
-      <div className="mt-4">
-        <QuickAdd
-          assignedToId={quickAddAssigneeId}
-          folderLabel={quickAddFolderLabel}
-          activityCalendarSync={activityCalendarSync}
-        />
-      </div>
 
       <div className="mt-5 flex flex-wrap gap-1 border-b">
         {TABS.map((t) => {

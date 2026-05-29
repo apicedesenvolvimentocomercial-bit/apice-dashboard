@@ -109,7 +109,7 @@ export function CreateActivityDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button>
           <Plus className="mr-1 h-4 w-4" /> Nova atividade
         </Button>
       </DialogTrigger>
