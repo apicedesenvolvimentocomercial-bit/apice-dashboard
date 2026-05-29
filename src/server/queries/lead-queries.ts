@@ -3,6 +3,7 @@ import type { PipelineKind } from '@prisma/client'
 import { getPipeline, findLeadById, type PipelineData } from '@/server/repositories/lead-repository'
 import { listProceduresForSelect } from '@/server/repositories/procedure-repository'
 import { ensureNativePipelines, listPipelines } from '@/server/repositories/pipeline-repository'
+import { getClinicSchedule } from '@/server/repositories/clinic-schedule-repository'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { assertCan } from '@/server/auth/assert-can'
@@ -40,7 +41,25 @@ export async function getProceduresForScheduling(clientId: string) {
   enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'crm', 'read')
   const procs = await listProceduresForSelect(ctx, clientId)
-  return procs.map((p) => ({ id: p.id, name: p.name, durationMinutes: p.durationMinutes ?? 60 }))
+  return procs.map((p) => ({
+    id: p.id,
+    name: p.name,
+    durationMinutes: p.durationMinutes ?? 60,
+    price: p.price,
+  }))
+}
+
+/**
+ * Expediente da clínica (dias úteis, horário, feriados) para o dialog de Agendado
+ * do pipeline aplicar as MESMAS validações da agenda. Gateado por `crm` (o
+ * operador do funil que agenda), igual a `getProceduresForScheduling`.
+ */
+export async function getScheduleForScheduling(clientId: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
+  await assertCan(ctx, 'crm', 'read')
+  return getClinicSchedule(clientId)
 }
 
 export type PipelineWithStages = {

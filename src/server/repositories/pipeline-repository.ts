@@ -50,7 +50,10 @@ export const COMMERCIAL_NATIVE_STAGES = [
     nativeKey: 'CLOSED' as const,
   },
   {
-    name: 'No-show',
+    // "Cancelado" abrange no-show E cancelamento comum; o sistema decide qual,
+    // pela janela de cancelamento da clínica (Client.noShowWindowHours). Mantém
+    // nativeKey NO_SHOW (identidade estável da etapa) — só o rótulo mudou.
+    name: 'Cancelado',
     order: 4,
     color: '#ef4444',
     isWon: false,

@@ -20,7 +20,7 @@ export default async function ClientPatientsPage() {
     )
   }
 
-  const patients = await getClinicPatients()
+  const patients = await getClinicPatients({ onlyCompleted: true })
 
   return (
     <div className="space-y-6">

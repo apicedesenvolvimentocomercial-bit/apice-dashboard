@@ -32,6 +32,10 @@ export function ScheduleSettingsDialog({ open, clientId, schedule, onOpenChange,
   const [workdayStart, setWorkdayStart] = useState(schedule.workdayStart)
   const [workdayEnd, setWorkdayEnd] = useState(schedule.workdayEnd)
   const [workdays, setWorkdays] = useState<number[]>(schedule.workdays)
+  // '' = regra do mesmo dia (null); número = horas antes do horário.
+  const [noShowWindow, setNoShowWindow] = useState(
+    schedule.noShowWindowHours == null ? '' : String(schedule.noShowWindowHours)
+  )
 
   const currentYear = new Date().getFullYear()
   const [importYear, setImportYear] = useState(String(currentYear))
@@ -45,10 +49,12 @@ export function ScheduleSettingsDialog({ open, clientId, schedule, onOpenChange,
 
   function handleSaveSchedule() {
     startTransition(async () => {
+      const trimmed = noShowWindow.trim()
       const result = await updateClinicScheduleAction(clientId, {
         workdayStart,
         workdayEnd,
         workdays,
+        noShowWindowHours: trimmed === '' ? null : Number(trimmed),
       })
       if (!result.success) {
         toast.error(result.error.message)
@@ -185,6 +191,32 @@ export function ScheduleSettingsDialog({ open, clientId, schedule, onOpenChange,
               {workdays.length === 0 && (
                 <p className="text-xs text-red-500">Selecione ao menos 1 dia</p>
               )}
+            </div>
+
+            {/* Política de cancelamento → no-show */}
+            <div className="space-y-2">
+              <Label htmlFor="sched-noshow-window" className="text-sm font-semibold">
+                Cancelamento que conta como no-show
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="sched-noshow-window"
+                  type="number"
+                  min={0}
+                  max={8760}
+                  value={noShowWindow}
+                  onChange={(e) => setNoShowWindow(e.target.value)}
+                  className="w-24 shrink-0"
+                  placeholder="—"
+                />
+                <span className="text-sm text-muted-foreground">horas antes do horário</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ao mover um card para “Cancelado”: cancelar dentro desta janela antes do horário
+                conta como <strong>no-show</strong> (entra na média); antes disso é apenas{' '}
+                <strong>cancelamento</strong>. Deixe em branco para usar a regra padrão: cancelar no{' '}
+                <strong>mesmo dia</strong> do procedimento conta como no-show.
+              </p>
             </div>
 
             {/* Botão separado dos dias por espaço interno da section */}

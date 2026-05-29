@@ -67,11 +67,30 @@ export async function createLead(
     source: LeadSource
     stageId: string
     procedureInterest?: string
+    procedureInterestIds?: string[]
     estimatedValue?: number
     notes?: string
     tags?: string[]
   }
 ) {
+  // Procedimentos de interesse estruturados: valida que são da clínica, deriva o
+  // rótulo (nomes) e — se o valor estimado não veio — soma os preços.
+  let procedureInterest = data.procedureInterest
+  let estimatedValue = data.estimatedValue
+  const ids = data.procedureInterestIds ?? []
+  if (ids.length > 0) {
+    const procs = await prisma.procedure.findMany({
+      where: { id: { in: ids }, clientId, organizationId: ctx.organizationId, deletedAt: null },
+      select: { name: true, price: true },
+    })
+    if (procs.length > 0) {
+      procedureInterest = procs.map((p) => p.name).join(', ')
+      if (estimatedValue == null) {
+        estimatedValue = procs.reduce((sum, p) => sum + Number(p.price), 0)
+      }
+    }
+  }
+
   return prisma.lead.create({
     data: {
       organizationId: ctx.organizationId,
@@ -81,8 +100,9 @@ export async function createLead(
       email: data.email,
       source: data.source,
       stageId: data.stageId,
-      procedureInterest: data.procedureInterest,
-      estimatedValue: data.estimatedValue,
+      procedureInterest,
+      procedureInterestIds: ids,
+      estimatedValue,
       notes: data.notes,
       tags: data.tags ?? [],
       createdById: ctx.userId,

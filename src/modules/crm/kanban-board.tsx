@@ -18,6 +18,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import type { ClinicSchedule } from '@/modules/appointments/types'
 import { positionBetween } from '@/lib/dnd-position'
 import { moveLeadAction, reorderLeadAction, regressLeadAction } from '@/server/actions/lead-actions'
 import {
@@ -49,6 +50,8 @@ type Props = {
   pipelineName: string
   /** Procedimentos da clínica p/ o dialog de Agendado (2a). */
   procedures: ProcedureOption[]
+  /** Expediente da clínica p/ as validações do dialog de Agendado (2a). */
+  schedule: ClinicSchedule
 }
 
 export function KanbanBoard({
@@ -58,6 +61,7 @@ export function KanbanBoard({
   pipelineKind,
   pipelineName,
   procedures,
+  schedule,
 }: Props) {
   const router = useRouter()
   const [stages, setStages] = useState<KanbanStage[]>(initialStages)
@@ -381,8 +385,8 @@ export function KanbanBoard({
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
           clientId={clientId}
-          stages={stages}
           defaultStageId={createStageId}
+          procedures={procedures}
           onCreated={handleLeadCreated}
         />
       )}
@@ -407,6 +411,7 @@ export function KanbanBoard({
         leadName={pendingSchedule?.leadName ?? ''}
         stageId={pendingSchedule?.stageId ?? ''}
         procedures={procedures}
+        schedule={schedule}
         onScheduled={() => {
           setPendingSchedule(null)
           router.refresh()

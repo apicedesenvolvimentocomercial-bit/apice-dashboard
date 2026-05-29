@@ -5,7 +5,7 @@ export async function getClinicSchedule(clientId: string): Promise<ClinicSchedul
   const [client, holidays] = await Promise.all([
     prisma.client.findFirst({
       where: { id: clientId },
-      select: { workdayStart: true, workdayEnd: true, workdays: true },
+      select: { workdayStart: true, workdayEnd: true, workdays: true, noShowWindowHours: true },
     }),
     prisma.clinicHoliday.findMany({
       where: { clientId },
@@ -19,12 +19,18 @@ export async function getClinicSchedule(clientId: string): Promise<ClinicSchedul
     workdayEnd: client?.workdayEnd ?? '20:00',
     workdays: client?.workdays ?? [1, 2, 3, 4, 5, 6],
     holidays,
+    noShowWindowHours: client?.noShowWindowHours ?? null,
   }
 }
 
 export async function updateClinicSchedule(
   clientId: string,
-  data: { workdayStart: string; workdayEnd: string; workdays: number[] }
+  data: {
+    workdayStart: string
+    workdayEnd: string
+    workdays: number[]
+    noShowWindowHours?: number | null
+  }
 ) {
   return prisma.client.update({
     where: { id: clientId },
@@ -32,6 +38,10 @@ export async function updateClinicSchedule(
       workdayStart: data.workdayStart,
       workdayEnd: data.workdayEnd,
       workdays: data.workdays,
+      // undefined → não mexe; null → volta p/ regra do mesmo dia.
+      ...(data.noShowWindowHours !== undefined
+        ? { noShowWindowHours: data.noShowWindowHours }
+        : {}),
     },
   })
 }

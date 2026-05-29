@@ -21,6 +21,9 @@ export type ClinicSchedule = {
   workdayEnd: string // "HH:MM"
   workdays: number[] // 0=Dom … 6=Sáb
   holidays: { id: string; date: string; name: string }[]
+  // Janela de cancelamento → no-show. null = regra do mesmo dia (default);
+  // N = horas antes do horário dentro das quais o cancelamento conta como no-show.
+  noShowWindowHours: number | null
 }
 
 export const DEFAULT_SCHEDULE: ClinicSchedule = {
@@ -28,6 +31,7 @@ export const DEFAULT_SCHEDULE: ClinicSchedule = {
   workdayEnd: '20:00',
   workdays: [1, 2, 3, 4, 5, 6],
   holidays: [],
+  noShowWindowHours: null,
 }
 
 export type AppointmentEvent = {

@@ -17,6 +17,8 @@ const scheduleSchema = z.object({
   workdayStart: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
   workdayEnd: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
   workdays: z.array(z.number().int().min(0).max(6)).min(1, 'Selecione ao menos 1 dia'),
+  // Janela de cancelamento → no-show. null/omisso = regra do mesmo dia.
+  noShowWindowHours: z.number().int().min(0).max(8760).nullable().optional(),
 })
 
 const holidaySchema = z.object({

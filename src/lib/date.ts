@@ -115,9 +115,22 @@ export function monthKey(date: Date): string {
 }
 
 /**
- * Label curto pt-BR (ex: "jan/25") do mês de uma data SP.
+ * Label curto pt-BR do mês de uma data SP, com ANO COMPLETO (ex: "jan/2025").
+ * Os gráficos são da janela de 12 meses (cobre dois anos) — o ano de 4 dígitos
+ * deixa claro que "25"/"26" é o ano, não um dia.
  */
 export function shortMonthLabel(date: Date): string {
   const zoned = toZonedTime(date, APP_TIMEZONE)
-  return zoned.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+  // pt-BR retorna a abreviação com ponto ("jan."); removemos antes da "/ano".
+  const month = zoned.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+  return `${month}/${zoned.getFullYear()}`
+}
+
+/**
+ * Chave de dia-calendário ("YYYY-MM-DD") da data no fuso de SP. Comparável por
+ * string (ordem ISO) — usada para decidir "mesmo dia"/"antes do dia".
+ */
+export function spDayKey(date: Date): string {
+  const zoned = toZonedTime(date, APP_TIMEZONE)
+  return `${zoned.getFullYear()}-${String(zoned.getMonth() + 1).padStart(2, '0')}-${String(zoned.getDate()).padStart(2, '0')}`
 }

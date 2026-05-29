@@ -58,13 +58,16 @@ async function aggregateForRange(
         createdAt: { gte: range.from, lte: range.to },
       },
     }),
+    // Convertidos (won): contamos por `closedAt` no período, independente da
+    // etapa ATUAL. O card "Fechado" migra p/ a pipeline de Retenção no dia
+    // seguinte (deixa de estar numa etapa isWon), mas `closedAt` é o marcador
+    // durável da conversão — é setado ao fechar e limpo no retrocesso.
     prisma.lead.count({
       where: {
         organizationId: scope.organizationId,
         ...clientFilter,
         deletedAt: null,
         closedAt: { gte: range.from, lte: range.to },
-        stage: { isWon: true },
       },
     }),
     prisma.appointment.groupBy({

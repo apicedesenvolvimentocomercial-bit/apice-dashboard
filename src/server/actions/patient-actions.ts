@@ -14,6 +14,8 @@ import {
   updatePatient,
   softDeletePatient,
 } from '@/server/repositories/patient-repository'
+import { addPatientToRetention } from '@/server/services/retention-service'
+import { logger } from '@/lib/logger'
 
 const patientSchema = z.object({
   name: z.string().min(2, 'Nome obrigatório'),
@@ -65,7 +67,22 @@ export async function createPatientAction(clientId: string, formData: unknown) {
     email: parsed.data.email || undefined,
     birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : undefined,
   })
+
+  // Item 6: paciente cadastrado manualmente entra na pipeline de Retenção na hora
+  // e perde cards comerciais ativos duplicados. Best-effort: não bloqueia o
+  // cadastro se a membresia falhar.
+  try {
+    await addPatientToRetention(clientId, ctx.organizationId, patient.id)
+  } catch (err) {
+    logger.error('addPatientToRetention failed', {
+      error: err instanceof Error ? err.message : String(err),
+      patientId: patient.id,
+    })
+  }
+
   revalidate(clientId)
+  revalidatePath('/crm')
+  revalidatePath(`/clients/${clientId}/crm`)
   return ok(patient)
 }
 

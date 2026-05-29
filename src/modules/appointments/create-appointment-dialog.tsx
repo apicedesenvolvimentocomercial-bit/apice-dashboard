@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { getScheduleViolation } from '@/lib/schedule-violation'
 import { createAppointmentAction } from '@/server/actions/appointment-actions'
 import type { PatientWithStats } from '@/server/repositories/patient-repository'
 import type { ProcedureForSelect } from '@/server/repositories/procedure-repository'
@@ -35,34 +36,6 @@ type Props = {
   schedule?: ClinicSchedule
   onOpenChange: (open: boolean) => void
   onCreated?: () => void
-}
-
-function timeToMinutes(hhmm: string): number {
-  const [h, m] = hhmm.split(':').map(Number)
-  return h * 60 + m
-}
-
-function getScheduleViolation(dateStr: string, schedule: ClinicSchedule): string | null {
-  if (!dateStr) return null
-  const dt = new Date(dateStr)
-  const dayOfWeek = dt.getDay()
-  if (!schedule.workdays.includes(dayOfWeek)) {
-    const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-    return `A clínica não atende às ${dayNames[dayOfWeek]}s.`
-  }
-  const minutes = dt.getHours() * 60 + dt.getMinutes()
-  if (minutes < timeToMinutes(schedule.workdayStart)) {
-    return `Horário antes da abertura (${schedule.workdayStart}).`
-  }
-  if (minutes >= timeToMinutes(schedule.workdayEnd)) {
-    return `Horário após o fechamento (${schedule.workdayEnd}).`
-  }
-  const dateOnly = dateStr.slice(0, 10)
-  const holiday = schedule.holidays.find((h) => h.date === dateOnly)
-  if (holiday) {
-    return `Esta data é feriado: ${holiday.name}.`
-  }
-  return null
 }
 
 export function CreateAppointmentDialog({
