@@ -167,9 +167,12 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
 `bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200`
 (padrão já usado em `clinic-activity-card.tsx`). Fora status, prefira o token.
 
-> O `ThemeProvider` (`next-themes`) ainda **não** está montado no layout raiz — o app
-> roda fixo no claro. Quando for ligado, `useTheme()` vive só no botão de troca, nunca nas
-> telas. Seguir esta convenção garante que cada aba já nasça pronta para os dois temas.
+> O `ThemeProvider` (`next-themes`) **está** montado no layout raiz (`src/app/layout.tsx`)
+> com `defaultTheme="system"` + `enableSystem` — o app segue o SO até o usuário escolher
+> claro/escuro (preferência no localStorage). `useTheme()` vive só nos botões de troca
+> (`theme-toggle.tsx`, `appearance-form.tsx`), nunca nas telas — os tokens semânticos
+> resolvem o resto por cascata da classe `.dark`. Seguir esta convenção garante que cada
+> aba já nasça pronta para os dois temas.
 
 ## Convenções de código
 
@@ -187,6 +190,20 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   Vale também p/ qualquer CSV gerado no client.
 - **Posições de drag** (kanban): `position` é `Float` fracionário (insere entre dois
   cards sem renumerar) — ver `src/lib/dnd-position.ts`.
+- **Pipeline comercial × retenção (itens 6/7) — invariantes:**
+  - **Conversão (`wonCount`) conta por `Lead.closedAt`**, NÃO pela etapa atual (`stage.isWon`).
+    `closedAt` é setado ao FECHAR e limpo no retrocesso (`regressLeadStage`) — é o marcador
+    durável. Não reintroduza filtro de etapa nem dependa da presença do card p/ KPI.
+  - **Card "Fechado" migra p/ Retenção/Ativo no cron diário** (`retention-job`, 04:00 SP),
+    no dia seguinte ao fechamento — o MESMO card move (sem duplicar; `closedAt`/`patientId`
+    permanecem). O cron e o cadastro manual removem cards comerciais ATIVOS duplicados do
+    mesmo cliente (dedup por phone/email/name — `retention-service.removeActiveCommercialDuplicates`).
+  - **Etapa nativa de desfecho = "Cancelado"** (nativeKey segue `NO_SHOW`). Arrastar p/ ela
+    decide `NO_SHOW` (entra na média) vs `CANCELED` (fora) via `Client.noShowWindowHours`
+    (null = regra do mesmo dia) — `decideCancellationStatus` em `lib/no-show-window`.
+  - **Paciente criado ao AGENDAR** leva `Patient.fromScheduledLead=true`. A aba Pacientes
+    mostra só "reais" (`fromScheduledLead=false` OU ≥1 `Appointment` ATTENDED) via filtro
+    `onlyCompleted` — **não** aplique esse filtro ao picker de agendamento (precisa de todos).
 - **Datas**: fuso da app = `America/Sao_Paulo`; use os helpers de `src/lib/date.ts`
   (`spDate`, `parseLocalDate`), não `new Date(string)` cru.
 - **Auditoria**: mutations relevantes chamam `createAuditLog(ctx, {...})` (best-effort,
@@ -218,7 +235,10 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
 - `cargos-progresso.md` — cargos configuráveis + titularidade (Etapa 1), metas por
   usuário/cargo (Etapa 2), lacunas + visibilidade de dashboard por cargo (Etapa 3).
 - `pipelines-progresso.md` — pipelines variáveis por clínica (≤6). Fase 1 (estrutura:
-  modelo `Pipeline`+`PipelineKind`, etapas nativas, abas dinâmicas) FEITA; Fase 2
-  (funções de negócio das etapas nativas) pendente.
+  modelo `Pipeline`+`PipelineKind`, etapas nativas, abas dinâmicas) FEITA; Fase 2 (efeitos
+  das etapas nativas: agendar/comparecer/fechar/retroceder) FEITA. Itens 6/7: migração
+  Fechado→Retenção (cron, dia seguinte), dedup comercial, conversão por `closedAt`, etapa
+  "Cancelado" + `Client.noShowWindowHours`, `Patient.fromScheduledLead` — ver invariantes
+  em "Convenções de código".
 - `fase11-progresso.md` — infra de testes E2E.
 - `auditoria-*.md`, `deploy-checklist.md` — achados de auditoria e checklist de deploy.
