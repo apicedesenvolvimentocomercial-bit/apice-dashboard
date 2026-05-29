@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import type { CalendarEvent, CalendarHoliday } from '@/server/queries/calendar-queries'
 
 /**
@@ -21,6 +22,7 @@ const DEFAULT_EVENT_COLOR = '#3b82f6'
 export async function getClientClinicActivities(clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS (admin vendo UMA clínica)
   await assertCan(ctx, 'activities', 'read')
 
   return prisma.activity.findMany({
@@ -45,6 +47,7 @@ export async function getClientClinicCalendar(
 ): Promise<{ events: CalendarEvent[]; holidays: CalendarHoliday[] }> {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS (admin vendo UMA clínica)
   await assertCan(ctx, 'activities', 'read')
 
   const fromStr = filters.from.toISOString().slice(0, 10)

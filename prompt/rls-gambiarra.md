@@ -137,6 +137,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,UPDATE,DELETE ON T
 - `npm run rls:check` — conecta como `app_user` e prova que `findMany()` **sem
   `where`** só retorna a clínica da GUC (e admin vê tudo). É a prova de que a RLS
   enforça sozinha, independente do filtro de app.
+- `npm run rls:check:write` — prova que a RLS barra **escrita** cross-clínica
+  (UPDATE mirando linha de outra clínica afeta 0 linhas) E que o filtro de app
+  (belt: `clientId` no `where`) isola mesmo sem GUC.
+- `npm run rls:check:ext` — prova que a EXTENSÃO real do app (`src/lib/prisma.ts`)
+  enforça leitura+escrita sob `enterClientScope` — fecha a lacuna de que `rls:check`
+  usa client cru + `set_config` manual, não a extensão.
 - E2E (`npm run test:e2e`) — app inteira como `app_user`, isolamento de clínica
   na UI (owner A só vê dados da clínica A).
 
@@ -144,8 +150,37 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,UPDATE,DELETE ON T
 
 Patient, Appointment, Procedure, ProcedureCategory, Lead, Revenue, Cost, Goal,
 Insight, Activity, CalendarEvent, Notification, PipelineDeal, Pipeline,
-PipelineStage, MarketingCampaign, KpiSnapshot, ClinicHoliday, Invitation.
+PipelineStage, MarketingCampaign, KpiSnapshot, ClinicHoliday, Invitation,
+RevenueProcedure, ClinicRole.
 
 **Fora:** `User` (login roda sem GUC); tabelas-filhas sem `clientId` direto
 (ex.: `LeadInteraction`) — protegidas via app + tabela-pai. Se precisar de RLS
 nelas, use policy com subquery no pai.
+
+## 9. Belt + suspenders (rollout que tornou a RLS de fato ativa)
+
+A RLS estava DESENHADA mas **dormente** na prática: só `src/domains/clinic/*` (que usa
+`getClinicContext` → `enterClientScope`) e as rotas de API entravam escopo. A maioria das
+actions/queries de clínica usa `getTenantContext()` + `assertClientAccess(clientId)` (porque
+admin também as chama numa clínica) e **não entrava escopo** → GUC nula → RLS inerte. Além
+disso, mutações por-id filtravam só por `organizationId` (uma org tem várias clínicas) →
+IDOR cross-clínica dentro da org, sem rede da RLS.
+
+Padrão aplicado (financial, CRM/lead, pipeline, patient, procedure, goal, insight — mutations
+e reads):
+
+- **Suspenders:** `enterClientScope(clientId)` logo após `assertClientAccess(ctx, clientId)`
+  em toda action/query de UMA clínica. Reativa a RLS naquele caminho.
+- **Belt:** `clientId` no `where` de toda mutação/`findFirst` por-id (e nos lookups iniciais
+  dos services tipo `winLead`). Não depende da RLS; fecha o IDOR mesmo com GUC nula.
+- **`scopedTransaction`** (`@/server/tenant/scoped-transaction`) em toda transação interativa
+  de clínica — extraído de `revenue-repository` para uso comum. Substituiu `prisma.$transaction`
+  cru em `lead-service`, `pipeline-stage-effects`, `pipeline-stage-repository` (reorder batch).
+
+**Exceções (org-scope é o correto, NÃO entrar escopo):** domínio admin/agência —
+`getAdminDashboard`, `getInsightCountsByClinic`, `pipeline-deal-*`, `activity-actions` (admin,
+`domain:'ADMIN'`), audit; e superfícies por-usuário (calendário pessoal da agência,
+notificações) — isoladas por `userId`, não por `clientId`.
+
+**Pendente:** `clinic-schedule`/`settings` já são seguros (belt presente / owner-gated / alvo
+é o próprio `Client` validado), mas ainda não entram escopo (defesa-em-profundidade opcional).

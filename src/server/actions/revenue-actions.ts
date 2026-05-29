@@ -10,6 +10,7 @@ import { ok, fail } from '@/types/errors'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import {
   createRevenue,
   createRevenuesBulk,
@@ -72,6 +73,7 @@ function computeAmount(
 export async function createRevenueAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
   await assertCan(ctx, 'financial', 'write')
   const parsed = revenueSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
@@ -111,6 +113,7 @@ export async function createRevenueAction(clientId: string, formData: unknown) {
 export async function updateRevenueAction(revenueId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'financial', 'write')
   const parsed = revenueSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
@@ -135,6 +138,7 @@ export async function updateRevenueAction(revenueId: string, clientId: string, f
   await updateRevenue(
     ctx,
     revenueId,
+    clientId,
     {
       amount,
       date,
@@ -152,8 +156,9 @@ export async function updateRevenueAction(revenueId: string, clientId: string, f
 export async function deleteRevenueAction(revenueId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'financial', 'delete')
-  await softDeleteRevenue(ctx, revenueId)
+  await softDeleteRevenue(ctx, revenueId, clientId)
   createAuditLog(ctx, { action: 'delete', entityType: 'Revenue', entityId: revenueId }).catch(
     () => {}
   )
@@ -245,6 +250,7 @@ export async function importRevenuesAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'financial', 'write')
 
   const parsed = importPayloadSchema.safeParse(rows)

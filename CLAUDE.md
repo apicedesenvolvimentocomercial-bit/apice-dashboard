@@ -100,14 +100,30 @@ Isolamento entre clínicas no **nível do banco**, além do filtro de app:
   senão nasce sem defesa no banco. Raw queries não passam pela extensão — evite-as para
   dado de clínica, ou injete a GUC manualmente. A RLS é a 2ª camada; **nunca** remova o
   filtro de app "porque agora tem RLS".
-- **SEMPRE fixe o escopo de RLS em todo entrypoint de clínica.** Páginas/actions/queries
-  da clínica resolvem via `getClinicContext()`, que já chama `enterClientScope`. Mas
-  **entrypoints que NÃO passam por ele** — rotas de API (`src/app/api/**`), jobs, webhooks —
-  rodam com GUC nula (= contexto admin, policy libera a org inteira) e a RLS fica inerte.
-  Em qualquer rota/handler que sirva dado de UMA clínica, chame `enterClientScope(clientId)`
-  logo após `assertClientAccess(ctx, clientId)` (ver `api/reports/[clientId]` e
-  `api/export/[clientId]`). Jobs cross-clínica (crons admin) são exceção legítima: GUC nula
-  é o correto. Cobertura: `e2e/clinic-isolation.spec.ts` (rotas) + `npm run rls:check` (banco).
+- **SEMPRE fixe o escopo de RLS em todo entrypoint de clínica.** `getClinicContext()` já
+  chama `enterClientScope` — mas só `src/domains/clinic/*` o usa. A maioria das actions/queries
+  de clínica usa `getTenantContext()` + `assertClientAccess(ctx, clientId)` (porque também são
+  chamáveis pelo admin numa clínica específica). Esses NÃO entram escopo sozinhos: **chame
+  `enterClientScope(clientId)` logo após `assertClientAccess(ctx, clientId)`**, igual às rotas
+  de API (`api/reports/[clientId]`, `api/export/[clientId]`). Sem isso a GUC fica nula (=
+  contexto admin, policy libera a org) e a RLS fica inerte naquele caminho. Exceção legítima:
+  jobs/queries CROSS-clínica do admin (ex.: `getAdminDashboard`, `getInsightCountsByClinic`,
+  `pipeline-deal-*`, audit) — GUC nula é o correto lá. Cobertura hoje em financial/CRM/pipeline/
+  patient/procedure/goal/insight (mutations + reads) e nas rotas de API.
+- **Belt + suspenders (padrão p/ mutações por-id de clínica).** `organizationId` sozinho NÃO
+  isola entre clínicas da mesma org. Toda mutação/`findFirst` por id de tabela de clínica
+  inclui **`clientId` no `where`** (belt — não depende da RLS) **E** a action entra escopo
+  (suspenders — RLS como rede). `assertClientAccess(ctx, clientId)` valida só que o `clientId`
+  _passado_ é do caller, não que o registro-alvo pertence a ele — por isso o `clientId` no
+  `where` é obrigatório.
+- **Transação interativa de clínica → `scopedTransaction`** (`@/server/tenant/scoped-transaction`),
+  **nunca** `prisma.$transaction` cru. Sob escopo de clínica a extensão de RLS embrulharia cada
+  op da tx num `$transaction` próprio (tx aninhada → GUC numa conexão, query noutra → RLS inerte
+  - atomicidade quebrada). `scopedTransaction` limpa o escopo e seta a GUC manualmente na MESMA
+    transação. Vale também p/ a forma batch `$transaction([...])`.
+- Cobertura: `e2e/clinic-isolation.spec.ts` (rotas/UI) + `npm run rls:check` (policy do banco) +
+  `npm run rls:check:write` (RLS barra WRITE cross-clínica) + `npm run rls:check:ext` (a extensão
+  real do app enforça leitura+escrita sob `enterClientScope`).
 
 ## Cores / tema (dark-mode-safe)
 
@@ -160,6 +176,15 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
 - **Server actions** retornam `Result<T>` (`ok()`/`fail()` de `src/types/errors.ts`).
   Envolva o corpo em `runAction()` quando lançar `AppError`. Valide input com zod.
   Chame `assertCan` antes de qualquer efeito; `revalidatePath` depois.
+- **Action/query que serve UMA clínica** (não via `getClinicContext`): após
+  `assertClientAccess(ctx, clientId)`, chame **`enterClientScope(clientId)`** (liga a RLS);
+  toda mutação/`findFirst` por-id leva **`clientId` no `where`** (não confie só em
+  `organizationId` — a org tem várias clínicas); transação interativa usa **`scopedTransaction`**
+  (`@/server/tenant/scoped-transaction`), nunca `prisma.$transaction` cru. Detalhe + exceções
+  admin/por-usuário: seção RLS.
+- **Export CSV**: neutralize formula injection — célula iniciada por `= + - @ \t \r` ganha
+  prefixo `'` antes de escapar aspas (ver `escapeCsv` em `api/export/[clientId]/[resource]`).
+  Vale também p/ qualquer CSV gerado no client.
 - **Posições de drag** (kanban): `position` é `Float` fracionário (insere entre dois
   cards sem renumerar) — ver `src/lib/dnd-position.ts`.
 - **Datas**: fuso da app = `America/Sao_Paulo`; use os helpers de `src/lib/date.ts`
@@ -179,7 +204,9 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   - `npm run seed:test` — seed E2E (admin@senno.dev/admin123, owner-a@senno.dev/owner123 →
     Clínica Alpha, owner-b → Clínica Bravo).
   - `npm run migrate:test` — aplica migrations no Neon.
-  - `npm run rls:diag` / `rls:check` — provam que a RLS enforça.
+  - `npm run rls:diag` / `rls:check` — provam que a RLS enforça (leitura/policy).
+  - `npm run rls:check:write` (RLS barra escrita cross-clínica) · `rls:check:ext`
+    (extensão real do app sob `enterClientScope`).
 - Build/qualidade: `npm run build` · `npm run type-check` (`tsc --noEmit`) ·
   `npm run lint` · `npm test` (vitest).
 

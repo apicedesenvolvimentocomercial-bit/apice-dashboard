@@ -1,14 +1,21 @@
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
+import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 
 /**
  * Conversão Lead → Patient (+ Revenue se houver estimatedValue).
  * As operações rodam numa única transação para garantir consistência:
  * se qualquer passo falhar, nada fica persistido.
  */
-export async function winLead(ctx: TenantContext, leadId: string, wonStageId: string) {
+export async function winLead(
+  ctx: TenantContext,
+  clientId: string,
+  leadId: string,
+  wonStageId: string
+) {
+  // clientId no lookup (belt): rejeita lead de clínica-irmã da mesma org.
   const lead = await prisma.lead.findFirst({
-    where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
   })
   if (!lead) return null
 
@@ -20,7 +27,7 @@ export async function winLead(ctx: TenantContext, leadId: string, wonStageId: st
   })
   if (!stage) return null
 
-  return prisma.$transaction(async (tx) => {
+  return scopedTransaction(async (tx) => {
     const patient = await tx.patient.create({
       data: {
         organizationId: ctx.organizationId,
@@ -71,12 +78,13 @@ export async function winLead(ctx: TenantContext, leadId: string, wonStageId: st
 
 export async function loseLead(
   ctx: TenantContext,
+  clientId: string,
   leadId: string,
   lostStageId: string,
   reason: string
 ) {
   const lead = await prisma.lead.findFirst({
-    where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
   })
   if (!lead) return
 
@@ -86,8 +94,8 @@ export async function loseLead(
   })
   if (!stage) return
 
-  await prisma.$transaction([
-    prisma.lead.update({
+  await scopedTransaction(async (tx) => {
+    await tx.lead.update({
       where: { id: leadId },
       data: {
         stageId: lostStageId,
@@ -95,19 +103,28 @@ export async function loseLead(
         lostReason: reason,
         updatedById: ctx.userId,
       },
-    }),
-    prisma.leadInteraction.create({
+    })
+    await tx.leadInteraction.create({
       data: { leadId, type: 'LOST', content: reason, createdById: ctx.userId },
-    }),
-  ])
+    })
+  })
 }
 
 export async function addInteraction(
   ctx: TenantContext,
+  clientId: string,
   leadId: string,
   type: string,
   content: string
 ) {
+  // LeadInteraction não tem clientId (não é coberto por RLS); valida a posse do
+  // lead pela clínica antes de anexar a interação (belt).
+  const lead = await prisma.lead.findFirst({
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+    select: { id: true },
+  })
+  if (!lead) return null
+
   return prisma.leadInteraction.create({
     data: { leadId, type, content, createdById: ctx.userId },
   })

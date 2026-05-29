@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { ok, fail, NotFoundError } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import {
   listPatients,
   findPatientById,
@@ -34,15 +35,18 @@ function revalidate(clientId: string) {
 export async function listPatientsAction(clientId: string, search?: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
   await assertCan(ctx, 'patients', 'read')
   const patients = await listPatients(ctx, clientId, search ? { search } : undefined)
   return ok(patients)
 }
 
-export async function getPatientAction(patientId: string) {
+export async function getPatientAction(patientId: string, clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'patients', 'read')
-  const patient = await findPatientById(ctx, patientId)
+  const patient = await findPatientById(ctx, clientId, patientId)
   if (!patient) return fail(new NotFoundError('Paciente'))
   return ok(patient)
 }
@@ -50,6 +54,7 @@ export async function getPatientAction(patientId: string) {
 export async function createPatientAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'patients', 'write')
 
   const parsed = patientSchema.safeParse(formData)
@@ -67,12 +72,13 @@ export async function createPatientAction(clientId: string, formData: unknown) {
 export async function updatePatientAction(patientId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'patients', 'write')
 
   const parsed = patientSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
-  await updatePatient(ctx, patientId, {
+  await updatePatient(ctx, patientId, clientId, {
     ...parsed.data,
     email: parsed.data.email || undefined,
     birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : undefined,
@@ -84,8 +90,9 @@ export async function updatePatientAction(patientId: string, clientId: string, f
 export async function deletePatientAction(patientId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'patients', 'delete')
-  await softDeletePatient(ctx, patientId)
+  await softDeletePatient(ctx, patientId, clientId)
   revalidate(clientId)
   return ok(null)
 }

@@ -47,9 +47,9 @@ export async function getPipeline(ctx: TenantContext, clientId: string, pipeline
   })
 }
 
-export async function findLeadById(ctx: TenantContext, leadId: string) {
+export async function findLeadById(ctx: TenantContext, clientId: string, leadId: string) {
   return prisma.lead.findFirst({
-    where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     include: {
       stage: { select: { id: true, name: true, color: true, isWon: true, isLost: true } },
       interactions: { orderBy: { createdAt: 'desc' } },
@@ -149,6 +149,7 @@ export async function listPatientsWithoutExistingCard(ctx: TenantContext, client
 export async function updateLead(
   ctx: TenantContext,
   leadId: string,
+  clientId: string,
   data: Partial<{
     name: string
     phone: string
@@ -160,8 +161,9 @@ export async function updateLead(
     notes: string
   }>
 ) {
+  // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.
   return prisma.lead.updateMany({
-    where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { ...data, updatedById: ctx.userId },
   })
 }
@@ -169,13 +171,14 @@ export async function updateLead(
 export async function moveLead(
   ctx: TenantContext,
   leadId: string,
+  clientId: string,
   stageId: string,
   position?: number
 ) {
   const stage = await prisma.pipelineStage.findUnique({ where: { id: stageId } })
 
   return prisma.lead.updateMany({
-    where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: {
       stageId,
       ...(position !== undefined ? { position } : {}),
@@ -186,16 +189,21 @@ export async function moveLead(
   })
 }
 
-export async function reorderLead(ctx: TenantContext, leadId: string, position: number) {
+export async function reorderLead(
+  ctx: TenantContext,
+  leadId: string,
+  clientId: string,
+  position: number
+) {
   return prisma.lead.updateMany({
-    where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { position, updatedById: ctx.userId },
   })
 }
 
-export async function softDeleteLead(ctx: TenantContext, leadId: string) {
+export async function softDeleteLead(ctx: TenantContext, leadId: string, clientId: string) {
   return prisma.lead.updateMany({
-    where: { id: leadId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { deletedAt: new Date() },
   })
 }

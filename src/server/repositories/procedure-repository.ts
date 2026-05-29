@@ -106,9 +106,9 @@ function suggestPricing({
   return { level: 'ok', message: 'Margem saudável' }
 }
 
-export async function findProcedureById(ctx: TenantContext, procedureId: string) {
+export async function findProcedureById(ctx: TenantContext, clientId: string, procedureId: string) {
   const p = await prisma.procedure.findFirst({
-    where: { id: procedureId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: procedureId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     select: {
       id: true,
       name: true,
@@ -154,6 +154,7 @@ export async function createProcedure(
 export async function updateProcedure(
   ctx: TenantContext,
   procedureId: string,
+  clientId: string,
   data: Partial<{
     name: string
     description: string
@@ -164,15 +165,20 @@ export async function updateProcedure(
     categoryId: string
   }>
 ) {
+  // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.
   return prisma.procedure.updateMany({
-    where: { id: procedureId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: procedureId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data,
   })
 }
 
-export async function softDeleteProcedure(ctx: TenantContext, procedureId: string) {
+export async function softDeleteProcedure(
+  ctx: TenantContext,
+  procedureId: string,
+  clientId: string
+) {
   return prisma.procedure.updateMany({
-    where: { id: procedureId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: procedureId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { deletedAt: new Date(), isActive: false },
   })
 }

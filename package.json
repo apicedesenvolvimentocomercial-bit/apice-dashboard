@@ -20,6 +20,8 @@
     "migrate:test": "dotenv -e .env.test -- prisma migrate deploy",
     "seed:test": "dotenv -e .env.test -- tsx prisma/seed-e2e.ts",
     "rls:check": "dotenv -e .env.test -- tsx prisma/rls-check.ts",
+    "rls:check:write": "dotenv -e .env.test -- tsx prisma/rls-write-check.ts",
+    "rls:check:ext": "dotenv -e .env.test -- tsx --tsconfig tsconfig.json prisma/rls-extension-check.ts",
     "rls:diag": "dotenv -e .env.test -- tsx prisma/rls-diag.ts",
     "rls:setup-role": "dotenv -e .env.test -- tsx prisma/rls-setup-role.ts",
     "db:generate": "prisma generate",

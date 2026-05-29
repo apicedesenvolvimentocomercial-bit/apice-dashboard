@@ -8,6 +8,7 @@ import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
 import { ok, fail, NotFoundError } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import {
   listAppointments,
   findAppointmentById,
@@ -49,6 +50,7 @@ export async function getAppointmentsAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
   await assertCan(ctx, 'appointments', 'read')
 
   const appointments = await listAppointments(ctx, clientId, {
@@ -58,11 +60,13 @@ export async function getAppointmentsAction(
   return ok(appointments)
 }
 
-export async function getAppointmentAction(appointmentId: string) {
+export async function getAppointmentAction(appointmentId: string, clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'appointments', 'read')
 
-  const appointment = await findAppointmentById(ctx, appointmentId)
+  const appointment = await findAppointmentById(ctx, clientId, appointmentId)
   if (!appointment) return fail(new NotFoundError('Agendamento'))
   return ok(appointment)
 }
@@ -70,6 +74,7 @@ export async function getAppointmentAction(appointmentId: string) {
 export async function createAppointmentAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'appointments', 'write')
 
   const parsed = appointmentSchema.safeParse(formData)
@@ -94,6 +99,7 @@ export async function updateAppointmentAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'appointments', 'write')
 
   const parsed = appointmentSchema.partial().safeParse(formData)
@@ -106,7 +112,7 @@ export async function updateAppointmentAction(
     if (!dateCheck.ok) return fail(dateCheck.message)
   }
 
-  await updateAppointment(ctx, appointmentId, {
+  await updateAppointment(ctx, appointmentId, clientId, {
     ...parsed.data,
     scheduledAt,
   })
@@ -123,9 +129,10 @@ export async function updateAppointmentStatusAction(
   try {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId)
     await assertCan(ctx, 'appointments', 'write')
 
-    await updateAppointmentStatus(ctx, appointmentId, status, extra)
+    await updateAppointmentStatus(ctx, appointmentId, clientId, status, extra)
     revalidate(clientId)
     return ok(null)
   } catch {
@@ -142,6 +149,7 @@ export async function confirmRevenueFromAppointmentAction(
   try {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId)
     await assertCan(ctx, 'financial', 'write')
 
     const revenue = await createRevenueFromAppointment(
@@ -162,9 +170,10 @@ export async function confirmRevenueFromAppointmentAction(
 export async function deleteAppointmentAction(appointmentId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'appointments', 'delete')
 
-  await softDeleteAppointment(ctx, appointmentId)
+  await softDeleteAppointment(ctx, appointmentId, clientId)
   revalidate(clientId)
   return ok(null)
 }

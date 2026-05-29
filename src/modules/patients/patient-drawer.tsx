@@ -55,11 +55,11 @@ export function PatientDrawer({ open, patientId, clientId, onClose, onUpdated }:
       return
     }
     setLoading(true)
-    getPatientAction(patientId).then((r) => {
+    getPatientAction(patientId, clientId).then((r) => {
       setLoading(false)
       if (r.success) setPatient(r.data as Patient)
     })
-  }, [patientId])
+  }, [patientId, clientId])
 
   function handleDelete() {
     if (!patient) return

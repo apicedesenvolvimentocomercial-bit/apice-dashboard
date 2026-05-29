@@ -72,11 +72,11 @@ export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpda
       return
     }
     setLoadingLead(true)
-    getLeadAction(leadId).then((result) => {
+    getLeadAction(leadId, clientId).then((result) => {
       setLoadingLead(false)
       if (result.success) setLead(result.data as Lead)
     })
-  }, [leadId])
+  }, [leadId, clientId])
 
   function handleWin() {
     if (!lead || !wonStage) return
@@ -122,7 +122,7 @@ export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpda
         return
       }
       setInteractionContent('')
-      getLeadAction(lead.id).then((r) => {
+      getLeadAction(lead.id, clientId).then((r) => {
         if (r.success) setLead(r.data as Lead)
       })
     })

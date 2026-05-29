@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { can } from '@/server/auth/permissions'
 import { getCurrentGoalValue, listGoals, type GoalRow } from '@/server/repositories/goal-repository'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { assertCan } from '@/server/auth/assert-can'
 
 export type GoalWithProgress = GoalRow & {
@@ -49,6 +50,7 @@ export async function getGoalsWithProgress(
 ): Promise<GoalWithProgress[]> {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'goals', 'read')
 
   const goals = await listGoals(ctx, clientId, options?.includePast ?? false)

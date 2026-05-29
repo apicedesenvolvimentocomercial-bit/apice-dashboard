@@ -38,10 +38,11 @@ export async function listPatients(
   })
 }
 
-export async function findPatientById(ctx: TenantContext, patientId: string) {
+export async function findPatientById(ctx: TenantContext, clientId: string, patientId: string) {
   return prisma.patient.findFirst({
     where: {
       id: patientId,
+      clientId,
       organizationId: ctx.organizationId,
       deletedAt: null,
     },
@@ -105,6 +106,7 @@ export async function createPatient(
 export async function updatePatient(
   ctx: TenantContext,
   patientId: string,
+  clientId: string,
   data: Partial<{
     name: string
     phone: string
@@ -116,15 +118,16 @@ export async function updatePatient(
     lastVisitAt: Date
   }>
 ) {
+  // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.
   return prisma.patient.updateMany({
-    where: { id: patientId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: patientId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data,
   })
 }
 
-export async function softDeletePatient(ctx: TenantContext, patientId: string) {
+export async function softDeletePatient(ctx: TenantContext, patientId: string, clientId: string) {
   return prisma.patient.updateMany({
-    where: { id: patientId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: patientId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { deletedAt: new Date() },
   })
 }

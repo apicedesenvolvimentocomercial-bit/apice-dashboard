@@ -44,6 +44,13 @@ const envSchema = z
       z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional()
     ),
 
+    // Segredo do webhook (header `x-webhook-secret`). Opcional: ausente ⇒ webhook
+    // desabilitado (fail-closed em `api/webhooks/[provider]`).
+    WEBHOOK_SECRET: z.preprocess(
+      (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+      z.string().min(16, 'WEBHOOK_SECRET must be at least 16 characters').optional()
+    ),
+
     NEXT_PUBLIC_SENTRY_DSN: optionalUrl('NEXT_PUBLIC_SENTRY_DSN'),
 
     NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),

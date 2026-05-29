@@ -8,6 +8,7 @@ import { ok, fail } from '@/types/errors'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { createCost, updateCost, softDeleteCost } from '@/server/repositories/cost-repository'
 
 const COST_TYPES = ['FIXED', 'VARIABLE', 'MARKETING', 'PAYROLL', 'TAX', 'OTHER'] as const
@@ -34,6 +35,7 @@ function revalidate(clientId: string) {
 export async function createCostAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
   await assertCan(ctx, 'financial', 'write')
 
   const parsed = costSchema.safeParse(formData)
@@ -59,6 +61,7 @@ export async function createCostAction(clientId: string, formData: unknown) {
 export async function updateCostAction(costId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'financial', 'write')
 
   const parsed = costSchema.partial().safeParse(formData)
@@ -71,7 +74,7 @@ export async function updateCostAction(costId: string, clientId: string, formDat
     date = parsedDate
   }
 
-  await updateCost(ctx, costId, {
+  await updateCost(ctx, costId, clientId, {
     ...parsed.data,
     date,
   })
@@ -82,8 +85,9 @@ export async function updateCostAction(costId: string, clientId: string, formDat
 export async function deleteCostAction(costId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'financial', 'delete')
-  await softDeleteCost(ctx, costId)
+  await softDeleteCost(ctx, costId, clientId)
   createAuditLog(ctx, { action: 'delete', entityType: 'Cost', entityId: costId }).catch(() => {})
   revalidate(clientId)
   return ok(null)

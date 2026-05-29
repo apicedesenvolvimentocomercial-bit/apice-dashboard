@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { NotFoundError, ok, fail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import {
   createLead,
   createLeadForPatient,
@@ -45,6 +46,7 @@ function revalidate(clientId: string) {
 export async function createLeadAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
   await assertCan(ctx, 'crm', 'write')
 
   const parsed = leadSchema.safeParse(formData)
@@ -67,12 +69,13 @@ export async function createLeadAction(clientId: string, formData: unknown) {
 export async function updateLeadAction(leadId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
   const parsed = leadSchema.partial().safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos')
 
-  await updateLead(ctx, leadId, {
+  await updateLead(ctx, leadId, clientId, {
     ...parsed.data,
     email: parsed.data.email || undefined,
   })
@@ -100,9 +103,10 @@ export async function moveLeadAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
-  const res = await moveLeadWithEffect(ctx, { leadId, stageId, position, force })
+  const res = await moveLeadWithEffect(ctx, { clientId, leadId, stageId, position, force })
 
   if ('needsConfirm' in res) {
     if (res.needsConfirm === 'regress') {
@@ -139,9 +143,10 @@ export async function regressLeadAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
-  const res = await regressLeadStage(ctx, { leadId, stageId, position })
+  const res = await regressLeadStage(ctx, { clientId, leadId, stageId, position })
   if (!res.ok) return fail(new NotFoundError('Lead'))
 
   createAuditLog(ctx, {
@@ -171,6 +176,7 @@ const scheduleSchema = z.object({
 export async function scheduleLeadAction(leadId: string, clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
   await assertCan(ctx, 'appointments', 'write')
 
@@ -183,6 +189,7 @@ export async function scheduleLeadAction(leadId: string, clientId: string, formD
   }
 
   const result = await scheduleLeadAppointment(ctx, {
+    clientId,
     leadId,
     stageId: parsed.data.stageId,
     procedureId: parsed.data.procedureId,
@@ -217,9 +224,10 @@ export async function scheduleLeadAction(leadId: string, clientId: string, formD
 export async function reorderLeadAction(leadId: string, clientId: string, position: number) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
-  await reorderLead(ctx, leadId, position)
+  await reorderLead(ctx, leadId, clientId, position)
   revalidate(clientId)
   return ok(null)
 }
@@ -227,9 +235,10 @@ export async function reorderLeadAction(leadId: string, clientId: string, positi
 export async function winLeadAction(leadId: string, wonStageId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
-  const patient = await winLead(ctx, leadId, wonStageId)
+  const patient = await winLead(ctx, clientId, leadId, wonStageId)
   if (!patient) return fail(new NotFoundError('Lead'))
   revalidate(clientId)
   return ok(patient)
@@ -244,9 +253,10 @@ export async function loseLeadAction(
   try {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId)
     await assertCan(ctx, 'crm', 'write')
 
-    await loseLead(ctx, leadId, lostStageId, reason)
+    await loseLead(ctx, clientId, leadId, lostStageId, reason)
     revalidate(clientId)
     return ok(null)
   } catch {
@@ -263,18 +273,22 @@ export async function addInteractionAction(
   if (!content.trim()) return fail('Conteúdo obrigatório')
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
-  const interaction = await addInteraction(ctx, leadId, type, content.trim())
+  const interaction = await addInteraction(ctx, clientId, leadId, type, content.trim())
+  if (!interaction) return fail(new NotFoundError('Lead'))
   revalidate(clientId)
   return ok(interaction)
 }
 
-export async function getLeadAction(leadId: string) {
+export async function getLeadAction(leadId: string, clientId: string) {
   const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'read')
 
-  const lead = await findLeadById(ctx, leadId)
+  const lead = await findLeadById(ctx, clientId, leadId)
   if (!lead) return fail(new NotFoundError('Lead'))
   return ok({
     ...lead,
@@ -294,6 +308,7 @@ export async function createPatientCardAction(
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
   if (!patientId || !stageId) return fail('Paciente e etapa obrigatórios')
@@ -315,6 +330,7 @@ export async function createPatientCardAction(
 export async function listAvailablePatientsAction(clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'read')
 
   const patients = await listPatientsWithoutExistingCard(ctx, clientId)
@@ -324,9 +340,10 @@ export async function listAvailablePatientsAction(clientId: string) {
 export async function deleteLeadAction(leadId: string, clientId: string) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'delete')
 
-  await softDeleteLead(ctx, leadId)
+  await softDeleteLead(ctx, leadId, clientId)
   createAuditLog(ctx, { action: 'delete', entityType: 'Lead', entityId: leadId }).catch(() => {})
   revalidate(clientId)
   return ok(null)

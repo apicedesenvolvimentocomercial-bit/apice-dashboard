@@ -74,6 +74,7 @@ export async function createCost(
 export async function updateCost(
   ctx: TenantContext,
   costId: string,
+  clientId: string,
   data: Partial<{
     type: CostType
     category: string
@@ -84,15 +85,18 @@ export async function updateCost(
     recurringDay: number
   }>
 ) {
+  // clientId no where (belt): impede editar custo de clínica-irmã da mesma org
+  // mesmo se a RLS (suspenders) estiver inativa. organizationId sozinho não isola
+  // entre clínicas da mesma org.
   return prisma.cost.updateMany({
-    where: { id: costId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: costId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data,
   })
 }
 
-export async function softDeleteCost(ctx: TenantContext, costId: string) {
+export async function softDeleteCost(ctx: TenantContext, costId: string, clientId: string) {
   return prisma.cost.updateMany({
-    where: { id: costId, organizationId: ctx.organizationId, deletedAt: null },
+    where: { id: costId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { deletedAt: new Date() },
   })
 }
