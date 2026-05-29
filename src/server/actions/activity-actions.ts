@@ -343,36 +343,6 @@ export async function markActivitiesSeenAction(activityIds: string[]) {
   })
 }
 
-export async function quickAddActivityAction(
-  title: string,
-  opts?: { dueDate?: string | null; assignedToId?: string | null; addToCalendar?: boolean }
-) {
-  if (!title.trim()) return fail('Título obrigatório')
-  // Tarefa rápida: hoje, prioridade padrão, fim do dia (23:59 SP).
-  const today = opts?.dueDate ?? todayInAppTz()
-  const endOfDay = `${String(END_OF_DAY_HOUR).padStart(2, '0')}:${String(END_OF_DAY_MINUTE).padStart(2, '0')}`
-  return createActivityAction({
-    title: title.trim(),
-    type: 'TASK',
-    priority: 'MEDIUM',
-    dueDate: today,
-    dueTime: endOfDay,
-    assignedToId: opts?.assignedToId ?? null,
-    addToCalendar: opts?.addToCalendar,
-  })
-}
-
-function todayInAppTz(): string {
-  // YYYY-MM-DD no fuso da aplicação (SP), formato aceito por parseLocalDate.
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-  return fmt.format(new Date())
-}
-
 // Apenas ADMIN pode atribuir atividade a outro usuário; STAFF fica restrito a
 // si mesmo. O alvo precisa ser um usuário ativo (ADMIN/STAFF) da mesma
 // organização, senão a atividade volta para o próprio criador.
