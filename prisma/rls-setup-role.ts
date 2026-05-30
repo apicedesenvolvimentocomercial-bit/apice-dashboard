@@ -10,18 +10,22 @@ import { PrismaClient } from '@prisma/client'
 // não o DATABASE_URL (que aponta para o próprio app_user).
 const prisma = new PrismaClient({ datasourceUrl: process.env.DIRECT_URL })
 const PASSWORD = process.env.APP_DB_PASSWORD ?? 'e2e_app_user_pw'
+// `$executeRawUnsafe` não parametriza literais em DDL (ALTER/CREATE ROLE), então
+// a senha entra interpolada. Dobramos aspas simples para neutralizar SQL injection
+// caso a senha contenha `'` (Postgres aceita `''` como aspa literal escapada).
+const PASSWORD_SQL = PASSWORD.replace(/'/g, "''")
 
 async function main() {
   await prisma.$executeRawUnsafe(
     `DO $$ BEGIN
        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='app_user') THEN
-         CREATE ROLE app_user LOGIN PASSWORD '${PASSWORD}';
+         CREATE ROLE app_user LOGIN PASSWORD '${PASSWORD_SQL}';
        END IF;
      END $$;`
   )
   // Role novo já nasce NOBYPASSRLS/NOSUPERUSER (não alteramos esses atributos —
   // mudar SUPERUSER exige ser superuser). Só (re)garantimos a senha.
-  await prisma.$executeRawUnsafe(`ALTER ROLE app_user PASSWORD '${PASSWORD}'`)
+  await prisma.$executeRawUnsafe(`ALTER ROLE app_user PASSWORD '${PASSWORD_SQL}'`)
   await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO app_user`)
   await prisma.$executeRawUnsafe(
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user`

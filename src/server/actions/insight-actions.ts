@@ -34,7 +34,7 @@ export async function acknowledgeInsightAction(insightId: string) {
   return runAction(async () => {
     const { insight } = await loadInsight(insightId)
     await prisma.insight.update({
-      where: { id: insightId },
+      where: { id: insightId, clientId: insight.clientId },
       data: { status: 'ACKNOWLEDGED', acknowledgedAt: new Date() },
     })
     revalidate(insight.clientId)
@@ -46,7 +46,7 @@ export async function startInsightAction(insightId: string) {
   return runAction(async () => {
     const { insight } = await loadInsight(insightId)
     await prisma.insight.update({
-      where: { id: insightId },
+      where: { id: insightId, clientId: insight.clientId },
       data: { status: 'IN_PROGRESS' },
     })
     revalidate(insight.clientId)
@@ -58,7 +58,7 @@ export async function resolveInsightAction(insightId: string) {
   return runAction(async () => {
     const { insight } = await loadInsight(insightId)
     await prisma.insight.update({
-      where: { id: insightId },
+      where: { id: insightId, clientId: insight.clientId },
       data: { status: 'RESOLVED', resolvedAt: new Date() },
     })
     revalidate(insight.clientId)
@@ -75,7 +75,7 @@ export async function dismissInsightAction(insightId: string, formData: unknown)
   return runAction(async () => {
     const { insight } = await loadInsight(insightId)
     await prisma.insight.update({
-      where: { id: insightId },
+      where: { id: insightId, clientId: insight.clientId },
       data: {
         status: 'DISMISSED',
         dismissedAt: new Date(),

@@ -1,4 +1,5 @@
 import type { LeadSource } from '@prisma/client'
+import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { enterClientScope } from '@/server/tenant/client-scope'
@@ -23,6 +24,23 @@ export type IngestResult =
   | { ok: true; leadId: string }
   | { ok: false; reason: 'unknown-provider' | 'client-not-found' | 'no-lead-stage' | 'invalid' }
 
+// Campo opcional de texto: mantém a leniência antiga (não-string ⇒ ausente, igual
+// ao `typeof === 'string'` de antes) mas adiciona teto de tamanho. Endurece contra
+// payloads gigantes sem rejeitar lead legítimo nem exigir formato (ex.: e-mail).
+const optText = (max: number) =>
+  z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim() : undefined),
+    z.string().max(max).optional()
+  )
+
+const ingestSchema = z.object({
+  clientId: z.string().trim().min(1).max(64),
+  name: z.string().trim().min(1).max(200),
+  phone: optText(40),
+  email: optText(200),
+  procedureInterest: optText(500),
+})
+
 export async function ingestLead(
   provider: string,
   payload: {
@@ -36,9 +54,9 @@ export async function ingestLead(
   const source = PROVIDER_SOURCE[provider]
   if (!source) return { ok: false, reason: 'unknown-provider' }
 
-  const clientId = typeof payload.clientId === 'string' ? payload.clientId : null
-  const name = typeof payload.name === 'string' ? payload.name.trim() : ''
-  if (!clientId || !name) return { ok: false, reason: 'invalid' }
+  const parsed = ingestSchema.safeParse(payload)
+  if (!parsed.success) return { ok: false, reason: 'invalid' }
+  const { clientId, name, phone, email, procedureInterest } = parsed.data
 
   // Fixa o escopo de RLS para esta clínica antes de tocar dados de clínica.
   enterClientScope(clientId)
@@ -61,11 +79,10 @@ export async function ingestLead(
       organizationId: client.organizationId,
       clientId,
       name,
-      phone: typeof payload.phone === 'string' ? payload.phone : null,
-      email: typeof payload.email === 'string' ? payload.email : null,
+      phone: phone ?? null,
+      email: email ?? null,
       source,
-      procedureInterest:
-        typeof payload.procedureInterest === 'string' ? payload.procedureInterest : null,
+      procedureInterest: procedureInterest ?? null,
       stageId: leadStage.id,
       firstContactAt: new Date(),
     },

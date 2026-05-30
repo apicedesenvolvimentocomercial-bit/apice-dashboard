@@ -280,3 +280,6 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   em "Convenções de código".
 - `fase11-progresso.md` — infra de testes E2E.
 - `auditoria-*.md`, `deploy-checklist.md` — achados de auditoria e checklist de deploy.
+- `seguranca-pendencias.md` — pendências de segurança **OBRIGATÓRIAS** (rate-limiting
+  login/webhook; segredo do webhook por-clínica/assinatura). Bloqueador de deploy das
+  integrações reais. Hardening já feito; estes 2 mudam comportamento → aguardam decisão.
