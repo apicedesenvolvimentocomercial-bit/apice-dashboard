@@ -25,7 +25,9 @@ import {
   cancelAppointmentSync,
   closeAppointmentCard,
   syncLeadScheduledAt,
+  createLeadScheduledFromAgenda,
 } from '@/server/services/pipeline-stage-effects'
+import { createAuditLog } from '@/server/repositories/audit-repository'
 import { logger } from '@/lib/logger'
 
 const appointmentSchema = z.object({
@@ -68,6 +70,19 @@ const attendSchema = z.object({
   email: z.string().email('E-mail inválido'),
   birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
   cpf: z.string().min(1, 'CPF obrigatório'),
+})
+
+// feat agenda→pipeline: criar um LEAD NOVO direto pela agenda (cai em Agendado
+// no funil comercial). Campos mínimos do lead + dados do agendamento.
+const scheduledLeadSchema = z.object({
+  name: z.string().min(2, 'Nome obrigatório'),
+  phone: z.string().optional(),
+  email: z.string().email('E-mail inválido').optional().or(z.literal('')),
+  source: z.enum(['META_ADS', 'GOOGLE_ADS', 'ORGANIC', 'REFERRAL', 'WHATSAPP', 'WALK_IN', 'OTHER']),
+  procedureId: z.string().min(1, 'Procedimento obrigatório'),
+  scheduledAt: z.string().min(1, 'Data obrigatória'),
+  durationMinutes: z.number().int().positive(),
+  notes: z.string().optional(),
 })
 
 export async function getAppointmentsAction(
@@ -132,9 +147,60 @@ export async function createAppointmentAction(clientId: string, formData: unknow
   }
 
   revalidate(clientId)
-  revalidatePath('/crm')
-  revalidatePath(`/clients/${clientId}/crm`)
+  revalidateCrm(clientId)
   return ok(appointment)
+}
+
+/**
+ * Cria um LEAD NOVO direto pela agenda e já o agenda: o lead nasce na etapa
+ * Agendado do funil comercial, vira paciente provisório e ganha o Appointment
+ * ligado (ver `createLeadScheduledFromAgenda`). Exige permissão de CRM e de
+ * agenda — cria card + agendamento.
+ */
+export async function createScheduledLeadFromAgendaAction(clientId: string, formData: unknown) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'write')
+  await assertCan(ctx, 'appointments', 'write')
+
+  const parsed = scheduledLeadSchema.safeParse(formData)
+  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+
+  const scheduledAt = parseScheduledAt(parsed.data.scheduledAt)
+  const dateCheck = rejectIfTooOld(scheduledAt)
+  if (!dateCheck.ok) return fail(dateCheck.message)
+
+  const result = await createLeadScheduledFromAgenda(ctx, {
+    clientId,
+    name: parsed.data.name,
+    phone: parsed.data.phone,
+    email: parsed.data.email || undefined,
+    source: parsed.data.source,
+    procedureId: parsed.data.procedureId,
+    scheduledAt,
+    durationMinutes: parsed.data.durationMinutes,
+    notes: parsed.data.notes,
+  })
+
+  if (!result.ok) {
+    const msg =
+      result.reason === 'procedure-not-found'
+        ? 'Procedimento não encontrado'
+        : 'O funil comercial não tem a etapa Agendado configurada'
+    return fail(msg)
+  }
+
+  createAuditLog(ctx, {
+    action: 'create',
+    entityType: 'Lead',
+    entityId: result.leadId,
+    changes: { name: parsed.data.name, source: parsed.data.source, scheduledFromAgenda: true },
+  }).catch(() => {})
+
+  revalidate(clientId)
+  revalidateCrm(clientId)
+  return ok({ leadId: result.leadId, appointmentId: result.appointmentId })
 }
 
 export async function updateAppointmentAction(

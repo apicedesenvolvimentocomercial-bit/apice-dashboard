@@ -252,9 +252,19 @@ funil, arrastar um card de Compareceu→Cancelado abre o `CancelLeadDialog` com 
 amigável (`wasAttended`, banner âmbar) de que cancelar desfaz o comparecimento/baixa já
 registrados — não bloqueia, só alerta antes de confirmar.
 
+**Criar LEAD NOVO pela agenda (antes adiado).** O `create-appointment-dialog` ganhou um toggle
+"Paciente existente | Novo lead". No modo novo lead: nome (obrigatório), telefone, e-mail,
+origem, procedimento de interesse (= procedimento do agendamento) e observações; data/duração
+vêm do slot/procedimento (mesmas validações de expediente/passado/futuro distante). Submete em
+`createScheduledLeadFromAgendaAction` → `createLeadScheduledFromAgenda` (em
+`pipeline-stage-effects`, transação única): cria Lead na etapa **Agendado** do funil COMERCIAL,
+Patient provisório (`fromScheduledLead=true`) e Appointment SCHEDULED, todos ligados. Espelho de
+`scheduleLeadAppointment` sem leadId prévio. Fix junto: o dialog agora sincroniza a data com o
+slot clicado a cada abertura (antes a data do 1º clique "grudava").
+
 **Consequência de permissão:** marcar Compareceu pela agenda agora exige `patients:write`
 (antes só `appointments:write`), porque completa o cadastro do paciente — consistente com o
 `attendLeadAction` da pipeline.
 
-Verificado: `type-check` ✓ · `lint` ✓ (0 erros) · `test` ✓ (139). Verificação funcional
-pendente no Neon/manual (sem migration nova).
+Verificado: `type-check` ✓ · `lint` ✓ (0 erros) · `test` ✓ (139) · `build` ✓. Verificação
+funcional pendente no Neon/manual (sem migration nova).
