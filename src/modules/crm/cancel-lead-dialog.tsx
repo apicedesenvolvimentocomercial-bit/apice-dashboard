@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
+import { AlertTriangle, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,11 @@ type Props = {
   onOpenChange: (open: boolean) => void
   leadName: string
   pending: boolean
+  /**
+   * O card vem de "Compareceu" (já marcado ATTENDED). Cancelar agora desfaz o
+   * comparecimento e a baixa financeira (se houver) — mostra um aviso amigável.
+   */
+  wasAttended?: boolean
   /** Confirmado com motivo → o board persiste o move com o motivo. */
   onConfirm: (reason: string) => void
   /** Cancelado/fechado → o board reverte o card. */
@@ -27,13 +32,16 @@ type Props = {
 
 /**
  * feat5 — Dialog BLOQUEANTE ao arrastar um card para "Cancelado". Exige o motivo
- * do cancelamento. Cancelar/fechar devolve o card para a etapa de origem.
+ * do cancelamento. Cancelar/fechar devolve o card para a etapa de origem. Se o
+ * card já estava em Compareceu (`wasAttended`), avisa que cancelar alterará os
+ * dados já registrados (decisão: o primeiro desfecho registrado é a verdade).
  */
 export function CancelLeadDialog({
   open,
   onOpenChange,
   leadName,
   pending,
+  wasAttended = false,
   onConfirm,
   onCancel,
 }: Props) {
@@ -60,6 +68,17 @@ export function CancelLeadDialog({
             Informe o motivo do cancelamento. Ele fica registrado no card e no agendamento.
           </DialogDescription>
         </DialogHeader>
+
+        {wasAttended && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Este atendimento já está marcado como <strong>Compareceu</strong>. Cancelar agora vai
+              desfazer o comparecimento e a baixa financeira (se houver) — os dados do sistema serão
+              atualizados. Confirme só se realmente deseja alterar.
+            </span>
+          </div>
+        )}
 
         <div className="space-y-1">
           <Label htmlFor="cancel-reason">Motivo do cancelamento *</Label>
