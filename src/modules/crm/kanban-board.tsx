@@ -110,6 +110,14 @@ export function KanbanBoard({
     position: number
     snapshot: KanbanStage[]
   } | null>(null)
+  // Fechar pendente de confirmação: avisa que dará baixa financeira (gera receita).
+  const [pendingClose, setPendingClose] = useState<{
+    leadId: string
+    leadName: string
+    stageId: string
+    position: number
+    snapshot: KanbanStage[]
+  } | null>(null)
   // Retrocesso pendente de confirmação (2d): desfaz efeitos ao confirmar.
   // `toKey` = etapa destino do retrocesso (p/ mensagem específica de Agendado).
   const [pendingRegress, setPendingRegress] = useState<{
@@ -302,6 +310,19 @@ export function KanbanBoard({
       fromKey !== 'CLOSED'
     ) {
       setPendingCancel({
+        leadId,
+        leadName: movedLead?.name ?? 'Lead',
+        stageId: destStage.id,
+        position: newPosition,
+        snapshot,
+      })
+      return
+    }
+
+    // Fechar (CLOSED) dá baixa financeira (gera a receita do procedimento) — pede
+    // confirmação antes. O bloqueio "passe por Compareceu" é validado no servidor.
+    if (movingColumns && destStage.nativeKey === 'CLOSED' && fromKey !== 'CLOSED') {
+      setPendingClose({
         leadId,
         leadName: movedLead?.name ?? 'Lead',
         stageId: destStage.id,
@@ -560,6 +581,47 @@ export function KanbanBoard({
           setPendingCancel(null)
         }}
       />
+
+      {/* Confirmação de Fechar: avisa que dará baixa financeira (gera receita). */}
+      <AlertDialog
+        open={pendingClose !== null}
+        onOpenChange={(o) => {
+          if (!o && pendingClose) {
+            setStages(pendingClose.snapshot)
+            setPendingClose(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fechar e dar baixa financeira?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Fechar {pendingClose?.leadName ?? 'este card'} registra a baixa financeira — gera a
+              receita do procedimento no financeiro. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                if (pendingClose) setStages(pendingClose.snapshot)
+                setPendingClose(null)
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingClose) return
+                const p = pendingClose
+                setPendingClose(null)
+                persistMove(p.leadId, p.stageId, p.position, p.snapshot)
+              }}
+            >
+              Sim, fechar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 2d — Confirmação de retrocesso: desfaz os efeitos já aplicados. */}
       <AlertDialog
