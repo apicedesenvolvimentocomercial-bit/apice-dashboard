@@ -22,6 +22,7 @@ import {
   attendLeadWithPatientData,
   moveLeadWithEffect,
   regressLeadStage,
+  regressAndRescheduleLead,
 } from '@/server/services/pipeline-stage-effects'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
@@ -168,6 +169,76 @@ const scheduleSchema = z.object({
   notes: z.string().optional(),
   position: z.number().optional(),
 })
+
+const rescheduleSchema = z.object({
+  stageId: z.string().min(1),
+  appointmentId: z.string().min(1),
+  procedureId: z.string().min(1, 'Procedimento obrigatório'),
+  scheduledAt: z.string().min(1, 'Data obrigatória'),
+  durationMinutes: z.number().int().positive(),
+  notes: z.string().optional(),
+  position: z.number().optional(),
+})
+
+/**
+ * Retrocesso para Agendado COM remarcação: o operador confirma e (opcionalmente)
+ * ajusta a data; o MESMO agendamento é atualizado e volta a SCHEDULED (não cria
+ * outro). Ver `regressAndRescheduleLead`.
+ */
+export async function regressRescheduleLeadAction(
+  leadId: string,
+  clientId: string,
+  formData: unknown
+) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'write')
+  await assertCan(ctx, 'appointments', 'write')
+
+  const parsed = rescheduleSchema.safeParse(formData)
+  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+
+  const scheduledAt = parseScheduledAt(parsed.data.scheduledAt)
+  if (isTooOldToSchedule(scheduledAt)) {
+    return fail('Data inválida: não é possível agendar mais de 1 ano no passado')
+  }
+
+  const result = await regressAndRescheduleLead(ctx, {
+    clientId,
+    leadId,
+    stageId: parsed.data.stageId,
+    appointmentId: parsed.data.appointmentId,
+    procedureId: parsed.data.procedureId,
+    scheduledAt,
+    durationMinutes: parsed.data.durationMinutes,
+    notes: parsed.data.notes,
+    position: parsed.data.position,
+  })
+
+  if (!result.ok) {
+    const msg =
+      result.reason === 'procedure-not-found'
+        ? 'Procedimento não encontrado'
+        : result.reason === 'stage-not-found'
+          ? 'Etapa inválida'
+          : result.reason === 'no-appointment'
+            ? 'Agendamento do card não encontrado'
+            : 'Lead não encontrado'
+    return fail(msg)
+  }
+
+  createAuditLog(ctx, {
+    action: 'stage_change',
+    entityType: 'Lead',
+    entityId: leadId,
+    changes: { stageId: parsed.data.stageId, rescheduled: true },
+  }).catch(() => {})
+  revalidate(clientId)
+  revalidatePath('/appointments')
+  revalidatePath(`/clients/${clientId}/appointments`)
+  return ok({ status: 'moved' as const })
+}
 
 /**
  * 2a — Move o lead p/ a etapa Agendado criando o Appointment obrigatório.

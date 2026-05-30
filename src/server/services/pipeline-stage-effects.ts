@@ -587,6 +587,114 @@ export async function regressLeadStage(
   return { ok: true }
 }
 
+export type RescheduleResult =
+  | { ok: true }
+  | {
+      ok: false
+      reason: 'lead-not-found' | 'no-appointment' | 'stage-not-found' | 'procedure-not-found'
+    }
+
+/**
+ * Retrocesso para Agendado COM remarcação — reusa o MESMO Appointment. Ao mover
+ * um card de Compareceu/Fechado/Cancelado de volta para Agendado, o operador
+ * confirma num dialog (dados do agendamento pré-preenchidos) e pode ajustar a
+ * data: atualizamos o Appointment existente (data, duração, procedimento, notas)
+ * e o devolvemos a SCHEDULED. NUNCA cria outro (evita duplicar na agenda). Desfaz
+ * comparecimento e a baixa financeira (se vinha de Fechado). Tudo numa transação.
+ */
+export async function regressAndRescheduleLead(
+  ctx: TenantContext,
+  params: {
+    clientId: string
+    leadId: string
+    stageId: string // etapa SCHEDULED destino
+    appointmentId: string
+    procedureId: string
+    scheduledAt: Date
+    durationMinutes: number
+    notes?: string
+    position?: number
+  }
+): Promise<RescheduleResult> {
+  // clientId no where (belt): só o card desta clínica.
+  const lead = await prisma.lead.findFirst({
+    where: {
+      id: params.leadId,
+      clientId: params.clientId,
+      organizationId: ctx.organizationId,
+      deletedAt: null,
+    },
+    select: { id: true, appointmentId: true, stage: { select: { nativeKey: true } } },
+  })
+  if (!lead) return { ok: false, reason: 'lead-not-found' }
+  // O appointment precisa ser o do card (não confia no id vindo do cliente).
+  if (!lead.appointmentId || lead.appointmentId !== params.appointmentId) {
+    return { ok: false, reason: 'no-appointment' }
+  }
+
+  const stage = await prisma.pipelineStage.findFirst({
+    where: { id: params.stageId, clientId: params.clientId, nativeKey: 'SCHEDULED' },
+    select: { id: true },
+  })
+  if (!stage) return { ok: false, reason: 'stage-not-found' }
+
+  const procedure = await prisma.procedure.findFirst({
+    where: { id: params.procedureId, organizationId: ctx.organizationId },
+    select: { id: true },
+  })
+  if (!procedure) return { ok: false, reason: 'procedure-not-found' }
+
+  const fromRank = lead.stage.nativeKey ? (COMMERCIAL_RANK[lead.stage.nativeKey] ?? 0) : 0
+
+  await scopedTransaction(async (tx) => {
+    // Vinha de Fechado (rank 3): desfaz a baixa financeira.
+    if (fromRank >= 3) {
+      await tx.revenue.deleteMany({ where: { appointmentId: params.appointmentId } })
+    }
+
+    // Reusa o MESMO Appointment: atualiza os dados e volta a SCHEDULED.
+    await tx.appointment.update({
+      where: { id: params.appointmentId },
+      data: {
+        scheduledAt: params.scheduledAt,
+        durationMinutes: params.durationMinutes,
+        procedureId: params.procedureId,
+        notes: params.notes,
+        status: 'SCHEDULED',
+        attendedAt: null,
+        noShowAt: null,
+        canceledAt: null,
+        cancelReason: null,
+      },
+    })
+
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        stageId: params.stageId,
+        ...(params.position !== undefined ? { position: params.position } : {}),
+        scheduledAt: params.scheduledAt,
+        attendedAt: null,
+        lostAt: null,
+        lostReason: null,
+        closedAt: null,
+        updatedById: ctx.userId,
+      },
+    })
+
+    await tx.leadInteraction.create({
+      data: {
+        leadId: lead.id,
+        type: 'NOTE',
+        content: 'Card retrocedido para Agendado — agendamento remarcado (mesmo atendimento).',
+        createdById: ctx.userId,
+      },
+    })
+  })
+
+  return { ok: true }
+}
+
 /**
  * feat2 — Excluir um agendamento gerado pela pipeline retrocede o card ao início
  * (etapa LEAD da MESMA pipeline), desfazendo agendamento/comparecimento/baixa via

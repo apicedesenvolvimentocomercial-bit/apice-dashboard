@@ -39,6 +39,7 @@ import { CreateLeadDialog } from './create-lead-dialog'
 import { KanbanColumn } from './kanban-column'
 import { LeadCard } from './lead-card'
 import { LeadDrawer } from './lead-drawer'
+import { RescheduleLeadDialog } from './reschedule-lead-dialog'
 import { ScheduleLeadDialog, type ProcedureOption } from './schedule-lead-dialog'
 import { StageEditorDialog } from './stage-editor-dialog'
 import type { KanbanLead, KanbanStage } from './types'
@@ -95,6 +96,16 @@ export function KanbanBoard({
   const [pendingCancel, setPendingCancel] = useState<{
     leadId: string
     leadName: string
+    stageId: string
+    position: number
+    snapshot: KanbanStage[]
+  } | null>(null)
+  // Retrocesso para Agendado pendente: dialog de remarcação (reusa o mesmo
+  // agendamento, não cria outro).
+  const [pendingReschedule, setPendingReschedule] = useState<{
+    leadId: string
+    leadName: string
+    appointmentId: string
     stageId: string
     position: number
     snapshot: KanbanStage[]
@@ -234,23 +245,29 @@ export function KanbanBoard({
     const fromKey = originalStage?.nativeKey
     const movedLead = destStage.leads.find((l) => l.id === leadId)
 
-    // 2a — Mover para a etapa Agendado (nativeKey SCHEDULED) cria um agendamento
-    // ANTES de persistir — MAS só quando o card ainda NÃO tem agendamento. Se já
-    // tem (veio de Compareceu/Fechado/Cancelado), mover p/ Agendado é RETROCESSO:
-    // cai no persistMove → moveLeadWithEffect detecta o retrocesso, pede confirmação
-    // e REAGENDA o mesmo Appointment (não cria outro — evita duplicar).
-    if (
-      movingColumns &&
-      destStage.nativeKey === 'SCHEDULED' &&
-      fromKey !== 'SCHEDULED' &&
-      !movedLead?.appointmentId
-    ) {
-      setPendingSchedule({
-        leadId,
-        leadName: movedLead?.name ?? 'Lead',
-        stageId: destStage.id,
-        snapshot,
-      })
+    // Mover para a etapa Agendado (nativeKey SCHEDULED):
+    //  - card SEM agendamento → cria um (dialog de agendamento, 2a);
+    //  - card COM agendamento (veio de Compareceu/Fechado/Cancelado) → RETROCESSO
+    //    com remarcação: dialog mostra os dados do agendamento e REUSA o mesmo
+    //    Appointment ao confirmar (não cria outro — evita duplicar na agenda).
+    if (movingColumns && destStage.nativeKey === 'SCHEDULED' && fromKey !== 'SCHEDULED') {
+      if (movedLead?.appointmentId) {
+        setPendingReschedule({
+          leadId,
+          leadName: movedLead?.name ?? 'Lead',
+          appointmentId: movedLead.appointmentId,
+          stageId: destStage.id,
+          position: newPosition,
+          snapshot,
+        })
+      } else {
+        setPendingSchedule({
+          leadId,
+          leadName: movedLead?.name ?? 'Lead',
+          stageId: destStage.id,
+          snapshot,
+        })
+      }
       return
     }
 
@@ -477,6 +494,30 @@ export function KanbanBoard({
           // Reverte o card para a etapa de origem.
           if (pendingSchedule) setStages(pendingSchedule.snapshot)
           setPendingSchedule(null)
+        }}
+      />
+
+      {/* Retrocesso p/ Agendado: remarca o MESMO agendamento (não duplica). */}
+      <RescheduleLeadDialog
+        open={pendingReschedule !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingReschedule(null)
+        }}
+        clientId={clientId}
+        leadId={pendingReschedule?.leadId ?? null}
+        appointmentId={pendingReschedule?.appointmentId ?? null}
+        leadName={pendingReschedule?.leadName ?? ''}
+        stageId={pendingReschedule?.stageId ?? ''}
+        position={pendingReschedule?.position}
+        procedures={procedures}
+        schedule={schedule}
+        onDone={() => {
+          setPendingReschedule(null)
+          router.refresh()
+        }}
+        onCancel={() => {
+          if (pendingReschedule) setStages(pendingReschedule.snapshot)
+          setPendingReschedule(null)
         }}
       />
 
