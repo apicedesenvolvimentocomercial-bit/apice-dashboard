@@ -25,14 +25,59 @@ const CLIENT_ROUTES = [
 ]
 
 /**
+ * CSP por-request com nonce (defesa de profundidade contra XSS — `prompt/
+ * seguranca-pendencias.md`). PROD: `script-src 'self' 'nonce-…' 'strict-dynamic'`
+ * (só script com o nonce, ou carregado por um que tenha, executa). DEV: relaxa
+ * p/ `'unsafe-eval' 'unsafe-inline'` (HMR/React Refresh do Next usam eval +
+ * inline). `style-src 'unsafe-inline'`: Radix/shadcn/next-font injetam estilo
+ * inline não-assinável (XSS via estilo é risco baixo). O Next lê o nonce do
+ * header de CSP da request e o aplica aos seus <script>; o next-themes recebe
+ * via prop (layout lê `x-nonce`). `connect-src` libera o ingest do Sentry.
+ */
+const isProd = process.env.NODE_ENV === 'production'
+
+function buildCsp(nonce: string): string {
+  const scriptSrc = isProd
+    ? `'self' 'nonce-${nonce}' 'strict-dynamic'`
+    : `'self' 'unsafe-eval' 'unsafe-inline'`
+
+  return [
+    `default-src 'self'`,
+    `script-src ${scriptSrc}`,
+    `style-src 'self' 'unsafe-inline'`,
+    `img-src 'self' data: blob:`,
+    `font-src 'self'`,
+    `connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.us.sentry.io`,
+    `object-src 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+    `frame-ancestors 'none'`,
+    `upgrade-insecure-requests`,
+  ].join('; ')
+}
+
+/**
  * Next.js 16 renomeou `middleware.ts` para `proxy.ts` — o export precisa
- * se chamar `proxy`. Mantemos este arquivo no caminho oficial do Next 16+.
+ * se chamar `proxy`. Faz o gate de auth (redirect por role) E injeta a CSP.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+  const csp = buildCsp(nonce)
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+  // O Next lê o nonce DESTE header (na request) e o propaga aos seus <script>.
+  requestHeaders.set('content-security-policy', csp)
+
+  const withCsp = (res: NextResponse) => {
+    res.headers.set('content-security-policy', csp)
+    return res
+  }
+  const next = () => withCsp(NextResponse.next({ request: { headers: requestHeaders } }))
+
   if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
-    return NextResponse.next()
+    return next()
   }
 
   const session = await auth()
@@ -40,7 +85,7 @@ export async function proxy(request: NextRequest) {
   if (!session?.user) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
-    return NextResponse.redirect(loginUrl)
+    return withCsp(NextResponse.redirect(loginUrl))
   }
 
   const role = session.user.role
@@ -53,21 +98,32 @@ export async function proxy(request: NextRequest) {
   // Mandar client para a home dele (/overview) — `/dashboard` é admin-only
   // e tambem entra em ADMIN_ROUTES, o que criaria loop infinito de redirect.
   if (isAdminRoute && !isAdminOrStaff) {
-    return NextResponse.redirect(new URL('/overview', request.url))
+    return withCsp(NextResponse.redirect(new URL('/overview', request.url)))
   }
 
   if (isClientRoute && !isClientUser) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return withCsp(NextResponse.redirect(new URL('/dashboard', request.url)))
   }
 
   if (pathname === '/') {
-    if (isAdminOrStaff) return NextResponse.redirect(new URL('/dashboard', request.url))
-    if (isClientUser) return NextResponse.redirect(new URL('/overview', request.url))
+    if (isAdminOrStaff) return withCsp(NextResponse.redirect(new URL('/dashboard', request.url)))
+    if (isClientUser) return withCsp(NextResponse.redirect(new URL('/overview', request.url)))
   }
 
-  return NextResponse.next()
+  return next()
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  // Pula assets estáticos e API; `missing` pula requests de prefetch — evita
+  // nonce divergente entre prefetch e navegação (RSC cacheado com nonce velho).
+  // O gate de auth ainda roda na navegação real (e há gate no topo de cada page).
+  matcher: [
+    {
+      source: '/((?!api|_next/static|_next/image|favicon.ico).*)',
+      missing: [
+        { type: 'header', key: 'next-router-prefetch' },
+        { type: 'header', key: 'purpose', value: 'prefetch' },
+      ],
+    },
+  ],
 }

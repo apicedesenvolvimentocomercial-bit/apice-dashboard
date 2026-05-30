@@ -12,13 +12,23 @@ import { ThemeProvider as NextThemesProvider } from 'next-themes'
  * explicitamente claro/escuro nas configurações; `enableSystem` habilita esse
  * terceiro modo (a preferência mora no localStorage, sem persistência no banco).
  */
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export function ThemeProvider({
+  children,
+  nonce,
+}: {
+  children: React.ReactNode
+  /** Nonce de CSP (vem do middleware) aplicado ao <script> inline que o
+   * next-themes injeta p/ setar a classe de tema antes da pintura. Sem ele a
+   * CSP `script-src 'strict-dynamic'` bloquearia o script → flash de tema. */
+  nonce?: string
+}) {
   return (
     <NextThemesProvider
       attribute="class"
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
+      nonce={nonce}
     >
       {children}
     </NextThemesProvider>

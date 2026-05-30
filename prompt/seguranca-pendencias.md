@@ -49,3 +49,29 @@ autentica e como o `clientId` é resolvido).
 
 **Aceite:** body não decide mais o `clientId` cross-tenant; o token/assinatura
 amarra a requisição à clínica/provider. Cobrir com teste de isolamento.
+
+## Concluído
+
+### CSP + headers de segurança (2026-05-30) ✅
+
+Defesa de profundidade contra XSS, decidido na fase pre-MVP (opção c: CSP
+enforçada com nonce, não só Report-Only).
+
+- **CSP por-request com nonce** em [`src/proxy.ts`](../src/proxy.ts) (Next 16 usa
+  `proxy.ts`, não `middleware.ts`). PROD: `script-src 'self' 'nonce-…'
+'strict-dynamic'`. DEV: relaxa p/ `'unsafe-eval' 'unsafe-inline'` (HMR usa eval).
+  O nonce é fiado ao next-themes via `headers()` no [`layout.tsx`](../src/app/layout.tsx)
+  → [`theme-provider.tsx`](../src/components/providers/theme-provider.tsx) (prop `nonce`).
+- **`style-src 'self' 'unsafe-inline'`** de propósito: Radix/shadcn/next-font
+  injetam atributo `style` inline não-assinável. Assinar **script** (vetor real de
+  XSS) é o que importa; XSS via estilo é risco baixo. **Não troque p/ nonce em
+  style sem antes testar dropdowns/dialogs/tema** — quebra a UI.
+- **`connect-src`** libera ingest do Sentry. Se entrar outro host externo no
+  browser (ex.: Supabase Storage, mapa), adicione aqui senão a request é bloqueada.
+- **Headers estáticos** em [`next.config.ts`](../next.config.ts): `X-Frame-Options:
+DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`,
+  e `Strict-Transport-Security` (só em produção).
+- Verificado: build OK; no `/login` de prod, header CSP presente, 23/23 scripts
+  executáveis com nonce (0 sem), incl. o inline do next-themes. **Falta validar em
+  navegador real** os fluxos com Radix (dropdown/dialog/popover) + Sentry — se algo
+  não renderizar, olhar o console por violação de CSP e calibrar a diretiva certa.
