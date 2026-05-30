@@ -1,3 +1,5 @@
+import type { StageNativeKey } from '@prisma/client'
+
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
 
@@ -174,7 +176,9 @@ export async function deletePipeline(ctx: TenantContext, pipelineId: string, cli
 /**
  * Semeia as duas pipelines nativas para uma clínica nova. Idempotente: só cria
  * o que falta. Chamada na criação da clínica e sob demanda (clínicas legadas
- * já têm via migration).
+ * já têm via migration). Também REPARA `nativeKey` faltando nas etapas nativas
+ * (ver `ensureNativeStageKeys`) — sem isso o arrastar p/ Compareceu/Agendado não
+ * dispara efeito, porque o board decide pela `nativeKey`.
  */
 export async function ensureNativePipelines(clientId: string, organizationId: string) {
   const existing = await prisma.pipeline.findMany({
@@ -205,6 +209,75 @@ export async function ensureNativePipelines(clientId: string, organizationId: st
         order: 1,
         stages: { create: RETENTION_NATIVE_STAGES.map((s) => ({ ...s, clientId })) },
       },
+    })
+  }
+
+  await ensureNativeStageKeys(clientId)
+}
+
+/**
+ * Preenche `nativeKey` em etapas NATIVAS que estão sem ele. Necessário para
+ * clínicas legadas cujo backfill (migration) não tagueou a etapa — ex.: uma
+ * etapa livre foi inserida e deslocou a `order`, então o `CASE order=2→ATTENDED`
+ * não casou e "Compareceu" ficou com `nativeKey` nulo (e o board não abre o
+ * pop-up). Idempotente e barato: só roda quando há nulo; só toca `isNative=true`;
+ * deduz pela ORDEM RELATIVA entre as nativas (robusto a etapas livres) + flags.
+ */
+async function ensureNativeStageKeys(clientId: string) {
+  const missing = await prisma.pipelineStage.count({
+    where: {
+      clientId,
+      isNative: true,
+      nativeKey: null,
+      pipeline: { kind: { in: ['COMMERCIAL', 'RETENTION'] } },
+    },
+  })
+  if (missing === 0) return
+
+  const pipelines = await prisma.pipeline.findMany({
+    where: { clientId, kind: { in: ['COMMERCIAL', 'RETENTION'] } },
+    select: {
+      kind: true,
+      stages: {
+        where: { isNative: true },
+        orderBy: { order: 'asc' },
+        select: { id: true, name: true, isWon: true, isLost: true, nativeKey: true },
+      },
+    },
+  })
+
+  const updates: { id: string; key: StageNativeKey }[] = []
+  const COMMERCIAL_LINEAR: StageNativeKey[] = ['LEAD', 'SCHEDULED', 'ATTENDED']
+  const RETENTION_LINEAR: StageNativeKey[] = ['ACTIVE', 'INACTIVE']
+
+  for (const p of pipelines) {
+    if (p.kind === 'COMMERCIAL') {
+      let linear = 0
+      for (const st of p.stages) {
+        let want: StageNativeKey | null = null
+        if (st.isWon) want = 'CLOSED'
+        else if (st.isLost) want = 'NO_SHOW'
+        else want = COMMERCIAL_LINEAR[linear++] ?? null
+        if (want && st.nativeKey == null) updates.push({ id: st.id, key: want })
+      }
+    } else {
+      let linear = 0
+      for (const st of p.stages) {
+        let want: StageNativeKey | null = null
+        if (st.name === 'Ativo') want = 'ACTIVE'
+        else if (st.name === 'Inativo') want = 'INACTIVE'
+        else want = RETENTION_LINEAR[linear] ?? null
+        linear++
+        if (want && st.nativeKey == null) updates.push({ id: st.id, key: want })
+      }
+    }
+  }
+
+  // clientId no where (belt) — não depende da RLS.
+  for (const u of updates) {
+    await prisma.pipelineStage.updateMany({
+      where: { id: u.id, clientId },
+      data: { nativeKey: u.key },
     })
   }
 }
