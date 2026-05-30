@@ -744,6 +744,233 @@ export async function regressAppointmentToLead(
   return { ok: res.ok, hadLead: true }
 }
 
+// ---------------------------------------------------------------------------
+// Visão reversa (agenda → pipeline). Quando um desfecho é registrado na AGENDA
+// (comparecer / faltar / cancelar / remarcar / dar baixa), espelha o efeito no
+// card comercial ligado ao agendamento, para que os dois lados nunca divirjam.
+// O card é encontrado pelo `appointmentId`; só funis que têm a etapa nativa
+// correspondente recebem o move (best-effort, custom pipelines são ignoradas).
+// ---------------------------------------------------------------------------
+
+/** Card (Lead) ATIVO ligado a um agendamento, com a etapa atual + a pipeline. */
+async function findLeadLinkedToAppointment(
+  ctx: TenantContext,
+  clientId: string,
+  appointmentId: string
+) {
+  return prisma.lead.findFirst({
+    // clientId no where (belt): só o card desta clínica.
+    where: {
+      appointmentId,
+      clientId,
+      organizationId: ctx.organizationId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      patientId: true,
+      stage: { select: { nativeKey: true, pipelineId: true } },
+    },
+  })
+}
+
+/** Id da etapa nativa `nativeKey` de uma pipeline da clínica (ou null). */
+async function findNativeStageId(clientId: string, pipelineId: string, nativeKey: StageNativeKey) {
+  const stage = await prisma.pipelineStage.findFirst({
+    where: { pipelineId, clientId, nativeKey },
+    select: { id: true },
+  })
+  return stage?.id ?? null
+}
+
+export type AttendAppointmentResult =
+  | { ok: true; hadLead: boolean }
+  | { ok: false; reason: 'appointment-not-found' }
+
+/**
+ * Compareceu pela AGENDA — espelho do fluxo da pipeline (feat1). Completa o
+ * cadastro do paciente (os 5 campos obrigatórios, vira paciente "real"), marca o
+ * Appointment ATTENDED e, se houver card comercial ligado, move-o para a etapa
+ * Compareceu (ATTENDED) do próprio funil. Tudo numa transação. Sem card ligado,
+ * ainda completa o paciente e marca o agendamento (`hadLead:false`).
+ */
+export async function attendAppointment(
+  ctx: TenantContext,
+  params: {
+    clientId: string
+    appointmentId: string
+    patient: { name: string; phone: string; email: string; birthDate: Date; cpf: string }
+  }
+): Promise<AttendAppointmentResult> {
+  const { clientId, appointmentId } = params
+  const appt = await prisma.appointment.findFirst({
+    where: { id: appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+    select: { id: true, patientId: true },
+  })
+  if (!appt) return { ok: false, reason: 'appointment-not-found' }
+
+  const lead = await findLeadLinkedToAppointment(ctx, clientId, appointmentId)
+  const attendedStageId = lead
+    ? await findNativeStageId(clientId, lead.stage.pipelineId, 'ATTENDED')
+    : null
+
+  const now = new Date()
+  const patientData = {
+    name: params.patient.name,
+    phone: params.patient.phone,
+    email: params.patient.email,
+    birthDate: params.patient.birthDate,
+    cpf: params.patient.cpf,
+    fromScheduledLead: false,
+  }
+
+  await scopedTransaction(async (tx) => {
+    // Completa o paciente do agendamento (passa a ser paciente "real").
+    await tx.patient.updateMany({
+      where: { id: appt.patientId, clientId },
+      data: patientData,
+    })
+    await tx.appointment.update({
+      where: { id: appt.id },
+      data: {
+        status: 'ATTENDED',
+        attendedAt: now,
+        noShowAt: null,
+        canceledAt: null,
+        cancelReason: null,
+      },
+    })
+    if (lead && attendedStageId) {
+      await tx.lead.update({
+        where: { id: lead.id },
+        data: {
+          stageId: attendedStageId,
+          patientId: appt.patientId,
+          attendedAt: now,
+          lostAt: null,
+          lostReason: null,
+          updatedById: ctx.userId,
+        },
+      })
+      await tx.leadInteraction.create({
+        data: {
+          leadId: lead.id,
+          type: 'MEETING',
+          content: 'Compareceu — registrado pela agenda; cadastro completado.',
+          createdById: ctx.userId,
+        },
+      })
+    }
+  })
+
+  return { ok: true, hadLead: !!(lead && attendedStageId) }
+}
+
+/**
+ * Faltou/Cancelado pela AGENDA — atualiza o status do Appointment (NO_SHOW =
+ * entra na média; CANCELED = fora) e, se houver card comercial ligado, move-o
+ * para a etapa Cancelado (NO_SHOW) gravando o motivo em `lead.lostReason`. O
+ * motivo também já é gravado em `Appointment.cancelReason`. Tudo numa transação.
+ */
+export async function cancelAppointmentSync(
+  ctx: TenantContext,
+  params: {
+    clientId: string
+    appointmentId: string
+    status: 'NO_SHOW' | 'CANCELED'
+    cancelReason: string
+  }
+): Promise<{ hadLead: boolean }> {
+  const { clientId, appointmentId, status, cancelReason } = params
+  const lead = await findLeadLinkedToAppointment(ctx, clientId, appointmentId)
+  const cancelStageId = lead
+    ? await findNativeStageId(clientId, lead.stage.pipelineId, 'NO_SHOW')
+    : null
+  const now = new Date()
+
+  await scopedTransaction(async (tx) => {
+    await tx.appointment.updateMany({
+      where: { id: appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+      data:
+        status === 'NO_SHOW'
+          ? { status: 'NO_SHOW', noShowAt: now, canceledAt: null, cancelReason }
+          : { status: 'CANCELED', canceledAt: now, noShowAt: null, cancelReason },
+    })
+    if (lead && cancelStageId) {
+      await tx.lead.update({
+        where: { id: lead.id },
+        data: {
+          stageId: cancelStageId,
+          lostAt: now,
+          lostReason: cancelReason,
+          attendedAt: null,
+          updatedById: ctx.userId,
+        },
+      })
+      await tx.leadInteraction.create({
+        data: {
+          leadId: lead.id,
+          type: 'NOTE',
+          content: `${status === 'NO_SHOW' ? 'Faltou' : 'Cancelado'} pela agenda: ${cancelReason}`,
+          createdById: ctx.userId,
+        },
+      })
+    }
+  })
+
+  return { hadLead: !!(lead && cancelStageId) }
+}
+
+/**
+ * Baixa financeira pela AGENDA → Fechado. Após a Revenue ser criada (pelo caller),
+ * move o card comercial ligado para a etapa Fechado (CLOSED) e seta `closedAt`
+ * (marcador durável da conversão). Idempotente: só seta o destino. Sem card/etapa
+ * ligada não faz nada (`hadLead:false`). Best-effort — o caller não falha a baixa.
+ */
+export async function closeAppointmentCard(
+  ctx: TenantContext,
+  params: { clientId: string; appointmentId: string }
+): Promise<{ hadLead: boolean }> {
+  const { clientId, appointmentId } = params
+  const lead = await findLeadLinkedToAppointment(ctx, clientId, appointmentId)
+  if (!lead) return { hadLead: false }
+  const closedStageId = await findNativeStageId(clientId, lead.stage.pipelineId, 'CLOSED')
+  if (!closedStageId) return { hadLead: false }
+
+  await scopedTransaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: { stageId: closedStageId, closedAt: new Date(), updatedById: ctx.userId },
+    })
+    await tx.leadInteraction.create({
+      data: {
+        leadId: lead.id,
+        type: 'NOTE',
+        content: 'Fechado pela agenda — baixa financeira registrada.',
+        createdById: ctx.userId,
+      },
+    })
+  })
+
+  return { hadLead: true }
+}
+
+/**
+ * Remarcar pela AGENDA — ao mudar a data do Appointment, propaga a nova data para
+ * o card comercial ligado (`lead.scheduledAt`), mantendo os dois lados em sincronia.
+ * Best-effort. Sem card ligado não faz nada.
+ */
+export async function syncLeadScheduledAt(
+  ctx: TenantContext,
+  params: { clientId: string; appointmentId: string; scheduledAt: Date }
+): Promise<void> {
+  const { clientId, appointmentId, scheduledAt } = params
+  await prisma.lead.updateMany({
+    where: { appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+    data: { scheduledAt, updatedById: ctx.userId },
+  })
+}
+
 /**
  * Visão (agenda→pipeline) — Ao criar um agendamento MANUAL, espelha-o na pipeline:
  *   - Paciente "real" (cadastro manual/ganho, ou com Appointment ATTENDED, ou já

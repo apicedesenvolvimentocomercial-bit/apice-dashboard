@@ -93,11 +93,14 @@ export function KanbanBoard({
     snapshot: KanbanStage[]
   } | null>(null)
   // Move para Cancelado pendente (dialog bloqueante feat5): exige o motivo.
+  // `wasAttended` = vinha de Compareceu → o dialog avisa que cancelar desfaz
+  // o comparecimento/baixa já registrados.
   const [pendingCancel, setPendingCancel] = useState<{
     leadId: string
     leadName: string
     stageId: string
     position: number
+    wasAttended: boolean
     snapshot: KanbanStage[]
   } | null>(null)
   // Retrocesso para Agendado pendente: dialog de remarcação (reusa o mesmo
@@ -314,6 +317,7 @@ export function KanbanBoard({
         leadName: movedLead?.name ?? 'Lead',
         stageId: destStage.id,
         position: newPosition,
+        wasAttended: fromKey === 'ATTENDED',
         snapshot,
       })
       return
@@ -570,6 +574,7 @@ export function KanbanBoard({
         }}
         leadName={pendingCancel?.leadName ?? 'Lead'}
         pending={isPending}
+        wasAttended={pendingCancel?.wasAttended ?? false}
         onConfirm={(reason) => {
           if (!pendingCancel) return
           const p = pendingCancel

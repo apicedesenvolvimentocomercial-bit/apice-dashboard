@@ -216,3 +216,45 @@ correto e rejeita provider inválido; retention job (contexto admin) ativa/desat
 
 Verificado: `type-check` ✓ · `lint` ✓ (0 erros) · `test` ✓ (139) · `build` ✓.
 Verificação funcional pendente no Neon/manual (sem migration nova a aplicar).
+
+## Fase 4 — integração reversa agenda→pipeline COMPLETA (sessão 2026-05-30) — FEITO
+
+Antes a direção agenda→pipeline só cobria criar (espelha card) e excluir (retrocede)
+agendamento. Os DESFECHOS registrados na agenda (comparecer/faltar/cancelar/remarcar/
+baixa financeira) não tocavam o card ligado → dessincronização (pior caso: baixa pela
+agenda não setava `Lead.closedAt`, logo não contava como conversão). Agora os dois lados
+ficam sempre em sincronia. **SEM migration** (reusa campos existentes).
+
+Núcleo em `pipeline-stage-effects.ts` (novas funções, acham o card pelo `appointmentId` e
+movem para a etapa nativa do PRÓPRIO funil; custom pipelines sem a etapa são ignoradas;
+todas em `scopedTransaction`, `clientId` no `where`):
+
+- **`attendAppointment`** — Compareceu pela agenda. Completa o paciente (5 campos,
+  `fromScheduledLead=false`), marca o Appointment ATTENDED e move o card→Compareceu
+  (ATTENDED). Espelha `attendLeadWithPatientData`. Action `attendAppointmentAction`
+  (gate `appointments:write` + `patients:write`); UI: novo `attend-appointment-dialog.tsx`
+  (bloqueante, pré-preenche os 5 campos via `getPatientAction`). O botão "Compareceu" do
+  `appointment-detail-dialog` abre esse dialog (não mais status flip direto); ao confirmar,
+  segue para o prompt de receita.
+- **`cancelAppointmentSync`** — Faltou/Cancelar pela agenda. Atualiza o status do Appointment
+  (NO_SHOW = entra na média; CANCELED = fora) + move o card→Cancelado (NO_SHOW) gravando o
+  motivo em `Lead.lostReason`. Usado por `updateAppointmentStatusAction` quando o status é
+  NO_SHOW/CANCELED (Faltou sem motivo → motivo padrão "Faltou").
+- **`closeAppointmentCard`** — após a baixa (`confirmRevenueFromAppointmentAction`), move o
+  card→Fechado (CLOSED) e seta `closedAt` (marcador durável de conversão). Best-effort:
+  não falha a baixa se o card desincronizar.
+- **`syncLeadScheduledAt`** — remarcar pela agenda propaga a nova data ao `Lead.scheduledAt`
+  do card ligado (best-effort em `updateAppointmentAction`).
+
+**Conflito ATTENDED × Cancelado (decisão do produto):** o PRIMEIRO desfecho registrado é a
+verdade; a agenda protege naturalmente (ATTENDED vira terminal → some o botão cancelar). No
+funil, arrastar um card de Compareceu→Cancelado abre o `CancelLeadDialog` com um AVISO
+amigável (`wasAttended`, banner âmbar) de que cancelar desfaz o comparecimento/baixa já
+registrados — não bloqueia, só alerta antes de confirmar.
+
+**Consequência de permissão:** marcar Compareceu pela agenda agora exige `patients:write`
+(antes só `appointments:write`), porque completa o cadastro do paciente — consistente com o
+`attendLeadAction` da pipeline.
+
+Verificado: `type-check` ✓ · `lint` ✓ (0 erros) · `test` ✓ (139). Verificação funcional
+pendente no Neon/manual (sem migration nova).

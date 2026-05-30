@@ -225,6 +225,16 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   - **Agendamento manual espelha card** (`syncPipelineCardForManualAppointment`, best-effort em
     `createAppointmentAction`): paciente "real" → garante card de Retenção em ATIVO; provisório/
     novo → card Comercial em Agendado ligado ao Appointment (reaproveita card comercial existente).
+  - **Desfecho na AGENDA espelha o card (sync reverso bidirecional).** Os efeitos registrados na
+    agenda movem o card comercial ligado (achado por `appointmentId`) para a etapa nativa do
+    PRÓPRIO funil, em `scopedTransaction` (`pipeline-stage-effects`): Compareceu →
+    `attendAppointment` (completa os 5 campos + ATTENDED + card→Compareceu; via novo
+    `attend-appointment-dialog`, exige `patients:write`); Faltou/Cancelar → `cancelAppointmentSync`
+    (status + card→Cancelado + `Lead.lostReason`); baixa financeira → `closeAppointmentCard`
+    (card→Fechado + `closedAt`); remarcar → `syncLeadScheduledAt`. **O 1º desfecho registrado é a
+    verdade**: arrastar Compareceu→Cancelado no funil avisa (banner âmbar `wasAttended` no
+    `cancel-lead-dialog`) que desfaz comparecimento/baixa — não bloqueia. A agenda se protege
+    sozinha (ATTENDED vira terminal → sem botão cancelar).
   - **Busca global** (`pipeline-search`): filtra leads de TODAS as pipelines em memória (dados já
     no SSR via `getClinicPipelinesWithStages`) por nome/telefone/email — client-side, sem servidor.
 - **Datas**: fuso da app = `America/Sao_Paulo`; use os helpers de `src/lib/date.ts`

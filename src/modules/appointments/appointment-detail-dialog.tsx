@@ -34,6 +34,7 @@ import {
   deleteAppointmentAction,
   regressAppointmentToLeadAction,
 } from '@/server/actions/appointment-actions'
+import { AttendAppointmentDialog } from './attend-appointment-dialog'
 import { STATUS_LABELS, STATUS_COLORS } from './types'
 import type { AppointmentEvent } from './types'
 
@@ -63,6 +64,8 @@ export function AppointmentDetailDialog({
   const [newDateTime, setNewDateTime] = useState('')
   const [showRevenuePrompt, setShowRevenuePrompt] = useState(false)
   const [showRegressWarn, setShowRegressWarn] = useState(false)
+  // Compareceu pela agenda: dialog bloqueante que completa o cadastro (5 campos).
+  const [showAttendDialog, setShowAttendDialog] = useState(false)
 
   if (!appointment) return null
 
@@ -77,25 +80,23 @@ export function AppointmentDetailDialog({
   const startMs = new Date(appointment.scheduledAt).getTime()
   const inAttendanceWindow = Date.now() >= startMs - ATTENDANCE_WINDOW_MS
 
+  // Faltou (NO_SHOW) e demais status diretos. Compareceu (ATTENDED) NÃO passa
+  // por aqui — abre o dialog que completa o cadastro (`showAttendDialog`).
   function handleStatus(status: string) {
     if (!appointment) return
     startTransition(async () => {
       const result = await updateAppointmentStatusAction(
         appointment.id,
         clientId,
-        status as 'CONFIRMED' | 'ATTENDED' | 'NO_SHOW' | 'CANCELED' | 'SCHEDULED' | 'RESCHEDULED'
+        status as 'CONFIRMED' | 'NO_SHOW' | 'CANCELED' | 'SCHEDULED' | 'RESCHEDULED'
       )
       if (!result.success) {
         toast.error(result.error.message)
         return
       }
-      if (status === 'ATTENDED') {
-        setShowRevenuePrompt(true)
-      } else {
-        toast.success(`Status atualizado: ${STATUS_LABELS[status]}`)
-        onUpdated()
-        onClose()
-      }
+      toast.success(`Status atualizado: ${STATUS_LABELS[status]}`)
+      onUpdated()
+      onClose()
     })
   }
 
@@ -291,14 +292,10 @@ export function AppointmentDetailDialog({
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700"
-                        onClick={() => handleStatus('ATTENDED')}
+                        onClick={() => setShowAttendDialog(true)}
                         disabled={isPending}
                       >
-                        {isPending ? (
-                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Check className="mr-1.5 h-4 w-4" />
-                        )}
+                        <Check className="mr-1.5 h-4 w-4" />
                         Compareceu
                       </Button>
                       <Button
@@ -460,6 +457,22 @@ export function AppointmentDetailDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Compareceu pela agenda: completa o cadastro (5 campos) e move o card
+          ligado para Compareceu. Ao confirmar, abre o prompt de receita. */}
+      <AttendAppointmentDialog
+        open={showAttendDialog}
+        onOpenChange={setShowAttendDialog}
+        clientId={clientId}
+        appointmentId={appointment.id}
+        patientId={appointment.patientId}
+        defaults={{ name: appointment.patient.name, phone: appointment.patient.phone }}
+        onAttended={() => {
+          setShowAttendDialog(false)
+          setShowRevenuePrompt(true)
+        }}
+        onCancel={() => setShowAttendDialog(false)}
+      />
     </>
   )
 }
