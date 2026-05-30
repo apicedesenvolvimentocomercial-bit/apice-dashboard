@@ -11,6 +11,9 @@ export type KanbanLead = {
   createdAt: Date
   stageId: string
   position: number
+  /** Agendamento ligado (Fase 2). Se preenchido, mover p/ Agendado é reagendar
+   *  (retrocesso), não criar um novo. */
+  appointmentId: string | null
 }
 
 export type KanbanStage = {

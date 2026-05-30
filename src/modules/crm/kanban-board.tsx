@@ -11,7 +11,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { PipelineKind } from '@prisma/client'
+import type { PipelineKind, StageNativeKey } from '@prisma/client'
 import { Pencil } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
@@ -100,11 +100,13 @@ export function KanbanBoard({
     snapshot: KanbanStage[]
   } | null>(null)
   // Retrocesso pendente de confirmação (2d): desfaz efeitos ao confirmar.
+  // `toKey` = etapa destino do retrocesso (p/ mensagem específica de Agendado).
   const [pendingRegress, setPendingRegress] = useState<{
     leadId: string
     leadName: string
     stageId: string
     position: number
+    toKey: StageNativeKey | null
     snapshot: KanbanStage[]
   } | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -232,10 +234,17 @@ export function KanbanBoard({
     const fromKey = originalStage?.nativeKey
     const movedLead = destStage.leads.find((l) => l.id === leadId)
 
-    // 2a — Mover para a etapa Agendado (nativeKey SCHEDULED) vindo de outra etapa
-    // exige criar um agendamento ANTES de persistir. Abre o dialog bloqueante; o
-    // move só é gravado se o agendamento for criado (via scheduleLeadAction).
-    if (movingColumns && destStage.nativeKey === 'SCHEDULED' && fromKey !== 'SCHEDULED') {
+    // 2a — Mover para a etapa Agendado (nativeKey SCHEDULED) cria um agendamento
+    // ANTES de persistir — MAS só quando o card ainda NÃO tem agendamento. Se já
+    // tem (veio de Compareceu/Fechado/Cancelado), mover p/ Agendado é RETROCESSO:
+    // cai no persistMove → moveLeadWithEffect detecta o retrocesso, pede confirmação
+    // e REAGENDA o mesmo Appointment (não cria outro — evita duplicar).
+    if (
+      movingColumns &&
+      destStage.nativeKey === 'SCHEDULED' &&
+      fromKey !== 'SCHEDULED' &&
+      !movedLead?.appointmentId
+    ) {
       setPendingSchedule({
         leadId,
         leadName: movedLead?.name ?? 'Lead',
@@ -324,7 +333,7 @@ export function KanbanBoard({
       }
       if (data.status === 'confirm-regress') {
         // Mantém o card já na etapa destino visualmente; pede confirmação.
-        setPendingRegress({ leadId, leadName, stageId, position, snapshot })
+        setPendingRegress({ leadId, leadName, stageId, position, toKey: data.toKey, snapshot })
         return
       }
       router.refresh()
@@ -364,6 +373,7 @@ export function KanbanBoard({
           createdAt: new Date(),
           stageId: lead.stageId,
           position: lastPos + 1000,
+          appointmentId: null,
         }
         return { ...stage, leads: [...stage.leads, newLead] }
       })
@@ -524,9 +534,9 @@ export function KanbanBoard({
           <AlertDialogHeader>
             <AlertDialogTitle>Retroceder card?</AlertDialogTitle>
             <AlertDialogDescription>
-              Mover {pendingRegress?.leadName ?? 'este card'} para uma etapa anterior vai desfazer
-              os efeitos já aplicados (agendamento, comparecimento e baixa financeira, conforme o
-              caso). Deseja continuar?
+              {pendingRegress?.toKey === 'SCHEDULED'
+                ? `Mover ${pendingRegress?.leadName ?? 'este card'} de volta para Agendado vai reagendar o MESMO agendamento (sem criar outro) e desfazer o comparecimento/baixa financeira, conforme o caso. Deseja continuar?`
+                : `Mover ${pendingRegress?.leadName ?? 'este card'} para uma etapa anterior vai desfazer os efeitos já aplicados (agendamento, comparecimento e baixa financeira, conforme o caso). Deseja continuar?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

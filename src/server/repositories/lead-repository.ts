@@ -42,6 +42,7 @@ export async function getPipeline(ctx: TenantContext, clientId: string, pipeline
           createdAt: true,
           stageId: true,
           position: true,
+          appointmentId: true,
         },
       },
     },
