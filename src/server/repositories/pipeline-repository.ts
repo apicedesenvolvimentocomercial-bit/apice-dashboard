@@ -215,13 +215,28 @@ export async function ensureNativePipelines(clientId: string, organizationId: st
   await ensureNativeStageKeys(clientId)
 }
 
+// Sequência canônica das etapas NATIVAS por tipo de pipeline. A ordem é estável:
+// `reorderStages` proíbe quebrar a subsequência nativa, então a posição relativa
+// entre as nativas SEMPRE bate com esta lista — base segura p/ reidratar a
+// `nativeKey` (independe de isWon/isLost/nome, que podem ter driftado).
+const COMMERCIAL_NATIVE_ORDER: StageNativeKey[] = [
+  'LEAD',
+  'SCHEDULED',
+  'ATTENDED',
+  'CLOSED',
+  'NO_SHOW',
+]
+const RETENTION_NATIVE_ORDER: StageNativeKey[] = ['ACTIVE', 'INACTIVE']
+
 /**
  * Preenche `nativeKey` em etapas NATIVAS que estão sem ele. Necessário para
  * clínicas legadas cujo backfill (migration) não tagueou a etapa — ex.: uma
- * etapa livre foi inserida e deslocou a `order`, então o `CASE order=2→ATTENDED`
- * não casou e "Compareceu" ficou com `nativeKey` nulo (e o board não abre o
- * pop-up). Idempotente e barato: só roda quando há nulo; só toca `isNative=true`;
- * deduz pela ORDEM RELATIVA entre as nativas (robusto a etapas livres) + flags.
+ * etapa livre foi inserida e deslocou a `order`, então o `CASE order=N` não casou
+ * e a nativa ficou com `nativeKey` nulo. Sem isso o board não dispara o efeito
+ * (Compareceu não abre pop-up; Fechado não dá baixa financeira). Idempotente e
+ * barato: só roda quando há nulo; só toca `isNative=true`; mapeia pela POSIÇÃO
+ * RELATIVA entre as nativas contra a sequência canônica (robusto a etapas livres
+ * E a isWon/isLost driftados).
  */
 async function ensureNativeStageKeys(clientId: string) {
   const missing = await prisma.pipelineStage.count({
@@ -241,36 +256,18 @@ async function ensureNativeStageKeys(clientId: string) {
       stages: {
         where: { isNative: true },
         orderBy: { order: 'asc' },
-        select: { id: true, name: true, isWon: true, isLost: true, nativeKey: true },
+        select: { id: true, nativeKey: true },
       },
     },
   })
 
   const updates: { id: string; key: StageNativeKey }[] = []
-  const COMMERCIAL_LINEAR: StageNativeKey[] = ['LEAD', 'SCHEDULED', 'ATTENDED']
-  const RETENTION_LINEAR: StageNativeKey[] = ['ACTIVE', 'INACTIVE']
-
   for (const p of pipelines) {
-    if (p.kind === 'COMMERCIAL') {
-      let linear = 0
-      for (const st of p.stages) {
-        let want: StageNativeKey | null = null
-        if (st.isWon) want = 'CLOSED'
-        else if (st.isLost) want = 'NO_SHOW'
-        else want = COMMERCIAL_LINEAR[linear++] ?? null
-        if (want && st.nativeKey == null) updates.push({ id: st.id, key: want })
-      }
-    } else {
-      let linear = 0
-      for (const st of p.stages) {
-        let want: StageNativeKey | null = null
-        if (st.name === 'Ativo') want = 'ACTIVE'
-        else if (st.name === 'Inativo') want = 'INACTIVE'
-        else want = RETENTION_LINEAR[linear] ?? null
-        linear++
-        if (want && st.nativeKey == null) updates.push({ id: st.id, key: want })
-      }
-    }
+    const canonical = p.kind === 'COMMERCIAL' ? COMMERCIAL_NATIVE_ORDER : RETENTION_NATIVE_ORDER
+    p.stages.forEach((st, idx) => {
+      const want = canonical[idx]
+      if (want && st.nativeKey == null) updates.push({ id: st.id, key: want })
+    })
   }
 
   // clientId no where (belt) — não depende da RLS.
