@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -20,12 +20,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 import { getScheduleViolation } from '@/lib/schedule-violation'
-import { createAppointmentAction } from '@/server/actions/appointment-actions'
+import {
+  createAppointmentAction,
+  createScheduledLeadFromAgendaAction,
+} from '@/server/actions/appointment-actions'
 import type { PatientWithStats } from '@/server/repositories/patient-repository'
 import type { ProcedureForSelect } from '@/server/repositories/procedure-repository'
 import { DEFAULT_SCHEDULE } from './types'
 import type { ClinicSchedule } from './types'
+
+type Mode = 'existing' | 'new-lead'
+
+const SOURCE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'META_ADS', label: 'Meta Ads' },
+  { value: 'GOOGLE_ADS', label: 'Google Ads' },
+  { value: 'ORGANIC', label: 'Orgânico' },
+  { value: 'REFERRAL', label: 'Indicação' },
+  { value: 'WHATSAPP', label: 'WhatsApp' },
+  { value: 'WALK_IN', label: 'Presencial' },
+  { value: 'OTHER', label: 'Outro' },
+]
 
 type Props = {
   open: boolean
@@ -49,8 +65,14 @@ export function CreateAppointmentDialog({
   onCreated,
 }: Props) {
   const [isPending, startTransition] = useTransition()
+  const [mode, setMode] = useState<Mode>('existing')
   const [form, setForm] = useState({
     patientId: '',
+    // Campos do lead novo (modo "new-lead").
+    name: '',
+    phone: '',
+    email: '',
+    source: 'OTHER',
     procedureId: '',
     scheduledAt: defaultDate ?? '',
     durationMinutes: 60,
@@ -60,6 +82,15 @@ export function CreateAppointmentDialog({
   const [pastDateAck, setPastDateAck] = useState(false)
   const [scheduleAck, setScheduleAck] = useState(false)
   const [farFutureAck, setFarFutureAck] = useState(false)
+
+  // Ao abrir (clique num horário), preenche a data com o slot clicado. O dialog
+  // fica montado entre aberturas, então sem isto a data do 1º clique "gruda".
+  useEffect(() => {
+    if (open && defaultDate) {
+      setForm((f) => ({ ...f, scheduledAt: defaultDate }))
+      setDateBlurred(false)
+    }
+  }, [open, defaultDate])
 
   // Limite duro: 1 ano atrás a partir de agora. Server também valida.
   const minScheduledDate = (() => {
@@ -101,20 +132,37 @@ export function CreateAppointmentDialog({
   function reset() {
     setForm({
       patientId: '',
+      name: '',
+      phone: '',
+      email: '',
+      source: 'OTHER',
       procedureId: '',
       scheduledAt: defaultDate ?? '',
       durationMinutes: 60,
       notes: '',
     })
+    setMode('existing')
     setDateBlurred(false)
     setPastDateAck(false)
     setScheduleAck(false)
     setFarFutureAck(false)
   }
 
+  // O "quem" varia por modo; o resto (procedimento/data/duração/obs + acks) é
+  // compartilhado. `who` válido = paciente escolhido (existente) ou nome (novo).
+  const whoValid = mode === 'existing' ? !!form.patientId : form.name.trim().length >= 2
+  const baseInvalid =
+    !whoValid ||
+    !form.procedureId ||
+    !form.scheduledAt ||
+    isTooOld ||
+    blockedByPastWarning ||
+    blockedBySchedule ||
+    blockedByFarFuture
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.patientId || !form.procedureId || !form.scheduledAt) {
+    if (!whoValid || !form.procedureId || !form.scheduledAt) {
       toast.error('Preencha todos os campos obrigatórios')
       return
     }
@@ -135,15 +183,30 @@ export function CreateAppointmentDialog({
       return
     }
     startTransition(async () => {
-      const result = await createAppointmentAction(clientId, {
-        ...form,
-        durationMinutes: Number(form.durationMinutes),
-      })
+      const result =
+        mode === 'existing'
+          ? await createAppointmentAction(clientId, {
+              patientId: form.patientId,
+              procedureId: form.procedureId,
+              scheduledAt: form.scheduledAt,
+              durationMinutes: Number(form.durationMinutes),
+              notes: form.notes,
+            })
+          : await createScheduledLeadFromAgendaAction(clientId, {
+              name: form.name.trim(),
+              phone: form.phone.trim() || undefined,
+              email: form.email.trim() || undefined,
+              source: form.source,
+              procedureId: form.procedureId,
+              scheduledAt: form.scheduledAt,
+              durationMinutes: Number(form.durationMinutes),
+              notes: form.notes,
+            })
       if (!result.success) {
         toast.error(result.error.message)
         return
       }
-      toast.success('Agendamento criado!')
+      toast.success(mode === 'existing' ? 'Agendamento criado!' : 'Lead criado e agendado!')
       reset()
       onOpenChange(false)
       onCreated?.()
@@ -154,37 +217,123 @@ export function CreateAppointmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>Novo Agendamento</DialogTitle>
+          <DialogTitle>
+            {mode === 'new-lead' ? 'Novo lead agendado' : 'Novo Agendamento'}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <Label htmlFor="apt-patient">Paciente *</Label>
-            <Select
-              value={form.patientId}
-              onValueChange={(v) => setForm((f) => ({ ...f, patientId: v }))}
+          {/* Alterna entre agendar um paciente existente e criar um lead novo
+              (que nasce em "Agendado" no funil comercial). */}
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-sm">
+            <button
+              type="button"
+              onClick={() => setMode('existing')}
+              className={cn(
+                'rounded-md px-3 py-1.5 font-medium transition-colors',
+                mode === 'existing'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
-              <SelectTrigger id="apt-patient">
-                <SelectValue placeholder="Selecionar paciente..." />
-              </SelectTrigger>
-              <SelectContent>
-                {patients.length === 0 ? (
-                  <SelectItem value="_empty" disabled>
-                    Nenhum paciente cadastrado
-                  </SelectItem>
-                ) : (
-                  patients.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                      {p.phone ? ` · ${p.phone}` : ''}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+              Paciente existente
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('new-lead')}
+              className={cn(
+                'rounded-md px-3 py-1.5 font-medium transition-colors',
+                mode === 'new-lead'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Novo lead
+            </button>
           </div>
 
+          {mode === 'existing' ? (
+            <div className="space-y-1">
+              <Label htmlFor="apt-patient">Paciente *</Label>
+              <Select
+                value={form.patientId}
+                onValueChange={(v) => setForm((f) => ({ ...f, patientId: v }))}
+              >
+                <SelectTrigger id="apt-patient">
+                  <SelectValue placeholder="Selecionar paciente..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.length === 0 ? (
+                    <SelectItem value="_empty" disabled>
+                      Nenhum paciente cadastrado
+                    </SelectItem>
+                  ) : (
+                    patients.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                        {p.phone ? ` · ${p.phone}` : ''}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="lead-name">Nome *</Label>
+                <Input
+                  id="lead-name"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Nome do lead"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="lead-phone">Telefone</Label>
+                  <Input
+                    id="lead-phone"
+                    value={form.phone}
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    placeholder="(11) 99999-9999"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="lead-email">E-mail</Label>
+                  <Input
+                    id="lead-email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="lead-source">Origem *</Label>
+                <Select
+                  value={form.source}
+                  onValueChange={(v) => setForm((f) => ({ ...f, source: v }))}
+                >
+                  <SelectTrigger id="lead-source">
+                    <SelectValue placeholder="Origem" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SOURCE_OPTIONS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1">
-            <Label htmlFor="apt-procedure">Procedimento *</Label>
+            <Label htmlFor="apt-procedure">
+              {mode === 'new-lead' ? 'Procedimento de interesse *' : 'Procedimento *'}
+            </Label>
             <Select value={form.procedureId} onValueChange={handleProcedureChange}>
               <SelectTrigger id="apt-procedure">
                 <SelectValue placeholder="Selecionar procedimento..." />
@@ -333,20 +482,8 @@ export function CreateAppointmentDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={
-                isPending ||
-                !form.patientId ||
-                !form.procedureId ||
-                !form.scheduledAt ||
-                isTooOld ||
-                blockedByPastWarning ||
-                blockedBySchedule ||
-                blockedByFarFuture
-              }
-            >
-              {isPending ? 'Salvando...' : 'Agendar'}
+            <Button type="submit" disabled={isPending || baseInvalid}>
+              {isPending ? 'Salvando...' : mode === 'new-lead' ? 'Criar e agendar' : 'Agendar'}
             </Button>
           </DialogFooter>
         </form>

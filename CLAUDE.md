@@ -225,6 +225,11 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   - **Agendamento manual espelha card** (`syncPipelineCardForManualAppointment`, best-effort em
     `createAppointmentAction`): paciente "real" → garante card de Retenção em ATIVO; provisório/
     novo → card Comercial em Agendado ligado ao Appointment (reaproveita card comercial existente).
+  - **Criar LEAD NOVO pela agenda.** `create-appointment-dialog` tem toggle "Paciente existente |
+    Novo lead". No modo novo lead (nome/telefone/e-mail/origem/procedimento/obs + data do slot),
+    `createScheduledLeadFromAgendaAction` → `createLeadScheduledFromAgenda` cria, em transação
+    única, Lead na etapa **Agendado** do funil COMERCIAL + Patient provisório (`fromScheduledLead`)
+    - Appointment SCHEDULED, ligados (espelho de `scheduleLeadAppointment` sem leadId prévio).
   - **Desfecho na AGENDA espelha o card (sync reverso bidirecional).** Os efeitos registrados na
     agenda movem o card comercial ligado (achado por `appointmentId`) para a etapa nativa do
     PRÓPRIO funil, em `scopedTransaction` (`pipeline-stage-effects`): Compareceu →

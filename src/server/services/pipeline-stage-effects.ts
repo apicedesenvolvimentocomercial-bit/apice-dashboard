@@ -1,4 +1,4 @@
-import type { Prisma, StageNativeKey } from '@prisma/client'
+import type { LeadSource, Prisma, StageNativeKey } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { decideCancellationStatus } from '@/lib/no-show-window'
@@ -968,6 +968,116 @@ export async function syncLeadScheduledAt(
   await prisma.lead.updateMany({
     where: { appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { scheduledAt, updatedById: ctx.userId },
+  })
+}
+
+export type CreateScheduledLeadResult =
+  | { ok: true; leadId: string; appointmentId: string; patientId: string }
+  | { ok: false; reason: 'stage-not-found' | 'procedure-not-found' }
+
+/**
+ * Visão (agenda→pipeline) — Cria um LEAD NOVO direto pela agenda e já o agenda:
+ * nasce na etapa Agendado (SCHEDULED) do funil COMERCIAL, vira paciente provisório
+ * (`fromScheduledLead=true`) e ganha o Appointment (SCHEDULED) ligado. Espelho de
+ * `scheduleLeadAppointment`, mas criando o lead do zero (sem leadId prévio). Tudo
+ * numa transação: se algo falhar, nada persiste.
+ */
+export async function createLeadScheduledFromAgenda(
+  ctx: TenantContext,
+  params: {
+    clientId: string
+    name: string
+    phone?: string
+    email?: string
+    source: LeadSource
+    procedureId: string
+    scheduledAt: Date
+    durationMinutes: number
+    notes?: string
+  }
+): Promise<CreateScheduledLeadResult> {
+  const { clientId } = params
+  // Etapa Agendado do funil comercial da clínica (mesma busca do espelho manual).
+  const scheduledStage = await prisma.pipelineStage.findFirst({
+    where: { clientId, nativeKey: 'SCHEDULED', pipeline: { kind: 'COMMERCIAL' } },
+    select: { id: true },
+  })
+  if (!scheduledStage) return { ok: false, reason: 'stage-not-found' }
+
+  // Procedimento precisa ser da clínica (belt).
+  const procedure = await prisma.procedure.findFirst({
+    where: {
+      id: params.procedureId,
+      clientId,
+      organizationId: ctx.organizationId,
+      deletedAt: null,
+    },
+    select: { id: true, name: true },
+  })
+  if (!procedure) return { ok: false, reason: 'procedure-not-found' }
+
+  return scopedTransaction(async (tx) => {
+    const patient = await tx.patient.create({
+      data: {
+        organizationId: ctx.organizationId,
+        clientId,
+        name: params.name,
+        phone: params.phone || undefined,
+        email: params.email || undefined,
+        firstVisitAt: new Date(),
+        // Criado ao agendar — só vira paciente "real" se comparecer.
+        fromScheduledLead: true,
+      },
+    })
+
+    const appointment = await tx.appointment.create({
+      data: {
+        organizationId: ctx.organizationId,
+        clientId,
+        patientId: patient.id,
+        procedureId: procedure.id,
+        scheduledAt: params.scheduledAt,
+        durationMinutes: params.durationMinutes,
+        status: 'SCHEDULED',
+        notes: params.notes,
+        createdById: ctx.userId,
+      },
+    })
+
+    const lead = await tx.lead.create({
+      data: {
+        organizationId: ctx.organizationId,
+        clientId,
+        name: params.name,
+        phone: params.phone || undefined,
+        email: params.email || undefined,
+        source: params.source,
+        procedureInterest: procedure.name,
+        notes: params.notes,
+        stageId: scheduledStage.id,
+        patientId: patient.id,
+        appointmentId: appointment.id,
+        scheduledAt: params.scheduledAt,
+        createdById: ctx.userId,
+        updatedById: ctx.userId,
+      },
+    })
+
+    await tx.leadInteraction.create({
+      data: {
+        leadId: lead.id,
+        type: 'MEETING',
+        content: 'Lead criado e agendado pela agenda.',
+        createdById: ctx.userId,
+      },
+    })
+
+    return {
+      ok: true as const,
+      leadId: lead.id,
+      appointmentId: appointment.id,
+      patientId: patient.id,
+    }
   })
 }
 
