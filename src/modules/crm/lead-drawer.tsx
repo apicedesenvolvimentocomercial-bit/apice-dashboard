@@ -1,9 +1,10 @@
 'use client'
 
 import * as DialogPrimitive from '@radix-ui/react-dialog'
+import type { PipelineKind } from '@prisma/client'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Loader2, Phone, Mail, X, Trophy, ThumbsDown, Send } from 'lucide-react'
+import { Loader2, Phone, Mail, X, ThumbsDown, Send } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
@@ -18,7 +19,6 @@ import {
 } from '@/components/ui/select'
 import {
   getLeadAction,
-  winLeadAction,
   loseLeadAction,
   addInteractionAction,
   deleteLeadAction,
@@ -50,11 +50,21 @@ type Props = {
   leadId: string | null
   clientId: string
   stages: KanbanStage[]
+  /** Tipo do funil — em RETENTION o card não pode ser removido nem ganho/perdido. */
+  pipelineKind: PipelineKind
   onClose: () => void
   onLeadUpdated: () => void
 }
 
-export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpdated }: Props) {
+export function LeadDrawer({
+  open,
+  leadId,
+  clientId,
+  stages,
+  pipelineKind,
+  onClose,
+  onLeadUpdated,
+}: Props) {
   const [lead, setLead] = useState<Lead | null>(null)
   const [loadingLead, setLoadingLead] = useState(false)
   const [loseReason, setLoseReason] = useState('')
@@ -63,7 +73,9 @@ export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpda
   const [interactionType, setInteractionType] = useState('NOTE')
   const [isPending, startTransition] = useTransition()
 
-  const wonStage = stages.find((s) => s.isWon)
+  // feat3: na pipeline de Retenção o card é espelho do paciente — só some quando
+  // o paciente é removido na aba Pacientes. Nada de remover/ganhar/perder aqui.
+  const isRetention = pipelineKind === 'RETENTION'
   const lostStage = stages.find((s) => s.isLost)
 
   useEffect(() => {
@@ -77,20 +89,6 @@ export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpda
       if (result.success) setLead(result.data as Lead)
     })
   }, [leadId, clientId])
-
-  function handleWin() {
-    if (!lead || !wonStage) return
-    startTransition(async () => {
-      const result = await winLeadAction(lead.id, wonStage.id, clientId)
-      if (!result.success) {
-        toast.error(result.error.message)
-        return
-      }
-      toast.success('Lead convertido em paciente!')
-      onClose()
-      onLeadUpdated()
-    })
-  }
 
   function handleLose() {
     if (!lead || !lostStage || !loseReason.trim()) return
@@ -240,33 +238,21 @@ export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpda
                   )}
                 </div>
 
-                {/* Win / Lose actions */}
-                {!isTerminal && (
+                {/* Lose action. "Ganhou" foi removido: fechar passa pelo fluxo
+                    Agendado→Compareceu→Fechado (feat1). Em Retenção não há perda. */}
+                {!isTerminal && !isRetention && lostStage && (
                   <div className="space-y-3">
                     <div className="flex gap-2">
-                      {wonStage && (
-                        <Button
-                          size="sm"
-                          className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600"
-                          onClick={handleWin}
-                          disabled={isPending}
-                        >
-                          <Trophy className="mr-1.5 h-4 w-4" />
-                          Ganhou
-                        </Button>
-                      )}
-                      {lostStage && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                          onClick={() => setShowLoseForm(!showLoseForm)}
-                          disabled={isPending}
-                        >
-                          <ThumbsDown className="mr-1.5 h-4 w-4" />
-                          Perdeu
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => setShowLoseForm(!showLoseForm)}
+                        disabled={isPending}
+                      >
+                        <ThumbsDown className="mr-1.5 h-4 w-4" />
+                        Perdeu
+                      </Button>
                     </div>
 
                     {showLoseForm && (
@@ -398,14 +384,20 @@ export function LeadDrawer({ open, leadId, clientId, stages, onClose, onLeadUpda
                   { locale: ptBR }
                 )}
               </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDelete}
-                className="text-destructive hover:text-destructive"
-              >
-                Remover lead
-              </Button>
+              {isRetention ? (
+                <span className="text-xs text-muted-foreground">
+                  Removido apenas excluindo o paciente
+                </span>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  className="text-destructive hover:text-destructive"
+                >
+                  Remover lead
+                </Button>
+              )}
             </div>
           )}
         </DialogPrimitive.Content>

@@ -168,3 +168,51 @@ correto e rejeita provider inválido; retention job (contexto admin) ativa/desat
 - Cron `api/cron/retention` usa `CRON_SECRET` como os demais (ver `lib/cron-auth`).
 - Aplicar em prod, em ordem: `variable_pipelines`, `pipeline_native_keys`,
   `client_inactivity_days` (via `prisma migrate deploy`).
+
+## Fase 3 — fluxo Compareceu + link agenda↔pipeline (sessão 2026-05-30) — FEITO
+
+**SEM migration** — reusa campos existentes (`Patient.birthDate`/`cpf`,
+`Appointment.cancelReason`, `Lead.lostReason`/`deletedAt`/`appointmentId`).
+
+- **feat1 — Compareceu completa o cadastro + trava o fechamento.**
+  - Novo `attend-lead-dialog.tsx` (bloqueante) + `attendLeadAction` +
+    `attendLeadWithPatientData` (em `pipeline-stage-effects`): exige os 5 campos
+    (nome/telefone/nascimento/email/cpf), atualiza o Patient (`fromScheduledLead=false`)
+    e marca o Appointment `ATTENDED`. Board intercepta move→ATTENDED (origem ≠
+    ATTENDED/CLOSED) e abre o dialog.
+  - `moveLeadWithEffect` branch CLOSED agora **exige `appointment.status==='ATTENDED'`**
+    (retorna `not-attended`); removidos o auto-mark de ATTENDED e o fluxo `close-early`
+    (estado/dialog/`force` saíram do board, da action e do tipo `MoveEffectResult`).
+  - `createPatientAction` usa `createPatientSchema` (5 campos obrigatórios);
+    `create-patient-dialog` valida-os. Atalho "Ganhou" REMOVIDO do `lead-drawer`
+    (burlava o fluxo) — `winLead`/`winLeadAction` permanecem no código, sem caller de UI.
+- **feat5 — Cancelamento exige motivo.** Novo `cancel-lead-dialog.tsx`; board intercepta
+  move→NO_SHOW (forward; CLOSED→NO_SHOW continua retrocesso). Motivo vai em
+  `moveLeadAction(..., cancelReason)` → `Appointment.cancelReason` + `Lead.lostReason`.
+- **feat2 — Excluir agendamento de pipeline retrocede ao LEAD.** `regressAppointmentToLead`
+  (+ `regressAppointmentToLeadAction`) acha o card pelo `appointmentId`, encontra a etapa
+  `nativeKey=LEAD` da mesma pipeline e chama `regressLeadStage` (soft-deleta o Appointment).
+  `appointment-detail-dialog` mostra AlertDialog "retrocederá para Lead" quando há card ativo;
+  sem card = soft-delete normal.
+- **feat4 — Lead excluído pisca na agenda.** `listAppointments` traz `lead:{id,deletedAt}`;
+  `AppointmentEvent.lead`; `calendar-view` aplica classe `fc-event-lead-deleted` (keyframes
+  em `globals.css`) + título de aviso; banner no detalhe.
+- **feat3 — Card de Retenção atrelado ao Patient.** `lead-drawer` recebe `pipelineKind` e em
+  RETENTION esconde remover/ganhar/perder. `deletePatientAction` chama
+  `removeRetentionCardForPatient` (soft-delete só dos cards de retenção do paciente).
+- **Visão (escopo: paciente existente) — agendamento manual espelha card.**
+  `syncPipelineCardForManualAppointment` (best-effort em `createAppointmentAction`):
+  paciente real (`!fromScheduledLead` OU Appointment ATTENDED OU já tem card RETENTION) →
+  garante card de Retenção em ATIVO; provisório/novo → card Comercial em Agendado ligado ao
+  Appointment (reusa card comercial existente sem clobber de `appointmentId @unique`).
+  Dialog de agendamento segue só com pacientes existentes (cadastrar pessoa nova = adiado).
+- **feat6 — Busca global nas pipelines.** `KanbanLead`/`getPipeline` ganham `email`; novo
+  `pipeline-search.tsx` acima das abas filtra em memória (nome/telefone/email) todos os ≤6
+  funis já carregados no SSR; clicar troca de aba e destaca o card (`highlightLeadId`
+  propagado Tabs→Board→Column→Card, ring temporário + scrollIntoView).
+- **fix — cinza da agenda dark-safe.** `calendar-view` troca cor inline (`#e2e8f0`/`#cbd5e1`)
+  por classes `fc-bg-holiday`/`fc-bg-closed` pintadas por token (`hsl(var(--muted/--primary))`)
+  em `globals.css` — cascateia no dark sem ficar claro demais.
+
+Verificado: `type-check` ✓ · `lint` ✓ (0 erros) · `test` ✓ (139) · `build` ✓.
+Verificação funcional pendente no Neon/manual (sem migration nova a aplicar).

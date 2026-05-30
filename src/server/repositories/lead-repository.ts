@@ -35,6 +35,7 @@ export async function getPipeline(ctx: TenantContext, clientId: string, pipeline
           id: true,
           name: true,
           phone: true,
+          email: true,
           source: true,
           procedureInterest: true,
           tags: true,

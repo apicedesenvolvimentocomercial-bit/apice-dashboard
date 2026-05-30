@@ -106,6 +106,39 @@
   height: 2.5rem;
 }
 
+/* Dias fechados / feriados (background events). Cor por token semântico para
+   indicar inatividade nos dois temas — antes era cinza inline (#cbd5e1/#e2e8f0)
+   que no dark ficava claro demais. `opacity:1` aqui e o alpha fica no próprio
+   token, sobrescrevendo o opacity .3 default do `.fc-bg-event`. */
+.fc .fc-bg-event.fc-bg-closed,
+.fc .fc-bg-event.fc-bg-holiday {
+  opacity: 1;
+}
+.fc .fc-bg-event.fc-bg-closed {
+  background-color: hsl(var(--muted) / 0.7);
+}
+.fc .fc-bg-event.fc-bg-holiday {
+  background-color: hsl(var(--primary) / 0.12);
+}
+
+/* Agendamento cujo Lead foi excluído: pisca para chamar atenção (feat4). */
+@keyframes fc-lead-deleted-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.7);
+    filter: saturate(1);
+  }
+  50% {
+    box-shadow: 0 0 0 3px hsl(var(--destructive) / 0);
+    filter: saturate(1.4) brightness(1.05);
+  }
+}
+.fc .fc-event.fc-event-lead-deleted {
+  outline: 2px solid hsl(var(--destructive));
+  outline-offset: -2px;
+  animation: fc-lead-deleted-pulse 1.2s ease-in-out infinite;
+}
+
 /* Aba dia/semana: pequeno respiro entre eventos no mesmo horário, para que
    blocos lado a lado não fiquem colados. O FullCalendar posiciona o "harness"
    com style inline (largura/coluna), então a folga é aplicada no evento

@@ -44,4 +44,7 @@ export type AppointmentEvent = {
   notes: string | null
   patientId: string
   procedureId: string
+  // Card do CRM que gerou o agendamento (Fase 2). null = agendamento manual sem
+  // card. `deletedAt != null` = Lead excluído (feat4: pisca na agenda).
+  lead?: { id: string; deletedAt: Date | null } | null
 }

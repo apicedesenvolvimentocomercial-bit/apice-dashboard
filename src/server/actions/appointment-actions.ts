@@ -18,6 +18,11 @@ import {
   softDeleteAppointment,
 } from '@/server/repositories/appointment-repository'
 import { createRevenueFromAppointment } from '@/server/services/appointment-service'
+import {
+  regressAppointmentToLead,
+  syncPipelineCardForManualAppointment,
+} from '@/server/services/pipeline-stage-effects'
+import { logger } from '@/lib/logger'
 
 const appointmentSchema = z.object({
   patientId: z.string().min(1, 'Paciente obrigatório'),
@@ -88,7 +93,26 @@ export async function createAppointmentAction(clientId: string, formData: unknow
     ...parsed.data,
     scheduledAt,
   })
+
+  // Visão (agenda→pipeline): espelha o agendamento manual num card da pipeline.
+  // Best-effort: não bloqueia o agendamento se o sync falhar.
+  try {
+    await syncPipelineCardForManualAppointment(ctx, {
+      clientId,
+      patientId: parsed.data.patientId,
+      appointmentId: appointment.id,
+      scheduledAt,
+    })
+  } catch (err) {
+    logger.error('syncPipelineCardForManualAppointment failed', {
+      error: err instanceof Error ? err.message : String(err),
+      appointmentId: appointment.id,
+    })
+  }
+
   revalidate(clientId)
+  revalidatePath('/crm')
+  revalidatePath(`/clients/${clientId}/crm`)
   return ok(appointment)
 }
 
@@ -175,5 +199,28 @@ export async function deleteAppointmentAction(appointmentId: string, clientId: s
 
   await softDeleteAppointment(ctx, appointmentId, clientId)
   revalidate(clientId)
+  return ok(null)
+}
+
+/**
+ * feat2 — Exclui um agendamento que veio da pipeline RETROCEDENDO o card ao
+ * início (etapa LEAD), desfazendo seus efeitos (ver `regressAppointmentToLead`).
+ * Sem card ligado, vira um soft-delete normal do agendamento.
+ */
+export async function regressAppointmentToLeadAction(appointmentId: string, clientId: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'appointments', 'delete')
+
+  const res = await regressAppointmentToLead(ctx, { clientId, appointmentId })
+  if (!res.ok) return fail('Erro ao retroceder o agendamento')
+  // Sem lead ligado: o regress não tocou nada → exclusão normal.
+  if (!res.hadLead) {
+    await softDeleteAppointment(ctx, appointmentId, clientId)
+  }
+  revalidate(clientId)
+  revalidatePath('/crm')
+  revalidatePath(`/clients/${clientId}/crm`)
   return ok(null)
 }

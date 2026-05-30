@@ -35,26 +35,31 @@ function validate(form: {
 }): FormErrors {
   const errors: FormErrors = {}
 
+  // feat1 — os 5 campos são obrigatórios no cadastro manual.
   if (!form.name.trim()) {
     errors.name = 'Nome é obrigatório'
   } else if (form.name.trim().length < 2) {
     errors.name = 'Nome deve ter ao menos 2 caracteres'
   }
 
-  if (form.phone.trim()) {
+  if (!form.phone.trim()) {
+    errors.phone = 'Telefone é obrigatório'
+  } else {
     const digits = form.phone.replace(/\D/g, '')
     if (digits.length < 10 || digits.length > 11) {
       errors.phone = 'Telefone deve ter 10 ou 11 dígitos'
     }
   }
 
-  if (form.email.trim()) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      errors.email = 'E-mail inválido'
-    }
+  if (!form.email.trim()) {
+    errors.email = 'E-mail é obrigatório'
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    errors.email = 'E-mail inválido'
   }
 
-  if (form.birthDate) {
+  if (!form.birthDate) {
+    errors.birthDate = 'Data de nascimento é obrigatória'
+  } else {
     const date = new Date(form.birthDate)
     if (isNaN(date.getTime())) {
       errors.birthDate = 'Data inválida'
@@ -65,7 +70,9 @@ function validate(form: {
     }
   }
 
-  if (form.cpf.trim()) {
+  if (!form.cpf.trim()) {
+    errors.cpf = 'CPF é obrigatório'
+  } else {
     const digits = form.cpf.replace(/\D/g, '')
     if (digits.length !== 11) {
       errors.cpf = 'CPF deve ter 11 dígitos'
@@ -158,7 +165,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="p-phone">Telefone</Label>
+              <Label htmlFor="p-phone">Telefone *</Label>
               <Input
                 id="p-phone"
                 value={form.phone}
@@ -169,7 +176,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
               {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="p-birth">Data de nascimento</Label>
+              <Label htmlFor="p-birth">Data de nascimento *</Label>
               <DateInput
                 id="p-birth"
                 value={form.birthDate}
@@ -181,7 +188,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="p-email">E-mail</Label>
+            <Label htmlFor="p-email">E-mail *</Label>
             <Input
               id="p-email"
               type="email"
@@ -194,7 +201,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="p-cpf">CPF</Label>
+            <Label htmlFor="p-cpf">CPF *</Label>
             <Input
               id="p-cpf"
               value={form.cpf}

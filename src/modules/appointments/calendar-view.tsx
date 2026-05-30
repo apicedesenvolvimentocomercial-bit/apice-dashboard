@@ -62,24 +62,30 @@ export function CalendarView({
   const events = appointments.map((apt) => {
     const start = new Date(apt.scheduledAt)
     const end = new Date(start.getTime() + apt.durationMinutes * 60_000)
+    // feat4: Lead excluído → o agendamento pisca um aviso vermelho.
+    const leadDeleted = apt.lead?.deletedAt != null
     return {
       id: apt.id,
-      title: `${apt.patient.name} — ${apt.procedure.name}`,
+      title: leadDeleted
+        ? `⚠ Lead excluído — ${apt.patient.name}`
+        : `${apt.patient.name} — ${apt.procedure.name}`,
       start: toSPWallClock(start),
       end: toSPWallClock(end),
       backgroundColor: STATUS_COLORS[apt.status] ?? '#6b7280',
       borderColor: STATUS_COLORS[apt.status] ?? '#6b7280',
+      classNames: leadDeleted ? ['fc-event-lead-deleted'] : [],
       extendedProps: { appointment: apt },
     }
   })
 
-  // Feriados como background events (cor cinza-azulada para indicar inatividade)
+  // Feriados como background events. A cor vem de classe + token semântico
+  // (`globals.css`), não inline — assim cascateia no dark sem ficar clara demais.
   const holidayEvents = schedule.holidays.map((h) => ({
     id: `holiday-${h.id}`,
     start: h.date,
     allDay: true,
     display: 'background' as const,
-    backgroundColor: '#e2e8f0',
+    classNames: ['fc-bg-holiday'],
     extendedProps: { isHoliday: true, holidayName: h.name },
   }))
 
@@ -101,7 +107,7 @@ export function CalendarView({
             start: dateStr,
             allDay: true,
             display: 'background',
-            backgroundColor: '#cbd5e1',
+            classNames: ['fc-bg-closed'],
             extendedProps: { isClosed: true },
           })
         }

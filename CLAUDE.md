@@ -200,10 +200,33 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
     mesmo cliente (dedup por phone/email/name — `retention-service.removeActiveCommercialDuplicates`).
   - **Etapa nativa de desfecho = "Cancelado"** (nativeKey segue `NO_SHOW`). Arrastar p/ ela
     decide `NO_SHOW` (entra na média) vs `CANCELED` (fora) via `Client.noShowWindowHours`
-    (null = regra do mesmo dia) — `decideCancellationStatus` em `lib/no-show-window`.
+    (null = regra do mesmo dia) — `decideCancellationStatus` em `lib/no-show-window`. **Exige
+    motivo** (dialog bloqueante `cancel-lead-dialog`): vai em `Appointment.cancelReason` +
+    `Lead.lostReason` (passado via `moveLeadAction(..., cancelReason)`).
   - **Paciente criado ao AGENDAR** leva `Patient.fromScheduledLead=true`. A aba Pacientes
     mostra só "reais" (`fromScheduledLead=false` OU ≥1 `Appointment` ATTENDED) via filtro
     `onlyCompleted` — **não** aplique esse filtro ao picker de agendamento (precisa de todos).
+  - **Compareceu (ATTENDED) completa o cadastro.** Arrastar p/ Compareceu abre dialog
+    BLOQUEANTE (`attend-lead-dialog`→`attendLeadAction`→`attendLeadWithPatientData`) que exige
+    os **5 campos** (nome, telefone, nascimento, email, cpf), marca o Patient como real
+    (`fromScheduledLead=false`) e o Appointment `ATTENDED`. **Fechar EXIGE Appointment já
+    `ATTENDED`** (`moveLeadWithEffect` retorna `not-attended` senão) — não auto-marca: arrastar
+    Agendado→Fechado direto é bloqueado (passe por Compareceu). O atalho "Ganhou" do drawer foi
+    REMOVIDO (burlava o fluxo). Cadastro manual de paciente (`createPatientAction`) também exige
+    os 5 campos (`createPatientSchema`); `updatePatientAction` segue lenient.
+  - **Excluir Appointment de pipeline retrocede o card** (`regressAppointmentToLead` via
+    `regressAppointmentToLeadAction`): volta o card à etapa `LEAD` da mesma pipeline e desfaz os
+    efeitos (`regressLeadStage` soft-deleta o Appointment). Sem card ligado = soft-delete normal.
+    Aviso no dialog antes ("retrocederá para Lead").
+  - **Card de Retenção atrelado ao Patient.** Sem "remover" no card de retenção; ele some só
+    quando o paciente é excluído (`removeRetentionCardForPatient` em `deletePatientAction`).
+    Lead excluído (qualquer pipeline) faz seus Appointments **piscarem** na agenda
+    (`apt.lead.deletedAt != null` → classe `fc-event-lead-deleted`).
+  - **Agendamento manual espelha card** (`syncPipelineCardForManualAppointment`, best-effort em
+    `createAppointmentAction`): paciente "real" → garante card de Retenção em ATIVO; provisório/
+    novo → card Comercial em Agendado ligado ao Appointment (reaproveita card comercial existente).
+  - **Busca global** (`pipeline-search`): filtra leads de TODAS as pipelines em memória (dados já
+    no SSR via `getClinicPipelinesWithStages`) por nome/telefone/email — client-side, sem servidor.
 - **Datas**: fuso da app = `America/Sao_Paulo`; use os helpers de `src/lib/date.ts`
   (`spDate`, `parseLocalDate`), não `new Date(string)` cru.
 - **Auditoria**: mutations relevantes chamam `createAuditLog(ctx, {...})` (best-effort,
