@@ -14,7 +14,10 @@ import {
   updatePatient,
   softDeletePatient,
 } from '@/server/repositories/patient-repository'
-import { addPatientToRetention } from '@/server/services/retention-service'
+import {
+  addPatientToRetention,
+  removeRetentionCardForPatient,
+} from '@/server/services/retention-service'
 import { logger } from '@/lib/logger'
 
 const patientSchema = z.object({
@@ -23,6 +26,18 @@ const patientSchema = z.object({
   email: z.string().email('E-mail inválido').optional().or(z.literal('')),
   birthDate: z.string().optional(),
   cpf: z.string().optional(),
+  notes: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+})
+
+// feat1 — Cadastro manual exige os 5 campos. Schema separado p/ o create;
+// `updatePatientAction` segue usando o `patientSchema.partial()` (edição lenient).
+const createPatientSchema = z.object({
+  name: z.string().min(2, 'Nome obrigatório'),
+  phone: z.string().min(1, 'Telefone obrigatório'),
+  email: z.string().email('E-mail inválido'),
+  birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
+  cpf: z.string().min(1, 'CPF obrigatório'),
   notes: z.string().optional(),
   tags: z.array(z.string()).optional(),
 })
@@ -59,13 +74,12 @@ export async function createPatientAction(clientId: string, formData: unknown) {
   enterClientScope(clientId)
   await assertCan(ctx, 'patients', 'write')
 
-  const parsed = patientSchema.safeParse(formData)
+  const parsed = createPatientSchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
   const patient = await createPatient(ctx, clientId, {
     ...parsed.data,
-    email: parsed.data.email || undefined,
-    birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : undefined,
+    birthDate: new Date(parsed.data.birthDate),
   })
 
   // Item 6: paciente cadastrado manualmente entra na pipeline de Retenção na hora
@@ -110,6 +124,10 @@ export async function deletePatientAction(patientId: string, clientId: string) {
   enterClientScope(clientId)
   await assertCan(ctx, 'patients', 'delete')
   await softDeletePatient(ctx, patientId, clientId)
+  // feat3 — o card de retenção é atrelado ao paciente: removê-lo junto.
+  await removeRetentionCardForPatient(clientId, ctx.organizationId, patientId)
   revalidate(clientId)
+  revalidatePath('/crm')
+  revalidatePath(`/clients/${clientId}/crm`)
   return ok(null)
 }

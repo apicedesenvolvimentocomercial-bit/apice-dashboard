@@ -4,6 +4,10 @@ import { prisma } from '@/lib/prisma'
 import { decideCancellationStatus } from '@/lib/no-show-window'
 import type { TenantContext } from '@/server/tenant/context'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
+import {
+  addPatientToRetention,
+  getRetentionActiveStageId,
+} from '@/server/services/retention-service'
 
 /**
  * Efeitos de negócio disparados quando um card (Lead) entra numa etapa NATIVA
@@ -150,6 +154,114 @@ export async function scheduleLeadAppointment(
   })
 }
 
+export type AttendResult =
+  | { ok: true }
+  | { ok: false; reason: 'lead-not-found' | 'no-appointment' | 'stage-not-found' }
+
+/**
+ * 2b (feat1) — Move o lead para a etapa Compareceu (ATTENDED) COMPLETANDO o
+ * cadastro do paciente. Exige que o card já tenha um Appointment (passou por
+ * Agendado). Atualiza o Patient com os 5 campos obrigatórios e o marca como
+ * paciente "real" (`fromScheduledLead=false`), marca o Appointment ATTENDED e
+ * move o card. Tudo numa transação única.
+ */
+export async function attendLeadWithPatientData(
+  ctx: TenantContext,
+  params: {
+    clientId: string
+    leadId: string
+    stageId: string
+    position?: number
+    patient: { name: string; phone: string; email: string; birthDate: Date; cpf: string }
+  }
+): Promise<AttendResult> {
+  const lead = await prisma.lead.findFirst({
+    where: {
+      id: params.leadId,
+      clientId: params.clientId,
+      organizationId: ctx.organizationId,
+      deletedAt: null,
+    },
+    select: { id: true, clientId: true, patientId: true, appointmentId: true },
+  })
+  if (!lead) return { ok: false, reason: 'lead-not-found' }
+  // Sem agendamento o card não passou por Agendado — Compareceu exige um.
+  if (!lead.appointmentId) return { ok: false, reason: 'no-appointment' }
+
+  const stage = await prisma.pipelineStage.findFirst({
+    where: { id: params.stageId, clientId: lead.clientId },
+    select: { id: true },
+  })
+  if (!stage) return { ok: false, reason: 'stage-not-found' }
+
+  const now = new Date()
+  const patientData = {
+    name: params.patient.name,
+    phone: params.patient.phone,
+    email: params.patient.email,
+    birthDate: params.patient.birthDate,
+    cpf: params.patient.cpf,
+    fromScheduledLead: false,
+  }
+
+  await scopedTransaction(async (tx) => {
+    // Completa/atualiza o paciente (passa a ser paciente "real").
+    let patientId = lead.patientId
+    if (patientId) {
+      await tx.patient.updateMany({
+        where: { id: patientId, clientId: lead.clientId },
+        data: patientData,
+      })
+    } else {
+      const created = await tx.patient.create({
+        data: {
+          organizationId: ctx.organizationId,
+          clientId: lead.clientId,
+          firstVisitAt: now,
+          ...patientData,
+        },
+      })
+      patientId = created.id
+    }
+
+    await tx.appointment.update({
+      where: { id: lead.appointmentId! },
+      data: {
+        status: 'ATTENDED',
+        attendedAt: now,
+        noShowAt: null,
+        canceledAt: null,
+        cancelReason: null,
+        patientId,
+      },
+    })
+
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        stageId: params.stageId,
+        ...(params.position !== undefined ? { position: params.position } : {}),
+        patientId,
+        attendedAt: now,
+        lostAt: null,
+        lostReason: null,
+        updatedById: ctx.userId,
+      },
+    })
+
+    await tx.leadInteraction.create({
+      data: {
+        leadId: lead.id,
+        type: 'MEETING',
+        content: 'Compareceu — cadastro do paciente completado.',
+        createdById: ctx.userId,
+      },
+    })
+  })
+
+  return { ok: true }
+}
+
 // Carrega o contexto de um move: lead (com appointment) + etapa origem/destino.
 async function loadMoveContext(
   ctx: TenantContext,
@@ -187,19 +299,28 @@ export type MoveEffectResult =
   | { ok: false; reason: 'not-found' }
   // Falta o agendamento (card não passou por Agendado). Cliente bloqueia.
   | { ok: false; reason: 'no-appointment'; key: StageNativeKey }
+  // Tentou Fechar sem ter passado por Compareceu (appointment não-ATTENDED).
+  // O cadastro do paciente só fica completo no Compareceu (feat1), então fechar
+  // direto de Agendado é proibido.
+  | { ok: false; reason: 'not-attended' }
   // Retrocesso detectado: cliente deve confirmar e chamar regressLeadStage.
   | { needsConfirm: 'regress'; fromKey: StageNativeKey; toKey: StageNativeKey | null }
-  // Fechar antes do horário do agendamento: cliente confirma e re-chama com force.
-  | { needsConfirm: 'close-early'; scheduledAt: Date }
 
 /**
  * Move um lead aplicando o efeito da etapa destino (2b/2c) e detectando
  * retrocesso (2d). NÃO executa o desfazer — só sinaliza `needsConfirm:'regress'`
- * para o cliente confirmar. `force` pula a confirmação de fechar-antes-do-horário.
+ * para o cliente confirmar. `cancelReason` é o motivo obrigatório ao cancelar
+ * (etapa NO_SHOW, feat5).
  */
 export async function moveLeadWithEffect(
   ctx: TenantContext,
-  params: { clientId: string; leadId: string; stageId: string; position?: number; force?: boolean }
+  params: {
+    clientId: string
+    leadId: string
+    stageId: string
+    position?: number
+    cancelReason?: string
+  }
 ): Promise<MoveEffectResult> {
   const loaded = await loadMoveContext(ctx, params.clientId, params.leadId, params.stageId)
   if (!loaded) return { ok: false, reason: 'not-found' }
@@ -260,6 +381,9 @@ export async function moveLeadWithEffect(
   // clínica. Sem agendamento, é só um lead perdido (sem efeito de appointment).
   if (destKey === 'NO_SHOW') {
     const now = new Date()
+    // feat5: o motivo do cancelamento é obrigatório (validado na action). É
+    // gravado tanto no Appointment quanto no `lead.lostReason`.
+    const reason = params.cancelReason?.trim() || 'Cancelado'
     if (lead.appointmentId && lead.appointment) {
       const client = await prisma.client.findFirst({
         where: { id: lead.clientId },
@@ -275,11 +399,11 @@ export async function moveLeadWithEffect(
           where: { id: lead.appointmentId! },
           data:
             status === 'NO_SHOW'
-              ? { status: 'NO_SHOW', noShowAt: now, canceledAt: null, cancelReason: null }
+              ? { status: 'NO_SHOW', noShowAt: now, canceledAt: null, cancelReason: reason }
               : {
                   status: 'CANCELED',
                   canceledAt: now,
-                  cancelReason: 'Cancelado antes do dia do procedimento',
+                  cancelReason: reason,
                   noShowAt: null,
                 },
         })
@@ -289,6 +413,7 @@ export async function moveLeadWithEffect(
             stageId: params.stageId,
             ...(position !== undefined ? { position } : {}),
             lostAt: now,
+            lostReason: reason,
             updatedById: ctx.userId,
           },
         })
@@ -301,6 +426,7 @@ export async function moveLeadWithEffect(
           stageId: params.stageId,
           ...(position !== undefined ? { position } : {}),
           lostAt: now,
+          lostReason: reason,
           updatedById: ctx.userId,
         },
       })
@@ -308,30 +434,18 @@ export async function moveLeadWithEffect(
     return { ok: true, moved: true }
   }
 
-  // 2c — Fechado: exige appointment; opcionalmente confirma se ainda não ocorreu;
-  // garante ATTENDED e dá baixa financeira (Revenue) do procedimento.
+  // 2c — Fechado: exige appointment E que ele já esteja ATTENDED (feat1 — o card
+  // tem de passar por Compareceu, onde o cadastro do paciente é completado). Dá
+  // baixa financeira (Revenue) do procedimento. Não marca ATTENDED por conta
+  // própria: fechar direto de Agendado é bloqueado.
   if (destKey === 'CLOSED') {
     if (!lead.appointmentId || !lead.appointment) {
       return { ok: false, reason: 'no-appointment', key: destKey }
     }
-    if (!params.force && lead.appointment.scheduledAt.getTime() > Date.now()) {
-      return { needsConfirm: 'close-early', scheduledAt: lead.appointment.scheduledAt }
+    if (lead.appointment.status !== 'ATTENDED') {
+      return { ok: false, reason: 'not-attended' }
     }
     await scopedTransaction(async (tx) => {
-      // Marca ATTENDED se ainda não foi (compareceu, logo fechou). Limpa marcas
-      // de falta/cancelamento caso o card tenha passado por "Cancelado".
-      if (lead.appointment!.status !== 'ATTENDED') {
-        await tx.appointment.update({
-          where: { id: lead.appointmentId! },
-          data: {
-            status: 'ATTENDED',
-            attendedAt: new Date(),
-            noShowAt: null,
-            canceledAt: null,
-            cancelReason: null,
-          },
-        })
-      }
       // Baixa financeira: cria Revenue do procedimento se ainda não houver uma
       // ligada a este appointment (idempotente no re-fechamento).
       const existing = await tx.revenue.findFirst({
@@ -471,4 +585,135 @@ export async function regressLeadStage(
   })
 
   return { ok: true }
+}
+
+/**
+ * feat2 — Excluir um agendamento gerado pela pipeline retrocede o card ao início
+ * (etapa LEAD da MESMA pipeline), desfazendo agendamento/comparecimento/baixa via
+ * `regressLeadStage` (que soft-deleta o appointment). Sem lead ligado, retorna
+ * `hadLead:false` e o caller faz o soft-delete normal do appointment.
+ */
+export async function regressAppointmentToLead(
+  ctx: TenantContext,
+  params: { clientId: string; appointmentId: string }
+): Promise<{ ok: boolean; hadLead: boolean }> {
+  // clientId no where (belt): só o card desta clínica.
+  const lead = await prisma.lead.findFirst({
+    where: {
+      appointmentId: params.appointmentId,
+      clientId: params.clientId,
+      organizationId: ctx.organizationId,
+      deletedAt: null,
+    },
+    select: { id: true, stage: { select: { pipelineId: true } } },
+  })
+  if (!lead) return { ok: true, hadLead: false }
+
+  const leadStage = await prisma.pipelineStage.findFirst({
+    where: { pipelineId: lead.stage.pipelineId, clientId: params.clientId, nativeKey: 'LEAD' },
+    select: { id: true },
+  })
+  if (!leadStage) {
+    // Pipeline sem etapa LEAD (custom): apenas solta o agendamento do card.
+    await scopedTransaction(async (tx) => {
+      await tx.appointment.update({
+        where: { id: params.appointmentId },
+        data: { deletedAt: new Date() },
+      })
+      await tx.lead.update({
+        where: { id: lead.id },
+        data: { appointmentId: null, scheduledAt: null },
+      })
+    })
+    return { ok: true, hadLead: true }
+  }
+
+  const res = await regressLeadStage(ctx, {
+    clientId: params.clientId,
+    leadId: lead.id,
+    stageId: leadStage.id,
+  })
+  return { ok: res.ok, hadLead: true }
+}
+
+/**
+ * Visão (agenda→pipeline) — Ao criar um agendamento MANUAL, espelha-o na pipeline:
+ *   - Paciente "real" (cadastro manual/ganho, ou com Appointment ATTENDED, ou já
+ *     com card de Retenção) → garante o card de Retenção e o coloca em ATIVO.
+ *   - Paciente provisório/novo → coloca um card COMERCIAL em Agendado, ligado ao
+ *     agendamento (reaproveita um card comercial existente do paciente, se houver).
+ * Best-effort: o caller não falha o agendamento se isto der erro.
+ */
+export async function syncPipelineCardForManualAppointment(
+  ctx: TenantContext,
+  params: { clientId: string; patientId: string; appointmentId: string; scheduledAt: Date }
+): Promise<void> {
+  const { clientId, patientId, appointmentId, scheduledAt } = params
+  const patient = await prisma.patient.findFirst({
+    where: { id: patientId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+    select: { id: true, name: true, phone: true, email: true, fromScheduledLead: true },
+  })
+  if (!patient) return
+
+  const [attendedCount, retentionLead] = await Promise.all([
+    prisma.appointment.count({
+      where: { patientId, clientId, status: 'ATTENDED', deletedAt: null },
+    }),
+    prisma.lead.findFirst({
+      where: { clientId, patientId, deletedAt: null, stage: { pipeline: { kind: 'RETENTION' } } },
+      select: { id: true },
+    }),
+  ])
+  const isRealPatient = !patient.fromScheduledLead || attendedCount > 0 || !!retentionLead
+
+  if (isRealPatient) {
+    // Garante card de retenção (remove duplicatas comerciais ativas) e o ativa.
+    await addPatientToRetention(clientId, ctx.organizationId, patientId)
+    const activeStageId = await getRetentionActiveStageId(clientId)
+    if (activeStageId) {
+      await prisma.lead.updateMany({
+        where: { clientId, patientId, deletedAt: null, stage: { pipeline: { kind: 'RETENTION' } } },
+        data: { stageId: activeStageId },
+      })
+    }
+    return
+  }
+
+  // Paciente provisório/novo → card COMERCIAL em Agendado, ligado ao agendamento.
+  const scheduledStage = await prisma.pipelineStage.findFirst({
+    where: { clientId, nativeKey: 'SCHEDULED', pipeline: { kind: 'COMMERCIAL' } },
+    select: { id: true },
+  })
+  if (!scheduledStage) return
+
+  const existing = await prisma.lead.findFirst({
+    where: { clientId, patientId, deletedAt: null, stage: { pipeline: { kind: 'COMMERCIAL' } } },
+    select: { id: true, appointmentId: true },
+  })
+
+  if (existing) {
+    await prisma.lead.update({
+      where: { id: existing.id },
+      // Não clobber um agendamento já ligado (appointmentId é @unique).
+      data: {
+        stageId: scheduledStage.id,
+        ...(existing.appointmentId ? {} : { appointmentId, scheduledAt }),
+      },
+    })
+  } else {
+    await prisma.lead.create({
+      data: {
+        organizationId: ctx.organizationId,
+        clientId,
+        name: patient.name,
+        phone: patient.phone,
+        email: patient.email,
+        source: 'WALK_IN',
+        stageId: scheduledStage.id,
+        patientId,
+        appointmentId,
+        scheduledAt,
+      },
+    })
+  }
 }

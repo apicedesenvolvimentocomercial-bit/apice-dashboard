@@ -19,6 +19,7 @@ import {
 import { winLead, loseLead, addInteraction } from '@/server/services/lead-service'
 import {
   scheduleLeadAppointment,
+  attendLeadWithPatientData,
   moveLeadWithEffect,
   regressLeadStage,
 } from '@/server/services/pipeline-stage-effects'
@@ -89,35 +90,34 @@ export async function updateLeadAction(leadId: string, clientId: string, formDat
  * retrocesso (2d). Retorna um payload de status que o cliente interpreta:
  *   - `{ status: 'moved' }` — move concluído (com efeito, se houver).
  *   - `{ status: 'needs-appointment' }` — etapa exige agendamento (sem appointment).
+ *   - `{ status: 'needs-attendance' }` — tentou Fechar sem passar por Compareceu.
  *   - `{ status: 'confirm-regress' }` — retrocesso: cliente deve confirmar e chamar
  *     `regressLeadAction`.
- *   - `{ status: 'confirm-close-early' }` — fechar antes do horário: confirmar e
- *     re-chamar com `force: true`.
- * `force` pula a confirmação de fechar-antes-do-horário.
+ * `cancelReason` (obrigatório ao mover p/ Cancelado) é repassado ao efeito (feat5).
  */
 export async function moveLeadAction(
   leadId: string,
   stageId: string,
   clientId: string,
   position?: number,
-  force?: boolean
+  cancelReason?: string
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
   enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
-  const res = await moveLeadWithEffect(ctx, { clientId, leadId, stageId, position, force })
+  const res = await moveLeadWithEffect(ctx, { clientId, leadId, stageId, position, cancelReason })
 
   if ('needsConfirm' in res) {
-    if (res.needsConfirm === 'regress') {
-      return ok({ status: 'confirm-regress' as const, fromKey: res.fromKey, toKey: res.toKey })
-    }
-    return ok({ status: 'confirm-close-early' as const, scheduledAt: res.scheduledAt })
+    return ok({ status: 'confirm-regress' as const, fromKey: res.fromKey, toKey: res.toKey })
   }
   if (!res.ok) {
     if (res.reason === 'no-appointment') {
       return ok({ status: 'needs-appointment' as const, key: res.key })
+    }
+    if (res.reason === 'not-attended') {
+      return ok({ status: 'needs-attendance' as const })
     }
     return fail(new NotFoundError('Lead'))
   }
@@ -220,6 +220,69 @@ export async function scheduleLeadAction(leadId: string, clientId: string, formD
   revalidatePath('/appointments')
   revalidatePath(`/clients/${clientId}/appointments`)
   return ok({ appointmentId: result.appointmentId, patientId: result.patientId })
+}
+
+const attendSchema = z.object({
+  stageId: z.string().min(1),
+  position: z.number().optional(),
+  name: z.string().min(2, 'Nome obrigatório'),
+  phone: z.string().min(1, 'Telefone obrigatório'),
+  email: z.string().email('E-mail inválido'),
+  birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
+  cpf: z.string().min(1, 'CPF obrigatório'),
+})
+
+/**
+ * feat1 — Move o lead p/ Compareceu COMPLETANDO o cadastro do paciente (os 5
+ * campos obrigatórios). Sem agendamento prévio (passar por Agendado) bloqueia.
+ * Ver `pipeline-stage-effects.attendLeadWithPatientData`.
+ */
+export async function attendLeadAction(leadId: string, clientId: string, formData: unknown) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'write')
+  await assertCan(ctx, 'patients', 'write')
+
+  const parsed = attendSchema.safeParse(formData)
+  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+
+  const result = await attendLeadWithPatientData(ctx, {
+    clientId,
+    leadId,
+    stageId: parsed.data.stageId,
+    position: parsed.data.position,
+    patient: {
+      name: parsed.data.name,
+      phone: parsed.data.phone,
+      email: parsed.data.email,
+      birthDate: new Date(parsed.data.birthDate),
+      cpf: parsed.data.cpf,
+    },
+  })
+
+  if (!result.ok) {
+    const msg =
+      result.reason === 'no-appointment'
+        ? 'Agende o cliente (mova para Agendado) antes de marcar Compareceu.'
+        : result.reason === 'stage-not-found'
+          ? 'Etapa inválida'
+          : 'Lead não encontrado'
+    return fail(msg)
+  }
+
+  createAuditLog(ctx, {
+    action: 'stage_change',
+    entityType: 'Lead',
+    entityId: leadId,
+    changes: { stageId: parsed.data.stageId, attended: true },
+  }).catch(() => {})
+  revalidate(clientId)
+  revalidatePath('/appointments')
+  revalidatePath(`/clients/${clientId}/appointments`)
+  revalidatePath('/patients')
+  revalidatePath(`/clients/${clientId}/patients`)
+  return ok({ status: 'moved' as const })
 }
 
 export async function reorderLeadAction(leadId: string, clientId: string, position: number) {

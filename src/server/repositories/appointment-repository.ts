@@ -47,6 +47,10 @@ export async function listAppointments(
       procedure: {
         select: { id: true, name: true, durationMinutes: true },
       },
+      // Card do CRM que gerou o agendamento (Fase 2). `deletedAt != null` =
+      // Lead excluído → a agenda pisca um aviso (feat4). `id` alimenta o
+      // retrocesso ao excluir o agendamento (feat2).
+      lead: { select: { id: true, deletedAt: true } },
     },
   })
 }

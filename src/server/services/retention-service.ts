@@ -120,3 +120,27 @@ export async function addPatientToRetention(
     },
   })
 }
+
+/**
+ * feat3 — Soft-delete do(s) card(s) de RETENÇÃO de um paciente. O card de
+ * retenção é espelho do paciente: ele só some quando o paciente é removido na
+ * aba Pacientes (não há "remover" no card). Cards comerciais NÃO são tocados.
+ * Chamado sob `enterClientScope(clientId)` (RLS ok — `clientId` no where).
+ */
+export async function removeRetentionCardForPatient(
+  clientId: string,
+  organizationId: string,
+  patientId: string
+): Promise<number> {
+  const res = await prisma.lead.updateMany({
+    where: {
+      clientId,
+      organizationId,
+      patientId,
+      deletedAt: null,
+      stage: { pipeline: { kind: 'RETENTION' } },
+    },
+    data: { deletedAt: new Date() },
+  })
+  return res.count
+}

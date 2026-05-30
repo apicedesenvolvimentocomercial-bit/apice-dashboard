@@ -33,6 +33,8 @@ import {
 } from '@/components/ui/alert-dialog'
 
 import { AddPatientCardDialog } from './add-patient-card-dialog'
+import { AttendLeadDialog } from './attend-lead-dialog'
+import { CancelLeadDialog } from './cancel-lead-dialog'
 import { CreateLeadDialog } from './create-lead-dialog'
 import { KanbanColumn } from './kanban-column'
 import { LeadCard } from './lead-card'
@@ -52,6 +54,8 @@ type Props = {
   procedures: ProcedureOption[]
   /** Expediente da clínica p/ as validações do dialog de Agendado (2a). */
   schedule: ClinicSchedule
+  /** Card a destacar (busca global, feat6). Limpa sozinho após alguns segundos. */
+  highlightLeadId?: string | null
 }
 
 export function KanbanBoard({
@@ -62,6 +66,7 @@ export function KanbanBoard({
   pipelineName,
   procedures,
   schedule,
+  highlightLeadId,
 }: Props) {
   const router = useRouter()
   const [stages, setStages] = useState<KanbanStage[]>(initialStages)
@@ -78,6 +83,22 @@ export function KanbanBoard({
     stageId: string
     snapshot: KanbanStage[]
   } | null>(null)
+  // Move para Compareceu pendente (dialog bloqueante feat1): completa o cadastro
+  // do paciente antes de persistir.
+  const [pendingAttend, setPendingAttend] = useState<{
+    leadId: string
+    stageId: string
+    defaults: { name: string; phone: string | null; email: string | null }
+    snapshot: KanbanStage[]
+  } | null>(null)
+  // Move para Cancelado pendente (dialog bloqueante feat5): exige o motivo.
+  const [pendingCancel, setPendingCancel] = useState<{
+    leadId: string
+    leadName: string
+    stageId: string
+    position: number
+    snapshot: KanbanStage[]
+  } | null>(null)
   // Retrocesso pendente de confirmação (2d): desfaz efeitos ao confirmar.
   const [pendingRegress, setPendingRegress] = useState<{
     leadId: string
@@ -86,15 +107,7 @@ export function KanbanBoard({
     position: number
     snapshot: KanbanStage[]
   } | null>(null)
-  // Fechar antes do horário do agendamento pendente de confirmação (2c).
-  const [pendingCloseEarly, setPendingCloseEarly] = useState<{
-    leadId: string
-    stageId: string
-    position: number
-    scheduledAt: Date
-    snapshot: KanbanStage[]
-  } | null>(null)
-  const [, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
 
   // Snapshot tirada no início do drag — usada para reverter caso o backend
   // falhe e para descobrir qual era a coluna original (cross-column vs
@@ -216,20 +229,57 @@ export function KanbanBoard({
 
     const originalStage = snapshot.find((s) => s.leads.some((l) => l.id === leadId))
     const movingColumns = originalStage?.id !== destStage.id
+    const fromKey = originalStage?.nativeKey
+    const movedLead = destStage.leads.find((l) => l.id === leadId)
 
     // 2a — Mover para a etapa Agendado (nativeKey SCHEDULED) vindo de outra etapa
     // exige criar um agendamento ANTES de persistir. Abre o dialog bloqueante; o
     // move só é gravado se o agendamento for criado (via scheduleLeadAction).
-    if (
-      movingColumns &&
-      destStage.nativeKey === 'SCHEDULED' &&
-      originalStage?.nativeKey !== 'SCHEDULED'
-    ) {
-      const movedLead = destStage.leads.find((l) => l.id === leadId)
+    if (movingColumns && destStage.nativeKey === 'SCHEDULED' && fromKey !== 'SCHEDULED') {
       setPendingSchedule({
         leadId,
         leadName: movedLead?.name ?? 'Lead',
         stageId: destStage.id,
+        snapshot,
+      })
+      return
+    }
+
+    // feat1 — Mover para Compareceu (ATTENDED) abre o dialog que completa o
+    // cadastro do paciente. CLOSED→ATTENDED é retrocesso (rank menor) e segue o
+    // fluxo de confirmação no servidor; não abre este dialog.
+    if (
+      movingColumns &&
+      destStage.nativeKey === 'ATTENDED' &&
+      fromKey !== 'ATTENDED' &&
+      fromKey !== 'CLOSED'
+    ) {
+      setPendingAttend({
+        leadId,
+        stageId: destStage.id,
+        defaults: {
+          name: movedLead?.name ?? '',
+          phone: movedLead?.phone ?? null,
+          email: movedLead?.email ?? null,
+        },
+        snapshot,
+      })
+      return
+    }
+
+    // feat5 — Mover para Cancelado (NO_SHOW) exige motivo. CLOSED→NO_SHOW é
+    // retrocesso; deixa cair no persistMove (confirm-regress).
+    if (
+      movingColumns &&
+      destStage.nativeKey === 'NO_SHOW' &&
+      fromKey !== 'NO_SHOW' &&
+      fromKey !== 'CLOSED'
+    ) {
+      setPendingCancel({
+        leadId,
+        leadName: movedLead?.name ?? 'Lead',
+        stageId: destStage.id,
+        position: newPosition,
         snapshot,
       })
       return
@@ -251,11 +301,11 @@ export function KanbanBoard({
     stageId: string,
     position: number,
     snapshot: KanbanStage[],
-    force?: boolean
+    cancelReason?: string
   ) {
     const leadName = snapshot.flatMap((s) => s.leads).find((l) => l.id === leadId)?.name ?? 'Lead'
     startTransition(async () => {
-      const result = await moveLeadAction(leadId, stageId, clientId, position, force)
+      const result = await moveLeadAction(leadId, stageId, clientId, position, cancelReason)
       if (!result.success) {
         toast.error(result.error.message)
         setStages(snapshot)
@@ -267,19 +317,14 @@ export function KanbanBoard({
         setStages(snapshot)
         return
       }
+      if (data.status === 'needs-attendance') {
+        toast.error('Mova para Compareceu antes de fechar.')
+        setStages(snapshot)
+        return
+      }
       if (data.status === 'confirm-regress') {
         // Mantém o card já na etapa destino visualmente; pede confirmação.
         setPendingRegress({ leadId, leadName, stageId, position, snapshot })
-        return
-      }
-      if (data.status === 'confirm-close-early') {
-        setPendingCloseEarly({
-          leadId,
-          stageId,
-          position,
-          scheduledAt: new Date(data.scheduledAt),
-          snapshot,
-        })
         return
       }
       router.refresh()
@@ -312,6 +357,7 @@ export function KanbanBoard({
           id: lead.id,
           name: lead.name,
           phone: null,
+          email: null,
           source: 'OTHER',
           procedureInterest: null,
           tags: [],
@@ -362,6 +408,7 @@ export function KanbanBoard({
                 stage={stage}
                 onAddLead={() => openCreateDialog(stage.id)}
                 onLeadClick={(leadId) => setDrawerLeadId(leadId)}
+                highlightLeadId={highlightLeadId}
               />
             ))
           )}
@@ -423,6 +470,46 @@ export function KanbanBoard({
         }}
       />
 
+      {/* feat1 — Compareceu: completa o cadastro do paciente antes de persistir. */}
+      <AttendLeadDialog
+        open={pendingAttend !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingAttend(null)
+        }}
+        clientId={clientId}
+        leadId={pendingAttend?.leadId ?? null}
+        stageId={pendingAttend?.stageId ?? ''}
+        defaults={pendingAttend?.defaults ?? { name: '', phone: null, email: null }}
+        onAttended={() => {
+          setPendingAttend(null)
+          router.refresh()
+        }}
+        onCancel={() => {
+          if (pendingAttend) setStages(pendingAttend.snapshot)
+          setPendingAttend(null)
+        }}
+      />
+
+      {/* feat5 — Cancelado: exige o motivo antes de persistir. */}
+      <CancelLeadDialog
+        open={pendingCancel !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingCancel(null)
+        }}
+        leadName={pendingCancel?.leadName ?? 'Lead'}
+        pending={isPending}
+        onConfirm={(reason) => {
+          if (!pendingCancel) return
+          const p = pendingCancel
+          setPendingCancel(null)
+          persistMove(p.leadId, p.stageId, p.position, p.snapshot, reason)
+        }}
+        onCancel={() => {
+          if (pendingCancel) setStages(pendingCancel.snapshot)
+          setPendingCancel(null)
+        }}
+      />
+
       {/* 2d — Confirmação de retrocesso: desfaz os efeitos já aplicados. */}
       <AlertDialog
         open={pendingRegress !== null}
@@ -474,55 +561,12 @@ export function KanbanBoard({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* 2c — Confirmação de fechar antes do horário do agendamento. */}
-      <AlertDialog
-        open={pendingCloseEarly !== null}
-        onOpenChange={(o) => {
-          if (!o && pendingCloseEarly) {
-            setStages(pendingCloseEarly.snapshot)
-            setPendingCloseEarly(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Fechar antes do horário?</AlertDialogTitle>
-            <AlertDialogDescription>
-              O agendamento deste cliente ainda não ocorreu
-              {pendingCloseEarly
-                ? ` (marcado para ${pendingCloseEarly.scheduledAt.toLocaleString('pt-BR')})`
-                : ''}
-              . Fechar agora marcará como comparecido e dará baixa financeira. Continuar?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                if (pendingCloseEarly) setStages(pendingCloseEarly.snapshot)
-                setPendingCloseEarly(null)
-              }}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!pendingCloseEarly) return
-                const p = pendingCloseEarly
-                setPendingCloseEarly(null)
-                persistMove(p.leadId, p.stageId, p.position, p.snapshot, true)
-              }}
-            >
-              Sim, fechar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <LeadDrawer
         open={drawerLeadId !== null}
         leadId={drawerLeadId}
         clientId={clientId}
         stages={stages}
+        pipelineKind={pipelineKind}
         onClose={() => setDrawerLeadId(null)}
         onLeadUpdated={handleLeadUpdated}
       />

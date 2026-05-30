@@ -12,9 +12,11 @@ type Props = {
   stage: KanbanStage
   onAddLead: () => void
   onLeadClick: (leadId: string) => void
+  /** Card a destacar (busca global, feat6). */
+  highlightLeadId?: string | null
 }
 
-export function KanbanColumn({ stage, onAddLead, onLeadClick }: Props) {
+export function KanbanColumn({ stage, onAddLead, onLeadClick, highlightLeadId }: Props) {
   // O droppable da coluna captura drop em áreas vazias. Quando o usuário
   // solta sobre outro card, o SortableContext decide a posição relativa.
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { stageId: stage.id } })
@@ -60,7 +62,12 @@ export function KanbanColumn({ stage, onAddLead, onLeadClick }: Props) {
           )}
         >
           {stage.leads.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead.id)} />
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              onClick={() => onLeadClick(lead.id)}
+              highlight={highlightLeadId === lead.id}
+            />
           ))}
 
           {stage.leads.length === 0 && !isOver && (

@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Phone } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -15,9 +16,11 @@ type Props = {
   lead: KanbanLead
   onClick: () => void
   isDragOverlay?: boolean
+  /** Destaque visual + scroll quando achado pela busca global (feat6). */
+  highlight?: boolean
 }
 
-export function LeadCard({ lead, onClick, isDragOverlay = false }: Props) {
+export function LeadCard({ lead, onClick, isDragOverlay = false, highlight = false }: Props) {
   // useSortable engloba useDraggable e adiciona contexto de ordenação dentro
   // do SortableContext da coluna (drop sobre outro card = reorder relativo).
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -25,6 +28,14 @@ export function LeadCard({ lead, onClick, isDragOverlay = false }: Props) {
     data: { lead },
     disabled: isDragOverlay,
   })
+
+  // Ao virar destaque (busca), rola o card até a viewport da coluna.
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (highlight && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [highlight])
 
   const style = { transform: CSS.Translate.toString(transform), transition }
 
@@ -34,7 +45,10 @@ export function LeadCard({ lead, onClick, isDragOverlay = false }: Props) {
     // drag por teclado; o clique é uma affordance de mouse complementar.
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node)
+        cardRef.current = node
+      }}
       style={style}
       {...attributes}
       {...listeners}
@@ -45,7 +59,8 @@ export function LeadCard({ lead, onClick, isDragOverlay = false }: Props) {
         'cursor-grab select-none rounded-lg border bg-background p-3',
         'transition-all hover:shadow-sm',
         isDragging && 'opacity-30',
-        isDragOverlay && 'rotate-1 cursor-grabbing opacity-100 shadow-xl'
+        isDragOverlay && 'rotate-1 cursor-grabbing opacity-100 shadow-xl',
+        highlight && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
       )}
     >
       <p className="truncate text-sm font-medium leading-tight">{lead.name}</p>

@@ -4,6 +4,7 @@ export type KanbanLead = {
   id: string
   name: string
   phone: string | null
+  email: string | null
   source: LeadSource
   procedureInterest: string | null
   tags: string[]

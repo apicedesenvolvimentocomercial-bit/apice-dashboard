@@ -3,7 +3,7 @@
 import type { PipelineKind } from '@prisma/client'
 import { Loader2, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -11,6 +11,7 @@ import type { ClinicSchedule } from '@/modules/appointments/types'
 import { createPipelineAction } from '@/server/actions/pipeline-actions'
 
 import { KanbanBoard } from './kanban-board'
+import { PipelineSearch } from './pipeline-search'
 import type { ProcedureOption } from './schedule-lead-dialog'
 import type { KanbanStage } from './types'
 
@@ -40,6 +41,9 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
   const router = useRouter()
   const [active, setActive] = useState<string>(pipelines[0]?.id ?? '')
   const [creating, setCreating] = useState(false)
+  // Card destacado pela busca global (feat6) — limpa sozinho após alguns segundos.
+  const [highlightLeadId, setHighlightLeadId] = useState<string | null>(null)
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Mantém uma aba válida ativa quando a lista muda (criação/exclusão).
   useEffect(() => {
@@ -47,6 +51,20 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
       setActive(pipelines[0]?.id ?? '')
     }
   }, [pipelines, active])
+
+  useEffect(
+    () => () => {
+      if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    },
+    []
+  )
+
+  function handleSearchSelect(pipelineId: string, leadId: string) {
+    setActive(pipelineId)
+    setHighlightLeadId(leadId)
+    if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    highlightTimer.current = setTimeout(() => setHighlightLeadId(null), 4000)
+  }
 
   async function handleCreate() {
     if (creating) return
@@ -70,6 +88,10 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
     // conteúdo ativo (min-h-0) toma o resto, dando à board uma altura fixa
     // dentro da qual rolar horizontalmente.
     <Tabs value={active} onValueChange={setActive} className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="shrink-0">
+        <PipelineSearch pipelines={pipelines} onSelect={handleSearchSelect} />
+      </div>
+
       <TabsList className="shrink-0 self-start">
         {pipelines.map((p) => (
           <TabsTrigger key={p.id} value={p.id}>
@@ -105,6 +127,7 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
             pipelineName={p.name}
             procedures={procedures}
             schedule={schedule}
+            highlightLeadId={active === p.id ? highlightLeadId : null}
           />
         </TabsContent>
       ))}
