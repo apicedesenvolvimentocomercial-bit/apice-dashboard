@@ -151,6 +151,15 @@ fixas (`white`, `black`, `gray-*`, `slate-*`, `zinc-*`) nesses papéis.
 - Texto secundário → `text-muted-foreground` (não `text-gray-500`).
 - Bordas → `border-border`; input → `border-input`; foco/anel → `ring-ring`.
 - Cor da marca (dourado Senno) = `--primary`. Light = dourado escurecido (`hsl(42 53% 42%)`, ≈`#A88234`); dark = dourado mais claro (`hsl(42 65% 58%)`) p/ contraste. Use `bg-primary`/`text-primary`, nunca hex.
+- **Dois tons de dourado (WCAG AA):** `text-primary` NÃO é o mesmo dourado de `bg-primary`.
+  O dourado vivo como TEXTO sobre fundo claro dá só ~3.4:1 (< 4.5 AA), então `text-primary`
+  usa um tom mais escuro `--primary-text` (`42 53% 33%` no light; `== --primary` no dark) via
+  um override `.text-primary { color: hsl(var(--primary-text)) }` no FIM de `globals.css`
+  (fora de `@layer`, vence a utility do Tailwind por ordem de fonte). `bg-primary` + texto
+  segue `--primary` vivo com `--primary-foreground` ESCURO (não branco — branco no dourado =
+  3.6:1). Ao criar cor/uso novo de marca: link/ícone-texto → `text-primary` (já escuro);
+  botão/superfície → `bg-primary text-primary-foreground`. Variantes `hover:`/`/80` seguem o
+  vivo de propósito (estado não-default não é testado por contraste).
 
 **De → para** (erro comum → certo):
 

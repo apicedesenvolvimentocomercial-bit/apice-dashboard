@@ -86,16 +86,18 @@ DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy
 como **500**. Agora mapeia → **403** (igual à rota de export). E2E de isolamento
 verde. (Belt de tenant nunca falhou — só o status HTTP estava errado.)
 
-### a11y: contraste do dourado primário < WCAG AA — PENDENTE (decisão de design)
+### a11y: contraste do dourado < WCAG AA — CORRIGIDO ✅ (opção b, dois tons)
 
-Botão primário (`bg-primary` dourado `#a48232` + texto branco) = contraste **3.6:1**,
-abaixo do mínimo AA **4.5:1** p/ texto normal. Quebra 4 testes em `e2e/a11y.spec.ts`
-(login/privacidade/dashboard/pacientes — toda tela com botão primário). **Não é CSP**
-(a página renderiza estilada; axe lê o dourado exato). Fix = mudar a marca/visual →
-precisa de decisão:
+Eram DOIS problemas de contraste com o dourado da marca, ambos resolvidos em
+`globals.css` (mantendo o dourado vivo — decisão do usuário):
 
-- **a)** Escurecer o dourado light até ≥4.5:1 (ajustar `--primary` em `globals.css`;
-  afeta todo `bg-primary`).
-- **b)** Texto escuro sobre o dourado (`--primary-foreground` escuro) em vez de branco.
-- **c)** Deixar o botão maior/bold (large text precisa só 3:1) — fix localizado.
-- **d)** Aceitar e relaxar o teste (documentar exceção). Não recomendado.
+1. **Botão** (`bg-primary` dourado vivo + texto branco) = 3.6:1 → agora **texto
+   escuro** (`--primary-foreground: 225 11% 7%` no light, espelhando o dark) ≈ 4.9:1.
+   `--fc-button-text-color` idem p/ os botões do FullCalendar.
+2. **Dourado como TEXTO** (`text-primary`: link, logo "Senno", nav ativo) sobre fundo
+   claro = 3.2–3.6:1 → criado **`--primary-text`** (dourado mais escuro `42 53% 33%`
+   no light; `== --primary` no dark) + override `.text-primary { color: hsl(var(--primary-text)) }`
+   no fim de `globals.css`. `bg-primary`/marca seguem o vivo. **Dois tons de dourado:
+   vivo p/ superfície, escuro p/ texto.** Convenção no CLAUDE.md (seção Cores).
+
+Verificado: `e2e/a11y.spec.ts` 4/4 verde + suíte completa **13/13**.
