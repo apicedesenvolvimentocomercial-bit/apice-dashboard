@@ -71,7 +71,31 @@ enforçada com nonce, não só Report-Only).
 - **Headers estáticos** em [`next.config.ts`](../next.config.ts): `X-Frame-Options:
 DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`,
   e `Strict-Transport-Security` (só em produção).
-- Verificado: build OK; no `/login` de prod, header CSP presente, 23/23 scripts
-  executáveis com nonce (0 sem), incl. o inline do next-themes. **Falta validar em
-  navegador real** os fluxos com Radix (dropdown/dialog/popover) + Sentry — se algo
-  não renderizar, olhar o console por violação de CSP e calibrar a diretiva certa.
+- Verificado em build de PROD (`next start`) + navegador real (Playwright/Chromium):
+  header CSP presente, 23/23 scripts executáveis com nonce (0 sem), incl. o inline do
+  next-themes. **E2E contra a CSP estrita: 8 fluxos passaram** (login via server action,
+  dashboard autenticado, dialog Radix de cookies renderizado, isolamento de clínica) —
+  prova que CSS/Radix/tema/server-actions funcionam sob `strict-dynamic`. Nenhuma quebra
+  atribuível à CSP.
+
+## Achados pré-existentes (surgiram no E2E, NÃO causados pela CSP)
+
+### PDF de relatório retornava 500 em cross-tenant — CORRIGIDO ✅
+
+`api/reports/[clientId]/pdf/route.ts` tinha `catch` que mascarava `ForbiddenError`
+como **500**. Agora mapeia → **403** (igual à rota de export). E2E de isolamento
+verde. (Belt de tenant nunca falhou — só o status HTTP estava errado.)
+
+### a11y: contraste do dourado primário < WCAG AA — PENDENTE (decisão de design)
+
+Botão primário (`bg-primary` dourado `#a48232` + texto branco) = contraste **3.6:1**,
+abaixo do mínimo AA **4.5:1** p/ texto normal. Quebra 4 testes em `e2e/a11y.spec.ts`
+(login/privacidade/dashboard/pacientes — toda tela com botão primário). **Não é CSP**
+(a página renderiza estilada; axe lê o dourado exato). Fix = mudar a marca/visual →
+precisa de decisão:
+
+- **a)** Escurecer o dourado light até ≥4.5:1 (ajustar `--primary` em `globals.css`;
+  afeta todo `bg-primary`).
+- **b)** Texto escuro sobre o dourado (`--primary-foreground` escuro) em vez de branco.
+- **c)** Deixar o botão maior/bold (large text precisa só 3:1) — fix localizado.
+- **d)** Aceitar e relaxar o teste (documentar exceção). Não recomendado.

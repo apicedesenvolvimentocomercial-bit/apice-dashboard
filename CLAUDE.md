@@ -246,6 +246,28 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   (`spDate`, `parseLocalDate`), não `new Date(string)` cru.
 - **Auditoria**: mutations relevantes chamam `createAuditLog(ctx, {...})` (best-effort,
   `.catch(()=>{})`). Tipos de entidade em `audit-repository.ts` — adicione o novo lá.
+- **CSP / headers de segurança** (defesa contra XSS — ledger `seguranca-pendencias.md`):
+  - **CSP por-request com nonce vive em `src/proxy.ts`** (Next 16 = `proxy.ts`, NÃO
+    `middleware.ts` — os dois juntos quebram o build). PROD: `script-src 'self'
+'nonce-…' 'strict-dynamic'`; DEV relaxa p/ `'unsafe-eval' 'unsafe-inline'` (HMR).
+    O nonce flui `proxy` → header `x-nonce` → `layout.tsx` (`await headers()`) →
+    `ThemeProvider nonce={…}` (next-themes injeta `<script>` inline). Headers estáticos
+    (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, HSTS-só-prod) em
+    `next.config.ts headers()`.
+  - **Novo `<script>` inline próprio → passe o nonce** (`(await headers()).get('x-nonce')`),
+    senão o `strict-dynamic` o bloqueia em prod (página/efeito quebra silenciosamente).
+  - **Novo host externo chamado pelo BROWSER** (Supabase Storage, mapa, API 3ª-parte,
+    fonte/CDN) → **adicione ao `connect-src`/`img-src`/`font-src`/`script-src` da CSP**
+    em `proxy.ts`, senão a request é bloqueada. Hoje `connect-src` libera só `'self'` +
+    ingest do Sentry.
+  - **`style-src 'self' 'unsafe-inline'` é PROPOSITAL** (Radix/shadcn/next-font injetam
+    `style=""` inline não-assinável). NÃO troque p/ nonce em style sem testar
+    dropdown/dialog/popover/tema em navegador — quebra a UI. Assinar **script** (vetor
+    real) é o que importa.
+  - **Verificar CSP exige build de PROD** (`next start`), não `next dev` (a estrita só
+    vale com `NODE_ENV=production`). O `npm run test:e2e` roda `next dev` → CSP relaxada;
+    p/ exercitar a estrita, suba `next start` no `:3000` antes (Playwright reusa via
+    `reuseExistingServer`).
 - Pre-commit (husky + lint-staged) roda `eslint --fix` + `prettier`. Não burle hooks.
 
 ## Ambiente & comandos
