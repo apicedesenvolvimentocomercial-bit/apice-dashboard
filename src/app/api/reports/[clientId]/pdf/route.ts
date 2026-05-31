@@ -6,6 +6,7 @@ import React from 'react'
 import { auth } from '@/server/auth'
 import { getTenantContext, assertClientAccess } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
+import { ForbiddenError } from '@/types/errors'
 import { prisma } from '@/lib/prisma'
 import { computeClinicKpis } from '@/server/services/kpi/clinic-kpis'
 import { resolvePeriod } from '@/server/services/kpi/period'
@@ -185,6 +186,12 @@ export async function GET(req: Request, { params }: { params: Promise<Params> })
       },
     })
   } catch (err) {
+    // Cross-tenant (assertClientAccess) → 403, igual à rota de export. Sem isso o
+    // catch-all mascarava o ForbiddenError como 500 (vaza menos info e quebra o
+    // contrato esperado pelo e2e de isolamento).
+    if (err instanceof ForbiddenError) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     console.error('[PDF Report]', err)
     return NextResponse.json({ error: 'Failed to generate report' }, { status: 500 })
   }

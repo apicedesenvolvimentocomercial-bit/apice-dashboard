@@ -63,7 +63,17 @@ npx prisma migrate deploy        # usa DIRECT_URL (dono). Aplica TODAS, incl. RL
 - `tsc` 0 · `eslint src` 0 erros · `vitest` 131 · **E2E 11** (público + auth +
   isolamento de clínica + a11y) verdes contra o banco de teste (Neon).
 
-## 7. Otimização pendente (medir antes de fazer)
+## 7. Bloqueadores de segurança (OBRIGATÓRIOS antes das integrações reais)
+
+Ver `seguranca-pendencias.md` (decisão + aceite). Resumo:
+
+- **Rate-limiting** em `/login` e `POST /api/webhooks/*` — sem isso há brute-force
+  de senha e flooding de leads. Exige infra (Redis/Upstash) ou contador em Postgres.
+- **Segredo do webhook por-clínica / assinatura por-provider** — hoje um segredo
+  global + `clientId` no body deixa escrever lead em qualquer clínica de qualquer org.
+  Aceitável só enquanto mock/sem adapter real plugado.
+
+## 8. Otimização pendente (medir antes de fazer)
 
 - **Índice das atividades (PERF-001·B):** os crons `findDue/OverdueActivities`
   varrem a tabela filtrando só `status`+`dueDate` (ambos domínios). Os crons já

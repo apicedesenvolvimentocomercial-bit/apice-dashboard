@@ -4,12 +4,34 @@ import type { NextConfig } from 'next'
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 const allowedHost = new URL(appUrl).host
 
+// Headers de segurança estáticos (a CSP, que precisa de nonce por-request, fica
+// no middleware). HSTS só em produção — em http://localhost seria ignorado e
+// poderia atrapalhar dev futuro.
+const securityHeaders = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'X-DNS-Prefetch-Control', value: 'on' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  ...(process.env.NODE_ENV === 'production'
+    ? [
+        {
+          key: 'Strict-Transport-Security',
+          value: 'max-age=63072000; includeSubDomains; preload',
+        },
+      ]
+    : []),
+]
+
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       // Lê de NEXT_PUBLIC_APP_URL para funcionar em dev/preview/produção.
       allowedOrigins: [allowedHost],
     },
+  },
+  async headers() {
+    return [{ source: '/:path*', headers: securityHeaders }]
   },
   // `images.remotePatterns` foi removido — o projeto não usa next/image com
   // hosts externos (Avatar usa Radix com <img>). Reintroduza ao habilitar

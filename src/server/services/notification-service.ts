@@ -124,7 +124,7 @@ function renderEmail(args: {
       <p style="font-size: 14px; line-height: 1.5; white-space: pre-line;">${escapeHtml(args.message)}</p>
       ${
         fullLink
-          ? `<p><a href="${fullLink}" style="display:inline-block; background:#059669; color:#fff; padding:10px 16px; border-radius:8px; text-decoration:none; font-weight:600;">Abrir no ${env.NEXT_PUBLIC_APP_NAME}</a></p>`
+          ? `<p><a href="${escapeHtml(fullLink)}" style="display:inline-block; background:#059669; color:#fff; padding:10px 16px; border-radius:8px; text-decoration:none; font-weight:600;">Abrir no ${env.NEXT_PUBLIC_APP_NAME}</a></p>`
           : ''
       }
       <p style="font-size: 12px; color: #71717a; margin-top: 24px;">

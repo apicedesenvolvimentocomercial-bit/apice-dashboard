@@ -151,6 +151,15 @@ fixas (`white`, `black`, `gray-*`, `slate-*`, `zinc-*`) nesses papéis.
 - Texto secundário → `text-muted-foreground` (não `text-gray-500`).
 - Bordas → `border-border`; input → `border-input`; foco/anel → `ring-ring`.
 - Cor da marca (dourado Senno) = `--primary`. Light = dourado escurecido (`hsl(42 53% 42%)`, ≈`#A88234`); dark = dourado mais claro (`hsl(42 65% 58%)`) p/ contraste. Use `bg-primary`/`text-primary`, nunca hex.
+- **Dois tons de dourado (WCAG AA):** `text-primary` NÃO é o mesmo dourado de `bg-primary`.
+  O dourado vivo como TEXTO sobre fundo claro dá só ~3.4:1 (< 4.5 AA), então `text-primary`
+  usa um tom mais escuro `--primary-text` (`42 53% 33%` no light; `== --primary` no dark) via
+  um override `.text-primary { color: hsl(var(--primary-text)) }` no FIM de `globals.css`
+  (fora de `@layer`, vence a utility do Tailwind por ordem de fonte). `bg-primary` + texto
+  segue `--primary` vivo com `--primary-foreground` ESCURO (não branco — branco no dourado =
+  3.6:1). Ao criar cor/uso novo de marca: link/ícone-texto → `text-primary` (já escuro);
+  botão/superfície → `bg-primary text-primary-foreground`. Variantes `hover:`/`/80` seguem o
+  vivo de propósito (estado não-default não é testado por contraste).
 
 **De → para** (erro comum → certo):
 
@@ -246,6 +255,28 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   (`spDate`, `parseLocalDate`), não `new Date(string)` cru.
 - **Auditoria**: mutations relevantes chamam `createAuditLog(ctx, {...})` (best-effort,
   `.catch(()=>{})`). Tipos de entidade em `audit-repository.ts` — adicione o novo lá.
+- **CSP / headers de segurança** (defesa contra XSS — ledger `seguranca-pendencias.md`):
+  - **CSP por-request com nonce vive em `src/proxy.ts`** (Next 16 = `proxy.ts`, NÃO
+    `middleware.ts` — os dois juntos quebram o build). PROD: `script-src 'self'
+'nonce-…' 'strict-dynamic'`; DEV relaxa p/ `'unsafe-eval' 'unsafe-inline'` (HMR).
+    O nonce flui `proxy` → header `x-nonce` → `layout.tsx` (`await headers()`) →
+    `ThemeProvider nonce={…}` (next-themes injeta `<script>` inline). Headers estáticos
+    (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, HSTS-só-prod) em
+    `next.config.ts headers()`.
+  - **Novo `<script>` inline próprio → passe o nonce** (`(await headers()).get('x-nonce')`),
+    senão o `strict-dynamic` o bloqueia em prod (página/efeito quebra silenciosamente).
+  - **Novo host externo chamado pelo BROWSER** (Supabase Storage, mapa, API 3ª-parte,
+    fonte/CDN) → **adicione ao `connect-src`/`img-src`/`font-src`/`script-src` da CSP**
+    em `proxy.ts`, senão a request é bloqueada. Hoje `connect-src` libera só `'self'` +
+    ingest do Sentry.
+  - **`style-src 'self' 'unsafe-inline'` é PROPOSITAL** (Radix/shadcn/next-font injetam
+    `style=""` inline não-assinável). NÃO troque p/ nonce em style sem testar
+    dropdown/dialog/popover/tema em navegador — quebra a UI. Assinar **script** (vetor
+    real) é o que importa.
+  - **Verificar CSP exige build de PROD** (`next start`), não `next dev` (a estrita só
+    vale com `NODE_ENV=production`). O `npm run test:e2e` roda `next dev` → CSP relaxada;
+    p/ exercitar a estrita, suba `next start` no `:3000` antes (Playwright reusa via
+    `reuseExistingServer`).
 - Pre-commit (husky + lint-staged) roda `eslint --fix` + `prettier`. Não burle hooks.
 
 ## Ambiente & comandos
@@ -280,3 +311,6 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   em "Convenções de código".
 - `fase11-progresso.md` — infra de testes E2E.
 - `auditoria-*.md`, `deploy-checklist.md` — achados de auditoria e checklist de deploy.
+- `seguranca-pendencias.md` — pendências de segurança **OBRIGATÓRIAS** (rate-limiting
+  login/webhook; segredo do webhook por-clínica/assinatura). Bloqueador de deploy das
+  integrações reais. Hardening já feito; estes 2 mudam comportamento → aguardam decisão.

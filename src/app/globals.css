@@ -11,9 +11,15 @@
     --card-foreground: 220 9% 12%;
     --popover: 0 0% 100%;
     --popover-foreground: 220 9% 12%;
-    /* Dourado escurecido p/ contraste WCAG AA c/ texto branco. */
+    /* Dourado da marca. Texto ESCURO (não branco) no botão primário p/ contraste
+       WCAG AA ≥4.5:1 — branco sobre este dourado dá só 3.6:1 (espelha o dark mode,
+       que já usa fg escuro sobre dourado mais claro). */
     --primary: 42 53% 42%;
-    --primary-foreground: 0 0% 100%;
+    --primary-foreground: 225 11% 7%;
+    /* Dourado mais ESCURO só p/ `text-primary` (link/logo/nav) — o vivo `--primary`
+       como texto sobre fundo claro dá ~3.4:1; este passa AA (≈4.9:1). Aplicado pelo
+       override `.text-primary` no fim do arquivo. bg-primary segue o vivo. */
+    --primary-text: 42 53% 33%;
     --secondary: 38 18% 90%;
     --secondary-foreground: 25 47% 18%;
     --muted: 38 18% 90%;
@@ -40,6 +46,9 @@
     /* Dourado mais claro no dark p/ contraste. */
     --primary: 42 65% 58%;
     --primary-foreground: 225 11% 7%;
+    /* No dark, texto dourado fica sobre fundo escuro → o vivo já contrasta.
+       Mantém o mesmo tom de `--primary` (não escurece como no light). */
+    --primary-text: 42 65% 58%;
     --secondary: 220 9% 16%;
     --secondary-foreground: 38 33% 96%;
     --muted: 220 9% 16%;
@@ -70,6 +79,7 @@
 .fc {
   --fc-border-color: hsl(var(--border));
   --fc-button-bg-color: hsl(var(--primary));
+  --fc-button-text-color: hsl(var(--primary-foreground));
   --fc-button-border-color: hsl(var(--primary));
   --fc-button-hover-bg-color: hsl(var(--primary) / 0.9);
   --fc-button-hover-border-color: hsl(var(--primary));
@@ -145,6 +155,16 @@
    interno via inset — ele preenche o harness (inset: 0) por padrão. */
 .fc .fc-timegrid-event-harness > .fc-timegrid-event {
   inset: 0 2px 1px 0;
+}
+
+/* `text-primary` (dourado como TEXTO: link, logo "Senno", nav ativo) usa um tom
+   mais escuro que `bg-primary` p/ atingir WCAG AA ≥4.5:1 sobre fundo claro — o
+   dourado vivo daria só ~3.4:1. Override fora de @layer p/ vencer a utility do
+   Tailwind por ordem de fonte. `bg-primary` e a marca seguem o dourado vivo; no
+   dark `--primary-text` == `--primary` (texto dourado sobre fundo escuro já passa).
+   Variantes (hover:/text-primary\/80) seguem o vivo de propósito (estado não-default). */
+.text-primary {
+  color: hsl(var(--primary-text));
 }
 
 .fc .fc-scrollgrid {
