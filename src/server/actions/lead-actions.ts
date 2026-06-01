@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
+import { prisma } from '@/lib/prisma'
 import { NotFoundError, ok, fail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -13,6 +14,7 @@ import {
   listPatientsWithoutExistingCard,
   updateLead,
   reorderLead,
+  reassignLead,
   findLeadById,
   softDeleteLead,
 } from '@/server/repositories/lead-repository'
@@ -44,6 +46,30 @@ function revalidate(clientId: string) {
   revalidatePath('/crm/clientes')
   revalidatePath(`/clients/${clientId}/crm`)
   revalidatePath(`/clients/${clientId}/crm/clientes`)
+}
+
+/**
+ * Item 4: reatribui o dono de um lead a outro usuário da clínica. Exige
+ * crm:assignToOthers (titular sempre, via can()). O novo dono precisa ser membro
+ * ativo da MESMA clínica.
+ */
+export async function reassignLeadAction(leadId: string, clientId: string, assignedToId: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'assignToOthers')
+
+  const member = await prisma.user.findFirst({
+    where: { id: assignedToId, clientId, isActive: true, deletedAt: null },
+    select: { id: true },
+  })
+  if (!member) return fail('Usuário inválido para esta clínica')
+
+  const res = await reassignLead(ctx, leadId, clientId, assignedToId)
+  if (res.count === 0) return fail('Lead não encontrado')
+
+  revalidate(clientId)
+  return ok(null)
 }
 
 export async function createLeadAction(clientId: string, formData: unknown) {

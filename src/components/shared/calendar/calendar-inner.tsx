@@ -18,9 +18,12 @@ type Props = {
   events: CalendarEvent[]
   holidays: CalendarHoliday[]
   onEventClick: (eventId: string) => void
+  // Disparado quando a janela visível muda (navegar mês/semana). Permite ao
+  // consumidor recarregar os eventos do novo intervalo (item 7 / fix das setas).
+  onRangeChange?: (from: Date, to: Date) => void
 }
 
-export function CalendarInner({ events, holidays, onEventClick }: Props) {
+export function CalendarInner({ events, holidays, onEventClick, onRangeChange }: Props) {
   const calendarRef = useRef<FullCalendar>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -121,6 +124,7 @@ export function CalendarInner({ events, holidays, onEventClick }: Props) {
         }}
         events={[...fcEvents, ...fcHolidays]}
         eventClick={handleClick}
+        datesSet={onRangeChange ? (arg) => onRangeChange(arg.start, arg.end) : undefined}
         height="auto"
         nowIndicator={true}
         dayMaxEvents={3}

@@ -27,10 +27,15 @@ import {
 import { createClinicActivityAction } from '@/domains/clinic/activities/activity-actions'
 import { PRIORITY_LABEL, TYPE_LABEL } from '@/components/shared/activities/types'
 
+import { ActivityTargetPicker, type ActivityTarget } from './activity-target-picker'
+
 /**
  * Dialog de nova atividade do DOMÍNIO CLÍNICA. Espelha o admin, mas: sem
  * seletor de clínica (clientId é forçado pela sessão) e usa a action de
  * clínica. Fan-out "Todos" = membros da própria clínica.
+ *
+ * Item 1: toda atividade de clínica é sobre um lead/paciente. `presetTarget`
+ * (item 6 — criada de dentro do card) trava o alvo e esconde o picker.
  */
 type Option = { id: string; name: string }
 
@@ -39,6 +44,12 @@ type Props = {
   defaultAssigneeId?: string
   allowFanOut?: boolean
   activityCalendarSync?: 'AUTO' | 'ASK' | 'NEVER'
+  /** Alvo fixo (card do cliente). Quando setado, esconde o picker. */
+  presetTarget?: ActivityTarget
+  /** Render alternativo do gatilho (ex.: botão menor dentro do card). */
+  trigger?: React.ReactNode
+  /** Chamado após criar com sucesso (além do router.refresh padrão). */
+  onCreated?: () => void
 }
 
 export function ClinicCreateActivityDialog({
@@ -46,6 +57,9 @@ export function ClinicCreateActivityDialog({
   defaultAssigneeId,
   allowFanOut,
   activityCalendarSync = 'ASK',
+  presetTarget,
+  trigger,
+  onCreated,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -61,6 +75,7 @@ export function ClinicCreateActivityDialog({
   const [dueTime, setDueTime] = useState('')
   const [assignedToId, setAssignedToId] = useState<string>(initialAssignee)
   const [addToCalendar, setAddToCalendar] = useState(false)
+  const [target, setTarget] = useState<ActivityTarget | null>(presetTarget ?? null)
 
   function reset() {
     setTitle('')
@@ -71,10 +86,15 @@ export function ClinicCreateActivityDialog({
     setDueTime('')
     setAssignedToId(initialAssignee)
     setAddToCalendar(false)
+    setTarget(presetTarget ?? null)
   }
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (!target) {
+      toast.error('Selecione o lead ou paciente da atividade')
+      return
+    }
     startTransition(async () => {
       const res = await createClinicActivityAction({
         title,
@@ -85,12 +105,15 @@ export function ClinicCreateActivityDialog({
         dueTime: dueTime || null,
         assignedToId: assignedToId || null,
         addToCalendar: activityCalendarSync === 'ASK' ? addToCalendar : undefined,
+        targetType: target.type,
+        targetId: target.id,
       })
       if (res.success) {
         toast.success('Atividade criada')
         setOpen(false)
         reset()
         router.refresh()
+        onCreated?.()
       } else {
         toast.error(res.error.message)
       }
@@ -100,15 +123,30 @@ export function ClinicCreateActivityDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-1 h-4 w-4" /> Nova atividade
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus className="mr-1 h-4 w-4" /> Nova atividade
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Nova atividade</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
+          {/* Item 1: alvo obrigatório. Se veio do card (presetTarget), trava. */}
+          <div className="space-y-1">
+            <Label>Relacionada a</Label>
+            {presetTarget ? (
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                {presetTarget.type === 'lead' ? 'Lead' : 'Paciente'}:{' '}
+                <span className="font-medium">{presetTarget.name}</span>
+              </div>
+            ) : (
+              <ActivityTargetPicker value={target} onChange={setTarget} disabled={pending} />
+            )}
+          </div>
+
           <div className="space-y-1">
             <Label htmlFor="title">Título</Label>
             <Input
@@ -221,7 +259,7 @@ export function ClinicCreateActivityDialog({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={pending || !title.trim()}>
+            <Button type="submit" disabled={pending || !title.trim() || !target}>
               {pending ? 'Salvando...' : 'Criar'}
             </Button>
           </DialogFooter>

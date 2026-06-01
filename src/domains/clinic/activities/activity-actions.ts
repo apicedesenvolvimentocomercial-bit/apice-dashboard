@@ -17,8 +17,13 @@ import { fail, NotFoundError, runAction } from '@/types/errors'
 import {
   createClinicActivity,
   findClinicActivityById,
+  listClinicActivitiesForTarget,
   listClinicBroadcastTargets,
+  listClinicLeadsForPicker,
+  listClinicMembers,
+  listClinicPatientsForPicker,
   markClinicActivitiesSeen,
+  resolveClinicActivityTarget,
   resolveClinicAssignee,
   softDeleteClinicActivity,
   updateClinicActivity,
@@ -53,6 +58,10 @@ const activitySchema = z.object({
   // null/vazio = o próprio usuário.
   assignedToId: z.string().optional().nullable(),
   addToCalendar: z.boolean().optional(),
+  // Alvo da atividade (item 1) — obrigatório no create (atividade de clínica é
+  // sempre sobre um lead OU paciente). Validado contra a clínica na action.
+  targetType: z.enum(['lead', 'patient']).optional(),
+  targetId: z.string().optional().nullable(),
 })
 
 const END_OF_DAY_HOUR = 23
@@ -99,9 +108,22 @@ export async function createClinicActivityAction(formData: unknown) {
   const parsed = activitySchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
 
+  // Item 1: atividade de clínica é SEMPRE sobre um lead/paciente.
+  if (!parsed.data.targetType || !parsed.data.targetId) {
+    return fail('Selecione o lead ou paciente da atividade')
+  }
+
   return runAction(async () => {
     const ctx = await getClinicContext()
     await assertCan(ctx, 'activities', 'write')
+
+    // Valida o alvo contra a clínica (belt: clientId no where) e resolve a FK.
+    const target = await resolveClinicActivityTarget(
+      ctx,
+      parsed.data.targetType as 'lead' | 'patient',
+      parsed.data.targetId as string
+    )
+    if (!target) throw new NotFoundError(parsed.data.targetType === 'lead' ? 'Lead' : 'Paciente')
 
     const due = combineDateTime(parsed.data.dueDate, parsed.data.dueTime)
     const syncCalendar = await shouldSyncToCalendar(ctx.userId, parsed.data.addToCalendar)
@@ -128,6 +150,8 @@ export async function createClinicActivityAction(formData: unknown) {
             dueDate: due,
             assignedToId: u.id,
             broadcastId,
+            leadId: target.leadId,
+            patientId: target.patientId,
           })
         )
       )
@@ -174,6 +198,8 @@ export async function createClinicActivityAction(formData: unknown) {
       status: parsed.data.status,
       dueDate: due,
       assignedToId,
+      leadId: target.leadId,
+      patientId: target.patientId,
     })
 
     if (syncCalendar && due) {
@@ -233,6 +259,21 @@ export async function updateClinicActivityAction(activityId: string, formData: u
           ? null
           : undefined
 
+    // Troca de alvo (item 1) — opcional no update. Só mexe nas FKs se o caller
+    // mandou targetType+targetId; valida contra a clínica antes.
+    let leadId: string | null | undefined = undefined
+    let patientId: string | null | undefined = undefined
+    if (parsed.data.targetType && parsed.data.targetId) {
+      const target = await resolveClinicActivityTarget(
+        ctx,
+        parsed.data.targetType,
+        parsed.data.targetId
+      )
+      if (!target) throw new NotFoundError(parsed.data.targetType === 'lead' ? 'Lead' : 'Paciente')
+      leadId = target.leadId
+      patientId = target.patientId
+    }
+
     await updateClinicActivity(ctx, activityId, {
       title: parsed.data.title,
       description: parsed.data.description,
@@ -242,6 +283,8 @@ export async function updateClinicActivityAction(activityId: string, formData: u
       dueDate: due,
       assignedToId,
       completedAt,
+      leadId,
+      patientId,
     })
 
     if (parsed.data.title !== undefined || due !== undefined) {
@@ -294,6 +337,89 @@ export async function deleteClinicActivityAction(activityId: string) {
     await softDeleteClinicCalendarEventForActivity(ctx, activityId)
     revalidateClinic()
     return null
+  })
+}
+
+/**
+ * Listas de alvos (leads + pacientes) p/ o picker da atividade (item 1). Carregado
+ * sob demanda quando o dialog abre — não pesa todo render da página de atividades.
+ */
+export async function listClinicActivityTargetsAction() {
+  return runAction(async () => {
+    const ctx = await getClinicContext()
+    await assertCan(ctx, 'activities', 'read')
+    const [leads, patients] = await Promise.all([
+      listClinicLeadsForPicker(ctx),
+      listClinicPatientsForPicker(ctx),
+    ])
+    return { leads, patients }
+  })
+}
+
+/**
+ * Dados da aba Atividades do CARD do cliente (item 6). Lista as atividades do
+ * alvo (lead → as do lead; paciente → as dele E dos leads ligados) + os membros
+ * da clínica e prefs p/ o dialog de criação (presetTarget).
+ */
+export async function getCardActivitiesAction(subject: { type: 'lead' | 'patient'; id: string }) {
+  return runAction(async () => {
+    const ctx = await getClinicContext()
+    await assertCan(ctx, 'activities', 'read')
+
+    let target: { leadId?: string; patientId?: string; leadIds?: string[] }
+    if (subject.type === 'lead') {
+      target = { leadId: subject.id }
+    } else {
+      // Paciente: também as atividades dos leads ligados a ele (continuidade).
+      const leads = await prisma.lead.findMany({
+        where: { patientId: subject.id, clientId: ctx.clientId, deletedAt: null },
+        select: { id: true },
+      })
+      target = { patientId: subject.id, leadIds: leads.map((l) => l.id) }
+    }
+
+    const [rows, members, pref] = await Promise.all([
+      listClinicActivitiesForTarget(ctx, target),
+      listClinicMembers(ctx),
+      prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: { activityCalendarSync: true },
+      }),
+    ])
+    const canAssign = await canAssignOthers(ctx)
+    // Item 4: pode reatribuir o LEAD a outro usuário? (crm:assignToOthers)
+    const canReassignLeads =
+      ctx.isOwner || (await can(ctx.userId, ctx.role, 'crm', 'assignToOthers'))
+
+    const activities = rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      type: r.type,
+      status: r.status,
+      priority: r.priority,
+      dueDate: r.dueDate,
+      completedAt: r.completedAt,
+      createdAt: r.createdAt,
+      seenByAssigneeAt: r.seenByAssigneeAt,
+      broadcastId: r.broadcastId,
+      client: null,
+      assignedTo: r.assignedTo,
+      createdBy: r.createdBy,
+      target: r.lead
+        ? ({ type: 'lead', id: r.lead.id, name: r.lead.name } as const)
+        : r.patient
+          ? ({ type: 'patient', id: r.patient.id, name: r.patient.name } as const)
+          : null,
+    }))
+
+    return {
+      activities,
+      members: members.map((m) => ({ id: m.id, name: m.name })),
+      canAssignOthers: canAssign,
+      canReassignLeads,
+      syncPref: (pref?.activityCalendarSync ?? 'ASK') as 'AUTO' | 'ASK' | 'NEVER',
+    }
   })
 }
 

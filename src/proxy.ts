@@ -45,9 +45,15 @@ function buildCsp(nonce: string): string {
     `default-src 'self'`,
     `script-src ${scriptSrc}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' data: blob:`,
-    `font-src 'self'`,
-    `connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.us.sentry.io`,
+    // `*.supabase.co` libera os previews/imagens dos documentos do card (URLs
+    // assinadas do Storage). Item 6c.
+    `img-src 'self' data: blob: https://*.supabase.co`,
+    // `data:` libera a fonte de ícones do FullCalendar (`fcicons`, embutida como
+    // data-URI no CSS): sem isso, em PROD a CSP bloqueia a fonte e as setas
+    // prev/next viram glyph quebrado (U+E900 = fc-icon-chevron-left).
+    `font-src 'self' data:`,
+    // `*.supabase.co` = download/preview de documentos via URL assinada (item 6c).
+    `connect-src 'self' https://*.supabase.co https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.us.sentry.io`,
     `object-src 'none'`,
     `base-uri 'self'`,
     `form-action 'self'`,

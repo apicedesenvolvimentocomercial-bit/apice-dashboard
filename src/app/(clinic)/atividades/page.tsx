@@ -52,6 +52,11 @@ export default async function ClinicAtividadesRoute({ searchParams }: Props) {
     client: null, // domínio clínica não rotula por clínica (é sempre a própria).
     assignedTo: r.assignedTo,
     createdBy: r.createdBy,
+    target: r.lead
+      ? { type: 'lead', id: r.lead.id, name: r.lead.name }
+      : r.patient
+        ? { type: 'patient', id: r.patient.id, name: r.patient.name }
+        : null,
   }))
 
   return (

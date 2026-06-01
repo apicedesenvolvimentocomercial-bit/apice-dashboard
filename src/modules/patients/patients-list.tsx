@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { PatientWithStats } from '@/server/repositories/patient-repository'
 
+import { ClientCard } from '@/components/clinic/client-card/client-card'
+
 import { CreatePatientDialog } from './create-patient-dialog'
-import { PatientDrawer } from './patient-drawer'
 
 type Props = {
   patients: PatientWithStats[]
@@ -141,12 +142,12 @@ export function PatientsList({ patients, clientId }: Props) {
         onCreated={() => router.refresh()}
       />
 
-      <PatientDrawer
+      <ClientCard
         open={drawerPatientId !== null}
-        patientId={drawerPatientId}
         clientId={clientId}
+        subject={drawerPatientId ? { type: 'patient', id: drawerPatientId } : null}
         onClose={() => setDrawerPatientId(null)}
-        onUpdated={() => {
+        onChanged={() => {
           setDrawerPatientId(null)
           router.refresh()
         }}

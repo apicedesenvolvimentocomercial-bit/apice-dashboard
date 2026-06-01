@@ -82,6 +82,15 @@ function buildClinicWhere(
   return where
 }
 
+// Include compartilhado: além do responsável/criador, traz o ALVO (lead/paciente)
+// da atividade (item 1) para exibir o vínculo na lista e no card.
+const ACTIVITY_INCLUDE = {
+  assignedTo: { select: { id: true, name: true, image: true } },
+  createdBy: { select: { id: true, name: true } },
+  lead: { select: { id: true, name: true } },
+  patient: { select: { id: true, name: true } },
+} as const
+
 export async function listClinicActivities(
   ctx: ClinicContext,
   filters: ClinicActivityListFilters = {}
@@ -90,10 +99,7 @@ export async function listClinicActivities(
     where: buildClinicWhere(ctx, filters),
     orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
     take: 200,
-    include: {
-      assignedTo: { select: { id: true, name: true, image: true } },
-      createdBy: { select: { id: true, name: true } },
-    },
+    include: ACTIVITY_INCLUDE,
   })
 }
 
@@ -113,10 +119,7 @@ export async function findClinicActivityById(ctx: ClinicContext, activityId: str
       domain: 'CLINIC',
       deletedAt: null,
     },
-    include: {
-      assignedTo: { select: { id: true, name: true, image: true } },
-      createdBy: { select: { id: true, name: true } },
-    },
+    include: ACTIVITY_INCLUDE,
   })
 }
 
@@ -131,6 +134,9 @@ export async function createClinicActivity(
     dueDate?: Date | null
     assignedToId?: string | null
     broadcastId?: string | null
+    // Alvo (item 1) — exatamente um. Validado por resolveClinicActivityTarget.
+    leadId?: string | null
+    patientId?: string | null
   }
 ) {
   const assignedToId = data.assignedToId === undefined ? ctx.userId : data.assignedToId
@@ -147,6 +153,8 @@ export async function createClinicActivity(
       dueDate: data.dueDate ?? null,
       assignedToId,
       broadcastId: data.broadcastId ?? null,
+      leadId: data.leadId ?? null,
+      patientId: data.patientId ?? null,
       createdById: ctx.userId,
     },
   })
@@ -164,6 +172,8 @@ export async function updateClinicActivity(
     dueDate: Date | null
     assignedToId: string | null
     completedAt: Date | null
+    leadId: string | null
+    patientId: string | null
   }>
 ) {
   // where inclui clientId + domain — update só atinge atividade da própria clínica.
@@ -265,5 +275,84 @@ export async function listClinicMembers(ctx: ClinicContext) {
     },
     orderBy: { name: 'asc' },
     select: { id: true, name: true, image: true },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Item 1 — alvo (lead/paciente) das atividades de clínica.
+// ---------------------------------------------------------------------------
+
+export type ActivityTargetType = 'lead' | 'patient'
+
+/**
+ * Valida que o alvo (lead/paciente) é DESTA clínica e devolve a FK certa
+ * (`{ leadId }` ou `{ patientId }`). `null` se não existir/for de outra clínica
+ * (belt — independe da RLS; o `clientId` no where é a defesa). A action lança
+ * NotFound a partir do null.
+ */
+export async function resolveClinicActivityTarget(
+  ctx: ClinicContext,
+  targetType: ActivityTargetType,
+  targetId: string
+): Promise<{ leadId: string; patientId: null } | { leadId: null; patientId: string } | null> {
+  if (targetType === 'lead') {
+    const lead = await prisma.lead.findFirst({
+      where: { id: targetId, clientId: ctx.clientId, deletedAt: null },
+      select: { id: true },
+    })
+    return lead ? { leadId: lead.id, patientId: null } : null
+  }
+  const patient = await prisma.patient.findFirst({
+    where: { id: targetId, clientId: ctx.clientId, deletedAt: null },
+    select: { id: true },
+  })
+  return patient ? { leadId: null, patientId: patient.id } : null
+}
+
+/** Leads da clínica p/ o picker da atividade (não-excluídos). */
+export async function listClinicLeadsForPicker(ctx: ClinicContext) {
+  return prisma.lead.findMany({
+    where: { clientId: ctx.clientId, deletedAt: null },
+    orderBy: { createdAt: 'desc' },
+    take: 500,
+    select: { id: true, name: true, phone: true, stage: { select: { name: true } } },
+  })
+}
+
+/** Pacientes da clínica p/ o picker da atividade (não-excluídos). */
+export async function listClinicPatientsForPicker(ctx: ClinicContext) {
+  return prisma.patient.findMany({
+    where: { clientId: ctx.clientId, deletedAt: null },
+    orderBy: { name: 'asc' },
+    take: 500,
+    select: { id: true, name: true, phone: true },
+  })
+}
+
+/**
+ * Atividades de um ALVO (card de lead/paciente, item 6). Para paciente, inclui
+ * também as atividades dos leads ligados a ele (continuidade lead→paciente).
+ */
+export async function listClinicActivitiesForTarget(
+  ctx: ClinicContext,
+  target: { leadId?: string; patientId?: string; leadIds?: string[] }
+) {
+  const or: Prisma.ActivityWhereInput[] = []
+  if (target.leadId) or.push({ leadId: target.leadId })
+  if (target.patientId) or.push({ patientId: target.patientId })
+  if (target.leadIds?.length) or.push({ leadId: { in: target.leadIds } })
+  if (or.length === 0) return []
+
+  return prisma.activity.findMany({
+    where: {
+      organizationId: ctx.organizationId,
+      clientId: ctx.clientId,
+      domain: 'CLINIC',
+      deletedAt: null,
+      OR: or,
+    },
+    orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
+    take: 100,
+    include: ACTIVITY_INCLUDE,
   })
 }

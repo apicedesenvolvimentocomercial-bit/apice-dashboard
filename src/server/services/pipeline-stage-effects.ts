@@ -126,6 +126,7 @@ export async function scheduleLeadAppointment(
         status: 'SCHEDULED',
         notes: params.notes,
         createdById: ctx.userId,
+        assignedToId: ctx.userId, // item 4: dono da agenda = criador
       },
     })
 
@@ -1041,6 +1042,7 @@ export async function createLeadScheduledFromAgenda(
         status: 'SCHEDULED',
         notes: params.notes,
         createdById: ctx.userId,
+        assignedToId: ctx.userId, // item 4: dono da agenda = criador
       },
     })
 
@@ -1058,6 +1060,7 @@ export async function createLeadScheduledFromAgenda(
         patientId: patient.id,
         appointmentId: appointment.id,
         scheduledAt: params.scheduledAt,
+        assignedToId: ctx.userId, // item 4: dono do lead = criador
         createdById: ctx.userId,
         updatedById: ctx.userId,
       },

@@ -15,6 +15,9 @@ export type ActivityView = {
   client: { id: string; name: string } | null
   assignedTo: { id: string; name: string; image: string | null } | null
   createdBy: { id: string; name: string } | null
+  // Alvo da atividade (item 1) — lead/paciente. Só em atividades de clínica;
+  // atividade de agência (admin) é null.
+  target?: { type: 'lead' | 'patient'; id: string; name: string } | null
 }
 
 export const TYPE_LABEL: Record<ActivityType, string> = {

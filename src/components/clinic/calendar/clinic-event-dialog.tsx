@@ -17,6 +17,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   createClinicCalendarEventAction,
   deleteClinicCalendarEventAction,
   updateClinicCalendarEventAction,
@@ -30,12 +37,13 @@ import type { CalendarEvent } from '@/server/queries/calendar-queries'
  * clientId. Evento ligado a atividade é read-only (sincroniza via Atividades).
  */
 type Props =
-  | { mode: 'create'; open: boolean; onOpenChange: (open: boolean) => void }
+  | { mode: 'create'; open: boolean; onOpenChange: (open: boolean) => void; onChanged?: () => void }
   | {
       mode: 'edit'
       open: boolean
       event: CalendarEvent | null
       onOpenChange: (open: boolean) => void
+      onChanged?: () => void
     }
 
 const SP_DATE = new Intl.DateTimeFormat('sv-SE', {
@@ -77,6 +85,9 @@ export function ClinicEventDialog(props: Props) {
   const [notes, setNotes] = useState('')
   const [color, setColor] = useState('')
   const [category, setCategory] = useState('')
+  // Recorrência (item 7) — só no create.
+  const [repeat, setRepeat] = useState<'none' | 'weekly' | 'monthly'>('none')
+  const [repeatUntil, setRepeatUntil] = useState('')
 
   useEffect(() => {
     if (!props.open) return
@@ -100,6 +111,8 @@ export function ClinicEventDialog(props: Props) {
       setNotes('')
       setColor('')
       setCategory('')
+      setRepeat('none')
+      setRepeatUntil('')
     }
   }, [props.open, props.mode, props.mode === 'edit' ? props.event?.id : null])
 
@@ -119,6 +132,9 @@ export function ClinicEventDialog(props: Props) {
         notes: notes.trim() || undefined,
         color: color || undefined,
         category: category.trim() || undefined,
+        ...(props.mode === 'create' && repeat !== 'none'
+          ? { repeat, repeatUntil: repeatUntil || undefined }
+          : {}),
       }
       const res =
         props.mode === 'edit' && editing
@@ -128,23 +144,47 @@ export function ClinicEventDialog(props: Props) {
         toast.error(res.error.message)
         return
       }
-      toast.success(props.mode === 'edit' ? 'Evento atualizado' : 'Evento criado')
+      const created = res.data && 'count' in res.data ? res.data.count : 1
+      toast.success(
+        props.mode === 'edit'
+          ? 'Evento atualizado'
+          : created > 1
+            ? `${created} eventos criados`
+            : 'Evento criado'
+      )
       props.onOpenChange(false)
+      props.onChanged?.()
       router.refresh()
     })
   }
 
   function handleDelete() {
     if (!editing) return
-    if (!confirm('Excluir este evento?')) return
+    const isSeries = editing.recurrenceGroupId != null
+    let scope: 'one' | 'series' = 'one'
+    if (isSeries) {
+      // Série: pergunta se exclui só esta ocorrência ou todas de uma vez (item 7).
+      const all = confirm(
+        'Este evento faz parte de uma série recorrente.\n\nOK = excluir TODA a série.\nCancelar = escolher excluir só este.'
+      )
+      if (all) {
+        scope = 'series'
+      } else {
+        if (!confirm('Excluir apenas esta ocorrência?')) return
+        scope = 'one'
+      }
+    } else {
+      if (!confirm('Excluir este evento?')) return
+    }
     startTransition(async () => {
-      const res = await deleteClinicCalendarEventAction(editing.id)
+      const res = await deleteClinicCalendarEventAction(editing.id, scope)
       if (!res.success) {
         toast.error(res.error.message)
         return
       }
-      toast.success('Evento removido')
+      toast.success(scope === 'series' ? 'Série removida' : 'Evento removido')
       props.onOpenChange(false)
+      props.onChanged?.()
       router.refresh()
     })
   }
@@ -248,6 +288,41 @@ export function ClinicEventDialog(props: Props) {
               disabled={isLinkedActivity}
             />
           </div>
+
+          {/* Recorrência (item 7) — só na criação. */}
+          {props.mode === 'create' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Repetir</Label>
+                <Select value={repeat} onValueChange={(v) => setRepeat(v as typeof repeat)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Não repete</SelectItem>
+                    <SelectItem value="weekly">Toda semana</SelectItem>
+                    <SelectItem value="monthly">Todo mês</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {repeat !== 'none' && (
+                <div className="space-y-1">
+                  <Label htmlFor="cevent-repeat-until">Repetir até</Label>
+                  <DateInput
+                    id="cevent-repeat-until"
+                    value={repeatUntil}
+                    onChange={(e) => setRepeatUntil(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {props.mode === 'create' && repeat !== 'none' && (
+            <p className="text-xs text-muted-foreground">
+              Cria ocorrências {repeat === 'weekly' ? 'semanais' : 'mensais'} até a data escolhida
+              (máx. 1 ano). Excluir depois remove a série inteira de uma vez.
+            </p>
+          )}
 
           <DialogFooter className="gap-2 sm:gap-2">
             {props.mode === 'edit' && (

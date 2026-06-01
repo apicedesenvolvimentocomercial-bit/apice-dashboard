@@ -17,6 +17,8 @@ export type CalendarEvent = {
   notes: string | null
   category: string | null
   activityId: string | null
+  // Série recorrente (item 7) — id compartilhado pelas ocorrências; null = avulso.
+  recurrenceGroupId?: string | null
 }
 
 export type CalendarHoliday = {

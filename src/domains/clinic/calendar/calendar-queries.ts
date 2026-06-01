@@ -44,6 +44,7 @@ export async function getClinicCalendar(filters: {
     notes: r.notes,
     category: r.category,
     activityId: r.activityId,
+    recurrenceGroupId: r.recurrenceGroupId,
   }))
 
   return {

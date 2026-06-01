@@ -116,8 +116,13 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
           key={p.id}
           value={p.id}
           // Mesmas classes flex em toda aba: garante que cada board ocupe a
-          // mesma altura (corrige o funil de cadastrados que caía ao rodapé).
-          className="mt-0 flex min-h-0 flex-1 flex-col gap-4"
+          // mesma altura. `data-[state=inactive]:hidden` é OBRIGATÓRIO: o Radix
+          // esconde a aba inativa com o atributo `hidden` (UA: display:none), mas
+          // a classe `flex` (display:flex do autor) VENCE o `[hidden]` — então o
+          // painel inativo continua ocupando altura e empurra a aba ativa
+          // seguinte pro rodapé. O variante `data-[state=inactive]` tem
+          // especificidade maior que `.flex`, devolvendo o display:none real.
+          className="mt-0 flex min-h-0 flex-1 flex-col gap-4 data-[state=inactive]:hidden"
         >
           <KanbanBoard
             stages={p.stages}

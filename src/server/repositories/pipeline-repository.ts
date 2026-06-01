@@ -94,9 +94,19 @@ async function assertClientOfOrg(ctx: TenantContext, clientId: string) {
   })
 }
 
-export async function listPipelines(ctx: TenantContext, clientId: string) {
+export async function listPipelines(
+  ctx: TenantContext,
+  clientId: string,
+  // Item 4: pipelines pessoais. `null` = ver todas (admin/titular/viewAll).
+  // userId = nativas (ownerId null, compartilhadas) + as EXTRAS desse usuário.
+  viewerId: string | null = null
+) {
   return prisma.pipeline.findMany({
-    where: { clientId, organizationId: ctx.organizationId },
+    where: {
+      clientId,
+      organizationId: ctx.organizationId,
+      ...(viewerId ? { OR: [{ ownerId: null }, { ownerId: viewerId }] } : {}),
+    },
     orderBy: { order: 'asc' },
     select: { id: true, name: true, kind: true, order: true },
   })
@@ -130,6 +140,8 @@ export async function createPipeline(ctx: TenantContext, clientId: string, name:
       name,
       kind: 'CUSTOM',
       order: await nextPipelineOrder(clientId),
+      // Item 4: pipeline extra é PESSOAL — só o criador (e viewAll/titular) a vê.
+      ownerId: ctx.userId,
     },
     select: { id: true, name: true, kind: true, order: true },
   })

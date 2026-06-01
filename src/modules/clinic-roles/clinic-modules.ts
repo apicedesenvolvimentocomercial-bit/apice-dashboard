@@ -20,8 +20,23 @@ export type ClinicModuleDef = {
 }
 
 export const CLINIC_MODULES: ClinicModuleDef[] = [
-  { key: 'crm', label: 'Pipeline', description: 'Funil de leads e negociações' },
-  { key: 'appointments', label: 'Agenda', description: 'Agendamentos e calendário' },
+  // Item 4: pipeline/agenda pessoais. `viewAll` = ver os leads/agendamentos de
+  // TODOS os usuários (e as pipelines extras de todos). `assignToOthers` = poder
+  // reatribuir um lead/agendamento a outro usuário.
+  {
+    key: 'crm',
+    label: 'Pipeline',
+    description: 'Funil de leads e negociações',
+    assignToOthers: true,
+    viewAll: true,
+  },
+  {
+    key: 'appointments',
+    label: 'Agenda',
+    description: 'Agendamentos e calendário',
+    assignToOthers: true,
+    viewAll: true,
+  },
   {
     key: 'activities',
     label: 'Atividades',
