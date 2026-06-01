@@ -35,6 +35,7 @@ export async function listClinicCalendarEvents(
       color: true,
       category: true,
       activityId: true,
+      recurrenceGroupId: true,
       userId: true,
     },
   })
@@ -57,6 +58,7 @@ export async function createClinicCalendarEvent(
     color?: string | null
     category?: string | null
     activityId?: string | null
+    recurrenceGroupId?: string | null
   }
 ) {
   return prisma.calendarEvent.create({
@@ -71,7 +73,57 @@ export async function createClinicCalendarEvent(
       color: data.color ?? null,
       category: data.category ?? null,
       activityId: data.activityId ?? null,
+      recurrenceGroupId: data.recurrenceGroupId ?? null,
     },
+  })
+}
+
+/**
+ * Cria uma SÉRIE de eventos recorrentes (item 7) numa só ida ao banco. Todas as
+ * ocorrências compartilham `recurrenceGroupId` p/ exclusão em massa. `clientId`
+ * e `organizationId` FORÇADOS do contexto.
+ */
+export async function createClinicCalendarEventSeries(
+  ctx: ClinicContext,
+  base: {
+    userId: string
+    title: string
+    notes?: string | null
+    color?: string | null
+    category?: string | null
+    recurrenceGroupId: string
+  },
+  occurrences: { startAt: Date; endAt: Date | null }[]
+) {
+  return prisma.calendarEvent.createMany({
+    data: occurrences.map((o) => ({
+      organizationId: ctx.organizationId,
+      clientId: ctx.clientId,
+      userId: base.userId,
+      title: base.title,
+      startAt: o.startAt,
+      endAt: o.endAt,
+      notes: base.notes ?? null,
+      color: base.color ?? null,
+      category: base.category ?? null,
+      recurrenceGroupId: base.recurrenceGroupId,
+    })),
+  })
+}
+
+/** Exclui (soft) TODA a série recorrente de uma clínica. */
+export async function softDeleteClinicCalendarEventSeries(
+  ctx: ClinicContext,
+  recurrenceGroupId: string
+) {
+  return prisma.calendarEvent.updateMany({
+    where: {
+      recurrenceGroupId,
+      organizationId: ctx.organizationId,
+      clientId: ctx.clientId,
+      deletedAt: null,
+    },
+    data: { deletedAt: new Date() },
   })
 }
 
