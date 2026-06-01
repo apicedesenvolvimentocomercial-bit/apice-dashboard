@@ -36,9 +36,9 @@ import { AddPatientCardDialog } from './add-patient-card-dialog'
 import { AttendLeadDialog } from './attend-lead-dialog'
 import { CancelLeadDialog } from './cancel-lead-dialog'
 import { CreateLeadDialog } from './create-lead-dialog'
+import { ClientCard } from '@/components/clinic/client-card/client-card'
 import { KanbanColumn } from './kanban-column'
 import { LeadCard } from './lead-card'
-import { LeadDrawer } from './lead-drawer'
 import { RescheduleLeadDialog } from './reschedule-lead-dialog'
 import { ScheduleLeadDialog, type ProcedureOption } from './schedule-lead-dialog'
 import { StageEditorDialog } from './stage-editor-dialog'
@@ -441,6 +441,7 @@ export function KanbanBoard({
       </div>
 
       <DndContext
+        id="kanban-dnd"
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
@@ -679,14 +680,12 @@ export function KanbanBoard({
         </AlertDialogContent>
       </AlertDialog>
 
-      <LeadDrawer
+      <ClientCard
         open={drawerLeadId !== null}
-        leadId={drawerLeadId}
         clientId={clientId}
-        stages={stages}
-        pipelineKind={pipelineKind}
+        subject={drawerLeadId ? { type: 'lead', id: drawerLeadId, stages, pipelineKind } : null}
         onClose={() => setDrawerLeadId(null)}
-        onLeadUpdated={handleLeadUpdated}
+        onChanged={handleLeadUpdated}
       />
     </>
   )
