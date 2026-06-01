@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getClinicContext, type ClinicContext } from '@/server/auth/clinic-context'
 import { canActOnRoleLevel } from '@/server/auth/role-permissions'
+import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 import {
   assignClinicRole,
   createClinicRole,
@@ -188,6 +189,67 @@ export async function deleteClinicRoleAction(input: z.infer<typeof deleteRoleSch
       action: 'delete',
       entityType: 'ClinicRole',
       entityId: parsed.data.roleId,
+    }).catch(() => {})
+
+    revalidatePath('/configuracoes')
+    return null
+  })
+}
+
+const reorderRolesSchema = z.object({ orderedIds: z.array(z.string().cuid()).min(1) })
+
+/**
+ * Reordena a hierarquia de cargos arrastando (item 8, estilo Discord). A nova
+ * ordem reatribui os MESMOS `level` (do topo p/ baixo) aos cargos. Só atua sobre
+ * os cargos que o ator pode gerenciar (level abaixo do seu); `orderedIds` precisa
+ * ser uma permutação exata desse conjunto. Reescreve em 2 fases (levels temporários
+ * negativos → finais) p/ não violar a unique [clientId, level] durante o swap.
+ */
+export async function reorderClinicRolesAction(input: z.infer<typeof reorderRolesSchema>) {
+  return runAction(async () => {
+    const ctx = await getClinicContext()
+    await assertCanManageRoles(ctx)
+
+    const parsed = reorderRolesSchema.safeParse(input)
+    if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
+
+    const actorLevel = await resolveClinicActorLevel(ctx)
+    const roles = await prisma.clinicRole.findMany({
+      where: { clientId: ctx.clientId, isSystem: false },
+      select: { id: true, level: true },
+      orderBy: { level: 'asc' },
+    })
+    const manageable = roles.filter((r) => canActOnRoleLevel(actorLevel, r.level))
+    const manageableIds = new Set(manageable.map((r) => r.id))
+
+    if (
+      parsed.data.orderedIds.length !== manageable.length ||
+      !parsed.data.orderedIds.every((id) => manageableIds.has(id))
+    ) {
+      throw new ConflictError('Ordem inválida')
+    }
+
+    const levels = manageable.map((r) => r.level).sort((a, b) => a - b)
+    const assignments = parsed.data.orderedIds.map((id, i) => ({ id, level: levels[i] }))
+    const currentLevelById = new Map(manageable.map((r) => [r.id, r.level]))
+    if (assignments.every((a) => currentLevelById.get(a.id) === a.level)) return null
+
+    await scopedTransaction(async (tx) => {
+      // Fase 1: levels temporários negativos (únicos, fora do espaço positivo).
+      for (let i = 0; i < assignments.length; i++) {
+        await tx.clinicRole.update({ where: { id: assignments[i].id }, data: { level: -(i + 1) } })
+      }
+      // Fase 2: levels finais.
+      for (const a of assignments) {
+        await tx.clinicRole.update({ where: { id: a.id }, data: { level: a.level } })
+      }
+    })
+
+    createAuditLog(ctx, {
+      action: 'update',
+      entityType: 'ClinicRole',
+      entityId: 'reorder',
+      changes: { order: parsed.data.orderedIds },
     }).catch(() => {})
 
     revalidatePath('/configuracoes')
