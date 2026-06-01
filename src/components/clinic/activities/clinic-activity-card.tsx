@@ -11,6 +11,8 @@ import {
   Play,
   StickyNote,
   Trash2,
+  User,
+  UserPlus,
   Users,
   X,
 } from 'lucide-react'
@@ -201,6 +203,16 @@ export function ClinicActivityCard({ activity, ownerColor, ownerLabel, isNewForV
           <span className="inline-flex items-center gap-1">
             <TypeIcon className="h-3.5 w-3.5" /> {TYPE_LABEL[activity.type]}
           </span>
+          {activity.target && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
+              {activity.target.type === 'lead' ? (
+                <UserPlus className="h-3 w-3" />
+              ) : (
+                <User className="h-3 w-3" />
+              )}
+              {activity.target.name}
+            </span>
+          )}
           {activity.createdBy && activity.createdBy.id !== activity.assignedTo?.id && (
             <span className="inline-flex items-center gap-1">por {activity.createdBy.name}</span>
           )}
