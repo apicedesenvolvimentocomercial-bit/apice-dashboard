@@ -147,12 +147,14 @@ detecta retrocesso. Retorna um payload de status (`moved` / `needs-appointment` 
   GUC nula = exceção legítima): garante pipeline RETENTION, cria card ACTIVE p/ todo
   paciente sem card, move p/ INACTIVE quem ficou >N dias sem Appointment ATTENDED nem
   Revenue. Registrado em `vercel.json` (07:00 diário). Idempotente.
-- **2f Webhook Lead**: `api/webhooks/[provider]` (POST) + `lead-ingest.ts`. Contrato:
-  `{ clientId, name, phone?, email?, procedureInterest? }`. Provider→source
-  (meta-ads→META_ADS, google-ads→GOOGLE_ADS, whatsapp→WHATSAPP). Cria Lead na etapa
-  `nativeKey=LEAD` da pipeline COMMERCIAL. **`enterClientScope(clientId)` ANTES** de
-  tocar dados (rota não passa por getClinicContext). Fail-closed por `WEBHOOK_SECRET`
-  já existente.
+- **2f Webhook Lead**: `api/webhooks/[provider]` (POST) + `lead-ingest.ts`. Contrato do
+  body: `{ name, phone?, email?, procedureInterest? }` (o `clientId` NÃO vem mais no body —
+  ver abaixo). Provider→source (meta-ads→META_ADS, google-ads→GOOGLE_ADS, whatsapp→WHATSAPP).
+  Cria Lead na etapa `nativeKey=LEAD` da pipeline COMMERCIAL. **`enterClientScope(clientId)`
+  ANTES** de tocar dados (rota não passa por getClinicContext). **Auth = token por-clínica**
+  (seguranca-pendencias #2, 2026-06-01): o header `x-webhook-secret` resolve o `clientId`
+  server-side (`Client.webhookTokenHash`) + rate-limit por IP/clínica. O antigo
+  `WEBHOOK_SECRET` global foi DEPRECADO.
 
 Verificado 2b–2f: `type-check` ✓ · `lint` ✓ (0 erros) · `test` ✓ (131) · `build` ✓.
 Provado no Neon (scripts tsx): fluxo schedule→attended→closed cria/baixa Revenue;
@@ -164,7 +166,8 @@ correto e rejeita provider inválido; retention job (contexto admin) ativa/desat
 
 ### Variáveis de ambiente / deploy
 
-- `WEBHOOK_SECRET` (header `x-webhook-secret`) p/ o webhook 2f aceitar POST.
+- Webhook 2f: token POR-CLÍNICA (header `x-webhook-secret`), gerado em `/configuracoes`
+  pelo titular — não é mais env global. (`WEBHOOK_SECRET` DEPRECADO.)
 - Cron `api/cron/retention` usa `CRON_SECRET` como os demais (ver `lib/cron-auth`).
 - Aplicar em prod, em ordem: `variable_pipelines`, `pipeline_native_keys`,
   `client_inactivity_days` (via `prisma migrate deploy`).

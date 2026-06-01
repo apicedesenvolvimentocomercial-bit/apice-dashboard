@@ -1,42 +1,60 @@
-import { timingSafeEqual } from 'node:crypto'
-
 import { NextResponse } from 'next/server'
 
-import { env } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { prisma } from '@/lib/prisma'
+import { getRequestIp } from '@/lib/request-ip'
+import { hashWebhookToken } from '@/lib/webhook-token'
+import { consumeRateLimit } from '@/server/security/rate-limit'
 import { ingestLead } from '@/server/services/lead-ingest'
+import { verifyProviderSignature } from '@/server/services/webhook-signature'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const VALID_PROVIDERS = new Set(['whatsapp', 'meta-ads', 'google-ads'])
 
+// Rate-limit (seguranca-pendencias #1): teto de flood do webhook.
+const IP_LIMIT = { limit: 60, windowSec: 60 } // por origem
+const CLIENT_LIMIT = { limit: 120, windowSec: 60 } // por clínica
+
+function tooMany(retryAfterSec: number) {
+  return NextResponse.json(
+    { ok: false, error: 'rate-limited' },
+    { status: 429, headers: { 'Retry-After': String(retryAfterSec) } }
+  )
+}
+
 /**
- * Fail-closed (SEC-003·B): o webhook só aceita POST se `WEBHOOK_SECRET` estiver
- * configurado E o header `x-webhook-secret` bater (compare constante). Sem segredo
- * configurado → endpoint desabilitado (401). Quando o adapter real de cada provider
- * for plugado, trocar por validação de assinatura por provider (Meta `X-Hub-Signature-256`,
- * WhatsApp, Google) ANTES de processar.
+ * Resolve a clínica a partir do TOKEN por-clínica (seguranca-pendencias #2): o
+ * token cru chega no header `x-webhook-secret`, hasheamos (sha256) e procuramos a
+ * clínica pelo índice único `webhookTokenHash`. Assim o `clientId` NÃO vem mais do
+ * body — quem tem o token de uma clínica só escreve naquela clínica.
+ *
+ * `Client` não está sob RLS (não é tabela operacional com filtro de tenant), então
+ * o lookup sem escopo funciona; o `ingestLead` fixa `enterClientScope(clientId)`
+ * antes de tocar qualquer dado de clínica.
  */
-function isWebhookAuthorized(req: Request): boolean {
-  const secret = env.WEBHOOK_SECRET
-  if (!secret) return false
-  const provided = req.headers.get('x-webhook-secret')
-  if (!provided) return false
-  const a = Buffer.from(provided)
-  const b = Buffer.from(secret)
-  if (a.length !== b.length) return false
-  return timingSafeEqual(a, b)
+async function resolveClientIdByToken(token: string): Promise<string | null> {
+  const hash = hashWebhookToken(token)
+  const client = await prisma.client.findFirst({
+    where: { webhookTokenHash: hash, deletedAt: null },
+    select: { id: true },
+  })
+  return client?.id ?? null
 }
 
 /**
  * Recebe callbacks dos providers externos e ingere o contato como Lead na etapa
  * LEAD da pipeline COMMERCIAL da clínica (Fase 2f). Contrato do payload (JSON):
- *   { clientId: string, name: string, phone?, email?, procedureInterest? }
- * O provider da URL define o `LeadSource` (meta-ads/google-ads/whatsapp).
+ *   { name: string, phone?, email?, procedureInterest? }
+ * A CLÍNICA vem do token (header `x-webhook-secret`), não do body. O provider da
+ * URL define o `LeadSource` (meta-ads/google-ads/whatsapp).
  *
- * RLS: `ingestLead` chama `enterClientScope(clientId)` antes de tocar dados de
- * clínica — esta rota não passa por `getClinicContext` (rls-gambiarra §entrypoints).
+ * Camadas de segurança (seguranca-pendencias #1/#2):
+ *   1. flood-guard por IP;
+ *   2. `verifyProviderSignature` (hoje stub; HMAC quando o adapter real entrar);
+ *   3. token por-clínica resolve o `clientId` server-side;
+ *   4. flood-guard por clínica.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ provider: string }> }) {
   const { provider } = await ctx.params
@@ -44,20 +62,41 @@ export async function POST(req: Request, ctx: { params: Promise<{ provider: stri
     return NextResponse.json({ error: 'Unknown provider' }, { status: 404 })
   }
 
-  if (!isWebhookAuthorized(req)) {
+  // 1) Flood-guard por IP — antes de qualquer trabalho.
+  const ip = getRequestIp(req)
+  const ipLimit = await consumeRateLimit(`webhook:ip:${ip}`, IP_LIMIT)
+  if (!ipLimit.allowed) return tooMany(ipLimit.retryAfterSec)
+
+  const rawBody = await req.text()
+
+  // 2) Assinatura por-provider (hoje stub; valida HMAC quando o adapter real for plugado).
+  if (!verifyProviderSignature(provider, req, rawBody)) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+  }
+
+  // 3) Token por-clínica resolve o clientId (body não decide mais a clínica).
+  const token = req.headers.get('x-webhook-secret')
+  if (!token) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const clientId = await resolveClientIdByToken(token)
+  if (!clientId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // 4) Flood-guard por clínica.
+  const clientLimit = await consumeRateLimit(`webhook:client:${clientId}`, CLIENT_LIMIT)
+  if (!clientLimit.allowed) return tooMany(clientLimit.retryAfterSec)
+
   let body: Record<string, unknown> = {}
   try {
-    const parsed: unknown = await req.json()
+    const parsed: unknown = JSON.parse(rawBody || '{}')
     if (parsed && typeof parsed === 'object') body = parsed as Record<string, unknown>
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const result = await ingestLead(provider, {
-    clientId: body.clientId,
+  const result = await ingestLead(provider, clientId, {
     name: body.name,
     phone: body.phone,
     email: body.email,

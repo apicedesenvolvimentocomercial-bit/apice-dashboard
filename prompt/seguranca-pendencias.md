@@ -3,54 +3,64 @@
 > Origem: revisão de segurança (2026-05-30). Os 4 fixes de hardening já foram
 > aplicados (escape de `href` no e-mail, `clientId` no `where` dos updates de
 > insight, escape de senha no `rls-setup-role`, caps de tamanho no payload do
-> webhook). **Os 2 itens abaixo mudam comportamento → ficaram pendentes para
-> decisão e implementação. São OBRIGATÓRIOS antes de expor as integrações reais
-> em produção.** Bloqueador de deploy — ver `deploy-checklist.md`.
-
-## #1 — Rate-limiting (login + webhook) · OBRIGATÓRIA
-
-**Risco:** sem throttle. `/login` (NextAuth `authorize`) aceita tentativas
-ilimitadas → brute-force de senha. `POST /api/webhooks/*` idem → flooding de
-leads inflando pipeline/custo de DB. (Grep `rate` hoje só acha retry de e-mail
-no Resend, não throttle de request.)
-
-**Por que ficou pendente:** adicionar throttle **bloqueia** requisições acima de
-N por janela (pode afetar usuário legítimo atrás de NAT) e **exige infra**
-(Redis/Upstash ou contador em tabela no Postgres).
-
-**Opções (decidir):**
-
-- **a)** Contador em tabela Postgres — sem infra nova; lockout de login após N
-  falhas por email/IP numa janela. Mais simples.
-- **b)** `@upstash/ratelimit` + Redis — robusto/distribuído; exige conta + envs.
-- **c)** Faseado: só `/login` agora (risco maior é brute-force), webhook depois.
-
-**Aceite:** N falhas de login na janela → 429/lockout temporário (constante no
-tempo, sem vazar se o email existe); webhook acima do teto → 429. Cobrir com teste.
-
-## #2 — Modelo de segredo do webhook · OBRIGATÓRIA
-
-**Risco:** hoje há **um** `WEBHOOK_SECRET` global e o `clientId` vem no body —
-quem tiver o segredo grava `Lead` em **qualquer clínica de qualquer org**
-(`api/webhooks/[provider]/route.ts` → `ingestLead`; `assertClientAccess` NÃO roda
-aqui, é endpoint sem sessão). Aceitável **só** enquanto é mock/sem adapter real.
-
-**Por que ficou pendente:** muda o contrato de integração (como o provider
-autentica e como o `clientId` é resolvido).
-
-**Opções (decidir):**
-
-- **a)** Segredo **por-clínica**: cada clínica tem seu token; o token resolve o
-  `clientId` server-side — o body não escolhe mais a clínica. Isola de verdade.
-- **b)** Assinatura real por-provider (Meta `X-Hub-Signature-256`, WhatsApp,
-  Google) validada ANTES de processar. Correto a longo prazo; mais trabalho;
-  depende de plugar os adapters reais. (Já é TODO no `route.ts`.)
-- **c)** Manter global enquanto não houver adapter real plugado (estado atual).
-
-**Aceite:** body não decide mais o `clientId` cross-tenant; o token/assinatura
-amarra a requisição à clínica/provider. Cobrir com teste de isolamento.
+> webhook). **Os 2 itens OBRIGATÓRIOS (rate-limiting + segredo do webhook) foram
+> CONCLUÍDOS em 2026-06-01 — ver seção "Concluído". Não há mais bloqueador de
+> deploy de segurança aqui.**
 
 ## Concluído
+
+### #1 — Rate-limiting (login + webhook) (2026-06-01) ✅ — opção (a) Postgres
+
+Throttle persistido no Postgres, **sem infra nova** (decisão: opção a — a stack é
+Vercel + Supabase, sem Redis).
+
+- **Modelo `RateLimit`** (`key` PK, `count`, `expiresAt`) — infra GLOBAL, **sem
+  `clientId` → FORA da RLS** de propósito (login/webhook rodam sem escopo de
+  clínica). Migration `20260601000000_security_rate_limit_webhook_token` (+ GRANT
+  guardado a `app_user`, pois o login DEPENDE da tabela).
+- **Limiter** em [`src/server/security/rate-limit.ts`](../src/server/security/rate-limit.ts):
+  `consumeRateLimit` é ATÔMICO (`INSERT ... ON CONFLICT` num só statement → conta
+  certo sob rajada concorrente, não vaza tentativa). `peekRateLimit` (pré-check sem
+  incrementar) e `resetRateLimit`.
+- **Login** ([`config.ts` `authorize`](../src/server/auth/config.ts)) via
+  [`login-throttle.ts`](../src/server/security/login-throttle.ts): dois eixos —
+  `email+IP` (5/15min) e `IP` (30/15min). Lockout ANTES do bcrypt (poupa CPU);
+  conta falhas (email inexistente conta igual → **não enumera usuário**, resposta
+  constante "inválido"); sucesso limpa o lockout da conta. **FAIL-OPEN:** erro do
+  limiter não tranca o login (um limiter quebrado não derruba o acesso de todos).
+- **Webhook** ([`route.ts`](../src/app/api/webhooks/[provider]/route.ts)): flood-guard
+  por IP (60/min) e por clínica (120/min) → `429` + header `Retry-After`.
+- IP extraído de `x-forwarded-for`/`x-real-ip` ([`request-ip.ts`](../src/lib/request-ip.ts)).
+- **Testes:** `rate-limit.test.ts` + `login-throttle.test.ts` (chaves, thresholds,
+  fail-open). Migration aplicada no Neon + provado que `app_user` lê/escreve a tabela.
+
+### #2 — Modelo de segredo do webhook (2026-06-01) ✅ — opção híbrida (token + hook de assinatura)
+
+Token **por-clínica** agora (isola de verdade, implementável sem adapter real) +
+**ponto de extensão** pronto p/ assinatura por-provider quando os adapters reais
+entrarem.
+
+- **`Client.webhookTokenHash`** (`@unique`, sha256 hex) na mesma migration. O token
+  cru (256 bits) é mostrado UMA vez ao titular; só o hash fica no banco.
+- **Resolução server-side** ([`route.ts`](../src/app/api/webhooks/[provider]/route.ts)):
+  o token chega no header `x-webhook-secret`, hasheamos e achamos a clínica pelo
+  índice único → **o body NÃO decide mais o `clientId`** (acabou o write cross-tenant
+  com o segredo global). `ingestLead(provider, clientId, payload)` recebe o `clientId`
+  RESOLVIDO; o `clientId` saiu do `ingestSchema` (ignorado se vier no body).
+- **Hook de assinatura** ([`webhook-signature.ts`](../src/server/services/webhook-signature.ts)):
+  `verifyProviderSignature()` hoje é stub (`true`); doc explica como plugar o HMAC
+  por provider (Meta `x-hub-signature-256` etc.). **Assinatura é GRÁTIS** (HMAC com o
+  app secret do painel do provider), mas prova ORIGEM, não TENANT — por isso o token
+  por-clínica continua sendo quem amarra a requisição à clínica.
+- **UI** ([`webhook-token-card.tsx`](../src/components/clinic/settings/webhook-token-card.tsx)
+  em `/configuracoes`, só o titular): gerar/rotacionar (revela o token 1x) + revogar +
+  endpoints prontos p/ copiar. Actions `rotateWebhookTokenAction`/`revokeWebhookTokenAction`
+  ([`settings-actions.ts`](../src/server/actions/settings-actions.ts), gate `isOwner`).
+- **`WEBHOOK_SECRET` global DEPRECADO** (não é mais lido; comentário em `env.ts`).
+- **Teste de isolamento:** `lead-ingest.test.ts` prova que o lead grava na clínica
+  resolvida e que um `clientId` injetado no body é ignorado.
+
+### CSP + headers de segurança (2026-05-30) ✅
 
 ### CSP + headers de segurança (2026-05-30) ✅
 
