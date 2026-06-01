@@ -102,6 +102,8 @@ model User {
   notifications       Notification[]
   passwordResetTokens PasswordResetToken[]
   calendarEvents      CalendarEvent[]
+  authoredNotes       ClientNote[]         @relation("AuthoredNotes")
+  uploadedDocuments   Document[]           @relation("UploadedDocuments")
 
   // Inverso 1:1 de Organization.ownerId — null se este usuário não é dono.
   ownedOrganization Organization? @relation("OrganizationOwner")
@@ -262,6 +264,8 @@ model Client {
   calendarEvents      CalendarEvent[]
   notifications       Notification[]
   clinicRoles         ClinicRole[]
+  clientNotes         ClientNote[]
+  documents           Document[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -386,11 +390,19 @@ model Pipeline {
   order          Int // posição entre as abas da clínica
   createdAt      DateTime     @default(now())
 
+  // Dono da pipeline (item 4 — pipelines pessoais). Escalar sem FK, igual a
+  // Lead.assignedToId. NATIVAS (Comercial/Retenção) têm ownerId NULL = estrutura
+  // compartilhada (todos enxergam as etapas; os CARDS é que filtram por dono).
+  // Pipelines EXTRAS criadas por um usuário gravam ownerId = criador → só o dono
+  // (e quem tem crm:viewAll/titular) as vê.
+  ownerId String?
+
   stages PipelineStage[]
 
   @@unique([clientId, order])
   @@index([clientId])
   @@index([organizationId, clientId])
+  @@index([clientId, ownerId])
 }
 
 model PipelineStage {
@@ -502,6 +514,9 @@ model Lead {
   deletedAt   DateTime?
 
   interactions LeadInteraction[]
+  activities   Activity[]
+  clientNotes  ClientNote[]
+  documents    Document[]
 
   @@index([organizationId, clientId])
   @@index([clientId, stageId, deletedAt])
@@ -557,6 +572,9 @@ model Patient {
   leads        Lead[]
   appointments Appointment[]
   revenues     Revenue[]
+  activities   Activity[]
+  clientNotes  ClientNote[]
+  documents    Document[]
 
   @@index([organizationId, clientId])
   @@index([clientId, deletedAt])
@@ -645,6 +663,10 @@ model Appointment {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdById String?
+  // Dono/responsável do agendamento (item 4 — agenda pessoal). Escalar sem FK
+  // (igual Lead.assignedToId). Default = criador; reatribuível. Quem não tem
+  // appointments:viewAll/titular só vê os próprios.
+  assignedToId String?
   deletedAt   DateTime?
 
   revenue Revenue?
@@ -653,6 +675,7 @@ model Appointment {
   @@index([organizationId, clientId])
   @@index([clientId, scheduledAt])
   @@index([clientId, status])
+  @@index([clientId, assignedToId])
 }
 
 // =====================================================
@@ -936,6 +959,16 @@ model Activity {
   assignedToId String?
   assignedTo   User?   @relation("AssignedActivities", fields: [assignedToId], references: [id])
 
+  // Alvo da atividade (item 1 — atividade orientada a cliente). Atividade de
+  // CLÍNICA exige EXATAMENTE um de leadId/patientId (app-enforced na action);
+  // atividade de AGÊNCIA (domain ADMIN) não usa nenhum. O card de paciente
+  // mostra as atividades do patientId E dos leads ligados (continuidade
+  // lead→paciente sem precisar migrar a FK na conversão).
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+  patientId String?
+  patient   Patient? @relation(fields: [patientId], references: [id])
+
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   createdById      String?
@@ -960,6 +993,64 @@ model Activity {
   // das listagens de atividade da clínica (Fase 3 da reforma divisão total).
   @@index([clientId, status, dueDate])
   @@index([broadcastId])
+  // Item 1: atividades do card de um lead/paciente.
+  @@index([leadId])
+  @@index([patientId])
+}
+
+// Anotação livre do CARD do cliente (item 6). Orientada a lead/paciente como a
+// Activity, mas sem prazo/status — é só texto datado e autorado. Paciente vê as
+// anotações dele E dos leads ligados (mesma continuidade da Activity).
+model ClientNote {
+  id             String  @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client  @relation(fields: [clientId], references: [id])
+  leadId         String?
+  lead           Lead?   @relation(fields: [leadId], references: [id])
+  patientId      String?
+  patient        Patient? @relation(fields: [patientId], references: [id])
+
+  authorId String?
+  author   User?   @relation("AuthoredNotes", fields: [authorId], references: [id])
+
+  content   String    @db.Text
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([clientId, leadId])
+  @@index([clientId, patientId])
+}
+
+// Documento/arquivo do CARD do cliente (item 6c). Dado sensível de saúde (LGPD):
+// o BINÁRIO vive num bucket PRIVADO do Supabase Storage (criptografia em repouso
+// do Supabase); aqui guardamos só os METADADOS + a chave (`storagePath`). Acesso
+// ao arquivo sempre por URL assinada de curta duração. Orientado a lead/paciente.
+model Document {
+  id             String  @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client  @relation(fields: [clientId], references: [id])
+  leadId         String?
+  lead           Lead?   @relation(fields: [leadId], references: [id])
+  patientId      String?
+  patient        Patient? @relation(fields: [patientId], references: [id])
+
+  uploaderId String?
+  uploader   User?   @relation("UploadedDocuments", fields: [uploaderId], references: [id])
+
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  // Chave do objeto no bucket privado (ex.: "<clientId>/<id>/<fileName>").
+  storagePath String
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([clientId, leadId])
+  @@index([clientId, patientId])
 }
 
 // =====================================================
@@ -993,6 +1084,10 @@ model CalendarEvent {
   activityId String?   @unique
   activity   Activity? @relation(fields: [activityId], references: [id])
 
+  // Série recorrente (item 7). Eventos gerados juntos (ex.: "todo dia 9") dividem
+  // este id — permite excluir a série inteira de uma vez. null = evento avulso.
+  recurrenceGroupId String?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -1000,6 +1095,7 @@ model CalendarEvent {
   @@index([userId, startAt])
   @@index([organizationId, deletedAt])
   @@index([clientId, startAt])
+  @@index([recurrenceGroupId])
 }
 
 model OrgHoliday {
