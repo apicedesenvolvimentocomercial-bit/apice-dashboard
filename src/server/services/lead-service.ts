@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { buildPaidRevenueData } from '@/server/repositories/revenue-repository'
 import type { TenantContext } from '@/server/tenant/context'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 
@@ -60,15 +61,16 @@ export async function winLead(
 
     if (lead.estimatedValue) {
       await tx.revenue.create({
-        data: {
+        data: buildPaidRevenueData({
           organizationId: ctx.organizationId,
           clientId: lead.clientId,
           patientId: patient.id,
           amount: lead.estimatedValue,
           date: new Date(),
+          type: 'OUTRA',
           description: `Lead convertido: ${lead.name}${lead.procedureInterest ? ` — ${lead.procedureInterest}` : ''}`,
           createdById: ctx.userId,
-        },
+        }),
       })
     }
 

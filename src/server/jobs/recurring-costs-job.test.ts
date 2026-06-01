@@ -7,7 +7,7 @@ type Template = {
   id: string
   organizationId: string
   clientId: string
-  type: 'FIXED' | 'VARIABLE' | 'MARKETING' | 'PAYROLL' | 'TAX' | 'OTHER'
+  type: 'FIXED' | 'VARIABLE' | 'MARKETING' | 'PAYROLL' | 'TAX_REVENUE' | 'OTHER'
   category: string | null
   amount: number
   description: string | null

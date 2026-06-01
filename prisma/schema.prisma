@@ -238,6 +238,11 @@ model Client {
   // cedo = cancelamento. Ver `decideCancellationStatus` em lib/no-show-window.
   noShowWindowHours Int?
 
+  // Regime tributário da clínica (DRE — ledger dre-progresso.md). Define como os
+  // impostos entram na DRE: SIMPLES = DAS sobre receita (imposto sobre lucro ~0);
+  // PRESUMIDO/REAL separam ISS/PIS/COFINS (sobre receita) de IRPJ/CSLL (sobre lucro).
+  taxRegime TaxRegime @default(SIMPLES)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -266,6 +271,8 @@ model Client {
   clinicRoles         ClinicRole[]
   clientNotes         ClientNote[]
   documents           Document[]
+  receivables         Receivable[]
+  fixedAssets         FixedAsset[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -682,12 +689,68 @@ model Appointment {
 // FINANCEIRO
 // =====================================================
 
+// Regime tributário (Client.taxRegime) — DRE.
+enum TaxRegime {
+  SIMPLES
+  PRESUMIDO
+  REAL
+}
+
+// Categoria da receita p/ o split da receita bruta na DRE. FINANCEIRA NÃO entra na
+// receita bruta operacional — alimenta `receitasFinanceiras` (resultado financeiro).
+enum RevenueType {
+  PROCEDIMENTO
+  PACOTE
+  RECORRENCIA
+  PRODUTO
+  OUTRA
+  FINANCEIRA
+}
+
+// Estado da venda (faturamento). Competência: a receita é reconhecida na `date`.
+// ABERTA = faturada com parcelas a receber; QUITADA = todas as parcelas pagas;
+// CANCELADA = venda cancelada (vira dedução `cancelamentos` no período do cancelamento).
+enum RevenueStatus {
+  ABERTA
+  QUITADA
+  CANCELADA
+}
+
+// Parcela de contas a receber. PERDIDO = baixa (write-off) → dedução `inadimplencia`.
+enum ReceivableStatus {
+  PENDENTE
+  PAGO
+  PERDIDO
+  CANCELADO
+}
+
+// Ativo imobilizado (TANGÍVEL → depreciação) ou intangível (→ amortização).
+enum AssetKind {
+  TANGIVEL
+  INTANGIVEL
+}
+
+enum DepreciationMethod {
+  LINEAR
+}
+
+// Tipo de custo, alinhado aos buckets da DRE (ledger dre-progresso.md). Os tipos
+// foram expandidos p/ a DRE: imposto separa sobre-receita × sobre-lucro; comissão,
+// comercial, administrativa e despesa financeira viraram tipos próprios. `TAX`
+// antigo foi renomeado p/ `TAX_REVENUE` na migration. CSP = VARIABLE(category
+// PROCEDURE_COST) + COMMISSION; OPEX = MARKETING + COMMERCIAL + (ADMINISTRATIVE +
+// PAYROLL + FIXED); financeiro = FINANCIAL_EXPENSE.
 enum CostType {
   FIXED
   VARIABLE
   MARKETING
   PAYROLL
-  TAX
+  TAX_REVENUE
+  TAX_PROFIT
+  COMMISSION
+  COMMERCIAL
+  ADMINISTRATIVE
+  FINANCIAL_EXPENSE
   OTHER
 }
 
@@ -703,22 +766,33 @@ model Revenue {
   appointmentId  String?      @unique
   appointment    Appointment? @relation(fields: [appointmentId], references: [id])
 
-  amount        Decimal  @db.Decimal(12, 2)
+  // DRE/competência: `grossAmount` = receita bruta faturada; `discount` = desconto
+  // concedido; `amount` = líquido reconhecido (grossAmount - discount), na `date`
+  // (data de competência). O recebimento é rastreado nas parcelas (`receivables`).
+  type          RevenueType   @default(OUTRA)
+  grossAmount   Decimal       @db.Decimal(12, 2)
+  discount      Decimal       @default(0) @db.Decimal(12, 2)
+  amount        Decimal       @db.Decimal(12, 2)
+  status        RevenueStatus @default(ABERTA)
   date          DateTime
   description   String?
   paymentMethod String?
-  installments  Int?     @default(1)
+  installments  Int?          @default(1)
+  canceledAt    DateTime?
+  cancelReason  String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdById String?
   deletedAt   DateTime?
 
-  procedures RevenueProcedure[]
-  costs      Cost[]
+  procedures  RevenueProcedure[]
+  costs       Cost[]
+  receivables Receivable[]
 
   @@index([organizationId, clientId])
   @@index([clientId, date])
+  @@index([clientId, status])
 }
 
 // Itens de procedimento de uma receita. Permite múltiplos procedimentos por
@@ -778,6 +852,60 @@ model Cost {
   @@index([clientId, type])
   @@index([recurringSourceId, date])
   @@index([revenueId])
+}
+
+// Conta a receber (parcela de uma Revenue). Competência: a receita é reconhecida na
+// venda; o RECEBIMENTO vive aqui. Caixa = parcelas PAGO por `paidAt`. Inadimplência =
+// parcela vencida não paga (aging); vira dedução da DRE quando baixada (PERDIDO).
+// Tem `clientId` → entra na RLS (migration). Ver dre-progresso.md.
+model Receivable {
+  id             String           @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client           @relation(fields: [clientId], references: [id])
+  revenueId      String
+  revenue        Revenue          @relation(fields: [revenueId], references: [id], onDelete: Cascade)
+
+  installmentNumber Int
+  amount            Decimal          @db.Decimal(12, 2)
+  dueDate           DateTime
+  status            ReceivableStatus @default(PENDENTE)
+  paidAt            DateTime?
+  paymentMethod     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId, dueDate])
+  @@index([clientId, status])
+  @@index([revenueId])
+}
+
+// Ativo imobilizado/intangível (DRE — módulo de ativos). Depreciação/amortização
+// calculada por período (linear) em `services/dre/depreciation.ts`. Tem `clientId`
+// → entra na RLS (migration).
+model FixedAsset {
+  id             String             @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client             @relation(fields: [clientId], references: [id])
+
+  name             String
+  category         String?
+  kind             AssetKind          @default(TANGIVEL)
+  acquisitionValue Decimal            @db.Decimal(12, 2)
+  residualValue    Decimal            @default(0) @db.Decimal(12, 2)
+  acquisitionDate  DateTime
+  usefulLifeMonths Int
+  method           DepreciationMethod @default(LINEAR)
+  disposedAt       DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  @@index([clientId])
 }
 
 // =====================================================

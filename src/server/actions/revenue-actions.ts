@@ -19,6 +19,15 @@ import {
   type RevenueProcedureInput,
 } from '@/server/repositories/revenue-repository'
 
+const REVENUE_TYPES = [
+  'PROCEDIMENTO',
+  'PACOTE',
+  'RECORRENCIA',
+  'PRODUTO',
+  'OUTRA',
+  'FINANCEIRA',
+] as const
+
 const revenueSchema = z.object({
   amount: z.number().positive('Valor deve ser positivo'),
   date: z.string().min(1, 'Data obrigatória'),
@@ -28,7 +37,24 @@ const revenueSchema = z.object({
   patientId: z.string().optional(),
   procedureIds: z.array(z.string()).optional(),
   discountPct: z.number().min(0, 'Desconto inválido').max(100, 'Desconto máximo 100%').optional(),
+  type: z.enum(REVENUE_TYPES).optional(),
 })
+
+// Bruto/desconto/tipo p/ competência. Com procedimentos: bruto = soma dos preços,
+// líquido = bruto − desconto%. Sem: o valor informado é o bruto (sem desconto).
+function deriveGrossDiscountType(
+  procedures: RevenueProcedureInput[],
+  informedAmount: number,
+  discountPct: number | undefined,
+  netAmount: number,
+  type: (typeof REVENUE_TYPES)[number] | undefined
+) {
+  const grossAmount =
+    procedures.length > 0 ? procedures.reduce((s, p) => s + p.price, 0) : informedAmount
+  const discount = Math.max(0, Math.round((grossAmount - netAmount) * 100) / 100)
+  const resolvedType = type ?? (procedures.length > 0 ? 'PROCEDIMENTO' : 'OUTRA')
+  return { grossAmount, discount, type: resolvedType as (typeof REVENUE_TYPES)[number] }
+}
 
 function revalidate(clientId: string) {
   revalidatePath('/financial')
@@ -91,8 +117,19 @@ export async function createRevenueAction(clientId: string, formData: unknown) {
     procedures.length > 0 ? computeAmount(procedures, parsed.data.discountPct) : parsed.data.amount
   if (!(amount > 0)) return fail('Valor deve ser positivo')
 
-  const revenue = await createRevenue(ctx, clientId, {
+  const { grossAmount, discount, type } = deriveGrossDiscountType(
+    procedures,
+    parsed.data.amount,
+    parsed.data.discountPct,
     amount,
+    parsed.data.type
+  )
+
+  const revenue = await createRevenue(ctx, clientId, {
+    grossAmount,
+    discount,
+    amount,
+    type,
     date,
     description: parsed.data.description || undefined,
     paymentMethod: parsed.data.paymentMethod || undefined,
@@ -135,12 +172,32 @@ export async function updateRevenueAction(revenueId: string, clientId: string, f
       ? computeAmount(procedures, parsed.data.discountPct)
       : parsed.data.amount
 
+  // Quando o valor é (re)calculável, recomputa bruto/desconto/tipo. Senão, deixa
+  // os campos de fora (update parcial). NOTA: não regenera parcelas (ver repo).
+  const moneyFields =
+    amount !== undefined && amount > 0
+      ? deriveGrossDiscountType(
+          procedures ?? [],
+          parsed.data.amount ?? amount,
+          parsed.data.discountPct,
+          amount,
+          parsed.data.type
+        )
+      : undefined
+
   await updateRevenue(
     ctx,
     revenueId,
     clientId,
     {
-      amount,
+      ...(amount !== undefined ? { amount } : {}),
+      ...(moneyFields
+        ? {
+            grossAmount: moneyFields.grossAmount,
+            discount: moneyFields.discount,
+            type: moneyFields.type,
+          }
+        : {}),
       date,
       description: parsed.data.description,
       paymentMethod: parsed.data.paymentMethod,

@@ -25,7 +25,12 @@ const TYPE_COLORS: Record<string, string> = {
   VARIABLE: 'bg-muted text-muted-foreground',
   MARKETING: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-200',
   PAYROLL: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200',
-  TAX: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200',
+  TAX_REVENUE: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200',
+  TAX_PROFIT: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200',
+  COMMISSION: 'bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-200',
+  COMMERCIAL: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200',
+  ADMINISTRATIVE: 'bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-200',
+  FINANCIAL_EXPENSE: 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200',
   OTHER: 'bg-muted text-muted-foreground',
 }
 

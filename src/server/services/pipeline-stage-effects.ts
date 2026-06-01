@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { decideCancellationStatus } from '@/lib/no-show-window'
 import type { TenantContext } from '@/server/tenant/context'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
+import { buildPaidRevenueData } from '@/server/repositories/revenue-repository'
 import {
   addPatientToRetention,
   getRetentionActiveStageId,
@@ -460,7 +461,7 @@ export async function moveLeadWithEffect(
         })
         if (procedure) {
           await tx.revenue.create({
-            data: {
+            data: buildPaidRevenueData({
               organizationId: ctx.organizationId,
               clientId: lead.clientId,
               patientId: lead.appointment!.patientId,
@@ -468,9 +469,10 @@ export async function moveLeadWithEffect(
               appointmentId: lead.appointmentId!,
               amount: procedure.price,
               date: new Date(),
+              type: 'PROCEDIMENTO',
               description: `Procedimento: ${procedure.name}`,
               createdById: ctx.userId,
-            },
+            }),
           })
         }
       }

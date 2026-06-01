@@ -85,6 +85,8 @@ async function aggregateForRange(
         organizationId: scope.organizationId,
         ...clientFilter,
         deletedAt: null,
+        // Competência: receita reconhecida por `date`, exclui vendas CANCELADAS.
+        status: { not: 'CANCELADA' },
         date: { gte: range.from, lte: range.to },
       },
       _sum: { amount: true },
@@ -135,6 +137,7 @@ async function aggregateForRange(
         organizationId: scope.organizationId,
         ...clientFilter,
         deletedAt: null,
+        status: { not: 'CANCELADA' },
         date: { gte: range.from, lte: range.to },
         patient: {
           leads: {
