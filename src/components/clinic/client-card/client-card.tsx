@@ -352,11 +352,11 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             )}
-            {!loading && lead && (
+            {!loading && lead && subject?.type === 'lead' && (
               <LeadInfo
                 lead={lead}
                 clientId={clientId}
-                subject={subject as Extract<ClientCardSubject, { type: 'lead' }>}
+                subject={subject}
                 members={members}
                 canReassign={canReassignLeads}
                 onChanged={onChanged}
@@ -368,7 +368,7 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
                 }
               />
             )}
-            {!loading && patient && (
+            {!loading && patient && subject?.type === 'patient' && (
               <PatientInfo
                 patient={patient}
                 clientId={clientId}
