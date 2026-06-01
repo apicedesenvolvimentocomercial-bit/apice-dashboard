@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
 
 import { ClinicSettingsForm } from '@/components/clinic/settings/clinic-settings-form'
+import { WebhookTokenCard } from '@/components/clinic/settings/webhook-token-card'
 import { AppearanceForm } from '@/components/shared/settings/appearance-form'
 import { ChangePasswordForm } from '@/components/shared/settings/change-password-form'
 import { ProfileForm } from '@/components/shared/settings/profile-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { env } from '@/lib/env'
 import { ClinicRolesManager } from '@/modules/clinic-roles/clinic-roles-manager'
 import { getClinicContext } from '@/server/auth/clinic-context'
 import { parseClinicRolePermissions } from '@/server/auth/clinic-permissions'
@@ -39,16 +41,23 @@ export default async function ClinicSettingsPage() {
     canManageRoles = !!role?.canManageRoles
   }
 
-  const [profile, client, roles, users, viewerLevel] = await Promise.all([
+  // Dados sensíveis da clínica: só o TITULAR edita (Bloco B). O card antes usava
+  // qualquer CLIENT_OWNER; agora reflete a coroa real.
+  const isOwner = ctx.isOwner
+
+  const [profile, client, roles, users, viewerLevel, webhookCfg] = await Promise.all([
     findUserProfileById(ctx.userId),
     findClientById(ctx, ctx.clientId),
     canManageRoles ? listClinicRoles(ctx) : Promise.resolve([]),
     canManageRoles ? listClinicUsers(ctx) : Promise.resolve([]),
     canManageRoles ? resolveClinicActorLevel(ctx) : Promise.resolve(null),
+    isOwner
+      ? prisma.client.findUnique({
+          where: { id: ctx.clientId },
+          select: { webhookTokenHash: true },
+        })
+      : Promise.resolve(null),
   ])
-  // Dados sensíveis da clínica: só o TITULAR edita (Bloco B). O card antes usava
-  // qualquer CLIENT_OWNER; agora reflete a coroa real.
-  const isOwner = ctx.isOwner
 
   const roleItems = roles.map((r) => ({
     id: r.id,
@@ -129,6 +138,13 @@ export default async function ClinicSettingsPage() {
             />
           </CardContent>
         </Card>
+      )}
+
+      {isOwner && (
+        <WebhookTokenCard
+          hasToken={!!webhookCfg?.webhookTokenHash}
+          appUrl={env.NEXT_PUBLIC_APP_URL}
+        />
       )}
 
       {canManageRoles && (

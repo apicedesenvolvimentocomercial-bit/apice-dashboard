@@ -3,7 +3,14 @@ import type { NextAuthConfig } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { z } from 'zod'
 
+import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
+import { getRequestIp } from '@/lib/request-ip'
+import {
+  clearLoginFailures,
+  isLoginLocked,
+  recordLoginFailure,
+} from '@/server/security/login-throttle'
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -24,9 +31,21 @@ export const authConfig = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Senha', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const parsed = loginSchema.safeParse(credentials)
         if (!parsed.success) return null
+
+        // Rate-limit (seguranca-pendencias #1): chave por email+IP e por IP. O IP
+        // sai dos headers da request (atrás de proxy). `authorize` roda sem escopo
+        // de clínica → o limiter (tabela fora da RLS) é seguro aqui.
+        const ip = request instanceof Request ? getRequestIp(request) : 'unknown'
+        const email = parsed.data.email
+
+        // Lockout ANTES do bcrypt: nem gasta CPU se a janela já estourou.
+        if (await isLoginLocked(email, ip)) {
+          logger.warn('Login bloqueado por rate-limit', { ip })
+          return null
+        }
 
         // Select explícito para que `passwordHash` não trafegue além do escopo
         // estritamente necessário (regra de ouro §16.2 do prompt).
@@ -46,11 +65,22 @@ export const authConfig = {
           },
         })
 
-        if (!user || !user.isActive || !user.passwordHash) return null
+        // Conta como falha tanto email inexistente quanto senha errada — resposta
+        // constante (não enumera usuários).
+        if (!user || !user.isActive || !user.passwordHash) {
+          await recordLoginFailure(email, ip)
+          return null
+        }
 
         const { compare } = await import('bcryptjs')
         const valid = await compare(parsed.data.password, user.passwordHash)
-        if (!valid) return null
+        if (!valid) {
+          await recordLoginFailure(email, ip)
+          return null
+        }
+
+        // Sucesso → limpa o lockout daquela conta+origem.
+        await clearLoginFailures(email, ip)
 
         await prisma.user.update({
           where: { id: user.id },

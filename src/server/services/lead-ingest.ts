@@ -34,7 +34,6 @@ const optText = (max: number) =>
   )
 
 const ingestSchema = z.object({
-  clientId: z.string().trim().min(1).max(64),
   name: z.string().trim().min(1).max(200),
   phone: optText(40),
   email: optText(200),
@@ -43,8 +42,11 @@ const ingestSchema = z.object({
 
 export async function ingestLead(
   provider: string,
+  // `clientId` é RESOLVIDO server-side pelo token por-clínica no webhook
+  // (seguranca-pendencias #2) — NÃO vem mais do body. O body só traz os dados do
+  // contato.
+  clientId: string,
   payload: {
-    clientId?: unknown
     name?: unknown
     phone?: unknown
     email?: unknown
@@ -56,7 +58,7 @@ export async function ingestLead(
 
   const parsed = ingestSchema.safeParse(payload)
   if (!parsed.success) return { ok: false, reason: 'invalid' }
-  const { clientId, name, phone, email, procedureInterest } = parsed.data
+  const { name, phone, email, procedureInterest } = parsed.data
 
   // Fixa o escopo de RLS para esta clínica antes de tocar dados de clínica.
   enterClientScope(clientId)

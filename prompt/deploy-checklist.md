@@ -6,16 +6,16 @@
 
 ## 1. Variáveis de ambiente (Vercel → Project Settings → Environment Variables)
 
-| Var                             | Valor                                                                                                                                                                                                                                                             |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                  | Pooled (transaction, 6543) **do role restrito** (ver §3) + `?pgbouncer=true`                                                                                                                                                                                      |
-| `DIRECT_URL`                    | Session pooler (5432) do **dono** (migrations)                                                                                                                                                                                                                    |
-| `NEXTAUTH_URL`                  | `https://<seu-dominio>`                                                                                                                                                                                                                                           |
-| `NEXTAUTH_SECRET`               | segredo forte (já existe em prod)                                                                                                                                                                                                                                 |
-| `AUTH_TRUST_HOST`               | `true` (se não-Vercel; no Vercel é dispensável)                                                                                                                                                                                                                   |
-| `RESEND_API_KEY` / `EMAIL_FROM` | credenciais reais de e-mail                                                                                                                                                                                                                                       |
-| `WEBHOOK_SECRET`                | **setar antes de ligar integração** — o webhook é fail-closed: `POST /api/webhooks/*` responde **401** sem `WEBHOOK_SECRET` + header `x-webhook-secret` batendo. Mock hoje; ao ligar integração real, idealmente trocar por validação de assinatura por provider. |
-| `NEXT_PUBLIC_APP_URL`           | `https://<seu-dominio>`                                                                                                                                                                                                                                           |
+| Var                             | Valor                                                                                                                                                                                                                |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | Pooled (transaction, 6543) **do role restrito** (ver §3) + `?pgbouncer=true`                                                                                                                                         |
+| `DIRECT_URL`                    | Session pooler (5432) do **dono** (migrations)                                                                                                                                                                       |
+| `NEXTAUTH_URL`                  | `https://<seu-dominio>`                                                                                                                                                                                              |
+| `NEXTAUTH_SECRET`               | segredo forte (já existe em prod)                                                                                                                                                                                    |
+| `AUTH_TRUST_HOST`               | `true` (se não-Vercel; no Vercel é dispensável)                                                                                                                                                                      |
+| `RESEND_API_KEY` / `EMAIL_FROM` | credenciais reais de e-mail                                                                                                                                                                                          |
+| `WEBHOOK_SECRET`                | ~~DEPRECADO~~ — não é mais lido. O webhook usa token **por-clínica** (`Client.webhookTokenHash`); o titular gera/rotaciona em `/configuracoes` e envia no header `x-webhook-secret`. Pode remover a env dos deploys. |
+| `NEXT_PUBLIC_APP_URL`           | `https://<seu-dominio>`                                                                                                                                                                                              |
 
 ## 2. Migrations
 
@@ -63,15 +63,19 @@ npx prisma migrate deploy        # usa DIRECT_URL (dono). Aplica TODAS, incl. RL
 - `tsc` 0 · `eslint src` 0 erros · `vitest` 131 · **E2E 11** (público + auth +
   isolamento de clínica + a11y) verdes contra o banco de teste (Neon).
 
-## 7. Bloqueadores de segurança (OBRIGATÓRIOS antes das integrações reais)
+## 7. Segurança — CONCLUÍDO (2026-06-01)
 
-Ver `seguranca-pendencias.md` (decisão + aceite). Resumo:
+Ver `seguranca-pendencias.md` (detalhe). Os 2 bloqueadores foram resolvidos:
 
-- **Rate-limiting** em `/login` e `POST /api/webhooks/*` — sem isso há brute-force
-  de senha e flooding de leads. Exige infra (Redis/Upstash) ou contador em Postgres.
-- **Segredo do webhook por-clínica / assinatura por-provider** — hoje um segredo
-  global + `clientId` no body deixa escrever lead em qualquer clínica de qualquer org.
-  Aceitável só enquanto mock/sem adapter real plugado.
+- **Rate-limiting** em `/login` e `POST /api/webhooks/*` — contador fixed-window no
+  Postgres (tabela `RateLimit`, sem infra externa). Login: lockout por email+IP / IP,
+  fail-open. Webhook: 429 + `Retry-After` por IP e por clínica.
+- **Segredo do webhook por-clínica** — `Client.webhookTokenHash`; o token resolve o
+  `clientId` server-side, o body não escreve mais lead em clínica arbitrária. Hook
+  `verifyProviderSignature` pronto p/ HMAC por-provider quando os adapters reais entrarem.
+- **Ação de deploy:** rodar a migration `20260601000000_security_rate_limit_webhook_token`
+  (cria `RateLimit` + GRANT a `app_user` + `Client.webhookTokenHash`). Cada clínica gera o
+  token em `/configuracoes` (titular). `WEBHOOK_SECRET` pode sair das envs.
 
 ## 8. Otimização pendente (medir antes de fazer)
 

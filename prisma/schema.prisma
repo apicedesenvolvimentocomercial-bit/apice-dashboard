@@ -238,6 +238,12 @@ model Client {
   // cedo = cancelamento. Ver `decideCancellationStatus` em lib/no-show-window.
   noShowWindowHours Int?
 
+  // Segredo do webhook de ingestão de leads, POR-CLÍNICA (seguranca-pendencias #2).
+  // Guarda só o sha256 (hex) de um token de alta entropia; o token cru é mostrado
+  // uma única vez ao titular ao gerar/rotacionar. O token resolve o `clientId`
+  // server-side no webhook — o body NÃO escolhe mais a clínica (isola cross-tenant).
+  webhookTokenHash String? @unique
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -1248,4 +1254,18 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@index([entityType, entityId])
   @@index([userId])
+}
+
+// Rate-limit (seguranca-pendencias #1) — contador fixed-window persistido no
+// Postgres. Infra GLOBAL, SEM `clientId` → fica FORA da RLS de propósito: o login
+// (NextAuth `authorize`) e o webhook rodam sem escopo de clínica e precisam
+// escrever aqui. `key` = `${bucket}:${identifier}` (ex.: `login:ip:<ip>` /
+// `webhook:client:<id>`). A janela reseta quando `expiresAt` passa.
+model RateLimit {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
 }
