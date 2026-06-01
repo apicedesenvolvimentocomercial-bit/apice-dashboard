@@ -23,7 +23,7 @@ export function KanbanColumn({ stage, onAddLead, onLeadClick, highlightLeadId }:
   const leadIds = stage.leads.map((l) => l.id)
 
   return (
-    <div className="flex h-full w-72 shrink-0 flex-col">
+    <div className="flex w-72 shrink-0 flex-col">
       <div className="mb-2 flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <div
@@ -53,14 +53,9 @@ export function KanbanColumn({ stage, onAddLead, onLeadClick, highlightLeadId }:
       </div>
 
       <SortableContext items={leadIds} strategy={verticalListSortingStrategy}>
-        {/* min-h-0 + flex-1: a lista de cards toma a altura restante da coluna
-            e rola verticalmente aqui dentro, não na página inteira. */}
-        <div
-          ref={setNodeRef}
-          className={cn(
-            'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-lg bg-muted/30 p-2'
-          )}
-        >
+        {/* Lista FLUIDA: altura do conteúdo (não estica). Se a coluna passar da
+            altura visível, o board (pai) rola na vertical. */}
+        <div ref={setNodeRef} className={cn('flex flex-col gap-2 rounded-lg bg-muted/30 p-2')}>
           {stage.leads.map((lead) => (
             <LeadCard
               key={lead.id}
