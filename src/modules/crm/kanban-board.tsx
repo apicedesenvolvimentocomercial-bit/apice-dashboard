@@ -447,9 +447,11 @@ export function KanbanBoard({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        {/* min-h-0 + flex-1: a board toma a altura restante e rola só na
-            horizontal; a rolagem vertical fica dentro de cada coluna. */}
-        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-2">
+        {/* `items-start`: as colunas têm altura FLUIDA (do tamanho do conteúdo),
+            não esticam até o rodapé. O board ocupa a altura restante (min-h-0
+            flex-1) e rola na horizontal; se uma coluna passar da altura visível,
+            o board rola na vertical. */}
+        <div className="flex min-h-0 flex-1 items-start gap-4 overflow-x-auto pb-2">
           {stages.length === 0 ? (
             <div className="flex w-full items-center justify-center rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
               Nenhuma etapa configurada. Use “Editar etapas” para criar o funil.

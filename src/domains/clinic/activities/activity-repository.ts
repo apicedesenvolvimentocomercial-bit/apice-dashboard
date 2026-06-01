@@ -309,20 +309,50 @@ export async function resolveClinicActivityTarget(
   return patient ? { leadId: null, patientId: patient.id } : null
 }
 
-/** Leads da clínica p/ o picker da atividade (não-excluídos). */
+/**
+ * Leads da clínica p/ o picker da atividade. Regra "ou lead ou paciente, nunca
+ * os dois" (sem mexer em métrica de KPI — isto é só display): quando o lead vira
+ * paciente REAL (compareceu ou fechou), ele some da lista de leads e passa a
+ * aparecer só como paciente. Continuam como LEAD os sem paciente E os ligados a
+ * um paciente PROVISÓRIO (agendado mas ainda sem comparecer = `fromScheduledLead`
+ * e nenhum Appointment ATTENDED) — pra não criar um buraco (nem some dos dois).
+ */
 export async function listClinicLeadsForPicker(ctx: ClinicContext) {
   return prisma.lead.findMany({
-    where: { clientId: ctx.clientId, deletedAt: null },
+    where: {
+      clientId: ctx.clientId,
+      deletedAt: null,
+      OR: [
+        { patientId: null },
+        {
+          patient: {
+            fromScheduledLead: true,
+            appointments: { none: { status: 'ATTENDED', deletedAt: null } },
+          },
+        },
+      ],
+    },
     orderBy: { createdAt: 'desc' },
     take: 500,
     select: { id: true, name: true, phone: true, stage: { select: { name: true } } },
   })
 }
 
-/** Pacientes da clínica p/ o picker da atividade (não-excluídos). */
+/**
+ * Pacientes da clínica p/ o picker da atividade. Só pacientes REAIS (mesma regra
+ * da aba Pacientes: `fromScheduledLead=false` OU ≥1 Appointment ATTENDED) — os
+ * provisórios (agendado sem comparecer) aparecem como LEAD, não como paciente.
+ */
 export async function listClinicPatientsForPicker(ctx: ClinicContext) {
   return prisma.patient.findMany({
-    where: { clientId: ctx.clientId, deletedAt: null },
+    where: {
+      clientId: ctx.clientId,
+      deletedAt: null,
+      OR: [
+        { fromScheduledLead: false },
+        { appointments: { some: { status: 'ATTENDED', deletedAt: null } } },
+      ],
+    },
     orderBy: { name: 'asc' },
     take: 500,
     select: { id: true, name: true, phone: true },
