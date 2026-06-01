@@ -11,7 +11,14 @@ export type FullLead = Awaited<ReturnType<typeof findLeadById>>
  * para a barreira de org no nível do repo (SEC-002). A pipeline em si (e as
  * nativas semeadas) é garantida fora daqui — ver pipeline-repository.
  */
-export async function getPipeline(ctx: TenantContext, clientId: string, pipelineId: string) {
+export async function getPipeline(
+  ctx: TenantContext,
+  clientId: string,
+  pipelineId: string,
+  // Item 4: filtro por dono. `null` = ver todos os cards (admin/titular/viewAll);
+  // userId = só os cards desse usuário (Lead.assignedToId).
+  ownerId: string | null = null
+) {
   return prisma.pipelineStage.findMany({
     where: {
       pipelineId,
@@ -29,7 +36,12 @@ export async function getPipeline(ctx: TenantContext, clientId: string, pipeline
       nativeKey: true,
       order: true,
       leads: {
-        where: { organizationId: ctx.organizationId, clientId, deletedAt: null },
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          ...(ownerId ? { assignedToId: ownerId } : {}),
+        },
         orderBy: { position: 'asc' },
         select: {
           id: true,
@@ -107,6 +119,8 @@ export async function createLead(
       estimatedValue,
       notes: data.notes,
       tags: data.tags ?? [],
+      // Item 4: dono = criador por padrão (reatribuível depois).
+      assignedToId: ctx.userId,
       createdById: ctx.userId,
       updatedById: ctx.userId,
     },
@@ -140,6 +154,7 @@ export async function createLeadForPatient(
       source: 'WALK_IN',
       stageId,
       patientId,
+      assignedToId: ctx.userId,
       createdById: ctx.userId,
       updatedById: ctx.userId,
     },
@@ -220,6 +235,19 @@ export async function reorderLead(
   return prisma.lead.updateMany({
     where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     data: { position, updatedById: ctx.userId },
+  })
+}
+
+/** Item 4: reatribui o dono de um lead (assignedToId). clientId no where (belt). */
+export async function reassignLead(
+  ctx: TenantContext,
+  leadId: string,
+  clientId: string,
+  assignedToId: string
+) {
+  return prisma.lead.updateMany({
+    where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+    data: { assignedToId, updatedById: ctx.userId },
   })
 }
 

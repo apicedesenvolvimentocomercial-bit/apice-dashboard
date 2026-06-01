@@ -7,6 +7,7 @@ import { getClinicSchedule } from '@/server/repositories/clinic-schedule-reposit
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { assertCan } from '@/server/auth/assert-can'
+import { resolveOwnerScope } from '@/server/auth/owner-scope'
 
 /** Etapas (+leads) de uma pipeline específica da clínica. */
 export async function getPipelineData(clientId: string, pipelineId: string) {
@@ -14,7 +15,8 @@ export async function getPipelineData(clientId: string, pipelineId: string) {
   await assertClientAccess(ctx, clientId)
   enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'crm', 'read')
-  return getPipeline(ctx, clientId, pipelineId)
+  const ownerId = await resolveOwnerScope(ctx, 'crm')
+  return getPipeline(ctx, clientId, pipelineId, ownerId)
 }
 
 /**
@@ -27,7 +29,8 @@ export async function listClinicPipelines(clientId: string) {
   enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'crm', 'read')
   await ensureNativePipelines(clientId, ctx.organizationId)
-  return listPipelines(ctx, clientId)
+  const ownerId = await resolveOwnerScope(ctx, 'crm')
+  return listPipelines(ctx, clientId, ownerId)
 }
 
 /**
@@ -82,9 +85,16 @@ export async function getClinicPipelinesWithStages(
   enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'crm', 'read')
   await ensureNativePipelines(clientId, ctx.organizationId)
-  const pipelines = await listPipelines(ctx, clientId)
+  const ownerId = await resolveOwnerScope(ctx, 'crm')
+  const pipelines = await listPipelines(ctx, clientId, ownerId)
   const withStages = await Promise.all(
-    pipelines.map(async (p) => ({ ...p, stages: await getPipeline(ctx, clientId, p.id) }))
+    pipelines.map(async (p) => ({
+      ...p,
+      // Retenção = base de pacientes COMPARTILHADA (cards são espelhos de paciente,
+      // criados por cron/manual sem dono natural) — não filtra por dono. Comercial e
+      // pipelines custom filtram (cada um vê seus cards).
+      stages: await getPipeline(ctx, clientId, p.id, p.kind === 'RETENTION' ? null : ownerId),
+    }))
   )
   return withStages
 }

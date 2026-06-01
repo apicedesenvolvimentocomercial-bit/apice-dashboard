@@ -5,6 +5,7 @@ import { listProceduresForSelect } from '@/server/repositories/procedure-reposit
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { assertCan } from '@/server/auth/assert-can'
+import { resolveOwnerScope } from '@/server/auth/owner-scope'
 
 export async function getAppointments(
   clientId: string,
@@ -14,7 +15,8 @@ export async function getAppointments(
   await assertClientAccess(ctx, clientId)
   enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'appointments', 'read')
-  return listAppointments(ctx, clientId, filters)
+  const ownerId = await resolveOwnerScope(ctx, 'appointments')
+  return listAppointments(ctx, clientId, filters, ownerId)
 }
 
 export async function getAppointment(clientId: string, appointmentId: string) {

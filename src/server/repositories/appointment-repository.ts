@@ -9,13 +9,17 @@ export type AppointmentFull = Awaited<ReturnType<typeof findAppointmentById>>
 export async function listAppointments(
   ctx: TenantContext,
   clientId: string,
-  filters?: { from?: Date; to?: Date; status?: AppointmentStatus }
+  filters?: { from?: Date; to?: Date; status?: AppointmentStatus },
+  // Item 4: agenda pessoal. `null` = ver tudo (admin/titular/viewAll); userId =
+  // só os agendamentos desse usuário (Appointment.assignedToId).
+  ownerId: string | null = null
 ) {
   return prisma.appointment.findMany({
     where: {
       organizationId: ctx.organizationId,
       clientId,
       deletedAt: null,
+      ...(ownerId ? { assignedToId: ownerId } : {}),
       ...(filters?.status && { status: filters.status }),
       ...(filters?.from || filters?.to
         ? {
@@ -109,6 +113,8 @@ export async function createAppointment(
       clientId,
       status: 'SCHEDULED',
       createdById: ctx.userId,
+      // Item 4: dono da agenda = criador por padrão (reatribuível).
+      assignedToId: ctx.userId,
     },
   })
 }
