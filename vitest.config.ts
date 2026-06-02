@@ -10,6 +10,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // `server-only` é resolvido pelo Next no build (alias interno); no Vitest o
+      // import bare não existe. Aponta p/ o módulo vazio (noop) que o Next usa na
+      // condição `react-server`, para podermos unit-testar módulos server-only.
+      'server-only': path.resolve(
+        __dirname,
+        'node_modules/next/dist/compiled/server-only/empty.js'
+      ),
     },
   },
 })

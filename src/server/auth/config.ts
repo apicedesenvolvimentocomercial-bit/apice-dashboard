@@ -3,14 +3,14 @@ import type { NextAuthConfig } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { z } from 'zod'
 
+import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
+import { getRequestIp } from '@/lib/request-ip'
 import {
-  clearRateLimit,
-  clientIpFromHeaders,
-  isRateLimited,
-  LOGIN_RATE_LIMIT,
-  registerHit,
-} from '@/server/security/rate-limit'
+  clearLoginFailures,
+  isLoginLocked,
+  recordLoginFailure,
+} from '@/server/security/login-throttle'
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -35,20 +35,15 @@ export const authConfig = {
         const parsed = loginSchema.safeParse(credentials)
         if (!parsed.success) return null
 
-        // Rate-limit de brute-force (SEC-002). Bloqueia por email E por IP; a
-        // resposta de falha é a mesma (null) com ou sem bloqueio → não vaza se o
-        // email existe nem quanto falta. Chaves limpas ao logar com sucesso.
-        const ip = clientIpFromHeaders(request?.headers ?? new Headers())
-        const emailKey = `login:email:${parsed.data.email.toLowerCase()}`
-        const ipKey = `login:ip:${ip}`
-        const [byEmail, byIp] = await Promise.all([isRateLimited(emailKey), isRateLimited(ipKey)])
-        if (byEmail.blocked || byIp.blocked) return null
+        // Rate-limit (seguranca-pendencias #1): chave por email+IP e por IP. O IP
+        // sai dos headers da request (atrás de proxy). `authorize` roda sem escopo
+        // de clínica → o limiter (tabela fora da RLS) é seguro aqui.
+        const ip = request instanceof Request ? getRequestIp(request) : 'unknown'
+        const email = parsed.data.email
 
-        const recordFailure = async () => {
-          await Promise.all([
-            registerHit(emailKey, LOGIN_RATE_LIMIT),
-            registerHit(ipKey, LOGIN_RATE_LIMIT),
-          ])
+        // Lockout ANTES do bcrypt: nem gasta CPU se a janela já estourou.
+        if (await isLoginLocked(email, ip)) {
+          logger.warn('Login bloqueado por rate-limit', { ip })
           return null
         }
 
@@ -70,14 +65,23 @@ export const authConfig = {
           },
         })
 
-        if (!user || !user.isActive || !user.passwordHash) return recordFailure()
+        // Conta como falha tanto email inexistente quanto senha errada — resposta
+        // constante (não enumera usuários).
+        if (!user || !user.isActive || !user.passwordHash) {
+          await recordLoginFailure(email, ip)
+          return null
+        }
 
         const { compare } = await import('bcryptjs')
         const valid = await compare(parsed.data.password, user.passwordHash)
-        if (!valid) return recordFailure()
+        if (!valid) {
+          await recordLoginFailure(email, ip)
+          return null
+        }
 
-        // Sucesso: zera os contadores de tentativa.
-        await clearRateLimit([emailKey, ipKey])
+        // Sucesso → limpa o lockout daquela conta+origem.
+        await clearLoginFailures(email, ip)
+
         await prisma.user.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() },

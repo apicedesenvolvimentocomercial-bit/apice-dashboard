@@ -6,7 +6,9 @@ import { z } from 'zod'
 
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
+import { generateWebhookToken } from '@/lib/webhook-token'
 import { assertCan } from '@/server/auth/assert-can'
+import { getClinicContext } from '@/server/auth/clinic-context'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import { updateOrganization } from '@/server/repositories/organization-repository'
 import { updateClient } from '@/server/repositories/client-repository'
@@ -142,6 +144,61 @@ export async function updateClinicSettingsAction(
 
     revalidatePath('/configuracoes') // dados da clínica vivem no domínio clínica (Fase 7)
     revalidatePath(`/clients/${clientId}/overview`)
+    return null
+  })
+}
+
+/**
+ * Gera/rotaciona o token de webhook POR-CLÍNICA (seguranca-pendencias #2). Só o
+ * TITULAR (coroa) gerencia — é um segredo de integração. Guarda só o sha256 e
+ * retorna o token CRU UMA única vez (depois só o hash existe, irrecuperável).
+ */
+export async function rotateWebhookTokenAction() {
+  return runAction(async () => {
+    const ctx = await getClinicContext()
+    await assertCan(ctx, 'settings', 'write')
+    if (!ctx.isOwner) {
+      throw new ForbiddenError('Apenas o titular da clínica pode gerenciar o webhook')
+    }
+
+    const { token, hash } = generateWebhookToken()
+    await prisma.client.update({
+      where: { id: ctx.clientId },
+      data: { webhookTokenHash: hash },
+    })
+    createAuditLog(ctx, {
+      action: 'update',
+      entityType: 'Client',
+      entityId: ctx.clientId,
+      changes: { webhookToken: 'rotated' },
+    }).catch(() => {})
+
+    revalidatePath('/configuracoes')
+    return { token }
+  })
+}
+
+/** Revoga o token de webhook (desabilita a ingestão por webhook da clínica). */
+export async function revokeWebhookTokenAction() {
+  return runAction(async () => {
+    const ctx = await getClinicContext()
+    await assertCan(ctx, 'settings', 'write')
+    if (!ctx.isOwner) {
+      throw new ForbiddenError('Apenas o titular da clínica pode gerenciar o webhook')
+    }
+
+    await prisma.client.update({
+      where: { id: ctx.clientId },
+      data: { webhookTokenHash: null },
+    })
+    createAuditLog(ctx, {
+      action: 'update',
+      entityType: 'Client',
+      entityId: ctx.clientId,
+      changes: { webhookToken: 'revoked' },
+    }).catch(() => {})
+
+    revalidatePath('/configuracoes')
     return null
   })
 }

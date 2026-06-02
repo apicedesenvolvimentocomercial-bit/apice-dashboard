@@ -311,9 +311,9 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   em "Convenções de código".
 - `fase11-progresso.md` — infra de testes E2E.
 - `auditoria-*.md`, `deploy-checklist.md` — achados de auditoria e checklist de deploy.
-- `seguranca-pendencias.md` — segurança. **Os 2 bloqueadores OBRIGATÓRIOS estão RESOLVIDOS
-  (2026-06-01):** rate-limiting login+webhook (contador Postgres, model `RateLimit`,
-  `src/server/security/rate-limit.ts` — login trava por email+IP, webhook por IP→429) e segredo
-  de webhook **por-clínica** (`Client.webhookTokenHash`, `src/server/services/webhook-auth.ts`:
-  header `x-webhook-token` resolve o `clientId` server-side; `WEBHOOK_SECRET` global removido;
-  titular gera o token em `/configuracoes`). Assinatura por-provider = melhoria futura.
+- `seguranca-pendencias.md` — achados da revisão de segurança. **Os 2 itens obrigatórios
+  estão CONCLUÍDOS (2026-06-01):** rate-limiting (login + webhook) via contador Postgres
+  (`src/server/security/*`, tabela `RateLimit` fora da RLS) e segredo do webhook **por-clínica**
+  (`Client.webhookTokenHash`; o token resolve o `clientId` server-side, o body não decide mais
+  a clínica) + hook `verifyProviderSignature` pronto p/ HMAC quando os adapters reais entrarem.
+  `WEBHOOK_SECRET` global ficou DEPRECADO. Sem bloqueador de segurança pendente aqui.

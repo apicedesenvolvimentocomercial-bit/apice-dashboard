@@ -1,12 +1,13 @@
 import type { Metadata } from 'next'
 
 import { ClinicSettingsForm } from '@/components/clinic/settings/clinic-settings-form'
+import { WebhookTokenCard } from '@/components/clinic/settings/webhook-token-card'
 import { AppearanceForm } from '@/components/shared/settings/appearance-form'
 import { ChangePasswordForm } from '@/components/shared/settings/change-password-form'
 import { ProfileForm } from '@/components/shared/settings/profile-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { env } from '@/lib/env'
 import { ClinicRolesManager } from '@/modules/clinic-roles/clinic-roles-manager'
-import { WebhookSettings } from '@/modules/settings/webhook-settings'
 import { getClinicContext } from '@/server/auth/clinic-context'
 import { parseClinicRolePermissions } from '@/server/auth/clinic-permissions'
 import { findClientById } from '@/server/repositories/client-repository'
@@ -40,23 +41,23 @@ export default async function ClinicSettingsPage() {
     canManageRoles = !!role?.canManageRoles
   }
 
-  const [profile, client, roles, users, viewerLevel, webhookRow] = await Promise.all([
+  // Dados sensíveis da clínica: só o TITULAR edita (Bloco B). O card antes usava
+  // qualquer CLIENT_OWNER; agora reflete a coroa real.
+  const isOwner = ctx.isOwner
+
+  const [profile, client, roles, users, viewerLevel, webhookCfg] = await Promise.all([
     findUserProfileById(ctx.userId),
     findClientById(ctx, ctx.clientId),
     canManageRoles ? listClinicRoles(ctx) : Promise.resolve([]),
     canManageRoles ? listClinicUsers(ctx) : Promise.resolve([]),
     canManageRoles ? resolveClinicActorLevel(ctx) : Promise.resolve(null),
-    ctx.isOwner
+    isOwner
       ? prisma.client.findUnique({
           where: { id: ctx.clientId },
           select: { webhookTokenHash: true },
         })
       : Promise.resolve(null),
   ])
-  const hasWebhookToken = !!webhookRow?.webhookTokenHash
-  // Dados sensíveis da clínica: só o TITULAR edita (Bloco B). O card antes usava
-  // qualquer CLIENT_OWNER; agora reflete a coroa real.
-  const isOwner = ctx.isOwner
 
   const roleItems = roles.map((r) => ({
     id: r.id,
@@ -140,7 +141,12 @@ export default async function ClinicSettingsPage() {
         </Card>
       )}
 
-      {isOwner && <WebhookSettings hasToken={hasWebhookToken} />}
+      {isOwner && (
+        <WebhookTokenCard
+          hasToken={!!webhookCfg?.webhookTokenHash}
+          appUrl={env.NEXT_PUBLIC_APP_URL}
+        />
+      )}
 
       {canManageRoles && (
         <ClinicRolesManager

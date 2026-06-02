@@ -1,110 +1,78 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * Rate-limiting (SEC-002). Prisma mockado por um Map em memória — provamos a lógica
- * de janela/bloqueio sem DB (ambiente é prod; ver ledger).
+ * Lógica do limiter fixed-window (seguranca-pendencias #1). O `prisma` é mockado:
+ * `$queryRaw` devolve o `count`/`expiresAt` que o `INSERT ... ON CONFLICT` retorna,
+ * e validamos a decisão (allowed/retryAfter) + as chaves de peek/reset. Sem DB.
  */
-
-const { store } = vi.hoisted(() => ({ store: new Map<string, Record<string, unknown>>() }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    $queryRaw: vi.fn(),
     rateLimit: {
-      findUnique: vi.fn(
-        async ({ where }: { where: { key: string } }) => store.get(where.key) ?? null
-      ),
-      upsert: vi.fn(
-        async ({
-          where,
-          create,
-          update,
-        }: {
-          where: { key: string }
-          create: Record<string, unknown>
-          update: Record<string, unknown>
-        }) => {
-          const existing = store.get(where.key)
-          const row = existing ? { ...existing, ...update } : { key: where.key, ...create }
-          store.set(where.key, row)
-          return row
-        }
-      ),
-      update: vi.fn(
-        async ({ where, data }: { where: { key: string }; data: Record<string, unknown> }) => {
-          const row = { ...(store.get(where.key) ?? {}), ...data }
-          store.set(where.key, row)
-          return row
-        }
-      ),
-      deleteMany: vi.fn(async ({ where }: { where: { key: { in: string[] } } }) => {
-        let count = 0
-        for (const k of where.key.in) if (store.delete(k)) count++
-        return { count }
-      }),
+      findUnique: vi.fn(),
+      deleteMany: vi.fn(async () => ({ count: 1 })),
     },
   },
 }))
 
-import {
-  clearRateLimit,
-  isRateLimited,
-  registerHit,
-  type RateLimitConfig,
-} from '@/server/security/rate-limit'
+import { prisma } from '@/lib/prisma'
 
-const cfg: RateLimitConfig = { limit: 3, windowMs: 60_000, blockMs: 120_000 }
+import { consumeRateLimit, peekRateLimit, resetRateLimit } from './rate-limit'
 
-beforeEach(() => store.clear())
+const p = prisma as unknown as {
+  $queryRaw: ReturnType<typeof vi.fn>
+  rateLimit: { findUnique: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> }
+}
 
-describe('rate-limit', () => {
-  it('libera hits abaixo do teto', async () => {
-    for (let i = 0; i < cfg.limit; i++) {
-      const r = await registerHit('k', cfg)
-      expect(r.blocked).toBe(false)
-    }
+afterEach(() => vi.clearAllMocks())
+
+describe('consumeRateLimit', () => {
+  it('permite enquanto count <= limit', async () => {
+    p.$queryRaw.mockResolvedValueOnce([{ count: 5, expiresAt: new Date(Date.now() + 60_000) }])
+    const r = await consumeRateLimit('login:ip:1.2.3.4', { limit: 5, windowSec: 60 })
+    expect(r.allowed).toBe(true)
+    expect(r.count).toBe(5)
+    expect(r.retryAfterSec).toBe(0)
   })
 
-  it('bloqueia ao estourar o teto', async () => {
-    for (let i = 0; i < cfg.limit; i++) await registerHit('k', cfg)
-    const r = await registerHit('k', cfg) // limit+1
-    expect(r.blocked).toBe(true)
+  it('bloqueia quando count ultrapassa o limit e devolve retryAfter > 0', async () => {
+    p.$queryRaw.mockResolvedValueOnce([{ count: 6, expiresAt: new Date(Date.now() + 30_000) }])
+    const r = await consumeRateLimit('login:ip:1.2.3.4', { limit: 5, windowSec: 60 })
+    expect(r.allowed).toBe(false)
     expect(r.retryAfterSec).toBeGreaterThan(0)
+    expect(r.retryAfterSec).toBeLessThanOrEqual(30)
+  })
+})
+
+describe('peekRateLimit', () => {
+  it('0 quando a chave não existe', async () => {
+    p.rateLimit.findUnique.mockResolvedValueOnce(null)
+    expect(await peekRateLimit('k')).toBe(0)
   })
 
-  it('isRateLimited enxerga o bloqueio sem contar hit', async () => {
-    for (let i = 0; i <= cfg.limit; i++) await registerHit('k', cfg)
-    const peek = await isRateLimited('k')
-    expect(peek.blocked).toBe(true)
-  })
-
-  it('reinicia a janela quando ela expira', async () => {
-    store.set('k', {
-      key: 'k',
-      count: 99,
-      windowStart: new Date(Date.now() - 10 * 60_000),
-      blockedUntil: null,
+  it('0 quando a janela já expirou', async () => {
+    p.rateLimit.findUnique.mockResolvedValueOnce({
+      count: 9,
+      expiresAt: new Date(Date.now() - 1_000),
     })
-    const r = await registerHit('k', cfg)
-    expect(r.blocked).toBe(false)
-    expect(store.get('k')?.count).toBe(1)
+    expect(await peekRateLimit('k')).toBe(0)
   })
 
-  it('mantém o bloqueio enquanto blockedUntil está no futuro', async () => {
-    store.set('k', {
-      key: 'k',
-      count: 10,
-      windowStart: new Date(),
-      blockedUntil: new Date(Date.now() + 60_000),
+  it('devolve o count quando a janela está ativa', async () => {
+    p.rateLimit.findUnique.mockResolvedValueOnce({
+      count: 4,
+      expiresAt: new Date(Date.now() + 10_000),
     })
-    const r = await registerHit('k', cfg)
-    expect(r.blocked).toBe(true)
+    expect(await peekRateLimit('k')).toBe(4)
   })
+})
 
-  it('clearRateLimit zera os contadores', async () => {
-    await registerHit('a', cfg)
-    await registerHit('b', cfg)
-    await clearRateLimit(['a', 'b'])
-    expect(store.has('a')).toBe(false)
-    expect(store.has('b')).toBe(false)
+describe('resetRateLimit', () => {
+  it('deleta exatamente a chave', async () => {
+    await resetRateLimit('login:email:a@b.com:1.2.3.4')
+    expect(p.rateLimit.deleteMany).toHaveBeenCalledWith({
+      where: { key: 'login:email:a@b.com:1.2.3.4' },
+    })
   })
 })

@@ -44,8 +44,14 @@ const envSchema = z
       z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional()
     ),
 
-    // (Webhook agora usa token POR-CLÍNICA no DB — `Client.webhookTokenHash`. O antigo
-    // `WEBHOOK_SECRET` global foi removido: o body não escolhe mais a clínica.)
+    // DEPRECADO (seguranca-pendencias #2): era o segredo GLOBAL do webhook. Foi
+    // substituído por token POR-CLÍNICA (`Client.webhookTokenHash`), que resolve o
+    // `clientId` server-side. Não é mais lido pelo código; mantido só p/ não quebrar
+    // `.env` legados. Pode remover quando os deploys não tiverem mais a variável.
+    WEBHOOK_SECRET: z.preprocess(
+      (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+      z.string().min(16, 'WEBHOOK_SECRET must be at least 16 characters').optional()
+    ),
 
     NEXT_PUBLIC_SENTRY_DSN: optionalUrl('NEXT_PUBLIC_SENTRY_DSN'),
 

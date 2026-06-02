@@ -1,97 +1,65 @@
+import 'server-only'
+
 import { prisma } from '@/lib/prisma'
 
 /**
- * Rate-limiting de janela fixa em Postgres (model `RateLimit`) — defesa contra
- * brute-force de login e flooding de webhook (SEC-002, ledger seguranca-pendencias.md).
- * Sem infra externa: um contador por `key`. Não é exato sob concorrência alta (read
- * then write), mas rate-limiting tolera folga — o objetivo é barrar abuso, não contar
- * ao milissegundo. Tabela global (sem clientId) → fora da RLS.
+ * Rate-limiting fixed-window persistido no Postgres (seguranca-pendencias #1).
+ * Sem infra externa (Redis/Upstash) — usa a tabela `RateLimit` (sem clientId,
+ * fora da RLS). Usado no login (`authorize`) e no webhook de ingestão de leads.
+ *
+ * `consumeRateLimit` é ATÔMICO (um único `INSERT ... ON CONFLICT`), então conta
+ * certo mesmo sob rajada concorrente — importante p/ não vazar tentativas de
+ * brute-force. A janela reseta sozinha quando `expiresAt` passa.
  */
 
-export type RateLimitConfig = {
-  /** Máximo de hits permitidos dentro da janela. */
-  limit: number
-  /** Duração da janela, em ms. */
-  windowMs: number
-  /** Quanto tempo bloquear após estourar o teto, em ms. */
-  blockMs: number
-}
-
-export type RateLimitState = { blocked: boolean; retryAfterSec: number }
-
-// Login: 8 falhas por 15 min → trava 15 min. Webhook: 60 req/min por IP → trava 5 min.
-export const LOGIN_RATE_LIMIT: RateLimitConfig = {
-  limit: 8,
-  windowMs: 15 * 60 * 1000,
-  blockMs: 15 * 60 * 1000,
-}
-export const WEBHOOK_RATE_LIMIT: RateLimitConfig = {
-  limit: 60,
-  windowMs: 60 * 1000,
-  blockMs: 5 * 60 * 1000,
-}
-
-function secsUntil(when: Date, now: Date): number {
-  return Math.max(1, Math.ceil((when.getTime() - now.getTime()) / 1000))
-}
-
-/** Peek read-only: a chave está bloqueada agora? Não conta hit. */
-export async function isRateLimited(key: string): Promise<RateLimitState> {
-  const now = new Date()
-  const row = await prisma.rateLimit.findUnique({
-    where: { key },
-    select: { blockedUntil: true },
-  })
-  if (row?.blockedUntil && row.blockedUntil > now) {
-    return { blocked: true, retryAfterSec: secsUntil(row.blockedUntil, now) }
-  }
-  return { blocked: false, retryAfterSec: 0 }
+export type RateLimitResult = {
+  allowed: boolean
+  /** Hits na janela atual (incluindo este). */
+  count: number
+  /** Segundos até a janela liberar (0 se ainda permitido). */
+  retryAfterSec: number
 }
 
 /**
- * Conta um hit para `key`. Reinicia a janela se expirou; bloqueia se o teto foi
- * estourado. Se já está bloqueado, mantém o bloqueio sem reabrir a janela.
+ * Registra UM hit em `key` e diz se ainda está dentro do teto. A contagem é
+ * feita e comparada no banco (`now()`), então é robusta a relógio do app.
  */
-export async function registerHit(key: string, cfg: RateLimitConfig): Promise<RateLimitState> {
-  const now = new Date()
+export async function consumeRateLimit(
+  key: string,
+  opts: { limit: number; windowSec: number }
+): Promise<RateLimitResult> {
+  const rows = await prisma.$queryRaw<Array<{ count: number; expiresAt: Date }>>`
+    INSERT INTO "RateLimit" ("key", "count", "expiresAt", "updatedAt")
+    VALUES (${key}, 1, now() + (${opts.windowSec} * interval '1 second'), now())
+    ON CONFLICT ("key") DO UPDATE SET
+      "count" = CASE WHEN "RateLimit"."expiresAt" <= now() THEN 1
+                     ELSE "RateLimit"."count" + 1 END,
+      "expiresAt" = CASE WHEN "RateLimit"."expiresAt" <= now()
+                         THEN now() + (${opts.windowSec} * interval '1 second')
+                         ELSE "RateLimit"."expiresAt" END,
+      "updatedAt" = now()
+    RETURNING "count", "expiresAt"
+  `
+  const row = rows[0]
+  const allowed = row.count <= opts.limit
+  const retryAfterSec = allowed
+    ? 0
+    : Math.max(1, Math.ceil((row.expiresAt.getTime() - Date.now()) / 1000))
+  return { allowed, count: row.count, retryAfterSec }
+}
+
+/**
+ * Lê a contagem da janela atual SEM incrementar. Retorna `0` se não há janela
+ * ativa (chave ausente ou expirada). Usado p/ pré-checar lockout antes de gastar
+ * trabalho caro (ex.: bcrypt no login).
+ */
+export async function peekRateLimit(key: string): Promise<number> {
   const row = await prisma.rateLimit.findUnique({ where: { key } })
-
-  if (row?.blockedUntil && row.blockedUntil > now) {
-    return { blocked: true, retryAfterSec: secsUntil(row.blockedUntil, now) }
-  }
-
-  // Janela inexistente ou expirada → reinicia em 1.
-  if (!row || now.getTime() - row.windowStart.getTime() > cfg.windowMs) {
-    await prisma.rateLimit.upsert({
-      where: { key },
-      create: { key, count: 1, windowStart: now, blockedUntil: null },
-      update: { count: 1, windowStart: now, blockedUntil: null },
-    })
-    return { blocked: false, retryAfterSec: 0 }
-  }
-
-  const count = row.count + 1
-  if (count > cfg.limit) {
-    const blockedUntil = new Date(now.getTime() + cfg.blockMs)
-    await prisma.rateLimit.update({ where: { key }, data: { count, blockedUntil } })
-    return { blocked: true, retryAfterSec: secsUntil(blockedUntil, now) }
-  }
-  await prisma.rateLimit.update({ where: { key }, data: { count } })
-  return { blocked: false, retryAfterSec: 0 }
+  if (!row || row.expiresAt <= new Date()) return 0
+  return row.count
 }
 
-/** Zera os contadores das chaves (ex.: login bem-sucedido limpa email+IP). */
-export async function clearRateLimit(keys: string[]): Promise<void> {
-  if (keys.length === 0) return
-  await prisma.rateLimit.deleteMany({ where: { key: { in: keys } } })
-}
-
-/** Extrai o IP do cliente dos headers de proxy (best-effort). */
-export function clientIpFromHeaders(headers: Headers): string {
-  const xff = headers.get('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first) return first
-  }
-  return headers.get('x-real-ip')?.trim() || 'unknown'
+/** Zera a janela de uma chave (ex.: login bem-sucedido limpa o lockout da conta). */
+export async function resetRateLimit(key: string): Promise<void> {
+  await prisma.rateLimit.deleteMany({ where: { key } })
 }
