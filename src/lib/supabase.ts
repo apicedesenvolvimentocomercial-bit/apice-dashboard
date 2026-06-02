@@ -27,7 +27,18 @@ export function getSupabaseAdmin(): SupabaseClient | null {
     cached = null
     return null
   }
-  cached = createClient(url, key, { auth: { persistSession: false } })
+  // Normaliza p/ a ORIGEM (sem path nem trailing slash). O supabase-js monta a URL
+  // de storage com `new URL('storage/v1', url)` — então QUALQUER path em
+  // NEXT_PUBLIC_SUPABASE_URL (ex.: ".../storage/v1") vira prefixo e a request sai
+  // como ".../storage/v1/storage/v1/object/…", que o storage rejeita com
+  // "Invalid path specified in request URL". Origin-only blinda contra esse erro.
+  let origin = url
+  try {
+    origin = new URL(url).origin
+  } catch {
+    /* env já validado como URL; fallback defensivo */
+  }
+  cached = createClient(origin, key, { auth: { persistSession: false } })
   return cached
 }
 
