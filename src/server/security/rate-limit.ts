@@ -63,3 +63,38 @@ export async function peekRateLimit(key: string): Promise<number> {
 export async function resetRateLimit(key: string): Promise<void> {
   await prisma.rateLimit.deleteMany({ where: { key } })
 }
+
+/**
+ * Estado da janela: `count` (0 se ausente/expirada) e `remainingSec` (segundos até
+ * `expiresAt`). Usado p/ lockouts com tempo restante (ex.: aviso de cooldown no login).
+ */
+export async function getRateLimitState(
+  key: string
+): Promise<{ count: number; remainingSec: number }> {
+  const row = await prisma.rateLimit.findUnique({ where: { key } })
+  if (!row || row.expiresAt <= new Date()) return { count: 0, remainingSec: 0 }
+  return {
+    count: row.count,
+    remainingSec: Math.max(1, Math.ceil((row.expiresAt.getTime() - Date.now()) / 1000)),
+  }
+}
+
+/**
+ * Grava um bloqueio EXPLÍCITO em `key`: `count` (ex.: nº do strike) + `expiresAt` =
+ * now + `seconds`. Diferente de `consumeRateLimit` (janela fixa), aqui a duração é
+ * escolhida pelo caller — base p/ cooldown PROGRESSIVO. Atômico (`ON CONFLICT`).
+ */
+export async function setRateLimitBlock(
+  key: string,
+  count: number,
+  seconds: number
+): Promise<void> {
+  await prisma.$executeRaw`
+    INSERT INTO "RateLimit" ("key", "count", "expiresAt", "updatedAt")
+    VALUES (${key}, ${count}, now() + (${seconds} * interval '1 second'), now())
+    ON CONFLICT ("key") DO UPDATE SET
+      "count" = ${count},
+      "expiresAt" = now() + (${seconds} * interval '1 second'),
+      "updatedAt" = now()
+  `
+}
