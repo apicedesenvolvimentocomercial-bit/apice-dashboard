@@ -1,6 +1,6 @@
 'use server'
 
-import { getDreReport } from '@/server/queries/dre-queries'
+import { getConsolidatedDreReport, getDreReport } from '@/server/queries/dre-queries'
 import type { Period } from '@/server/services/kpi/types'
 import { runAction } from '@/types/errors'
 
@@ -13,4 +13,16 @@ export async function getDreReportAction(
   opts: { period?: Period; from?: string; to?: string }
 ) {
   return runAction(() => getDreReport(clientId, opts))
+}
+
+/**
+ * DRE consolidada do admin (cross-clínica). Gate de domínio agência + financial:read
+ * vivem em `getConsolidatedDreReport`.
+ */
+export async function getConsolidatedDreReportAction(opts: {
+  period?: Period
+  from?: string
+  to?: string
+}) {
+  return runAction(() => getConsolidatedDreReport(opts))
 }

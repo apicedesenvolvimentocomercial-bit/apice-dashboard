@@ -877,6 +877,9 @@ model Receivable {
   status            ReceivableStatus @default(PENDENTE)
   paidAt            DateTime?
   paymentMethod     String?
+  // Data da baixa por perda (write-off). Setada ao virar PERDIDO, limpa ao reverter.
+  // A DRE usa este campo (não `updatedAt`) p/ atribuir a inadimplência ao período.
+  writtenOffAt      DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

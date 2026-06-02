@@ -44,14 +44,14 @@ export async function buildDreInput(
         },
         _sum: { amount: true },
       }),
-      // Inadimplência: parcelas baixadas como perda (write-off). `updatedAt` é o
-      // proxy da data da baixa (não há campo dedicado — MVP).
+      // Inadimplência: parcelas baixadas como perda (write-off), atribuídas ao
+      // período pela data dedicada da baixa (`writtenOffAt`).
       prisma.receivable.aggregate({
         where: {
           organizationId: ctx.organizationId,
           clientId,
           status: 'PERDIDO',
-          updatedAt: inRange,
+          writtenOffAt: inRange,
         },
         _sum: { amount: true },
       }),

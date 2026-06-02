@@ -74,6 +74,23 @@
       Admin (`clients/[id]/financial`) reusa `FinancialTabs` → ganha tudo.
 - [x] **E — validação** ✅ type-check · lint (0 erros) · vitest **151** · build · rls:check:ext · migrate:test+backfill no Neon.
 
-DRE automática (fase 2) COMPLETA. Pendências menores conhecidas: editar receita não regenera
-parcelas (recriar a venda); inadimplência usa `updatedAt` da parcela PERDIDO como data da baixa
-(sem campo dedicado); DRE consolidada cross-clínica do admin fica para depois.
+DRE automática (fase 2) COMPLETA.
+
+## Polish (2026-06-01) — 3 pendências menores RESOLVIDAS
+
+- **Editar receita regenera parcelas** ✅ — `updateRevenue` agora, quando muda valor/parcelas/
+  forma/data (`scheduleChanged`), regenera as parcelas EM ABERTO via `regenerateReceivables`
+  (revenue-repository): preserva PAGO/PERDIDO (caixa/perda já reconhecidos), reparcela o restante
+  (`líquido − pago − perdido`), e recomputa o status da venda (QUITADA/ABERTA). Não toca venda
+  CANCELADA. Edição que não afeta cronograma segue update escalar simples.
+- **Inadimplência com data dedicada** ✅ — `Receivable.writtenOffAt` (migration
+  `20260601110000_security_rate_limit_webhook_token`). `setReceivableStatus` seta ao virar
+  PERDIDO, limpa ao reverter; `build-dre-input` atribui a inadimplência ao período por
+  `writtenOffAt` (não mais `updatedAt`).
+- **DRE consolidada cross-clínica do admin** ✅ — `getConsolidatedDreReport` (dre-queries): soma
+  os inputs de todas as clínicas da org (calcularDRE é LINEAR → somar inputs = somar saídas, com
+  margens corretas sobre o total; o imposto sobre lucro já vem por-regime de cada clínica) + breakdown
+  por clínica. Gate de domínio agência (ADMIN/STAFF) + financial:read. UI: seção "DRE Consolidada"
+  no Dashboard admin (`modules/financial/consolidated-dre.tsx`, render reusa `dre-report-table.tsx`).
+
+Validação: type-check · lint 0 erros · vitest 163 · build · rls:check:ext, migration no Neon.
