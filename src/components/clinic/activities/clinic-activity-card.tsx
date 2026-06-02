@@ -6,6 +6,7 @@ import {
   Check,
   CheckSquare,
   Mail,
+  MessageSquare,
   MoreHorizontal,
   Phone,
   Play,
@@ -33,7 +34,11 @@ import {
   updateClinicActivityStatusAction,
 } from '@/domains/clinic/activities/activity-actions'
 import { cn } from '@/lib/utils'
-import { PRIORITY_LABEL, TYPE_LABEL, type ActivityView } from '@/components/shared/activities/types'
+import {
+  PRIORITY_LABEL,
+  activityTypeLabel,
+  type ActivityView,
+} from '@/components/shared/activities/types'
 
 /**
  * Card de atividade do DOMÍNIO CLÍNICA. Espelha o design do admin
@@ -54,6 +59,7 @@ const TYPE_ICON: Record<ActivityView['type'], LucideIcon> = {
   CALL: Phone,
   EMAIL: Mail,
   NOTE: StickyNote,
+  MESSAGE: MessageSquare,
 }
 
 const PRIORITY_BORDER: Record<ActivityView['priority'], string> = {
@@ -201,7 +207,7 @@ export function ClinicActivityCard({ activity, ownerColor, ownerLabel, isNewForV
             </span>
           )}
           <span className="inline-flex items-center gap-1">
-            <TypeIcon className="h-3.5 w-3.5" /> {TYPE_LABEL[activity.type]}
+            <TypeIcon className="h-3.5 w-3.5" /> {activityTypeLabel(activity)}
           </span>
           {activity.target && (
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 font-medium text-primary">

@@ -278,6 +278,7 @@ model Client {
   documents           Document[]
   receivables         Receivable[]
   fixedAssets         FixedAsset[]
+  activityTypes       ClinicActivityType[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -1059,6 +1060,24 @@ enum ActivityType {
   CALL
   EMAIL
   NOTE
+  MESSAGE
+}
+
+// Tipo de atividade PERSONALIZADO por clínica (além do enum nativo acima). O
+// `Activity.customTypeId` aponta p/ aqui quando a clínica escolhe um tipo próprio;
+// nesse caso `Activity.type` fica em TASK (bucket genérico, sem integração especial)
+// e a UI mostra o `label`. Built-ins (enum) mantêm suas integrações intactas.
+model ClinicActivityType {
+  id             String     @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  label          String
+  createdAt      DateTime   @default(now())
+  activities     Activity[]
+
+  @@unique([clientId, label])
+  @@index([clientId])
 }
 
 enum ActivityStatus {
@@ -1087,6 +1106,10 @@ model Activity {
   title       String
   description String?          @db.Text
   type        ActivityType
+  // Tipo personalizado da clínica (opcional). Quando setado, a UI mostra o label
+  // dele; `type` fica em TASK. Built-ins (enum) não usam este campo.
+  customTypeId String?
+  customType   ClinicActivityType? @relation(fields: [customTypeId], references: [id], onDelete: SetNull)
   status      ActivityStatus   @default(PENDING)
   priority    ActivityPriority @default(MEDIUM)
   dueDate     DateTime?

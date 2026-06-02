@@ -18,6 +18,9 @@ export type ActivityView = {
   // Alvo da atividade (item 1) — lead/paciente. Só em atividades de clínica;
   // atividade de agência (admin) é null.
   target?: { type: 'lead' | 'patient'; id: string; name: string } | null
+  // Label do tipo PERSONALIZADO da clínica (quando há). Tem precedência sobre o
+  // label nativo do enum na exibição (ver activityTypeLabel).
+  customTypeLabel?: string | null
 }
 
 export const TYPE_LABEL: Record<ActivityType, string> = {
@@ -26,6 +29,15 @@ export const TYPE_LABEL: Record<ActivityType, string> = {
   CALL: 'Ligação',
   EMAIL: 'E-mail',
   NOTE: 'Nota',
+  MESSAGE: 'Mensagem',
+}
+
+/** Label de exibição do tipo: o personalizado da clínica vence o nativo. */
+export function activityTypeLabel(a: {
+  type: ActivityType
+  customTypeLabel?: string | null
+}): string {
+  return a.customTypeLabel?.trim() || TYPE_LABEL[a.type]
 }
 
 export const STATUS_LABEL: Record<ActivityStatus, string> = {

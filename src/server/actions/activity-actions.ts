@@ -26,7 +26,7 @@ import {
 } from '@/server/repositories/calendar-event-repository'
 import { dispatchNotification } from '@/server/services/notification-service'
 
-const TYPES = ['TASK', 'MEETING', 'CALL', 'EMAIL', 'NOTE'] as const
+const TYPES = ['TASK', 'MEETING', 'CALL', 'EMAIL', 'NOTE', 'MESSAGE'] as const
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as const
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const
 

@@ -89,6 +89,7 @@ const ACTIVITY_INCLUDE = {
   createdBy: { select: { id: true, name: true } },
   lead: { select: { id: true, name: true } },
   patient: { select: { id: true, name: true } },
+  customType: { select: { id: true, label: true } },
 } as const
 
 export async function listClinicActivities(
@@ -129,6 +130,7 @@ export async function createClinicActivity(
     title: string
     description?: string
     type: ActivityType
+    customTypeId?: string | null
     status?: ActivityStatus
     priority?: ActivityPriority
     dueDate?: Date | null
@@ -148,6 +150,7 @@ export async function createClinicActivity(
       title: data.title,
       description: data.description,
       type: data.type,
+      customTypeId: data.customTypeId ?? null,
       status: data.status ?? 'PENDING',
       priority: data.priority ?? 'MEDIUM',
       dueDate: data.dueDate ?? null,
@@ -167,6 +170,7 @@ export async function updateClinicActivity(
     title: string
     description: string
     type: ActivityType
+    customTypeId: string | null
     status: ActivityStatus
     priority: ActivityPriority
     dueDate: Date | null
@@ -258,6 +262,39 @@ export async function listClinicBroadcastTargets(ctx: ClinicContext) {
       deletedAt: null,
     },
     select: { id: true, email: true, name: true },
+  })
+}
+
+// --- Tipos de atividade PERSONALIZADOS por clínica ---
+// Escopados por clientId (belt) + RLS (getClinicContext entra escopo).
+
+export async function listClinicActivityTypes(ctx: ClinicContext) {
+  return prisma.clinicActivityType.findMany({
+    where: { clientId: ctx.clientId, organizationId: ctx.organizationId },
+    orderBy: { label: 'asc' },
+    select: { id: true, label: true },
+  })
+}
+
+export async function findClinicActivityType(ctx: ClinicContext, id: string) {
+  return prisma.clinicActivityType.findFirst({
+    where: { id, clientId: ctx.clientId, organizationId: ctx.organizationId },
+    select: { id: true, label: true },
+  })
+}
+
+export async function createClinicActivityType(ctx: ClinicContext, label: string) {
+  return prisma.clinicActivityType.create({
+    data: { organizationId: ctx.organizationId, clientId: ctx.clientId, label },
+    select: { id: true, label: true },
+  })
+}
+
+export async function deleteClinicActivityType(ctx: ClinicContext, id: string) {
+  // Belt: clientId no where. Activity.customTypeId é SetNull → atividades existentes
+  // viram tipo nativo (TASK) sem quebrar.
+  return prisma.clinicActivityType.deleteMany({
+    where: { id, clientId: ctx.clientId, organizationId: ctx.organizationId },
   })
 }
 

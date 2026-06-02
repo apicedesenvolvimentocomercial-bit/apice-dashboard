@@ -2,7 +2,7 @@
 
 import { Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -24,7 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createClinicActivityAction } from '@/domains/clinic/activities/activity-actions'
+import {
+  createClinicActivityAction,
+  createClinicActivityTypeAction,
+  listClinicActivityTypesAction,
+} from '@/domains/clinic/activities/activity-actions'
 import { PRIORITY_LABEL, TYPE_LABEL } from '@/components/shared/activities/types'
 
 import { ActivityTargetPicker, type ActivityTarget } from './activity-target-picker'
@@ -69,7 +73,11 @@ export function ClinicCreateActivityDialog({
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [type, setType] = useState<keyof typeof TYPE_LABEL>('TASK')
+  // typeValue é um tipo nativo (chave do enum) OU `custom:<id>` p/ tipo da clínica.
+  const [typeValue, setTypeValue] = useState<string>('TASK')
+  const [customTypes, setCustomTypes] = useState<{ id: string; label: string }[]>([])
+  const [newType, setNewType] = useState('')
+  const [addingType, setAddingType] = useState(false)
   const [priority, setPriority] = useState<keyof typeof PRIORITY_LABEL>('MEDIUM')
   const [dueDate, setDueDate] = useState('')
   const [dueTime, setDueTime] = useState('')
@@ -77,10 +85,34 @@ export function ClinicCreateActivityDialog({
   const [addToCalendar, setAddToCalendar] = useState(false)
   const [target, setTarget] = useState<ActivityTarget | null>(presetTarget ?? null)
 
+  // Carrega os tipos personalizados da clínica ao abrir.
+  useEffect(() => {
+    if (!open) return
+    listClinicActivityTypesAction().then((res) => {
+      if (res.success) setCustomTypes(res.data)
+    })
+  }, [open])
+
+  async function addCustomType() {
+    const label = newType.trim()
+    if (label.length < 2) return
+    setAddingType(true)
+    const res = await createClinicActivityTypeAction(label)
+    setAddingType(false)
+    if (!res.success) {
+      toast.error(res.error.message)
+      return
+    }
+    setCustomTypes((prev) => (prev.some((t) => t.id === res.data.id) ? prev : [...prev, res.data]))
+    setTypeValue(`custom:${res.data.id}`)
+    setNewType('')
+  }
+
   function reset() {
     setTitle('')
     setDescription('')
-    setType('TASK')
+    setTypeValue('TASK')
+    setNewType('')
     setPriority('MEDIUM')
     setDueDate('')
     setDueTime('')
@@ -95,11 +127,13 @@ export function ClinicCreateActivityDialog({
       toast.error('Selecione o lead ou paciente da atividade')
       return
     }
+    const isCustom = typeValue.startsWith('custom:')
     startTransition(async () => {
       const res = await createClinicActivityAction({
         title,
         description: description || undefined,
-        type,
+        type: isCustom ? 'TASK' : typeValue,
+        customTypeId: isCustom ? typeValue.slice('custom:'.length) : null,
         priority,
         dueDate: dueDate || null,
         dueTime: dueTime || null,
@@ -171,7 +205,7 @@ export function ClinicCreateActivityDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Tipo</Label>
-              <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
+              <Select value={typeValue} onValueChange={setTypeValue}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -181,8 +215,39 @@ export function ClinicCreateActivityDialog({
                       {v}
                     </SelectItem>
                   ))}
+                  {customTypes.length > 0 && <div className="my-1 border-t border-border" />}
+                  {customTypes.map((t) => (
+                    <SelectItem key={t.id} value={`custom:${t.id}`}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {/* Inline: criar tipo personalizado da clínica */}
+              <div className="flex items-center gap-1.5 pt-1">
+                <Input
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value)}
+                  placeholder="Novo tipo…"
+                  className="h-8 text-xs"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void addCustomType()
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0"
+                  onClick={() => void addCustomType()}
+                  disabled={addingType || newType.trim().length < 2}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Prioridade</Label>
