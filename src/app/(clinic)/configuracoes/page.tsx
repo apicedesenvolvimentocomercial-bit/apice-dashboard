@@ -134,6 +134,7 @@ export default async function ClinicSettingsPage() {
                 city: client.city,
                 state: client.state,
                 notes: client.notes,
+                taxRegime: client.taxRegime,
               }}
             />
           </CardContent>

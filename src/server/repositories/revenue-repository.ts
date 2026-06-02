@@ -1,3 +1,6 @@
+import { Prisma, type RevenueType } from '@prisma/client'
+import { addMonths } from 'date-fns'
+
 import { prisma } from '@/lib/prisma'
 import { monthKey, shortMonthLabel, spDate } from '@/lib/date'
 import type { TenantContext } from '@/server/tenant/context'
@@ -41,6 +44,8 @@ export async function listRevenues(
       description: true,
       paymentMethod: true,
       installments: true,
+      status: true,
+      type: true,
       createdAt: true,
       patient: { select: { id: true, name: true } },
       procedure: { select: { id: true, name: true } },
@@ -73,7 +78,103 @@ export type RevenueProcedureInput = {
   cost: number
 }
 
-const PROCEDURE_COST_CATEGORY = 'Procedimento'
+export const PROCEDURE_COST_CATEGORY = 'Procedimento'
+
+// Métodos "à vista": a parcela única já nasce PAGA na data (entrou no caixa). Os
+// demais (crédito/transferência/sem método) nascem PENDENTE (a receber).
+const CASH_METHODS = new Set(['CASH', 'PIX', 'DEBIT_CARD'])
+
+// Divide um total em N parcelas iguais em centavos; o resto vai nas primeiras.
+function splitAmount(total: number, n: number): number[] {
+  const cents = Math.round(total * 100)
+  const base = Math.floor(cents / n)
+  const rem = cents - base * n
+  return Array.from({ length: n }, (_, i) => (base + (i < rem ? 1 : 0)) / 100)
+}
+
+// Monta as parcelas (contas a receber) de uma receita + o status resultante da
+// venda. À vista 1x → 1 parcela PAGA na data (QUITADA). Parcelado/prazo → N
+// parcelas PENDENTE, vencendo mês a mês a partir da data (ABERTA).
+function buildReceivables(opts: {
+  amount: number
+  installments?: number
+  date: Date
+  paymentMethod?: string
+}): {
+  rows: {
+    installmentNumber: number
+    amount: number
+    dueDate: Date
+    status: 'PENDENTE' | 'PAGO'
+    paidAt: Date | null
+    paymentMethod: string | null
+  }[]
+  status: 'ABERTA' | 'QUITADA'
+} {
+  const n = Math.max(1, opts.installments ?? 1)
+  const parts = splitAmount(opts.amount, n)
+  const paidUpfront = n === 1 && !!opts.paymentMethod && CASH_METHODS.has(opts.paymentMethod)
+  const rows = parts.map((amt, i) => ({
+    installmentNumber: i + 1,
+    amount: amt,
+    dueDate: addMonths(opts.date, i),
+    status: (paidUpfront ? 'PAGO' : 'PENDENTE') as 'PENDENTE' | 'PAGO',
+    paidAt: paidUpfront ? opts.date : null,
+    paymentMethod: opts.paymentMethod ?? null,
+  }))
+  return { rows, status: rows.every((r) => r.status === 'PAGO') ? 'QUITADA' : 'ABERTA' }
+}
+
+/**
+ * `data` de `revenue.create` para receita reconhecida e QUITADA na hora — usado nas
+ * baixas automáticas (comparecer/fechar card/converter lead): bruto = líquido, sem
+ * desconto, 1 parcela PAGA na data (mantém o caixa coerente). Use dentro de uma op
+ * já no escopo da clínica (RLS). Inclui FK escalares + nested write das parcelas.
+ */
+export function buildPaidRevenueData(opts: {
+  organizationId: string
+  clientId: string
+  amount: Prisma.Decimal | number
+  date: Date
+  type?: RevenueType
+  patientId?: string
+  procedureId?: string
+  appointmentId?: string
+  description?: string
+  paymentMethod?: string
+  createdById?: string
+}): Prisma.RevenueUncheckedCreateInput {
+  return {
+    organizationId: opts.organizationId,
+    clientId: opts.clientId,
+    type: opts.type ?? 'PROCEDIMENTO',
+    grossAmount: opts.amount,
+    discount: 0,
+    amount: opts.amount,
+    status: 'QUITADA',
+    date: opts.date,
+    ...(opts.patientId ? { patientId: opts.patientId } : {}),
+    ...(opts.procedureId ? { procedureId: opts.procedureId } : {}),
+    ...(opts.appointmentId ? { appointmentId: opts.appointmentId } : {}),
+    ...(opts.description ? { description: opts.description } : {}),
+    ...(opts.paymentMethod ? { paymentMethod: opts.paymentMethod } : {}),
+    ...(opts.createdById ? { createdById: opts.createdById } : {}),
+    receivables: {
+      create: [
+        {
+          organizationId: opts.organizationId,
+          clientId: opts.clientId,
+          installmentNumber: 1,
+          amount: opts.amount,
+          dueDate: opts.date,
+          status: 'PAGO',
+          paidAt: opts.date,
+          paymentMethod: opts.paymentMethod ?? null,
+        },
+      ],
+    },
+  }
+}
 
 // Monta as linhas de Cost (uma por procedimento). Custo nunca é parcelado.
 function buildProcedureCostRows(
@@ -103,7 +204,13 @@ export async function createRevenue(
   ctx: TenantContext,
   clientId: string,
   data: {
+    // Competência: `grossAmount` = bruto faturado; `discount` = desconto (R$);
+    // `amount` = líquido reconhecido (já calculado pela action). As parcelas são
+    // geradas a partir de `amount` + `installments` + `paymentMethod`.
+    grossAmount: number
+    discount?: number
     amount: number
+    type?: RevenueType
     date: Date
     description?: string
     paymentMethod?: string
@@ -116,13 +223,23 @@ export async function createRevenue(
   const procedures = data.procedures ?? []
   // procedureId scalar = primeiro procedimento (mantém compat com filtros/relatórios).
   const primaryProcedureId = data.procedureId ?? procedures[0]?.procedureId
+  const { rows: receivables, status } = buildReceivables({
+    amount: data.amount,
+    installments: data.installments,
+    date: data.date,
+    paymentMethod: data.paymentMethod,
+  })
 
   return scopedTransaction(async (tx) => {
     const revenue = await tx.revenue.create({
       data: {
         organizationId: ctx.organizationId,
         clientId,
+        type: data.type ?? 'OUTRA',
+        grossAmount: data.grossAmount,
+        discount: data.discount ?? 0,
         amount: data.amount,
+        status,
         date: data.date,
         description: data.description,
         paymentMethod: data.paymentMethod,
@@ -136,6 +253,18 @@ export async function createRevenue(
             procedureId: p.procedureId,
             price: p.price,
             cost: p.cost,
+          })),
+        },
+        receivables: {
+          create: receivables.map((r) => ({
+            organizationId: ctx.organizationId,
+            clientId,
+            installmentNumber: r.installmentNumber,
+            amount: r.amount,
+            dueDate: r.dueDate,
+            status: r.status,
+            paidAt: r.paidAt,
+            paymentMethod: r.paymentMethod,
           })),
         },
       },
@@ -164,19 +293,55 @@ export async function createRevenuesBulk(
   }[]
 ): Promise<{ count: number }> {
   if (rows.length === 0) return { count: 0 }
-  return prisma.revenue.createMany({
-    data: rows.map((r) => ({
-      organizationId: ctx.organizationId,
-      clientId,
-      amount: r.amount,
-      date: r.date,
-      description: r.description,
-      paymentMethod: r.paymentMethod,
-      installments: r.installments ?? 1,
-      patientId: r.patientId,
-      procedureId: r.procedureId,
-      createdById: ctx.userId,
-    })),
+  // Import = receita histórica já RECEBIDA: grava QUITADA (bruto = líquido, sem
+  // desconto) e gera 1 parcela PAGA por receita p/ o caixa bater. Em transação
+  // escopada (RLS). createMany não retorna ids → buscamos as recém-criadas pelo
+  // filtro "sem parcela" (o backfill usa o mesmo critério; é self-healing).
+  return scopedTransaction(async (tx) => {
+    const created = await tx.revenue.createMany({
+      data: rows.map((r) => ({
+        organizationId: ctx.organizationId,
+        clientId,
+        type: r.procedureId ? ('PROCEDIMENTO' as const) : ('OUTRA' as const),
+        grossAmount: r.amount,
+        discount: 0,
+        amount: r.amount,
+        status: 'QUITADA' as const,
+        date: r.date,
+        description: r.description,
+        paymentMethod: r.paymentMethod,
+        installments: r.installments ?? 1,
+        patientId: r.patientId,
+        procedureId: r.procedureId,
+        createdById: ctx.userId,
+      })),
+    })
+
+    const unbilled = await tx.revenue.findMany({
+      where: {
+        organizationId: ctx.organizationId,
+        clientId,
+        deletedAt: null,
+        receivables: { none: {} },
+      },
+      select: { id: true, amount: true, date: true, paymentMethod: true },
+    })
+    if (unbilled.length > 0) {
+      await tx.receivable.createMany({
+        data: unbilled.map((r) => ({
+          organizationId: ctx.organizationId,
+          clientId,
+          revenueId: r.id,
+          installmentNumber: 1,
+          amount: r.amount,
+          dueDate: r.date,
+          status: 'PAGO' as const,
+          paidAt: r.date,
+          paymentMethod: r.paymentMethod,
+        })),
+      })
+    }
+    return created
   })
 }
 
@@ -185,7 +350,10 @@ export async function updateRevenue(
   revenueId: string,
   clientId: string,
   data: Partial<{
+    grossAmount: number
+    discount: number
     amount: number
+    type: RevenueType
     date: Date
     description: string
     paymentMethod: string
@@ -195,6 +363,9 @@ export async function updateRevenue(
   }>,
   procedures?: RevenueProcedureInput[]
 ) {
+  // NOTA (MVP): editar uma receita NÃO regenera as parcelas (evita clobber de
+  // parcela já paga). Mudar valor/parcelamento de uma venda parcelada exige
+  // recriar a receita. Cobrir em iteração futura se necessário.
   // Sem mudança de procedimentos: update simples dos campos escalares.
   // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.
   if (!procedures) {
@@ -244,6 +415,32 @@ export async function updateRevenue(
   })
 }
 
+/**
+ * Cancela uma venda (competência): status CANCELADA + canceledAt → vira dedução
+ * `cancelamentos` no período do cancelamento; as parcelas PENDENTE viram CANCELADO
+ * (saem do "a receber"). Belt: clientId no where. Não mexe em parcela já paga.
+ */
+export async function cancelRevenue(
+  ctx: TenantContext,
+  revenueId: string,
+  clientId: string,
+  reason?: string
+) {
+  const now = new Date()
+  return scopedTransaction(async (tx) => {
+    const result = await tx.revenue.updateMany({
+      where: { id: revenueId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+      data: { status: 'CANCELADA', canceledAt: now, cancelReason: reason ?? null },
+    })
+    if (result.count === 0) return result
+    await tx.receivable.updateMany({
+      where: { revenueId, clientId, status: 'PENDENTE' },
+      data: { status: 'CANCELADO' },
+    })
+    return result
+  })
+}
+
 export async function softDeleteRevenue(ctx: TenantContext, revenueId: string, clientId: string) {
   const now = new Date()
   return scopedTransaction(async (tx) => {
@@ -276,7 +473,13 @@ export async function getMonthlyRevenueCostData(
 
   const [revenues, costs] = await Promise.all([
     prisma.revenue.findMany({
-      where: { organizationId: ctx.organizationId, clientId, deletedAt: null, date: { gte: from } },
+      where: {
+        organizationId: ctx.organizationId,
+        clientId,
+        deletedAt: null,
+        status: { not: 'CANCELADA' },
+        date: { gte: from },
+      },
       select: { amount: true, date: true },
     }),
     prisma.cost.findMany({
@@ -322,6 +525,7 @@ export async function getTopProceduresByRevenue(
       organizationId: ctx.organizationId,
       clientId,
       deletedAt: null,
+      status: { not: 'CANCELADA' },
       procedureId: { not: null },
       ...(options?.from || options?.to
         ? {
@@ -400,45 +604,59 @@ export async function getFinancialSummary(ctx: TenantContext, clientId: string) 
   const startOfLastMonth = spDate(year, month0 - 1, 1)
   const endOfLastMonth = new Date(startOfMonth.getTime() - 1)
 
-  const [curRevenues, curCosts, prevRevenues, prevCosts] = await Promise.all([
-    prisma.revenue.aggregate({
-      where: {
-        organizationId: ctx.organizationId,
-        clientId,
-        deletedAt: null,
-        date: { gte: startOfMonth },
-      },
-      _sum: { amount: true },
-      _count: true,
-    }),
-    prisma.cost.aggregate({
-      where: {
-        organizationId: ctx.organizationId,
-        clientId,
-        deletedAt: null,
-        date: { gte: startOfMonth },
-      },
-      _sum: { amount: true },
-    }),
-    prisma.revenue.aggregate({
-      where: {
-        organizationId: ctx.organizationId,
-        clientId,
-        deletedAt: null,
-        date: { gte: startOfLastMonth, lte: endOfLastMonth },
-      },
-      _sum: { amount: true },
-    }),
-    prisma.cost.aggregate({
-      where: {
-        organizationId: ctx.organizationId,
-        clientId,
-        deletedAt: null,
-        date: { gte: startOfLastMonth, lte: endOfLastMonth },
-      },
-      _sum: { amount: true },
-    }),
-  ])
+  const revTenant = {
+    organizationId: ctx.organizationId,
+    clientId,
+    deletedAt: null,
+    status: { not: 'CANCELADA' as const }, // competência: exclui vendas canceladas
+  }
+  const recvTenant = { organizationId: ctx.organizationId, clientId }
+
+  const [curRevenues, curCosts, prevRevenues, prevCosts, cashReceived, receivableOpen, overdue] =
+    await Promise.all([
+      prisma.revenue.aggregate({
+        where: { ...revTenant, date: { gte: startOfMonth } },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.cost.aggregate({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          date: { gte: startOfMonth },
+        },
+        _sum: { amount: true },
+      }),
+      prisma.revenue.aggregate({
+        where: { ...revTenant, date: { gte: startOfLastMonth, lte: endOfLastMonth } },
+        _sum: { amount: true },
+      }),
+      prisma.cost.aggregate({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          date: { gte: startOfLastMonth, lte: endOfLastMonth },
+        },
+        _sum: { amount: true },
+      }),
+      // Bloco de CAIXA: recebido no mês (parcelas pagas por paidAt).
+      prisma.receivable.aggregate({
+        where: { ...recvTenant, status: 'PAGO', paidAt: { gte: startOfMonth } },
+        _sum: { amount: true },
+      }),
+      // A receber (parcelas pendentes, total em aberto).
+      prisma.receivable.aggregate({
+        where: { ...recvTenant, status: 'PENDENTE' },
+        _sum: { amount: true },
+      }),
+      // Vencido (pendentes com vencimento no passado).
+      prisma.receivable.aggregate({
+        where: { ...recvTenant, status: 'PENDENTE', dueDate: { lt: now } },
+        _sum: { amount: true },
+      }),
+    ])
 
   const curRev = Number(curRevenues._sum.amount ?? 0)
   const curCost = Number(curCosts._sum.amount ?? 0)
@@ -459,5 +677,12 @@ export async function getFinancialSummary(ctx: TenantContext, clientId: string) 
       count: curRevenues._count,
     },
     previous: { revenue: prevRev, costs: prevCost, profit: prevProfit, margin: prevMargin },
+    // Bloco de CAIXA (competência convive com liquidez — ledger dre-progresso.md):
+    // recebido no mês, total a receber e o que está vencido.
+    cash: {
+      received: Number(cashReceived._sum.amount ?? 0),
+      receivable: Number(receivableOpen._sum.amount ?? 0),
+      overdue: Number(overdue._sum.amount ?? 0),
+    },
   }
 }

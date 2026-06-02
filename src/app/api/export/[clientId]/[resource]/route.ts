@@ -48,7 +48,12 @@ const COST_TYPE_LABELS: Record<string, string> = {
   VARIABLE: 'Variável',
   MARKETING: 'Marketing',
   PAYROLL: 'Folha',
-  TAX: 'Imposto',
+  TAX_REVENUE: 'Imposto s/ receita',
+  TAX_PROFIT: 'Imposto s/ lucro',
+  COMMISSION: 'Comissão',
+  COMMERCIAL: 'Despesa comercial',
+  ADMINISTRATIVE: 'Despesa administrativa',
+  FINANCIAL_EXPENSE: 'Despesa financeira',
   OTHER: 'Outro',
 }
 

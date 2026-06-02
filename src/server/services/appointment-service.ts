@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { buildPaidRevenueData } from '@/server/repositories/revenue-repository'
 import type { TenantContext } from '@/server/tenant/context'
 
 export async function createRevenueFromAppointment(
@@ -29,7 +30,7 @@ export async function createRevenueFromAppointment(
   if (!appointment || !procedure || !patient) return null
 
   return prisma.revenue.create({
-    data: {
+    data: buildPaidRevenueData({
       organizationId: ctx.organizationId,
       clientId,
       patientId,
@@ -37,8 +38,9 @@ export async function createRevenueFromAppointment(
       appointmentId,
       amount: procedure.price,
       date: new Date(),
+      type: 'PROCEDIMENTO',
       description: `Procedimento: ${procedure.name}`,
       createdById: ctx.userId,
-    },
+    }),
   })
 }

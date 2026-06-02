@@ -4,6 +4,9 @@ import { useState } from 'react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { OverviewTab } from './overview-tab'
+import { DreTab } from './dre-tab'
+import { ReceivablesTab } from './receivables-tab'
+import { AssetsTab } from './assets-tab'
 import { RevenuesTab } from './revenues-tab'
 import { CostsTab } from './costs-tab'
 import { ProceduresTab } from './procedures-tab'
@@ -58,8 +61,11 @@ export function FinancialTabs({
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+          <TabsTrigger value="dre">DRE</TabsTrigger>
           <TabsTrigger value="revenues">Receitas</TabsTrigger>
+          <TabsTrigger value="receivables">Contas a Receber</TabsTrigger>
           <TabsTrigger value="costs">Custos</TabsTrigger>
+          <TabsTrigger value="assets">Ativos</TabsTrigger>
           <TabsTrigger value="procedures">Procedimentos</TabsTrigger>
           <TabsTrigger value="reports">Relatórios</TabsTrigger>
         </TabsList>
@@ -73,6 +79,10 @@ export function FinancialTabs({
           />
         </TabsContent>
 
+        <TabsContent value="dre" className="mt-6">
+          <DreTab clientId={clientId} />
+        </TabsContent>
+
         <TabsContent value="revenues" className="mt-6 space-y-4">
           <RevenuesTab
             revenues={revenues}
@@ -80,6 +90,14 @@ export function FinancialTabs({
             patients={patients}
             procedures={proceduresForSelect}
           />
+        </TabsContent>
+
+        <TabsContent value="receivables" className="mt-6 space-y-4">
+          <ReceivablesTab clientId={clientId} />
+        </TabsContent>
+
+        <TabsContent value="assets" className="mt-6 space-y-4">
+          <AssetsTab clientId={clientId} />
         </TabsContent>
 
         <TabsContent value="costs" className="mt-6 space-y-4">

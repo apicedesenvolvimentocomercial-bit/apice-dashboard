@@ -1,5 +1,6 @@
 'use client'
 
+import type { CostType } from '@prisma/client'
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
@@ -94,7 +95,7 @@ export function CreateCostDialog({ open, clientId, cost, onOpenChange, onSaved }
       : userText || undefined
 
     const data = {
-      type: form.type as 'FIXED' | 'VARIABLE' | 'MARKETING' | 'PAYROLL' | 'TAX' | 'OTHER',
+      type: form.type as CostType,
       category: form.category || undefined,
       amount,
       date: form.date,

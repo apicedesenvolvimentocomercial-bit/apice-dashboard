@@ -8,6 +8,9 @@ export type { RevenueRow, CostRow, ProcedureWithStats, ProcedureForSelect }
 export type FinancialSummary = {
   current: { revenue: number; costs: number; profit: number; margin: number; count: number }
   previous: { revenue: number; costs: number; profit: number; margin: number }
+  // Bloco de CAIXA (liquidez) — derivado das parcelas: recebido no mês, total a
+  // receber e o que está vencido. Convive com a receita em competência (ledger DRE).
+  cash: { received: number; receivable: number; overdue: number }
 }
 
 export type ChartMonth = { month: string; revenue: number; costs: number }
@@ -32,7 +35,12 @@ export const COST_TYPE_LABELS: Record<string, string> = {
   VARIABLE: 'Variável',
   MARKETING: 'Marketing',
   PAYROLL: 'Folha',
-  TAX: 'Imposto',
+  TAX_REVENUE: 'Imposto s/ receita',
+  TAX_PROFIT: 'Imposto s/ lucro',
+  COMMISSION: 'Comissão',
+  COMMERCIAL: 'Despesa comercial',
+  ADMINISTRATIVE: 'Despesa administrativa',
+  FINANCIAL_EXPENSE: 'Despesa financeira',
   OTHER: 'Outro',
 }
 

@@ -106,6 +106,7 @@ const updateClinicSettingsSchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   notes: z.string().optional(),
+  taxRegime: z.enum(['SIMPLES', 'PRESUMIDO', 'REAL']).optional(),
 })
 
 export async function updateClinicSettingsAction(

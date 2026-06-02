@@ -1,4 +1,4 @@
-import type { ClientStatus, Prisma } from '@prisma/client'
+import type { ClientStatus, Prisma, TaxRegime } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
@@ -98,6 +98,7 @@ export async function updateClient(
     contractStart: Date
     notes: string
     status: ClientStatus
+    taxRegime: TaxRegime
   }>
 ) {
   return prisma.client.updateMany({

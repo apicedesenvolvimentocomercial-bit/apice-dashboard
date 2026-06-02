@@ -26,6 +26,7 @@ const schema = z.object({
   city: z.string().optional().or(z.literal('')),
   state: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
+  taxRegime: z.enum(['SIMPLES', 'PRESUMIDO', 'REAL']),
 })
 
 type Values = z.infer<typeof schema>
@@ -39,6 +40,7 @@ type Props = {
     city: string | null
     state: string | null
     notes: string | null
+    taxRegime: 'SIMPLES' | 'PRESUMIDO' | 'REAL'
   }
 }
 
@@ -53,6 +55,7 @@ export function ClinicSettingsForm({ clientId, initial }: Props) {
       city: initial.city ?? '',
       state: initial.state ?? '',
       notes: initial.notes ?? '',
+      taxRegime: initial.taxRegime,
     },
   })
 
@@ -138,6 +141,26 @@ export function ClinicSettingsForm({ clientId, initial }: Props) {
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="taxRegime"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Regime tributário</FormLabel>
+              <FormControl>
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  {...field}
+                >
+                  <option value="SIMPLES">Simples Nacional</option>
+                  <option value="PRESUMIDO">Lucro Presumido</option>
+                  <option value="REAL">Lucro Real</option>
+                </select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="notes"

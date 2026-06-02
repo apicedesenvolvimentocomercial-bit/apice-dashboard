@@ -11,7 +11,19 @@ import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { createCost, updateCost, softDeleteCost } from '@/server/repositories/cost-repository'
 
-const COST_TYPES = ['FIXED', 'VARIABLE', 'MARKETING', 'PAYROLL', 'TAX', 'OTHER'] as const
+const COST_TYPES = [
+  'FIXED',
+  'VARIABLE',
+  'MARKETING',
+  'PAYROLL',
+  'TAX_REVENUE',
+  'TAX_PROFIT',
+  'COMMISSION',
+  'COMMERCIAL',
+  'ADMINISTRATIVE',
+  'FINANCIAL_EXPENSE',
+  'OTHER',
+] as const
 
 const costSchema = z.object({
   type: z.enum(COST_TYPES),
