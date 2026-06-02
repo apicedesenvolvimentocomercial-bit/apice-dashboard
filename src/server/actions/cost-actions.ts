@@ -9,7 +9,13 @@ import { createAuditLog } from '@/server/repositories/audit-repository'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
-import { createCost, updateCost, softDeleteCost } from '@/server/repositories/cost-repository'
+import {
+  createCost,
+  updateCost,
+  softDeleteCost,
+  listEquipmentRentals,
+  EQUIPMENT_RENTAL_CATEGORY,
+} from '@/server/repositories/cost-repository'
 
 const COST_TYPES = [
   'FIXED',
@@ -90,6 +96,58 @@ export async function updateCostAction(costId: string, clientId: string, formDat
     ...parsed.data,
     date,
   })
+  revalidate(clientId)
+  return ok(null)
+}
+
+// --- Aluguel de equipamentos (seção "Alugados" da aba Ativos) ---
+
+const rentalSchema = z.object({
+  name: z.string().trim().min(2, 'Dê um nome ao equipamento').max(120),
+  amount: z.number().positive('Valor mensal deve ser positivo'),
+  startDate: z.string().min(1, 'Data obrigatória'),
+  recurringDay: z.number().int().min(1).max(31).optional(),
+})
+
+export async function listEquipmentRentalsAction(clientId: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'financial', 'read')
+  return ok(await listEquipmentRentals(ctx, clientId))
+}
+
+/**
+ * Cria um aluguel de equipamento = custo FIXED recorrente com a categoria dedicada.
+ * O cron de custos recorrentes gera a despesa mensal; a DRE a soma como despesa fixa.
+ */
+export async function createEquipmentRentalAction(clientId: string, formData: unknown) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'financial', 'write')
+
+  const parsed = rentalSchema.safeParse(formData)
+  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+
+  const date = parseLocalDate(parsed.data.startDate)
+  if (!date) return fail('Data inválida')
+
+  const cost = await createCost(ctx, clientId, {
+    type: 'FIXED',
+    category: EQUIPMENT_RENTAL_CATEGORY,
+    amount: parsed.data.amount,
+    date,
+    description: parsed.data.name,
+    isRecurring: true,
+    recurringDay: parsed.data.recurringDay ?? date.getDate(),
+  })
+  createAuditLog(ctx, {
+    action: 'create',
+    entityType: 'Cost',
+    entityId: cost.id,
+    changes: { rental: parsed.data.name, amount: parsed.data.amount },
+  }).catch(() => {})
   revalidate(clientId)
   return ok(null)
 }
