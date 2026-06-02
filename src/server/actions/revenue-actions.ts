@@ -12,6 +12,7 @@ import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import {
+  cancelRevenue,
   createRevenue,
   createRevenuesBulk,
   updateRevenue,
@@ -206,6 +207,23 @@ export async function updateRevenueAction(revenueId: string, clientId: string, f
     },
     procedures
   )
+  revalidate(clientId)
+  return ok(null)
+}
+
+export async function cancelRevenueAction(revenueId: string, clientId: string, reason?: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'financial', 'write')
+  const res = await cancelRevenue(ctx, revenueId, clientId, reason?.trim() || undefined)
+  if (res.count === 0) return fail('Receita não encontrada')
+  createAuditLog(ctx, {
+    action: 'update',
+    entityType: 'Revenue',
+    entityId: revenueId,
+    changes: { status: 'CANCELADA' },
+  }).catch(() => {})
   revalidate(clientId)
   return ok(null)
 }

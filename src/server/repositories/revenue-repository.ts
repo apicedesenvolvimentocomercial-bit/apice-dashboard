@@ -44,6 +44,8 @@ export async function listRevenues(
       description: true,
       paymentMethod: true,
       installments: true,
+      status: true,
+      type: true,
       createdAt: true,
       patient: { select: { id: true, name: true } },
       procedure: { select: { id: true, name: true } },
@@ -410,6 +412,32 @@ export async function updateRevenue(
       }
     }
     return updated
+  })
+}
+
+/**
+ * Cancela uma venda (competência): status CANCELADA + canceledAt → vira dedução
+ * `cancelamentos` no período do cancelamento; as parcelas PENDENTE viram CANCELADO
+ * (saem do "a receber"). Belt: clientId no where. Não mexe em parcela já paga.
+ */
+export async function cancelRevenue(
+  ctx: TenantContext,
+  revenueId: string,
+  clientId: string,
+  reason?: string
+) {
+  const now = new Date()
+  return scopedTransaction(async (tx) => {
+    const result = await tx.revenue.updateMany({
+      where: { id: revenueId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+      data: { status: 'CANCELADA', canceledAt: now, cancelReason: reason ?? null },
+    })
+    if (result.count === 0) return result
+    await tx.receivable.updateMany({
+      where: { revenueId, clientId, status: 'PENDENTE' },
+      data: { status: 'CANCELADO' },
+    })
+    return result
   })
 }
 

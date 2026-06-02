@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Edit2, FileDown, FileUp, Plus, Trash2, X } from 'lucide-react'
+import { Ban, Edit2, FileDown, FileUp, Plus, Trash2, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { deleteRevenueAction } from '@/server/actions/revenue-actions'
+import { cancelRevenueAction, deleteRevenueAction } from '@/server/actions/revenue-actions'
 import { CreateRevenueDialog } from './create-revenue-dialog'
 import { ImportRevenuesDialog } from './import-revenues-dialog'
 import {
@@ -97,6 +97,23 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
     toast.success('Receita removida')
     router.refresh()
     setDeleting(null)
+  }
+
+  async function handleCancel(id: string) {
+    if (
+      !confirm(
+        'Cancelar esta receita? Ela vira dedução (cancelamentos) na DRE e as parcelas pendentes são canceladas.'
+      )
+    )
+      return
+    const reason = prompt('Motivo do cancelamento (opcional):') ?? undefined
+    const res = await cancelRevenueAction(id, clientId, reason)
+    if (!res.success) {
+      toast.error(res.error.message)
+      return
+    }
+    toast.success('Receita cancelada')
+    router.refresh()
   }
 
   function handleExport() {
@@ -309,8 +326,19 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
                       '—'
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-right font-medium text-green-700">
-                    {formatCurrency(r.amount)}
+                  <td className="px-4 py-2.5 text-right">
+                    {r.status === 'CANCELADA' ? (
+                      <span className="font-medium text-muted-foreground line-through">
+                        {formatCurrency(r.amount)}
+                      </span>
+                    ) : (
+                      <span className="font-medium text-green-700">{formatCurrency(r.amount)}</span>
+                    )}
+                    {r.status === 'CANCELADA' && (
+                      <Badge variant="outline" className="ml-2 text-[10px]">
+                        Cancelada
+                      </Badge>
+                    )}
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex justify-end gap-1">
@@ -323,6 +351,17 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                       </Button>
+                      {r.status !== 'CANCELADA' && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-amber-600"
+                          onClick={() => handleCancel(r.id)}
+                          aria-label="Cancelar receita"
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"

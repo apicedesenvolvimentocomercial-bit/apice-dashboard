@@ -48,6 +48,16 @@ const EMPTY = {
   procedureIds: [] as string[],
   discountEnabled: false,
   discountPct: '',
+  type: '', // '' = automático (procedimento se houver procedimento, senão outra)
+}
+
+const REVENUE_TYPE_LABELS: Record<string, string> = {
+  PROCEDIMENTO: 'Procedimento',
+  PACOTE: 'Pacote',
+  RECORRENCIA: 'Recorrência/assinatura',
+  PRODUTO: 'Produto',
+  OUTRA: 'Outra',
+  FINANCEIRA: 'Receita financeira',
 }
 
 export function CreateRevenueDialog({
@@ -80,6 +90,7 @@ export function CreateRevenueDialog({
               procedureIds: revenue.procedures?.map((p) => p.procedureId) ?? [],
               discountEnabled: false,
               discountPct: '',
+              type: '',
             }
           : EMPTY
       )
@@ -156,6 +167,14 @@ export function CreateRevenueDialog({
       patientId: form.patientId || undefined,
       procedureIds: form.procedureIds,
       discountPct: form.discountEnabled && validDiscount ? discountPctNum : undefined,
+      type: (form.type || undefined) as
+        | 'PROCEDIMENTO'
+        | 'PACOTE'
+        | 'RECORRENCIA'
+        | 'PRODUTO'
+        | 'OUTRA'
+        | 'FINANCEIRA'
+        | undefined,
     }
 
     startTransition(async () => {
@@ -253,6 +272,27 @@ export function CreateRevenueDialog({
                 })}
               </ul>
             )}
+          </div>
+
+          {/* Tipo de receita (DRE) */}
+          <div className="space-y-1">
+            <Label>Tipo de receita</Label>
+            <Select
+              value={form.type || NONE_VALUE}
+              onValueChange={(v) => setForm((f) => ({ ...f, type: v === NONE_VALUE ? '' : v }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Automático" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE_VALUE}>Automático</SelectItem>
+                {Object.entries(REVENUE_TYPE_LABELS).map(([k, label]) => (
+                  <SelectItem key={k} value={k}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Valor + Data */}

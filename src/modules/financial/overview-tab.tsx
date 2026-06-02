@@ -42,7 +42,7 @@ export function OverviewTab({ summary, revenueSeries, topProcedures, topCostCate
 
   const kpis = [
     {
-      label: 'Receita do mês',
+      label: 'Receita do mês (competência)',
       value: formatCurrency(current.revenue),
       delta: <DeltaBadge current={current.revenue} previous={previous.revenue} />,
     },
@@ -85,6 +85,34 @@ export function OverviewTab({ summary, revenueSeries, topProcedures, topCostCate
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Bloco de CAIXA (liquidez) — receita acima é competência (faturado). */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Recebido no mês (caixa)</p>
+            <p className="mt-1 text-xl font-bold text-green-600">
+              {formatCurrency(summary.cash.received)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">A receber</p>
+            <p className="mt-1 text-xl font-bold">{formatCurrency(summary.cash.receivable)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Vencido</p>
+            <p
+              className={`mt-1 text-xl font-bold ${summary.cash.overdue > 0 ? 'text-red-600' : ''}`}
+            >
+              {formatCurrency(summary.cash.overdue)}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <RevenueChartsSwitch

@@ -64,9 +64,16 @@
       (`getDreReport`, gate financial:read + escopo). Testes: 12 (cálculo, depreciação, builder).
 - [x] **C — KPIs** ✅ competência: `clinic-kpis` e `getFinancialSummary` excluem `status=CANCELADA`;
       bloco de CAIXA em `getFinancialSummary` (`cash`: recebido no mês / a receber / vencido das parcelas).
-- [ ] **D — UI** form de receita (bruto/desconto/tipo/parcelas) + cancelar; Contas a Receber
-      (marcar pago/perdido); Ativos (CRUD); aba DRE (período + relatório); cards de caixa no overview;
-      taxRegime nas configurações; novos CostType já aparecem (labels feitas).
-- [ ] **E — validação** type-check/lint/build + rls:check:ext + atualizar este ledger.
+- [x] **D — UI** ✅ abas no Financeiro (ordem: Visão Geral, **DRE**, Receitas, Contas a Receber,
+      Custos, Ativos, Procedimentos, Relatórios): `dre-tab` (período month/quarter/ano/custom +
+      relatório receita→lucro líquido via `getDreReportAction`); `receivables-tab` (marcar pago/
+      perdido/reverter); `assets-tab` (CRUD + baixa); form de receita ganhou seletor de **tipo**
+      (parcelas já existiam → geram `Receivable`); **cancelar receita** (botão + `cancelRevenueAction`,
+      status CANCELADA + parcelas pendentes→CANCELADO); cards de **caixa** no overview
+      (recebido/a receber/vencido); **taxRegime** no form da clínica (`/configuracoes`, titular).
+      Admin (`clients/[id]/financial`) reusa `FinancialTabs` → ganha tudo.
+- [x] **E — validação** ✅ type-check · lint (0 erros) · vitest **151** · build · rls:check:ext · migrate:test+backfill no Neon.
 
-Verde até aqui: `type-check` ✅ · `vitest` (139 base + 12 DRE) ✅ · migrate:test + backfill no Neon ✅.
+DRE automática (fase 2) COMPLETA. Pendências menores conhecidas: editar receita não regenera
+parcelas (recriar a venda); inadimplência usa `updatedAt` da parcela PERDIDO como data da baixa
+(sem campo dedicado); DRE consolidada cross-clínica do admin fica para depois.
