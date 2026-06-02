@@ -457,7 +457,7 @@ export async function moveLeadWithEffect(
       if (!existing && lead.appointment!.procedureId && lead.appointment!.patientId) {
         const procedure = await tx.procedure.findFirst({
           where: { id: lead.appointment!.procedureId, organizationId: ctx.organizationId },
-          select: { price: true, name: true },
+          select: { price: true, name: true, cost: true },
         })
         if (procedure) {
           await tx.revenue.create({
@@ -468,6 +468,7 @@ export async function moveLeadWithEffect(
               procedureId: lead.appointment!.procedureId,
               appointmentId: lead.appointmentId!,
               amount: procedure.price,
+              cost: Number(procedure.cost),
               date: new Date(),
               type: 'PROCEDIMENTO',
               description: `Procedimento: ${procedure.name}`,

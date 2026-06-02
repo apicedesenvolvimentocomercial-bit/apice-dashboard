@@ -6,6 +6,7 @@ import {
   Check,
   CheckSquare,
   Mail,
+  MessageSquare,
   MoreHorizontal,
   Phone,
   Play,
@@ -45,6 +46,7 @@ const TYPE_ICON: Record<ActivityView['type'], LucideIcon> = {
   CALL: Phone,
   EMAIL: Mail,
   NOTE: StickyNote,
+  MESSAGE: MessageSquare,
 }
 
 const PRIORITY_BORDER: Record<ActivityView['priority'], string> = {

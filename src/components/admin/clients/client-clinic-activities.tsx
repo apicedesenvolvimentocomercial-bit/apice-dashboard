@@ -7,7 +7,7 @@ import {
   PRIORITY_COLOR,
   PRIORITY_LABEL,
   STATUS_LABEL,
-  TYPE_LABEL,
+  activityTypeLabel,
 } from '@/components/shared/activities/types'
 
 /**
@@ -20,6 +20,7 @@ type Row = {
   title: string
   description: string | null
   type: ActivityType
+  customTypeLabel?: string | null
   status: ActivityStatus
   priority: ActivityPriority
   dueDate: Date | null
@@ -51,7 +52,7 @@ export function ClientClinicActivities({ activities }: { activities: Row[] }) {
                   >
                     {PRIORITY_LABEL[a.priority]}
                   </span>
-                  <span className="text-muted-foreground">{TYPE_LABEL[a.type]}</span>
+                  <span className="text-muted-foreground">{activityTypeLabel(a)}</span>
                   <span className="text-muted-foreground">· {STATUS_LABEL[a.status]}</span>
                   {a.dueDate && (
                     <span className="text-muted-foreground">

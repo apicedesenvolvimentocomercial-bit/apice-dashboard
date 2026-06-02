@@ -25,6 +25,7 @@ export default async function AdminClientAtividadesPage({ params }: Props) {
         title: a.title,
         description: a.description,
         type: a.type,
+        customTypeLabel: a.customType?.label ?? null,
         status: a.status,
         priority: a.priority,
         dueDate: a.dueDate,

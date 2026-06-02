@@ -37,6 +37,7 @@ export async function getClientClinicActivities(clientId: string) {
     include: {
       assignedTo: { select: { id: true, name: true, image: true } },
       createdBy: { select: { id: true, name: true } },
+      customType: { select: { id: true, label: true } },
     },
   })
 }

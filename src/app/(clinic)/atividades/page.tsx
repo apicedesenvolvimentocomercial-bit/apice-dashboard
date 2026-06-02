@@ -42,6 +42,7 @@ export default async function ClinicAtividadesRoute({ searchParams }: Props) {
     title: r.title,
     description: r.description,
     type: r.type,
+    customTypeLabel: r.customType?.label ?? null,
     status: r.status,
     priority: r.priority,
     dueDate: r.dueDate,

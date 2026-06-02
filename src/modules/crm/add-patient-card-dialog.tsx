@@ -13,13 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/searchable-select'
 import { createPatientCardAction, listAvailablePatientsAction } from '@/server/actions/lead-actions'
 
 type Patient = { id: string; name: string; phone: string | null }
@@ -100,19 +94,17 @@ export function AddPatientCardDialog({
               Nenhum paciente disponível (todos já estão no funil).
             </p>
           ) : (
-            <Select value={patientId} onValueChange={setPatientId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um paciente" />
-              </SelectTrigger>
-              <SelectContent>
-                {patients.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                    {p.phone ? ` — ${p.phone}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={patientId}
+              onChange={setPatientId}
+              placeholder="Selecione um paciente"
+              emptyText="Nenhum paciente encontrado"
+              options={patients.map((p) => ({
+                value: p.id,
+                label: p.name,
+                sublabel: p.phone ?? undefined,
+              }))}
+            />
           )}
         </div>
 

@@ -490,9 +490,14 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
             className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto p-5 data-[state=inactive]:hidden"
           >
             {!docsConfigured ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Armazenamento de documentos ainda não configurado.
-              </p>
+              <div className="space-y-1 py-8 text-center text-sm text-muted-foreground">
+                <p>Armazenamento de documentos ainda não configurado.</p>
+                <p className="text-xs">
+                  Defina <code className="rounded bg-muted px-1">NEXT_PUBLIC_SUPABASE_URL</code> e{' '}
+                  <code className="rounded bg-muted px-1">SUPABASE_SERVICE_ROLE_KEY</code> e crie o
+                  bucket privado <code className="rounded bg-muted px-1">client-documents</code>.
+                </p>
+              </div>
             ) : (
               <>
                 <div className="flex items-center justify-between">
@@ -752,37 +757,38 @@ function LeadInfo({
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Registrar interação
         </p>
-        <Select value={interactionType} onValueChange={setInteractionType}>
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="NOTE">Nota</SelectItem>
-            <SelectItem value="CALL">Ligação</SelectItem>
-            <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-            <SelectItem value="EMAIL">E-mail</SelectItem>
-            <SelectItem value="MEETING">Reunião</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="flex gap-2">
-          <textarea
-            value={interactionContent}
-            onChange={(e) => setInteractionContent(e.target.value)}
-            placeholder="Descreva a interação..."
-            rows={2}
-            className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          />
+        <textarea
+          value={interactionContent}
+          onChange={(e) => setInteractionContent(e.target.value)}
+          placeholder="Descreva a interação..."
+          rows={2}
+          className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+        <div className="flex items-center gap-2">
+          <Select value={interactionType} onValueChange={setInteractionType}>
+            <SelectTrigger className="h-9 flex-1 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="NOTE">Nota</SelectItem>
+              <SelectItem value="CALL">Ligação</SelectItem>
+              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+              <SelectItem value="EMAIL">E-mail</SelectItem>
+              <SelectItem value="MEETING">Reunião</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
-            size="icon"
+            size="sm"
             onClick={handleAddInteraction}
             disabled={!interactionContent.trim() || isPending}
-            className="shrink-0 self-end"
+            className="shrink-0"
           >
             {isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="mr-1.5 h-4 w-4" />
             )}
+            Registrar
           </Button>
         </div>
       </div>

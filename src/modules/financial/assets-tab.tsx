@@ -30,6 +30,11 @@ import {
   disposeFixedAssetAction,
   listFixedAssetsAction,
 } from '@/server/actions/fixed-asset-actions'
+import {
+  createEquipmentRentalAction,
+  deleteCostAction,
+  listEquipmentRentalsAction,
+} from '@/server/actions/cost-actions'
 
 type Row = {
   id: string
@@ -44,21 +49,32 @@ type Row = {
   monthlyDepreciation: number
 }
 
+type RentalRow = {
+  id: string
+  description: string | null
+  amount: number
+  date: string | Date
+  recurringDay: number | null
+}
+
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const dt = (d: string | Date) => new Date(d).toLocaleDateString('pt-BR')
 
 export function AssetsTab({ clientId }: { clientId: string }) {
   const [rows, setRows] = useState<Row[]>([])
+  const [rentals, setRentals] = useState<RentalRow[]>([])
   const [loading, setLoading] = useState(true)
   const [pending, startTransition] = useTransition()
 
   const load = useCallback(() => {
     setLoading(true)
-    listFixedAssetsAction(clientId).then((res) => {
-      if (res.success) setRows(res.data as Row[])
-      else toast.error(res.error.message)
-      setLoading(false)
-    })
+    Promise.all([listFixedAssetsAction(clientId), listEquipmentRentalsAction(clientId)])
+      .then(([assetsRes, rentalsRes]) => {
+        if (assetsRes.success) setRows(assetsRes.data as Row[])
+        else toast.error(assetsRes.error.message)
+        if (rentalsRes.success) setRentals(rentalsRes.data as RentalRow[])
+      })
+      .finally(() => setLoading(false))
   }, [clientId])
 
   useEffect(() => load(), [load])
@@ -158,7 +174,156 @@ export function AssetsTab({ clientId }: { clientId: string }) {
           </table>
         </div>
       )}
+
+      {/* Equipamentos alugados (custo FIXED recorrente — sem depreciação) */}
+      <div className="space-y-2 pt-2">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">Equipamentos alugados</h3>
+            <p className="text-xs text-muted-foreground">
+              Aluguel mensal recorrente — entra na DRE como despesa fixa (sem depreciação).
+            </p>
+          </div>
+          <NewRentalDialog clientId={clientId} onSaved={load} />
+        </div>
+        {rentals.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Nenhum equipamento alugado.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Equipamento</th>
+                  <th className="px-3 py-2 text-right">Aluguel/mês</th>
+                  <th className="px-3 py-2 text-right">Dia venc.</th>
+                  <th className="px-3 py-2 text-right">Desde</th>
+                  <th className="px-3 py-2 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rentals.map((r) => (
+                  <tr key={r.id}>
+                    <td className="px-3 py-2">{r.description ?? 'Aluguel'}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{brl(r.amount)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.recurringDay ?? '—'}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{dt(r.date)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={pending}
+                          onClick={() =>
+                            act(() => deleteCostAction(r.id, clientId), 'Aluguel removido')
+                          }
+                        >
+                          Remover
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+function NewRentalDialog({ clientId, onSaved }: { clientId: string; onSaved: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [pending, startTransition] = useTransition()
+  const [form, setForm] = useState({ name: '', amount: '', startDate: '', recurringDay: '' })
+
+  function submit() {
+    const amount = Number(form.amount)
+    if (form.name.trim().length < 2) return toast.error('Dê um nome ao equipamento')
+    if (!(amount > 0)) return toast.error('Valor mensal inválido')
+    if (!form.startDate) return toast.error('Informe a data de início')
+
+    startTransition(async () => {
+      const res = await createEquipmentRentalAction(clientId, {
+        name: form.name,
+        amount,
+        startDate: form.startDate,
+        recurringDay: form.recurringDay ? parseInt(form.recurringDay, 10) : undefined,
+      })
+      if (!res.success) {
+        toast.error(res.error.message)
+        return
+      }
+      toast.success('Aluguel cadastrado')
+      setOpen(false)
+      setForm({ name: '', amount: '', startDate: '', recurringDay: '' })
+      onSaved()
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Plus className="mr-2 h-4 w-4" /> Novo aluguel
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Novo aluguel de equipamento</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Equipamento</Label>
+            <Input
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Ex: Laser alugado"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Aluguel mensal</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={form.amount}
+                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Dia do vencimento (opcional)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={31}
+                value={form.recurringDay}
+                onChange={(e) => setForm((f) => ({ ...f, recurringDay: e.target.value }))}
+                placeholder="Dia da data início"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Início</Label>
+            <DateInput
+              value={form.startDate}
+              onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={submit} disabled={pending}>
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Cadastrar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

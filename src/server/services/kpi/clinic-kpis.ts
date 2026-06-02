@@ -189,6 +189,17 @@ async function aggregateForRange(
   }
 }
 
+// Range "anterior" COMPARÁVEL (period-to-date): o período imediatamente antes do
+// atual, mas só até a MESMA fração já decorrida (ex.: hoje é dia 2 do mês → compara
+// com o mês passado até o "dia 2"). Sem isso, no começo do período o atual (parcial)
+// era comparado contra o anterior INTEIRO → queda artificial de ~100% a cada virada.
+function comparablePreviousRange(range: PeriodRange): PeriodRange {
+  const periodMs = range.to.getTime() - range.from.getTime() + 1
+  const elapsedMs = Math.min(Date.now(), range.to.getTime()) - range.from.getTime()
+  const from = new Date(range.from.getTime() - periodMs)
+  return { key: range.key, from, to: new Date(from.getTime() + Math.max(0, elapsedMs)) }
+}
+
 export async function computeClinicKpis(
   ctx: TenantContext,
   clientId: string,
@@ -199,11 +210,7 @@ export async function computeClinicKpis(
 
   const [current, previous] = await Promise.all([
     aggregateForRange(scope, range),
-    aggregateForRange(scope, {
-      key: range.key,
-      from: new Date(range.from.getTime() - (range.to.getTime() - range.from.getTime() + 1)),
-      to: new Date(range.from.getTime() - 1),
-    }),
+    aggregateForRange(scope, comparablePreviousRange(range)),
   ])
 
   const commercial = calculateCommercialKpis({
@@ -284,14 +291,7 @@ export async function computeGlobalKpis(
 
   const [current, previous] = await Promise.all([
     aggregateForRange({ organizationId: ctx.organizationId }, range),
-    aggregateForRange(
-      { organizationId: ctx.organizationId },
-      {
-        key: range.key,
-        from: new Date(range.from.getTime() - (range.to.getTime() - range.from.getTime() + 1)),
-        to: new Date(range.from.getTime() - 1),
-      }
-    ),
+    aggregateForRange({ organizationId: ctx.organizationId }, comparablePreviousRange(range)),
   ])
 
   const commercial = calculateCommercialKpis({

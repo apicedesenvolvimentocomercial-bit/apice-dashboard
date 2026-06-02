@@ -31,9 +31,11 @@ import {
   updateAppointmentStatusAction,
   updateAppointmentAction,
   confirmRevenueFromAppointmentAction,
+  attendAppointmentAction,
   deleteAppointmentAction,
   regressAppointmentToLeadAction,
 } from '@/server/actions/appointment-actions'
+import { getPatientAction } from '@/server/actions/patient-actions'
 import { AttendAppointmentDialog } from './attend-appointment-dialog'
 import { STATUS_LABELS, STATUS_COLORS } from './types'
 import type { AppointmentEvent } from './types'
@@ -41,6 +43,16 @@ import type { AppointmentEvent } from './types'
 // Janela em que o atendimento já é "acionável": faltando até 30 min para o
 // horário, ou já tendo passado. Antes disso, o fluxo é cancelar/reagendar.
 const ATTENDANCE_WINDOW_MS = 30 * 60 * 1000
+
+// birthDate é gravado como meia-noite UTC; lê pelos componentes UTC p/ não deslocar
+// o dia no fuso local (mesma convenção do attend-appointment-dialog).
+function birthToDateInput(value: Date | string | null | undefined): string {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+}
 
 type Props = {
   open: boolean
@@ -79,6 +91,39 @@ export function AppointmentDetailDialog({
   // falta. Mais de 30 min antes → só cancelar ou reagendar.
   const startMs = new Date(appointment.scheduledAt).getTime()
   const inAttendanceWindow = Date.now() >= startMs - ATTENDANCE_WINDOW_MS
+
+  // Compareceu pela agenda. Se o paciente já está cadastrado com os 5 campos
+  // completos (nome/telefone/e-mail/nascimento/CPF), marca o comparecimento
+  // direto e segue p/ a receita — SEM abrir o dialog de completar cadastro. Lead
+  // ou paciente com dados incompletos → abre o dialog para completar.
+  function handleAttendClick() {
+    if (!appointment) return
+    startTransition(async () => {
+      const res = await getPatientAction(appointment.patientId, clientId)
+      if (res.success) {
+        const p = res.data
+        const complete = !!(p.name && p.phone && p.email && p.birthDate && p.cpf)
+        if (complete) {
+          const attend = await attendAppointmentAction(appointment.id, clientId, {
+            name: p.name,
+            phone: p.phone!,
+            email: p.email!,
+            birthDate: birthToDateInput(p.birthDate),
+            cpf: p.cpf!,
+          })
+          if (!attend.success) {
+            toast.error(attend.error.message)
+            return
+          }
+          toast.success('Comparecimento registrado')
+          setShowRevenuePrompt(true)
+          return
+        }
+      }
+      // Lead, dados incompletos ou falha ao ler → completa pelo dialog.
+      setShowAttendDialog(true)
+    })
+  }
 
   // Faltou (NO_SHOW) e demais status diretos. Compareceu (ATTENDED) NÃO passa
   // por aqui — abre o dialog que completa o cadastro (`showAttendDialog`).
@@ -292,7 +337,7 @@ export function AppointmentDetailDialog({
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700"
-                        onClick={() => setShowAttendDialog(true)}
+                        onClick={handleAttendClick}
                         disabled={isPending}
                       >
                         <Check className="mr-1.5 h-4 w-4" />

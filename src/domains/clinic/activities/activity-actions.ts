@@ -12,12 +12,16 @@ import { getClinicContext } from '@/server/auth/clinic-context'
 import { assertCan } from '@/server/auth/assert-can'
 import { can } from '@/server/auth/permissions'
 import { dispatchNotification } from '@/server/services/notification-service'
-import { fail, NotFoundError, runAction } from '@/types/errors'
+import { fail, NotFoundError, ValidationError, runAction } from '@/types/errors'
 
 import {
   createClinicActivity,
+  createClinicActivityType,
+  deleteClinicActivityType,
   findClinicActivityById,
+  findClinicActivityType,
   listClinicActivitiesForTarget,
+  listClinicActivityTypes,
   listClinicBroadcastTargets,
   listClinicLeadsForPicker,
   listClinicMembers,
@@ -42,7 +46,7 @@ import type { ClinicContext } from '@/server/auth/clinic-context'
  * repo de clínica (herda clientId). Zero compartilhamento com a action admin.
  */
 
-const TYPES = ['TASK', 'MEETING', 'CALL', 'EMAIL', 'NOTE'] as const
+const TYPES = ['TASK', 'MEETING', 'CALL', 'EMAIL', 'NOTE', 'MESSAGE'] as const
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as const
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const
 
@@ -50,6 +54,9 @@ const activitySchema = z.object({
   title: z.string().min(2, 'Título obrigatório'),
   description: z.string().optional(),
   type: z.enum(TYPES),
+  // Tipo personalizado da clínica (opcional). Quando presente, `type` é forçado a
+  // TASK na action e a UI mostra o label custom.
+  customTypeId: z.string().optional().nullable(),
   status: z.enum(STATUSES).optional(),
   priority: z.enum(PRIORITIES).default('MEDIUM'),
   dueDate: z.string().optional().nullable(),
@@ -104,6 +111,22 @@ async function canAssignOthers(ctx: ClinicContext): Promise<boolean> {
   return ctx.isOwner || (await can(ctx.userId, ctx.role, 'activities', 'assignToOthers'))
 }
 
+/**
+ * Resolve o tipo da atividade: se um `customTypeId` válido (da clínica) veio, usa-o
+ * e força `type=TASK` (bucket genérico, sem integração nativa). Senão, tipo nativo.
+ */
+async function resolveActivityType(
+  ctx: ClinicContext,
+  type: (typeof TYPES)[number],
+  customTypeId?: string | null
+): Promise<{ type: (typeof TYPES)[number]; customTypeId: string | null }> {
+  if (customTypeId) {
+    const ct = await findClinicActivityType(ctx, customTypeId)
+    if (ct) return { type: 'TASK', customTypeId: ct.id }
+  }
+  return { type, customTypeId: null }
+}
+
 export async function createClinicActivityAction(formData: unknown) {
   const parsed = activitySchema.safeParse(formData)
   if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
@@ -125,6 +148,15 @@ export async function createClinicActivityAction(formData: unknown) {
     )
     if (!target) throw new NotFoundError(parsed.data.targetType === 'lead' ? 'Lead' : 'Paciente')
 
+    // Tipo personalizado: valida que pertence à clínica (belt). Se válido, `type`
+    // cai em TASK (bucket sem integração nativa) e o label custom é exibido. Inválido
+    // → ignora e segue com o tipo nativo escolhido.
+    const { type: effectiveType, customTypeId } = await resolveActivityType(
+      ctx,
+      parsed.data.type,
+      parsed.data.customTypeId
+    )
+
     const due = combineDateTime(parsed.data.dueDate, parsed.data.dueTime)
     const syncCalendar = await shouldSyncToCalendar(ctx.userId, parsed.data.addToCalendar)
     // Sem permissão de delegar, ignora o alvo do input e cai no próprio usuário
@@ -144,7 +176,8 @@ export async function createClinicActivityAction(formData: unknown) {
           createClinicActivity(ctx, {
             title: parsed.data.title,
             description: parsed.data.description,
-            type: parsed.data.type,
+            type: effectiveType,
+            customTypeId,
             priority: parsed.data.priority,
             status: parsed.data.status,
             dueDate: due,
@@ -193,7 +226,8 @@ export async function createClinicActivityAction(formData: unknown) {
     const activity = await createClinicActivity(ctx, {
       title: parsed.data.title,
       description: parsed.data.description,
-      type: parsed.data.type,
+      type: effectiveType,
+      customTypeId,
       priority: parsed.data.priority,
       status: parsed.data.status,
       dueDate: due,
@@ -274,10 +308,20 @@ export async function updateClinicActivityAction(activityId: string, formData: u
       patientId = target.patientId
     }
 
+    // Tipo: custom válido → TASK + customTypeId; nativo → limpa customTypeId.
+    let typeFields: { type?: (typeof TYPES)[number]; customTypeId?: string | null } = {}
+    if (parsed.data.customTypeId) {
+      const ct = await findClinicActivityType(ctx, parsed.data.customTypeId)
+      if (ct) typeFields = { type: 'TASK', customTypeId: ct.id }
+      else if (parsed.data.type) typeFields = { type: parsed.data.type, customTypeId: null }
+    } else if (parsed.data.type !== undefined) {
+      typeFields = { type: parsed.data.type, customTypeId: null }
+    }
+
     await updateClinicActivity(ctx, activityId, {
       title: parsed.data.title,
       description: parsed.data.description,
-      type: parsed.data.type,
+      ...typeFields,
       status: parsed.data.status,
       priority: parsed.data.priority,
       dueDate: due,
@@ -396,6 +440,7 @@ export async function getCardActivitiesAction(subject: { type: 'lead' | 'patient
       title: r.title,
       description: r.description,
       type: r.type,
+      customTypeLabel: r.customType?.label ?? null,
       status: r.status,
       priority: r.priority,
       dueDate: r.dueDate,
@@ -420,6 +465,45 @@ export async function getCardActivitiesAction(subject: { type: 'lead' | 'patient
       canReassignLeads,
       syncPref: (pref?.activityCalendarSync ?? 'ASK') as 'AUTO' | 'ASK' | 'NEVER',
     }
+  })
+}
+
+// --- Tipos de atividade personalizados (tabela por clínica) ---
+
+export async function listClinicActivityTypesAction() {
+  return runAction(async () => {
+    const ctx = await getClinicContext()
+    await assertCan(ctx, 'activities', 'read')
+    return listClinicActivityTypes(ctx)
+  })
+}
+
+export async function createClinicActivityTypeAction(label: string) {
+  return runAction(async () => {
+    const ctx = await getClinicContext()
+    await assertCan(ctx, 'activities', 'write')
+    const trimmed = (label ?? '').trim()
+    if (trimmed.length < 2) throw new ValidationError('Nome do tipo muito curto')
+    if (trimmed.length > 40) throw new ValidationError('Nome do tipo muito longo')
+    // Único por clínica: reaproveita o existente em vez de estourar a unique.
+    const existing = await prisma.clinicActivityType.findFirst({
+      where: { clientId: ctx.clientId, label: trimmed },
+      select: { id: true, label: true },
+    })
+    if (existing) return existing
+    const created = await createClinicActivityType(ctx, trimmed)
+    revalidateClinic()
+    return created
+  })
+}
+
+export async function deleteClinicActivityTypeAction(id: string) {
+  return runAction(async () => {
+    const ctx = await getClinicContext()
+    await assertCan(ctx, 'activities', 'write')
+    await deleteClinicActivityType(ctx, id)
+    revalidateClinic()
+    return null
   })
 }
 

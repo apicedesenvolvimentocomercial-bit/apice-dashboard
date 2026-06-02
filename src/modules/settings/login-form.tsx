@@ -4,10 +4,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { signIn } from '@/lib/auth-client'
 import { useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
+
+import { getLoginCooldownAction } from '@/server/actions/login-throttle-actions'
 
 import Link from 'next/link'
 
@@ -29,12 +31,28 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>
 
+// mm:ss (ou só Xs abaixo de 1 min) para o aviso de cooldown.
+function formatCooldown(totalSec: number): string {
+  if (totalSec < 60) return `${totalSec}s`
+  const m = Math.floor(totalSec / 60)
+  const s = totalSec % 60
+  return `${m}min${s > 0 ? ` ${String(s).padStart(2, '0')}s` : ''}`
+}
+
 export function LoginForm() {
   const searchParams = useSearchParams()
   // Default '/' deixa o root page + middleware despacharem o usuário para a
   // home correta conforme o role (ADMIN -> /dashboard, CLIENT_OWNER -> /overview).
   const callbackUrl = searchParams.get('callbackUrl') ?? '/'
   const [loading, setLoading] = useState(false)
+  // Segundos de cooldown anti-brute-force (0 = liberado). Conta regressiva na UI.
+  const [cooldown, setCooldown] = useState(0)
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const t = setInterval(() => setCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000)
+    return () => clearInterval(t)
+  }, [cooldown])
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -42,6 +60,7 @@ export function LoginForm() {
   })
 
   async function onSubmit(values: LoginValues) {
+    if (cooldown > 0) return
     setLoading(true)
     const result = await signIn('credentials', {
       email: values.email,
@@ -51,7 +70,15 @@ export function LoginForm() {
 
     if (result?.error) {
       setLoading(false)
-      toast.error('Email ou senha inválidos')
+      // Pergunta ao servidor se a origem entrou em cooldown (anti-brute-force) p/
+      // avisar o tempo de espera em vez de só repetir "senha inválida".
+      const secs = await getLoginCooldownAction(values.email).catch(() => 0)
+      if (secs > 0) {
+        setCooldown(secs)
+        toast.error(`Muitas tentativas. Aguarde ${formatCooldown(secs)} e tente novamente.`)
+      } else {
+        toast.error('Email ou senha inválidos')
+      }
       return
     }
 
@@ -99,10 +126,16 @@ export function LoginForm() {
             Esqueci a senha
           </Link>
         </div>
-        <Button type="submit" className="w-full" disabled={loading}>
+        <Button type="submit" className="w-full" disabled={loading || cooldown > 0}>
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Entrar
+          {cooldown > 0 ? `Aguarde ${formatCooldown(cooldown)}` : 'Entrar'}
         </Button>
+        {cooldown > 0 && (
+          <p className="text-center text-sm text-destructive">
+            Muitas tentativas de login. Por segurança, aguarde {formatCooldown(cooldown)} antes de
+            tentar de novo.
+          </p>
+        )}
       </form>
     </Form>
   )

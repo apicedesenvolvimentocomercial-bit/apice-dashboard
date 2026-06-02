@@ -16,6 +16,8 @@
 | `RESEND_API_KEY` / `EMAIL_FROM` | credenciais reais de e-mail                                                                                                                                                                                          |
 | `WEBHOOK_SECRET`                | ~~DEPRECADO~~ — não é mais lido. O webhook usa token **por-clínica** (`Client.webhookTokenHash`); o titular gera/rotaciona em `/configuracoes` e envia no header `x-webhook-secret`. Pode remover a env dos deploys. |
 | `NEXT_PUBLIC_APP_URL`           | `https://<seu-dominio>`                                                                                                                                                                                              |
+| `NEXT_PUBLIC_SUPABASE_URL`      | URL do projeto Supabase — **necessária p/ o storage de documentos do card** (senão a aba Documentos mostra "não configurado"). Degrada graciosamente se ausente.                                                     |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Service role do Supabase (server-only) p/ o storage de documentos. Criar tb o **bucket privado `client-documents`** no painel. Sem isso, documentos ficam desabilitados.                                             |
 
 ## 2. Migrations
 

@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/searchable-select'
 import { createRevenueAction, updateRevenueAction } from '@/server/actions/revenue-actions'
 import { formatCurrency, NONE_VALUE, PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from './types'
 import type { ProcedureForSelect, RevenueRow } from './types'
@@ -209,24 +210,16 @@ export function CreateRevenueDialog({
           {/* Paciente */}
           <div className="space-y-1">
             <Label>Paciente</Label>
-            <Select
-              value={form.patientId}
-              onValueChange={(v) =>
-                setForm((f) => ({ ...f, patientId: v === NONE_VALUE ? '' : v }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE_VALUE}>Nenhum</SelectItem>
-                {patients.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={form.patientId || NONE_VALUE}
+              onChange={(v) => setForm((f) => ({ ...f, patientId: v === NONE_VALUE ? '' : v }))}
+              placeholder="Selecionar..."
+              emptyText="Nenhum paciente encontrado"
+              options={[
+                { value: NONE_VALUE, label: 'Nenhum' },
+                ...patients.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+            />
           </div>
 
           {/* Procedimentos (múltiplos) */}
