@@ -1,5 +1,10 @@
+import { parseLocalDate } from '@/lib/date'
 import { prisma } from '@/lib/prisma'
-import { buildPaidRevenueData } from '@/server/repositories/revenue-repository'
+import type { RevenueDetails } from '@/modules/financial/types'
+import {
+  buildAppointmentRevenueData,
+  buildPaidRevenueData,
+} from '@/server/repositories/revenue-repository'
 import type { TenantContext } from '@/server/tenant/context'
 
 export async function createRevenueFromAppointment(
@@ -7,7 +12,10 @@ export async function createRevenueFromAppointment(
   clientId: string,
   appointmentId: string,
   patientId: string,
-  procedureId: string
+  procedureId: string,
+  // Detalhes de pagamento (forma, parcelas, desconto, data). Ausente = baixa simples
+  // 1x quitada (compat). Presente = mesmo nível do registro manual.
+  details?: RevenueDetails
 ) {
   // Belt: appointment, procedimento e paciente precisam ser DESTA clínica. O
   // caller passa ids vindos da UI; sem validar, dava p/ anexar a receita a
@@ -29,19 +37,44 @@ export async function createRevenueFromAppointment(
   ])
   if (!appointment || !procedure || !patient) return null
 
-  return prisma.revenue.create({
-    data: buildPaidRevenueData({
-      organizationId: ctx.organizationId,
-      clientId,
-      patientId,
-      procedureId,
-      appointmentId,
-      amount: procedure.price,
-      cost: Number(procedure.cost),
-      date: new Date(),
-      type: 'PROCEDIMENTO',
-      description: `Procedimento: ${procedure.name}`,
-      createdById: ctx.userId,
-    }),
+  // Idempotência: não duplica a baixa do mesmo agendamento (clientId no where = belt).
+  const existing = await prisma.revenue.findFirst({
+    where: { appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
+    select: { id: true },
   })
+  if (existing) return existing
+
+  const date = (details?.date ? parseLocalDate(details.date) : null) ?? new Date()
+
+  const data = details
+    ? buildAppointmentRevenueData({
+        organizationId: ctx.organizationId,
+        clientId,
+        patientId,
+        procedureId,
+        appointmentId,
+        procedureName: procedure.name,
+        price: Number(procedure.price),
+        cost: Number(procedure.cost),
+        date,
+        paymentMethod: details.paymentMethod ?? undefined,
+        installments: details.installments,
+        discountPct: details.discountPct,
+        createdById: ctx.userId,
+      })
+    : buildPaidRevenueData({
+        organizationId: ctx.organizationId,
+        clientId,
+        patientId,
+        procedureId,
+        appointmentId,
+        amount: Number(procedure.price),
+        cost: Number(procedure.cost),
+        date,
+        type: 'PROCEDIMENTO',
+        description: `Procedimento: ${procedure.name}`,
+        createdById: ctx.userId,
+      })
+
+  return prisma.revenue.create({ data })
 }

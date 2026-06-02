@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
+import type { RevenueDetails } from '@/modules/financial/types'
 import { NotFoundError, ok, fail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -127,14 +128,24 @@ export async function moveLeadAction(
   stageId: string,
   clientId: string,
   position?: number,
-  cancelReason?: string
+  cancelReason?: string,
+  // Detalhes da baixa ao mover p/ Fechado (forma/parcelas/desconto/data). Validado
+  // leve; repassado ao efeito CLOSED. Ausente = baixa simples (compat).
+  revenueDetails?: RevenueDetails
 ) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
   enterClientScope(clientId)
   await assertCan(ctx, 'crm', 'write')
 
-  const res = await moveLeadWithEffect(ctx, { clientId, leadId, stageId, position, cancelReason })
+  const res = await moveLeadWithEffect(ctx, {
+    clientId,
+    leadId,
+    stageId,
+    position,
+    cancelReason,
+    revenueDetails,
+  })
 
   if ('needsConfirm' in res) {
     return ok({ status: 'confirm-regress' as const, fromKey: res.fromKey, toKey: res.toKey })

@@ -199,6 +199,87 @@ export function buildPaidRevenueData(opts: {
   }
 }
 
+/**
+ * `data` de `revenue.create` para a baixa de um agendamento/card COM detalhes de
+ * pagamento (forma, parcelas, desconto) — mesmo nível do registro manual. Deriva
+ * bruto/desconto/líquido do preço do procedimento + desconto%, gera as parcelas
+ * (PAGO à vista em 1x dinheiro; PENDENTE no parcelado) e o Cost do procedimento.
+ * Usado pela baixa da agenda e pelo card→Fechado quando o usuário informa detalhes.
+ */
+export function buildAppointmentRevenueData(opts: {
+  organizationId: string
+  clientId: string
+  patientId: string
+  procedureId: string
+  appointmentId: string
+  procedureName: string
+  price: number
+  cost: number
+  date: Date
+  paymentMethod?: string
+  installments?: number
+  discountPct?: number
+  createdById?: string
+}): Prisma.RevenueUncheckedCreateInput {
+  const gross = opts.price
+  const discount = Math.round(gross * ((opts.discountPct ?? 0) / 100) * 100) / 100
+  const amount = Math.round((gross - discount) * 100) / 100
+  const { rows, status } = buildReceivables({
+    amount,
+    installments: opts.installments,
+    date: opts.date,
+    paymentMethod: opts.paymentMethod,
+  })
+  return {
+    organizationId: opts.organizationId,
+    clientId: opts.clientId,
+    type: 'PROCEDIMENTO',
+    grossAmount: gross,
+    discount,
+    amount,
+    status,
+    date: opts.date,
+    installments: opts.installments ?? 1,
+    patientId: opts.patientId,
+    procedureId: opts.procedureId,
+    appointmentId: opts.appointmentId,
+    description: `Procedimento: ${opts.procedureName}`,
+    ...(opts.paymentMethod ? { paymentMethod: opts.paymentMethod } : {}),
+    ...(opts.createdById ? { createdById: opts.createdById } : {}),
+    ...(opts.cost > 0
+      ? {
+          costs: {
+            create: [
+              {
+                organizationId: opts.organizationId,
+                clientId: opts.clientId,
+                type: 'VARIABLE' as const,
+                category: PROCEDURE_COST_CATEGORY,
+                amount: opts.cost,
+                date: opts.date,
+                description: `Procedimento: ${opts.procedureName}`,
+                isRecurring: false,
+                ...(opts.createdById ? { createdById: opts.createdById } : {}),
+              },
+            ],
+          },
+        }
+      : {}),
+    receivables: {
+      create: rows.map((r) => ({
+        organizationId: opts.organizationId,
+        clientId: opts.clientId,
+        installmentNumber: r.installmentNumber,
+        amount: r.amount,
+        dueDate: r.dueDate,
+        status: r.status,
+        paidAt: r.paidAt,
+        paymentMethod: r.paymentMethod,
+      })),
+    },
+  }
+}
+
 // Monta as linhas de Cost (uma por procedimento). Custo nunca é parcelado.
 function buildProcedureCostRows(
   ctx: TenantContext,

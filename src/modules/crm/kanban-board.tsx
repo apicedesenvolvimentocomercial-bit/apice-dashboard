@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button'
 import type { ClinicSchedule } from '@/modules/appointments/types'
 import { positionBetween } from '@/lib/dnd-position'
 import { moveLeadAction, reorderLeadAction, regressLeadAction } from '@/server/actions/lead-actions'
+import { RevenueDetailsDialog } from '@/modules/financial/revenue-details-dialog'
+import type { RevenueDetails } from '@/modules/financial/types'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -352,11 +354,19 @@ export function KanbanBoard({
     stageId: string,
     position: number,
     snapshot: KanbanStage[],
-    cancelReason?: string
+    cancelReason?: string,
+    revenueDetails?: RevenueDetails
   ) {
     const leadName = snapshot.flatMap((s) => s.leads).find((l) => l.id === leadId)?.name ?? 'Lead'
     startTransition(async () => {
-      const result = await moveLeadAction(leadId, stageId, clientId, position, cancelReason)
+      const result = await moveLeadAction(
+        leadId,
+        stageId,
+        clientId,
+        position,
+        cancelReason,
+        revenueDetails
+      )
       if (!result.success) {
         toast.error(result.error.message)
         setStages(snapshot)
@@ -590,8 +600,9 @@ export function KanbanBoard({
         }}
       />
 
-      {/* Confirmação de Fechar: avisa que dará baixa financeira (gera receita). */}
-      <AlertDialog
+      {/* Fechar = baixa financeira COM detalhes (forma/parcelas/desconto), igual ao
+          registro manual. Cancelar restaura o snapshot (desfaz o move otimista). */}
+      <RevenueDetailsDialog
         open={pendingClose !== null}
         onOpenChange={(o) => {
           if (!o && pendingClose) {
@@ -599,37 +610,20 @@ export function KanbanBoard({
             setPendingClose(null)
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Fechar e dar baixa financeira?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Fechar {pendingClose?.leadName ?? 'este card'} registra a baixa financeira — gera a
-              receita do procedimento no financeiro. Deseja continuar?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                if (pendingClose) setStages(pendingClose.snapshot)
-                setPendingClose(null)
-              }}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!pendingClose) return
-                const p = pendingClose
-                setPendingClose(null)
-                persistMove(p.leadId, p.stageId, p.position, p.snapshot)
-              }}
-            >
-              Sim, fechar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Fechar e dar baixa financeira"
+        description="Gera a receita do procedimento no financeiro. Informe forma de pagamento, parcelas e desconto."
+        pending={isPending}
+        onConfirm={(details) => {
+          if (!pendingClose) return
+          const p = pendingClose
+          setPendingClose(null)
+          persistMove(p.leadId, p.stageId, p.position, p.snapshot, undefined, details)
+        }}
+        onCancel={() => {
+          if (pendingClose) setStages(pendingClose.snapshot)
+          setPendingClose(null)
+        }}
+      />
 
       {/* 2d — Confirmação de retrocesso: desfaz os efeitos já aplicados. */}
       <AlertDialog
