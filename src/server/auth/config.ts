@@ -4,6 +4,13 @@ import Credentials from 'next-auth/providers/credentials'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
+import {
+  clearRateLimit,
+  clientIpFromHeaders,
+  isRateLimited,
+  LOGIN_RATE_LIMIT,
+  registerHit,
+} from '@/server/security/rate-limit'
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -24,9 +31,26 @@ export const authConfig = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Senha', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const parsed = loginSchema.safeParse(credentials)
         if (!parsed.success) return null
+
+        // Rate-limit de brute-force (SEC-002). Bloqueia por email E por IP; a
+        // resposta de falha é a mesma (null) com ou sem bloqueio → não vaza se o
+        // email existe nem quanto falta. Chaves limpas ao logar com sucesso.
+        const ip = clientIpFromHeaders(request?.headers ?? new Headers())
+        const emailKey = `login:email:${parsed.data.email.toLowerCase()}`
+        const ipKey = `login:ip:${ip}`
+        const [byEmail, byIp] = await Promise.all([isRateLimited(emailKey), isRateLimited(ipKey)])
+        if (byEmail.blocked || byIp.blocked) return null
+
+        const recordFailure = async () => {
+          await Promise.all([
+            registerHit(emailKey, LOGIN_RATE_LIMIT),
+            registerHit(ipKey, LOGIN_RATE_LIMIT),
+          ])
+          return null
+        }
 
         // Select explícito para que `passwordHash` não trafegue além do escopo
         // estritamente necessário (regra de ouro §16.2 do prompt).
@@ -46,12 +70,14 @@ export const authConfig = {
           },
         })
 
-        if (!user || !user.isActive || !user.passwordHash) return null
+        if (!user || !user.isActive || !user.passwordHash) return recordFailure()
 
         const { compare } = await import('bcryptjs')
         const valid = await compare(parsed.data.password, user.passwordHash)
-        if (!valid) return null
+        if (!valid) return recordFailure()
 
+        // Sucesso: zera os contadores de tentativa.
+        await clearRateLimit([emailKey, ipKey])
         await prisma.user.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() },

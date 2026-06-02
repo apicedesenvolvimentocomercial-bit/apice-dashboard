@@ -151,8 +151,10 @@ detecta retrocesso. Retorna um payload de status (`moved` / `needs-appointment` 
   `{ clientId, name, phone?, email?, procedureInterest? }`. Provider→source
   (meta-ads→META_ADS, google-ads→GOOGLE_ADS, whatsapp→WHATSAPP). Cria Lead na etapa
   `nativeKey=LEAD` da pipeline COMMERCIAL. **`enterClientScope(clientId)` ANTES** de
-  tocar dados (rota não passa por getClinicContext). Fail-closed por `WEBHOOK_SECRET`
-  já existente.
+  tocar dados (rota não passa por getClinicContext). **Atualizado 2026-06-01:** auth do
+  webhook agora é **token POR-CLÍNICA** (`Client.webhookTokenHash`, header `x-webhook-token`
+  resolve o `clientId` — body não escolhe mais a clínica) + rate-limit por IP. O
+  `WEBHOOK_SECRET` global foi removido. Ver `seguranca-pendencias.md` (#2).
 
 Verificado 2b–2f: `type-check` ✓ · `lint` ✓ (0 erros) · `test` ✓ (131) · `build` ✓.
 Provado no Neon (scripts tsx): fluxo schedule→attended→closed cria/baixa Revenue;
@@ -164,7 +166,8 @@ correto e rejeita provider inválido; retention job (contexto admin) ativa/desat
 
 ### Variáveis de ambiente / deploy
 
-- `WEBHOOK_SECRET` (header `x-webhook-secret`) p/ o webhook 2f aceitar POST.
+- ~~`WEBHOOK_SECRET`~~ removido (2026-06-01). Webhook 2f autentica por **token por-clínica**
+  (`Client.webhookTokenHash`, header `x-webhook-token`) — sem env var; titular gera em `/configuracoes`.
 - Cron `api/cron/retention` usa `CRON_SECRET` como os demais (ver `lib/cron-auth`).
 - Aplicar em prod, em ordem: `variable_pipelines`, `pipeline_native_keys`,
   `client_inactivity_days` (via `prisma migrate deploy`).

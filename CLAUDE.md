@@ -311,6 +311,9 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   em "Convenções de código".
 - `fase11-progresso.md` — infra de testes E2E.
 - `auditoria-*.md`, `deploy-checklist.md` — achados de auditoria e checklist de deploy.
-- `seguranca-pendencias.md` — pendências de segurança **OBRIGATÓRIAS** (rate-limiting
-  login/webhook; segredo do webhook por-clínica/assinatura). Bloqueador de deploy das
-  integrações reais. Hardening já feito; estes 2 mudam comportamento → aguardam decisão.
+- `seguranca-pendencias.md` — segurança. **Os 2 bloqueadores OBRIGATÓRIOS estão RESOLVIDOS
+  (2026-06-01):** rate-limiting login+webhook (contador Postgres, model `RateLimit`,
+  `src/server/security/rate-limit.ts` — login trava por email+IP, webhook por IP→429) e segredo
+  de webhook **por-clínica** (`Client.webhookTokenHash`, `src/server/services/webhook-auth.ts`:
+  header `x-webhook-token` resolve o `clientId` server-side; `WEBHOOK_SECRET` global removido;
+  titular gera o token em `/configuracoes`). Assinatura por-provider = melhoria futura.

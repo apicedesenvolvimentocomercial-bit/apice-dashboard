@@ -9,13 +9,11 @@ import { ReceivablesTab } from './receivables-tab'
 import { AssetsTab } from './assets-tab'
 import { RevenuesTab } from './revenues-tab'
 import { CostsTab } from './costs-tab'
-import { ProceduresTab } from './procedures-tab'
 import { ReportsTab } from './reports-tab'
 import type {
   CostRow,
   FinancialSummary,
   ProcedureForSelect,
-  ProcedureWithStats,
   RevenueRow,
   TopCostCategory,
   TopProcedure,
@@ -32,7 +30,6 @@ type Props = {
   topCostCategories: TopCostCategory[]
   revenues: RevenueRow[]
   costs: CostRow[]
-  procedures: ProcedureWithStats[]
   proceduresForSelect: ProcedureForSelect[]
   patients: Patient[]
 }
@@ -45,7 +42,6 @@ export function FinancialTabs({
   topCostCategories,
   revenues,
   costs,
-  procedures,
   proceduresForSelect,
   patients,
 }: Props) {
@@ -55,7 +51,7 @@ export function FinancialTabs({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Financeiro</h1>
-        <p className="text-muted-foreground">Receitas, custos, procedimentos e DRE</p>
+        <p className="text-muted-foreground">Receitas, custos, contas a receber e DRE</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -66,7 +62,6 @@ export function FinancialTabs({
           <TabsTrigger value="receivables">Contas a Receber</TabsTrigger>
           <TabsTrigger value="costs">Custos</TabsTrigger>
           <TabsTrigger value="assets">Ativos</TabsTrigger>
-          <TabsTrigger value="procedures">Procedimentos</TabsTrigger>
           <TabsTrigger value="reports">Relatórios</TabsTrigger>
         </TabsList>
 
@@ -102,10 +97,6 @@ export function FinancialTabs({
 
         <TabsContent value="costs" className="mt-6 space-y-4">
           <CostsTab costs={costs} clientId={clientId} />
-        </TabsContent>
-
-        <TabsContent value="procedures" className="mt-6 space-y-4">
-          <ProceduresTab procedures={procedures} clientId={clientId} />
         </TabsContent>
 
         <TabsContent value="reports" className="mt-6">

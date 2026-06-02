@@ -3,11 +3,16 @@
 > Origem: revisão de segurança (2026-05-30). Os 4 fixes de hardening já foram
 > aplicados (escape de `href` no e-mail, `clientId` no `where` dos updates de
 > insight, escape de senha no `rls-setup-role`, caps de tamanho no payload do
-> webhook). **Os 2 itens abaixo mudam comportamento → ficaram pendentes para
-> decisão e implementação. São OBRIGATÓRIOS antes de expor as integrações reais
-> em produção.** Bloqueador de deploy — ver `deploy-checklist.md`.
+> webhook).
+>
+> **STATUS (2026-06-01): AMBAS RESOLVIDAS E IMPLEMENTADAS.** #1 (rate-limiting) e #2
+> (segredo do webhook por-clínica) foram implementados — ver "Concluído" abaixo. As
+> seções de decisão ficam como histórico. Não são mais bloqueadores de deploy.
 
-## #1 — Rate-limiting (login + webhook) · OBRIGATÓRIA
+## #1 — Rate-limiting (login + webhook) · ✅ RESOLVIDA (2026-06-01)
+
+> Implementada com a opção **a)** (contador em Postgres — sem infra nova) cobrindo
+> **login E webhook**. Detalhe no "Concluído". O texto abaixo é o histórico da decisão.
 
 **Risco:** sem throttle. `/login` (NextAuth `authorize`) aceita tentativas
 ilimitadas → brute-force de senha. `POST /api/webhooks/*` idem → flooding de
@@ -28,7 +33,11 @@ N por janela (pode afetar usuário legítimo atrás de NAT) e **exige infra**
 **Aceite:** N falhas de login na janela → 429/lockout temporário (constante no
 tempo, sem vazar se o email existe); webhook acima do teto → 429. Cobrir com teste.
 
-## #2 — Modelo de segredo do webhook · OBRIGATÓRIA
+## #2 — Modelo de segredo do webhook · ✅ RESOLVIDA (2026-06-01)
+
+> Implementada com a opção **a)** (token POR-CLÍNICA — o token resolve o clientId
+> server-side; o body não escolhe mais a clínica). Detalhe no "Concluído". Texto
+> abaixo = histórico da decisão.
 
 **Risco:** hoje há **um** `WEBHOOK_SECRET` global e o `clientId` vem no body —
 quem tiver o segredo grava `Lead` em **qualquer clínica de qualquer org**
@@ -51,6 +60,42 @@ autentica e como o `clientId` é resolvido).
 amarra a requisição à clínica/provider. Cobrir com teste de isolamento.
 
 ## Concluído
+
+### #1 — Rate-limiting (login + webhook) (2026-06-01) ✅
+
+Contador de janela fixa em Postgres — opção a) (sem Redis/infra nova).
+
+- **Model `RateLimit`** (`key` PK, `count`, `windowStart`, `blockedUntil`, `updatedAt`) +
+  migration `20260601110000_security_rate_limit_webhook_token`. Tabela global (sem
+  `clientId`) → fora da RLS. Aplicada no Neon.
+- **Helper** [`src/server/security/rate-limit.ts`](../src/server/security/rate-limit.ts):
+  `isRateLimited` (peek), `registerHit` (conta + bloqueia ao estourar), `clearRateLimit`,
+  `clientIpFromHeaders`. Configs: `LOGIN_RATE_LIMIT` (8 falhas/15min → trava 15min),
+  `WEBHOOK_RATE_LIMIT` (60 req/min por IP → trava 5min).
+- **Login** (`auth/config.ts authorize`): bloqueia por **email E IP**; falha conta hit,
+  sucesso limpa as chaves. Resposta de falha idêntica com/sem bloqueio (retorna `null`)
+  → não vaza se o email existe nem quanto falta (constante no tempo). Lê o IP do `request`.
+- **Webhook** (`api/webhooks/[provider]`): `registerHit('webhook:ip:<ip>')` antes do
+  trabalho de DB → **429 + Retry-After** quando estoura.
+- **Testes:** `src/server/security/rate-limit.test.ts` (6: teto, bloqueio, peek, reset de
+  janela, bloqueio persistente, clear).
+
+### #2 — Segredo do webhook por-clínica (2026-06-01) ✅
+
+Token POR-CLÍNICA — opção a). O body não escolhe mais a clínica.
+
+- **`Client.webhookTokenHash`** (`@unique`, só o hash sha256) na mesma migration.
+- **Serviço** [`src/server/services/webhook-auth.ts`](../src/server/services/webhook-auth.ts):
+  `generateWebhookToken` (cru + hash), `hashWebhookToken`, `resolveClientIdByWebhookToken`
+  (lookup por hash; null se ausente/clínica deletada).
+- **Rota** reescrita: header `x-webhook-token` resolve o `clientId` server-side; sem token
+  válido → **401**. `WEBHOOK_SECRET` global REMOVIDO do `env.ts` (não é mais usado).
+- **Actions** [`webhook-actions.ts`](../src/server/actions/webhook-actions.ts):
+  `regenerateWebhookTokenAction` / `revokeWebhookTokenAction` (só TITULAR; token cru
+  mostrado UMA vez). **UI** em `/configuracoes` (`modules/settings/webhook-settings.tsx`):
+  URLs por provider + gerar/regenerar/revogar.
+- **Testes:** `src/server/services/webhook-auth.test.ts` (6: hash determinístico, token↔hash,
+  resolve válido, token desconhecido/vazio, clínica deletada).
 
 ### CSP + headers de segurança (2026-05-30) ✅
 

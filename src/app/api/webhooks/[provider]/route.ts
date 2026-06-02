@@ -1,10 +1,9 @@
-import { timingSafeEqual } from 'node:crypto'
-
 import { NextResponse } from 'next/server'
 
-import { env } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { clientIpFromHeaders, registerHit, WEBHOOK_RATE_LIMIT } from '@/server/security/rate-limit'
 import { ingestLead } from '@/server/services/lead-ingest'
+import { resolveClientIdByWebhookToken } from '@/server/services/webhook-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -12,31 +11,17 @@ export const runtime = 'nodejs'
 const VALID_PROVIDERS = new Set(['whatsapp', 'meta-ads', 'google-ads'])
 
 /**
- * Fail-closed (SEC-003·B): o webhook só aceita POST se `WEBHOOK_SECRET` estiver
- * configurado E o header `x-webhook-secret` bater (compare constante). Sem segredo
- * configurado → endpoint desabilitado (401). Quando o adapter real de cada provider
- * for plugado, trocar por validação de assinatura por provider (Meta `X-Hub-Signature-256`,
- * WhatsApp, Google) ANTES de processar.
- */
-function isWebhookAuthorized(req: Request): boolean {
-  const secret = env.WEBHOOK_SECRET
-  if (!secret) return false
-  const provided = req.headers.get('x-webhook-secret')
-  if (!provided) return false
-  const a = Buffer.from(provided)
-  const b = Buffer.from(secret)
-  if (a.length !== b.length) return false
-  return timingSafeEqual(a, b)
-}
-
-/**
  * Recebe callbacks dos providers externos e ingere o contato como Lead na etapa
  * LEAD da pipeline COMMERCIAL da clínica (Fase 2f). Contrato do payload (JSON):
- *   { clientId: string, name: string, phone?, email?, procedureInterest? }
+ *   { name: string, phone?, email?, procedureInterest? }
  * O provider da URL define o `LeadSource` (meta-ads/google-ads/whatsapp).
  *
- * RLS: `ingestLead` chama `enterClientScope(clientId)` antes de tocar dados de
- * clínica — esta rota não passa por `getClinicContext` (rls-gambiarra §entrypoints).
+ * SEGURANÇA (SEC-002/SEC-003, ledger seguranca-pendencias.md):
+ * - **Token por-clínica** (header `x-webhook-token`) resolve o `clientId` server-side.
+ *   O body NÃO escolhe mais a clínica → sem segredo válido, 401 (fail-closed).
+ * - **Rate-limit por IP** (anti-flooding) antes do trabalho de DB.
+ * Quando o adapter real de cada provider for plugado, somar validação de assinatura
+ * por provider (Meta `X-Hub-Signature-256`, WhatsApp, Google) ANTES de processar.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ provider: string }> }) {
   const { provider } = await ctx.params
@@ -44,7 +29,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ provider: stri
     return NextResponse.json({ error: 'Unknown provider' }, { status: 404 })
   }
 
-  if (!isWebhookAuthorized(req)) {
+  // Rate-limit por IP antes de qualquer lookup pesado (protege até o request não autenticado).
+  const ip = clientIpFromHeaders(req.headers)
+  const rl = await registerHit(`webhook:ip:${ip}`, WEBHOOK_RATE_LIMIT)
+  if (rl.blocked) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+    )
+  }
+
+  // Token por-clínica resolve o clientId. Sem token válido → 401.
+  const token = req.headers.get('x-webhook-token') ?? ''
+  const clientId = await resolveClientIdByWebhookToken(token)
+  if (!clientId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -57,7 +55,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ provider: stri
   }
 
   const result = await ingestLead(provider, {
-    clientId: body.clientId,
+    // clientId vem do token (server-side); body.clientId é ignorado de propósito.
+    clientId,
     name: body.name,
     phone: body.phone,
     email: body.email,

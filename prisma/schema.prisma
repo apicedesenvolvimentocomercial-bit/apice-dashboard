@@ -183,6 +183,19 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+/// Contador de rate-limit (janela fixa) — defesa contra brute-force de login e
+/// flooding de webhook (SEC-002). Backed by Postgres, sem infra externa. `key`
+/// identifica o alvo (ex.: `login:email:<x>`, `login:ip:<x>`, `webhook:ip:<x>`).
+/// `windowStart` abre a janela; `count` conta os hits; `blockedUntil` bloqueia até
+/// o instante após estourar o teto. Sem clientId → fora da RLS (tabela global).
+model RateLimit {
+  key          String    @id
+  count        Int       @default(0)
+  windowStart  DateTime  @default(now())
+  blockedUntil DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
 // =====================================================
 // CLIENT (CLÍNICA)
 // =====================================================
@@ -242,6 +255,12 @@ model Client {
   // impostos entram na DRE: SIMPLES = DAS sobre receita (imposto sobre lucro ~0);
   // PRESUMIDO/REAL separam ISS/PIS/COFINS (sobre receita) de IRPJ/CSLL (sobre lucro).
   taxRegime TaxRegime @default(SIMPLES)
+
+  // Token de webhook por-clínica (SEC-003·B). Armazenamos só o hash sha256; o token
+  // cru só existe na config externa do provider e no momento da geração. Resolve o
+  // `clientId` server-side → o body do webhook não escolhe mais a clínica. null =
+  // webhook desabilitado p/ esta clínica.
+  webhookTokenHash String? @unique
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -872,6 +891,9 @@ model Receivable {
   status            ReceivableStatus @default(PENDENTE)
   paidAt            DateTime?
   paymentMethod     String?
+  // Data da baixa por perda (write-off). Setada ao virar PERDIDO, limpa ao reverter.
+  // A DRE usa este campo (não `updatedAt`) p/ atribuir a inadimplência ao período.
+  writtenOffAt      DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

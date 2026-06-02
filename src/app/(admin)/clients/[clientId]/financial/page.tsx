@@ -5,7 +5,6 @@ import {
   getFinancialOverview,
   getPatientsForSelect,
   getProceduresForSelect,
-  getProceduresWithStats,
   getRevenues,
 } from '@/server/queries/financial-queries'
 import { getRevenueMonthlySeries } from '@/server/queries/revenue-series'
@@ -24,13 +23,12 @@ export default async function AdminClientFinancialPage({ params }: Props) {
   await assertClientAccess(ctx, clientId)
   await assertCan(ctx, 'financial', 'read')
 
-  const [overview, revenueSeries, revenues, costs, procedures, proceduresForSelect, patients] =
+  const [overview, revenueSeries, revenues, costs, proceduresForSelect, patients] =
     await Promise.all([
       getFinancialOverview(clientId),
       getRevenueMonthlySeries(ctx, clientId),
       getRevenues(clientId),
       getCosts(clientId),
-      getProceduresWithStats(clientId),
       getProceduresForSelect(clientId),
       getPatientsForSelect(clientId),
     ])
@@ -44,7 +42,6 @@ export default async function AdminClientFinancialPage({ params }: Props) {
       topCostCategories={overview.topCostCategories}
       revenues={revenues}
       costs={costs}
-      procedures={procedures}
       proceduresForSelect={proceduresForSelect}
       patients={patients}
     />

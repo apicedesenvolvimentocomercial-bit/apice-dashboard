@@ -83,6 +83,9 @@ async function setReceivableStatus(
       data: {
         status: data.status,
         paidAt: data.paidAt,
+        // Data dedicada da baixa por perda: setada ao virar PERDIDO, limpa ao
+        // reverter (PAGO/PENDENTE). A DRE atribui a inadimplência por este campo.
+        writtenOffAt: data.status === 'PERDIDO' ? new Date() : null,
         ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod } : {}),
       },
     })

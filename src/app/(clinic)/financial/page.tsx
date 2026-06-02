@@ -20,7 +20,7 @@ export default async function ClientFinancialPage() {
     )
   }
 
-  const { overview, revenueSeries, revenues, costs, procedures, proceduresForSelect, patients } =
+  const { overview, revenueSeries, revenues, costs, proceduresForSelect, patients } =
     await getClinicFinancialPage()
 
   return (
@@ -32,7 +32,6 @@ export default async function ClientFinancialPage() {
       topCostCategories={overview.topCostCategories}
       revenues={revenues}
       costs={costs}
-      procedures={procedures}
       proceduresForSelect={proceduresForSelect}
       patients={patients}
     />

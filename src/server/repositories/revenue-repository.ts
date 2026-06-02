@@ -345,6 +345,86 @@ export async function createRevenuesBulk(
   })
 }
 
+// Regenera as parcelas EM ABERTO de uma receita após edição de valor/parcelamento,
+// preservando as já PAGAS e as baixadas (PERDIDO) — não reescreve caixa nem perda já
+// reconhecidos. O restante (líquido − pago − perdido) é reparcelado nas parcelas que
+// sobram, com vencimento mensal a partir da data da receita. Retorna o status da venda
+// (QUITADA se nada ficou em aberto). Roda dentro da transação escopada do caller.
+async function regenerateReceivables(
+  tx: Prisma.TransactionClient,
+  opts: {
+    revenueId: string
+    clientId: string
+    organizationId: string
+    amount: number
+    installments: number
+    date: Date
+    paymentMethod?: string | null
+  }
+): Promise<'ABERTA' | 'QUITADA'> {
+  const existing = await tx.receivable.findMany({
+    where: { revenueId: opts.revenueId, clientId: opts.clientId },
+    select: { status: true, amount: true },
+  })
+  const locked = existing.filter((r) => r.status === 'PAGO' || r.status === 'PERDIDO')
+  const lockedSum = locked.reduce((s, r) => s + Number(r.amount), 0)
+  const lockedCount = locked.length
+
+  // Remove só as parcelas PENDENTE; PAGO/PERDIDO/CANCELADO ficam intactas.
+  await tx.receivable.deleteMany({
+    where: { revenueId: opts.revenueId, clientId: opts.clientId, status: 'PENDENTE' },
+  })
+
+  const remaining = Math.round((opts.amount - lockedSum) * 100) / 100
+  const remainingInstallments =
+    remaining > 0.004 ? Math.max(1, (opts.installments || 1) - lockedCount) : 0
+
+  if (remainingInstallments === 0) return 'QUITADA'
+
+  // Sem nenhuma parcela travada = cronograma totalmente novo → reusa buildReceivables
+  // (trata 1x à vista como PAGO, igual à criação). Com parcelas travadas, o restante é
+  // sempre PENDENTE (não dá p/ "pagar à vista" só uma fração) e continua a numeração.
+  if (lockedCount === 0) {
+    const { rows, status } = buildReceivables({
+      amount: remaining,
+      installments: remainingInstallments,
+      date: opts.date,
+      paymentMethod: opts.paymentMethod ?? undefined,
+    })
+    await tx.receivable.createMany({
+      data: rows.map((r) => ({
+        organizationId: opts.organizationId,
+        clientId: opts.clientId,
+        revenueId: opts.revenueId,
+        installmentNumber: r.installmentNumber,
+        amount: r.amount,
+        dueDate: r.dueDate,
+        status: r.status,
+        paidAt: r.paidAt,
+        paymentMethod: r.paymentMethod,
+      })),
+    })
+    return status
+  }
+
+  const parts = splitAmount(remaining, remainingInstallments)
+  await tx.receivable.createMany({
+    data: parts.map((amt, i) => ({
+      organizationId: opts.organizationId,
+      clientId: opts.clientId,
+      revenueId: opts.revenueId,
+      installmentNumber: lockedCount + i + 1,
+      amount: amt,
+      dueDate: addMonths(opts.date, lockedCount + i),
+      status: 'PENDENTE' as const,
+      paidAt: null,
+      paymentMethod: opts.paymentMethod ?? null,
+    })),
+  })
+
+  return 'ABERTA'
+}
+
 export async function updateRevenue(
   ctx: TenantContext,
   revenueId: string,
@@ -363,54 +443,76 @@ export async function updateRevenue(
   }>,
   procedures?: RevenueProcedureInput[]
 ) {
-  // NOTA (MVP): editar uma receita NÃO regenera as parcelas (evita clobber de
-  // parcela já paga). Mudar valor/parcelamento de uma venda parcelada exige
-  // recriar a receita. Cobrir em iteração futura se necessário.
-  // Sem mudança de procedimentos: update simples dos campos escalares.
+  // Mudança que afeta o cronograma de parcelas (valor/parcelas/forma/data) dispara a
+  // regeneração das parcelas EM ABERTO (preserva pagas/baixadas — ver regenerateReceivables).
   // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.
-  if (!procedures) {
+  const scheduleChanged =
+    data.amount !== undefined ||
+    data.installments !== undefined ||
+    data.paymentMethod !== undefined ||
+    data.date !== undefined
+
+  // Sem procedimentos nem mudança de cronograma: update escalar simples.
+  if (!procedures && !scheduleChanged) {
     return prisma.revenue.updateMany({
       where: { id: revenueId, clientId, organizationId: ctx.organizationId, deletedAt: null },
       data,
     })
   }
 
-  // Com procedimentos: re-sincroniza itens e custos vinculados numa transação.
-  const primaryProcedureId = data.procedureId ?? procedures[0]?.procedureId
-  const date = data.date ?? new Date()
+  const primaryProcedureId = data.procedureId ?? procedures?.[0]?.procedureId
 
   return scopedTransaction(async (tx) => {
     const updated = await tx.revenue.updateMany({
       where: { id: revenueId, clientId, organizationId: ctx.organizationId, deletedAt: null },
-      data: { ...data, procedureId: primaryProcedureId },
+      data: procedures ? { ...data, procedureId: primaryProcedureId } : data,
     })
     if (updated.count === 0) return updated
 
-    // Apaga itens e custos antigos, recria do estado novo.
-    await tx.revenueProcedure.deleteMany({ where: { revenueId } })
-    await tx.cost.updateMany({
-      where: { revenueId, deletedAt: null },
-      data: { deletedAt: new Date() },
-    })
-    if (procedures.length > 0) {
-      const rev = await tx.revenue.findUnique({
-        where: { id: revenueId },
-        select: { clientId: true },
+    // Com procedimentos: re-sincroniza itens e custos vinculados.
+    if (procedures) {
+      const date = data.date ?? new Date()
+      await tx.revenueProcedure.deleteMany({ where: { revenueId } })
+      await tx.cost.updateMany({
+        where: { revenueId, deletedAt: null },
+        data: { deletedAt: new Date() },
       })
-      if (rev) {
+      if (procedures.length > 0) {
         await tx.revenueProcedure.createMany({
           data: procedures.map((p) => ({
-            clientId: rev.clientId,
+            clientId,
             revenueId,
             procedureId: p.procedureId,
             price: p.price,
             cost: p.cost,
           })),
         })
-        const costRows = buildProcedureCostRows(ctx, rev.clientId, date, revenueId, procedures)
+        const costRows = buildProcedureCostRows(ctx, clientId, date, revenueId, procedures)
         if (costRows.length > 0) await tx.cost.createMany({ data: costRows })
       }
     }
+
+    // Cronograma: regenera as parcelas em aberto a partir do estado pós-update
+    // (não mexe em venda CANCELADA). O status da venda passa a refletir as parcelas.
+    if (scheduleChanged) {
+      const current = await tx.revenue.findFirst({
+        where: { id: revenueId, clientId },
+        select: { amount: true, installments: true, date: true, paymentMethod: true, status: true },
+      })
+      if (current && current.status !== 'CANCELADA') {
+        const newStatus = await regenerateReceivables(tx, {
+          revenueId,
+          clientId,
+          organizationId: ctx.organizationId,
+          amount: data.amount ?? Number(current.amount),
+          installments: data.installments ?? current.installments ?? 1,
+          date: data.date ?? current.date,
+          paymentMethod: data.paymentMethod ?? current.paymentMethod,
+        })
+        await tx.revenue.update({ where: { id: revenueId }, data: { status: newStatus } })
+      }
+    }
+
     return updated
   })
 }
