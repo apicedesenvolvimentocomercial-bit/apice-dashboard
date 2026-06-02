@@ -316,11 +316,19 @@ export async function updateAppointmentStatusAction(
   }
 }
 
+const revenueDetailsSchema = z.object({
+  paymentMethod: z.string().optional().nullable(),
+  installments: z.number().int().min(1).max(36).optional(),
+  discountPct: z.number().min(0).max(100).optional(),
+  date: z.string().optional(),
+})
+
 export async function confirmRevenueFromAppointmentAction(
   appointmentId: string,
   clientId: string,
   patientId: string,
-  procedureId: string
+  procedureId: string,
+  details?: unknown
 ) {
   try {
     const ctx = await getTenantContext()
@@ -328,12 +336,14 @@ export async function confirmRevenueFromAppointmentAction(
     enterClientScope(clientId)
     await assertCan(ctx, 'financial', 'write')
 
+    const parsedDetails = details ? revenueDetailsSchema.safeParse(details) : null
     const revenue = await createRevenueFromAppointment(
       ctx,
       clientId,
       appointmentId,
       patientId,
-      procedureId
+      procedureId,
+      parsedDetails?.success ? parsedDetails.data : undefined
     )
     if (!revenue) return fail(new NotFoundError('Procedimento'))
 

@@ -55,6 +55,15 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export const PAYMENT_METHODS = Object.keys(PAYMENT_METHOD_LABELS)
 
+// Detalhes de pagamento de uma baixa (agenda / card→Fechado) — mesmo nível do
+// registro manual. `discountPct` em %; `date` ISO (yyyy-mm-dd); ausência = padrões.
+export type RevenueDetails = {
+  paymentMethod?: string | null
+  installments?: number
+  discountPct?: number
+  date?: string
+}
+
 // Radix Select não aceita `value=""`. Sentinelas para itens "vazio" em selects.
 export const NONE_VALUE = '__none__'
 export const ALL_VALUE = '__all__'

@@ -36,6 +36,8 @@ import {
   regressAppointmentToLeadAction,
 } from '@/server/actions/appointment-actions'
 import { getPatientAction } from '@/server/actions/patient-actions'
+import { RevenueDetailsDialog } from '@/modules/financial/revenue-details-dialog'
+import type { RevenueDetails } from '@/modules/financial/types'
 import { AttendAppointmentDialog } from './attend-appointment-dialog'
 import { STATUS_LABELS, STATUS_COLORS } from './types'
 import type { AppointmentEvent } from './types'
@@ -75,6 +77,8 @@ export function AppointmentDetailDialog({
   const [showRescheduleForm, setShowRescheduleForm] = useState(false)
   const [newDateTime, setNewDateTime] = useState('')
   const [showRevenuePrompt, setShowRevenuePrompt] = useState(false)
+  // Dialog de detalhes da baixa (forma/parcelas/desconto) — mesmo nível do manual.
+  const [showRevenueDetails, setShowRevenueDetails] = useState(false)
   const [showRegressWarn, setShowRegressWarn] = useState(false)
   // Compareceu pela agenda: dialog bloqueante que completa o cadastro (5 campos).
   const [showAttendDialog, setShowAttendDialog] = useState(false)
@@ -186,20 +190,22 @@ export function AppointmentDetailDialog({
     })
   }
 
-  function handleConfirmRevenue() {
+  function handleConfirmRevenue(details: RevenueDetails) {
     if (!appointment) return
     startTransition(async () => {
       const result = await confirmRevenueFromAppointmentAction(
         appointment.id,
         clientId,
         appointment.patientId,
-        appointment.procedureId
+        appointment.procedureId,
+        details
       )
       if (!result.success) {
         toast.error(result.error.message)
       } else {
         toast.success('Receita registrada com sucesso!')
       }
+      setShowRevenueDetails(false)
       setShowRevenuePrompt(false)
       onUpdated()
       onClose()
@@ -288,10 +294,9 @@ export function AppointmentDetailDialog({
                 </Button>
                 <Button
                   className="bg-green-600 hover:bg-green-700"
-                  onClick={handleConfirmRevenue}
+                  onClick={() => setShowRevenueDetails(true)}
                   disabled={isPending}
                 >
-                  {isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
                   Registrar receita
                 </Button>
               </DialogFooter>
@@ -517,6 +522,16 @@ export function AppointmentDetailDialog({
           setShowRevenuePrompt(true)
         }}
         onCancel={() => setShowAttendDialog(false)}
+      />
+
+      {/* Baixa financeira com detalhes (forma/parcelas/desconto) — igual ao manual. */}
+      <RevenueDetailsDialog
+        open={showRevenueDetails}
+        onOpenChange={setShowRevenueDetails}
+        title="Registrar receita"
+        description="Informe a forma de pagamento, parcelas e desconto da baixa."
+        pending={isPending}
+        onConfirm={handleConfirmRevenue}
       />
     </>
   )

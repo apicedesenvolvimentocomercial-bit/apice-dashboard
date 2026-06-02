@@ -1,10 +1,15 @@
 import type { LeadSource, Prisma, StageNativeKey } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
+import { parseLocalDate } from '@/lib/date'
 import { decideCancellationStatus } from '@/lib/no-show-window'
+import type { RevenueDetails } from '@/modules/financial/types'
 import type { TenantContext } from '@/server/tenant/context'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
-import { buildPaidRevenueData } from '@/server/repositories/revenue-repository'
+import {
+  buildAppointmentRevenueData,
+  buildPaidRevenueData,
+} from '@/server/repositories/revenue-repository'
 import {
   addPatientToRetention,
   getRetentionActiveStageId,
@@ -322,6 +327,9 @@ export async function moveLeadWithEffect(
     stageId: string
     position?: number
     cancelReason?: string
+    // Detalhes da baixa financeira ao Fechar (forma/parcelas/desconto/data). Mesmo
+    // nível do registro manual. Ausente = baixa simples 1x quitada (compat).
+    revenueDetails?: RevenueDetails
   }
 ): Promise<MoveEffectResult> {
   const loaded = await loadMoveContext(ctx, params.clientId, params.leadId, params.stageId)
@@ -460,21 +468,38 @@ export async function moveLeadWithEffect(
           select: { price: true, name: true, cost: true },
         })
         if (procedure) {
-          await tx.revenue.create({
-            data: buildPaidRevenueData({
-              organizationId: ctx.organizationId,
-              clientId: lead.clientId,
-              patientId: lead.appointment!.patientId,
-              procedureId: lead.appointment!.procedureId,
-              appointmentId: lead.appointmentId!,
-              amount: procedure.price,
-              cost: Number(procedure.cost),
-              date: new Date(),
-              type: 'PROCEDIMENTO',
-              description: `Procedimento: ${procedure.name}`,
-              createdById: ctx.userId,
-            }),
-          })
+          const details = params.revenueDetails
+          const date = (details?.date ? parseLocalDate(details.date) : null) ?? new Date()
+          const revenueData = details
+            ? buildAppointmentRevenueData({
+                organizationId: ctx.organizationId,
+                clientId: lead.clientId,
+                patientId: lead.appointment!.patientId,
+                procedureId: lead.appointment!.procedureId,
+                appointmentId: lead.appointmentId!,
+                procedureName: procedure.name,
+                price: Number(procedure.price),
+                cost: Number(procedure.cost),
+                date,
+                paymentMethod: details.paymentMethod ?? undefined,
+                installments: details.installments,
+                discountPct: details.discountPct,
+                createdById: ctx.userId,
+              })
+            : buildPaidRevenueData({
+                organizationId: ctx.organizationId,
+                clientId: lead.clientId,
+                patientId: lead.appointment!.patientId,
+                procedureId: lead.appointment!.procedureId,
+                appointmentId: lead.appointmentId!,
+                amount: Number(procedure.price),
+                cost: Number(procedure.cost),
+                date,
+                type: 'PROCEDIMENTO',
+                description: `Procedimento: ${procedure.name}`,
+                createdById: ctx.userId,
+              })
+          await tx.revenue.create({ data: revenueData })
         }
       }
       await tx.lead.update({
