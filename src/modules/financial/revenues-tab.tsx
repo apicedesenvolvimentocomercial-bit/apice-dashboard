@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/searchable-select'
 import { cancelRevenueAction, deleteRevenueAction } from '@/server/actions/revenue-actions'
 import { CreateRevenueDialog } from './create-revenue-dialog'
 import { ImportRevenuesDialog } from './import-revenues-dialog'
@@ -242,22 +243,17 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Paciente</Label>
-          <Select
+          <SearchableSelect
             value={patientId || ALL_VALUE}
-            onValueChange={(v) => setPatientId(v === ALL_VALUE ? '' : v)}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>Todos</SelectItem>
-              {patients.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={(v) => setPatientId(v === ALL_VALUE ? '' : v)}
+            placeholder="Todos"
+            emptyText="Nenhum paciente encontrado"
+            className="h-8 text-xs"
+            options={[
+              { value: ALL_VALUE, label: 'Todos' },
+              ...patients.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+          />
         </div>
         {hasFilters && (
           <div className="col-span-2 flex items-end lg:col-span-5">

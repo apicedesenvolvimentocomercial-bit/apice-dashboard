@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/shared/searchable-select'
 import { cn } from '@/lib/utils'
 import { getScheduleViolation } from '@/lib/schedule-violation'
 import {
@@ -254,28 +255,18 @@ export function CreateAppointmentDialog({
           {mode === 'existing' ? (
             <div className="space-y-1">
               <Label htmlFor="apt-patient">Paciente *</Label>
-              <Select
+              <SearchableSelect
+                id="apt-patient"
                 value={form.patientId}
-                onValueChange={(v) => setForm((f) => ({ ...f, patientId: v }))}
-              >
-                <SelectTrigger id="apt-patient">
-                  <SelectValue placeholder="Selecionar paciente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {patients.length === 0 ? (
-                    <SelectItem value="_empty" disabled>
-                      Nenhum paciente cadastrado
-                    </SelectItem>
-                  ) : (
-                    patients.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                        {p.phone ? ` · ${p.phone}` : ''}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                onChange={(v) => setForm((f) => ({ ...f, patientId: v }))}
+                placeholder="Selecionar paciente..."
+                emptyText="Nenhum paciente encontrado"
+                options={patients.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  sublabel: p.phone ?? undefined,
+                }))}
+              />
             </div>
           ) : (
             <div className="space-y-3">
