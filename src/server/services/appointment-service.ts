@@ -20,7 +20,7 @@ export async function createRevenueFromAppointment(
     }),
     prisma.procedure.findFirst({
       where: { id: procedureId, clientId, organizationId: ctx.organizationId },
-      select: { price: true, name: true },
+      select: { price: true, name: true, cost: true },
     }),
     prisma.patient.findFirst({
       where: { id: patientId, clientId, organizationId: ctx.organizationId, deletedAt: null },
@@ -37,6 +37,7 @@ export async function createRevenueFromAppointment(
       procedureId,
       appointmentId,
       amount: procedure.price,
+      cost: Number(procedure.cost),
       date: new Date(),
       type: 'PROCEDIMENTO',
       description: `Procedimento: ${procedure.name}`,

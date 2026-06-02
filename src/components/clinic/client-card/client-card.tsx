@@ -490,9 +490,14 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
             className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto p-5 data-[state=inactive]:hidden"
           >
             {!docsConfigured ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Armazenamento de documentos ainda não configurado.
-              </p>
+              <div className="space-y-1 py-8 text-center text-sm text-muted-foreground">
+                <p>Armazenamento de documentos ainda não configurado.</p>
+                <p className="text-xs">
+                  Defina <code className="rounded bg-muted px-1">NEXT_PUBLIC_SUPABASE_URL</code> e{' '}
+                  <code className="rounded bg-muted px-1">SUPABASE_SERVICE_ROLE_KEY</code> e crie o
+                  bucket privado <code className="rounded bg-muted px-1">client-documents</code>.
+                </p>
+              </div>
             ) : (
               <>
                 <div className="flex items-center justify-between">

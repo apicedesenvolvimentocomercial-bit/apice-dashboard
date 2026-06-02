@@ -143,6 +143,10 @@ export function buildPaidRevenueData(opts: {
   description?: string
   paymentMethod?: string
   createdById?: string
+  // Custo do procedimento (CSP). Quando > 0, gera um Cost VARIABLE ligado a esta
+  // receita na MESMA criação — senão a baixa automática (fechar card / baixa pela
+  // agenda) registrava só receita e a margem ficava sempre 100%.
+  cost?: number
 }): Prisma.RevenueUncheckedCreateInput {
   return {
     organizationId: opts.organizationId,
@@ -159,6 +163,25 @@ export function buildPaidRevenueData(opts: {
     ...(opts.description ? { description: opts.description } : {}),
     ...(opts.paymentMethod ? { paymentMethod: opts.paymentMethod } : {}),
     ...(opts.createdById ? { createdById: opts.createdById } : {}),
+    ...(opts.cost && opts.cost > 0
+      ? {
+          costs: {
+            create: [
+              {
+                organizationId: opts.organizationId,
+                clientId: opts.clientId,
+                type: 'VARIABLE' as const,
+                category: PROCEDURE_COST_CATEGORY,
+                amount: opts.cost,
+                date: opts.date,
+                description: opts.description ?? 'Custo do procedimento',
+                isRecurring: false,
+                ...(opts.createdById ? { createdById: opts.createdById } : {}),
+              },
+            ],
+          },
+        }
+      : {}),
     receivables: {
       create: [
         {

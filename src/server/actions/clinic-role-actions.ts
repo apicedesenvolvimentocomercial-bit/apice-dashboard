@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { getClinicContext, type ClinicContext } from '@/server/auth/clinic-context'
+import type { ClinicRolePermissions } from '@/server/auth/clinic-permissions'
 import { canActOnRoleLevel } from '@/server/auth/role-permissions'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 import {
@@ -53,7 +54,17 @@ const modulePermSchema = z.object({
   assignToOthers: z.boolean().optional(),
   viewAll: z.boolean().optional(),
 })
-const permissionsSchema = z.record(z.string(), modulePermSchema)
+// A chave reservada `dashboard` carrega visibilidade por SEÇÃO ({ access, items }),
+// um shape SEM `access` no topo do bloco. O dialog a empacota dentro de
+// `permissions`, então o valor do record é uma UNIÃO: módulo de aba OU bloco de
+// dashboard. Sem isso o `dashboard` falhava o modulePermSchema com "Required"
+// (access ausente) e quebrava a criação/edição de cargo.
+const dashboardSectionSchema = z.object({
+  access: z.boolean(),
+  items: z.record(z.string(), z.boolean()).optional(),
+})
+const dashboardBlockSchema = z.record(z.string(), dashboardSectionSchema)
+const permissionsSchema = z.record(z.string(), z.union([modulePermSchema, dashboardBlockSchema]))
 
 const createRoleSchema = z.object({
   name: z.string().trim().min(2, 'Nome do cargo muito curto').max(60),
@@ -85,7 +96,12 @@ export async function createClinicRoleAction(input: z.infer<typeof createRoleSch
       throw new ConflictError('Já existe um cargo com este nome')
     if (existing) throw new ConflictError('Já existe um cargo neste nível de hierarquia')
 
-    const role = await createClinicRole(ctx, parsed.data)
+    // O bloco `dashboard` (chave reservada) convive no mesmo JSON de permissões; o
+    // cast reconcilia a união do schema com o tipo do repo (serializado como JSON).
+    const role = await createClinicRole(ctx, {
+      ...parsed.data,
+      permissions: parsed.data.permissions as ClinicRolePermissions,
+    })
     createAuditLog(ctx, {
       action: 'create',
       entityType: 'ClinicRole',
@@ -144,7 +160,10 @@ export async function updateClinicRoleAction(input: z.infer<typeof updateRoleSch
       if (clash) throw new ConflictError('Já existe um cargo neste nível de hierarquia')
     }
 
-    const result = await updateClinicRole(ctx, roleId, data)
+    const result = await updateClinicRole(ctx, roleId, {
+      ...data,
+      permissions: data.permissions as ClinicRolePermissions | undefined,
+    })
     if (result.count === 0) {
       throw new NotFoundError('Cargo (inexistente, de outra clínica, ou cargo de sistema)')
     }
