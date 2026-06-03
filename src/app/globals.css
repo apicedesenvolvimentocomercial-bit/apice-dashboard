@@ -109,7 +109,25 @@
 
 .fc .fc-event {
   @apply rounded border-0 text-xs font-medium;
-  padding: 2px 4px;
+  padding: 2px 6px;
+}
+
+/* O horário não pode ser "comido" pelo título quando o bloco é estreito: o
+   horário fica fixo (não encolhe) com folga à direita, e o título trunca com
+   reticências em vez de empurrar/cobrir o horário. */
+.fc .fc-event-time {
+  margin-right: 0.35rem;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.fc .fc-event-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Em blocos curtos do timegrid o horário ganha um respiro vertical da borda. */
+.fc .fc-timegrid-event .fc-event-time {
+  padding-block: 1px;
 }
 
 .fc .fc-timegrid-slot {
@@ -147,6 +165,13 @@
   outline: 2px solid hsl(var(--destructive));
   outline-offset: -2px;
   animation: fc-lead-deleted-pulse 1.2s ease-in-out infinite;
+}
+
+/* Agendamento fora do expediente, encostado na borda do grid (item 1): borda
+   tracejada discreta indica "horário ajustado p/ caber"; o título traz a hora real. */
+.fc .fc-event.fc-event-clamped {
+  outline: 1px dashed hsl(var(--foreground) / 0.55);
+  outline-offset: -2px;
 }
 
 /* Aba dia/semana: pequeno respiro entre eventos no mesmo horário, para que

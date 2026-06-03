@@ -107,6 +107,7 @@ const updateClinicSettingsSchema = z.object({
   state: z.string().optional(),
   notes: z.string().optional(),
   taxRegime: z.enum(['SIMPLES', 'PRESUMIDO', 'REAL']).optional(),
+  cnae: z.string().optional(),
 })
 
 export async function updateClinicSettingsAction(
@@ -117,7 +118,7 @@ export async function updateClinicSettingsAction(
     const parsed = updateClinicSettingsSchema.safeParse(input)
     if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
 
-    const { clientId, email, ...rest } = parsed.data
+    const { clientId, email, cnae, ...rest } = parsed.data
     await assertClientAccess(ctx, clientId)
     await assertCan(ctx, 'settings', 'write')
 
@@ -134,12 +135,14 @@ export async function updateClinicSettingsAction(
     await updateClient(ctx, clientId, {
       ...rest,
       email: email || undefined,
+      // '' (opção "Não informar") vira null no banco.
+      cnae: cnae ? cnae : null,
     })
     createAuditLog(ctx, {
       action: 'update',
       entityType: 'Client',
       entityId: clientId,
-      changes: rest,
+      changes: { ...rest, cnae: cnae ?? null },
     }).catch(() => {})
 
     revalidatePath('/configuracoes') // dados da clínica vivem no domínio clínica (Fase 7)

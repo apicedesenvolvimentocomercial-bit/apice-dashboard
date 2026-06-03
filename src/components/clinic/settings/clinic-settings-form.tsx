@@ -17,7 +17,11 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { SearchableSelect } from '@/components/shared/searchable-select'
+import { CNAE_OPTIONS } from '@/lib/cnae-list'
 import { updateClinicSettingsAction } from '@/server/actions/settings-actions'
+
+const NO_CNAE = '__none__'
 
 const schema = z.object({
   name: z.string().trim().min(2, 'Nome obrigatório'),
@@ -27,6 +31,7 @@ const schema = z.object({
   state: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
   taxRegime: z.enum(['SIMPLES', 'PRESUMIDO', 'REAL']),
+  cnae: z.string().optional().or(z.literal('')),
 })
 
 type Values = z.infer<typeof schema>
@@ -41,6 +46,7 @@ type Props = {
     state: string | null
     notes: string | null
     taxRegime: 'SIMPLES' | 'PRESUMIDO' | 'REAL'
+    cnae: string | null
   }
 }
 
@@ -56,6 +62,7 @@ export function ClinicSettingsForm({ clientId, initial }: Props) {
       state: initial.state ?? '',
       notes: initial.notes ?? '',
       taxRegime: initial.taxRegime,
+      cnae: initial.cnae ?? '',
     },
   })
 
@@ -156,6 +163,31 @@ export function ClinicSettingsForm({ clientId, initial }: Props) {
                   <option value="PRESUMIDO">Lucro Presumido</option>
                   <option value="REAL">Lucro Real</option>
                 </select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="cnae"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>CNAE</FormLabel>
+              <FormControl>
+                <SearchableSelect
+                  value={field.value || NO_CNAE}
+                  onChange={(v) => field.onChange(v === NO_CNAE ? '' : v)}
+                  placeholder="Selecionar CNAE..."
+                  emptyText="Nenhum CNAE encontrado"
+                  options={[
+                    { value: NO_CNAE, label: 'Não informar' },
+                    ...CNAE_OPTIONS.map((c) => ({
+                      value: c.code,
+                      label: `${c.code} — ${c.label}`,
+                    })),
+                  ]}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

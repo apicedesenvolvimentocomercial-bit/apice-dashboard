@@ -313,8 +313,17 @@ export function AppointmentDetailDialog({
                     )}
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Procedimento</p>
-                    <p className="font-medium">{appointment.procedure.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {appointment.procedureIds && appointment.procedureIds.length > 1
+                        ? 'Procedimentos'
+                        : 'Procedimento'}
+                    </p>
+                    <p className="font-medium">
+                      {appointment.procedure.name}
+                      {appointment.procedureIds && appointment.procedureIds.length > 1
+                        ? ` +${appointment.procedureIds.length - 1}`
+                        : ''}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Data e hora</p>

@@ -99,6 +99,7 @@ export async function updateClient(
     notes: string
     status: ClientStatus
     taxRegime: TaxRegime
+    cnae: string | null
   }>
 ) {
   return prisma.client.updateMany({

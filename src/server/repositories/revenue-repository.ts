@@ -280,6 +280,28 @@ export function buildAppointmentRevenueData(opts: {
   }
 }
 
+/**
+ * Agrega os procedimentos de um agendamento (combos) numa baixa única: nome junto
+ * ("A + B"), soma de preço e custo, e o id PRINCIPAL (= primeiro). Recebe os ids na
+ * ordem desejada e as linhas já buscadas. Usada pela baixa da agenda e pelo
+ * card→Fechado p/ que múltiplos procedimentos virem uma só Revenue somada.
+ */
+export function aggregateProcedureRevenue(
+  ids: string[],
+  rows: { id: string; name: string; price: number; cost: number }[]
+): { primaryId: string; name: string; price: number; cost: number } | null {
+  if (rows.length === 0) return null
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const ordered = ids.map((id) => byId.get(id)).filter((r): r is (typeof rows)[number] => !!r)
+  const list = ordered.length > 0 ? ordered : rows
+  return {
+    primaryId: list[0].id,
+    name: list.map((r) => r.name).join(' + '),
+    price: list.reduce((s, r) => s + r.price, 0),
+    cost: list.reduce((s, r) => s + r.cost, 0),
+  }
+}
+
 // Monta as linhas de Cost (uma por procedimento). Custo nunca é parcelado.
 function buildProcedureCostRows(
   ctx: TenantContext,

@@ -138,7 +138,14 @@ export function CreateGoalDialog({
       endDate,
       notes: notes || undefined,
       scopeType,
-      mode: scopeType === 'CLINIC' ? ('SHARED' as Mode) : mode,
+      // CLINIC = sempre coletiva; USER = sempre individual (1 pessoa não tem
+      // "conjunto"); só ROLE (grupo) escolhe entre individual/compartilhada.
+      mode:
+        scopeType === 'CLINIC'
+          ? ('SHARED' as Mode)
+          : scopeType === 'USER'
+            ? ('INDIVIDUAL' as Mode)
+            : mode,
       assigneeUserId: scopeType === 'USER' ? assigneeUserId || null : null,
       assigneeRoleId: scopeType === 'ROLE' ? assigneeRoleId || null : null,
     }
@@ -215,7 +222,15 @@ export function CreateGoalDialog({
             <div className="space-y-3 rounded-md border bg-muted/30 p-3">
               <div className="space-y-1">
                 <Label>Para quem é a meta?</Label>
-                <Select value={scopeType} onValueChange={(v) => setScopeType(v as ScopeType)}>
+                <Select
+                  value={scopeType}
+                  onValueChange={(v) => {
+                    const next = v as ScopeType
+                    setScopeType(next)
+                    // Usuário sozinho não tem meta compartilhada — volta p/ individual.
+                    if (next === 'USER') setMode('INDIVIDUAL')
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -263,7 +278,9 @@ export function CreateGoalDialog({
                 </div>
               )}
 
-              {scopeType !== 'CLINIC' && (
+              {/* Só cargo (grupo) escolhe modo. Clínica é sempre coletiva;
+                  usuário sozinho é sempre individual. */}
+              {scopeType === 'ROLE' && (
                 <div className="space-y-1">
                   <Label>Modo</Label>
                   <Select value={mode} onValueChange={(v) => setMode(v as Mode)}>

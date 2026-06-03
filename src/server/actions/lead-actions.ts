@@ -200,7 +200,7 @@ export async function regressLeadAction(
 
 const scheduleSchema = z.object({
   stageId: z.string().min(1),
-  procedureId: z.string().min(1, 'Procedimento obrigatório'),
+  procedureIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um procedimento'),
   scheduledAt: z.string().min(1, 'Data obrigatória'),
   durationMinutes: z.number().int().positive(),
   notes: z.string().optional(),
@@ -301,7 +301,7 @@ export async function scheduleLeadAction(leadId: string, clientId: string, formD
     clientId,
     leadId,
     stageId: parsed.data.stageId,
-    procedureId: parsed.data.procedureId,
+    procedureIds: parsed.data.procedureIds,
     scheduledAt,
     durationMinutes: parsed.data.durationMinutes,
     position: parsed.data.position,

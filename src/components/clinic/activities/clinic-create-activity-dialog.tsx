@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { DateInput } from '@/components/ui/date-input'
+import { TimeInput } from '@/components/ui/time-input'
 import {
   Dialog,
   DialogContent,
@@ -277,9 +278,8 @@ export function ClinicCreateActivityDialog({
             </div>
             <div className="space-y-1">
               <Label htmlFor="dueTime">Hora</Label>
-              <Input
+              <TimeInput
                 id="dueTime"
-                type="time"
                 lang="pt-BR"
                 value={dueTime}
                 onChange={(e) => setDueTime(e.target.value)}

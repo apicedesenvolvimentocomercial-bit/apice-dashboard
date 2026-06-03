@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { DateInput } from '@/components/ui/date-input'
+import { TimeInput } from '@/components/ui/time-input'
 import {
   Dialog,
   DialogContent,
@@ -228,9 +229,8 @@ export function ClinicEventDialog(props: Props) {
             </div>
             <div className="space-y-1">
               <Label htmlFor="cevent-start-time">Hora início</Label>
-              <Input
+              <TimeInput
                 id="cevent-start-time"
-                type="time"
                 lang="pt-BR"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
@@ -251,9 +251,8 @@ export function ClinicEventDialog(props: Props) {
             </div>
             <div className="space-y-1">
               <Label htmlFor="cevent-end-time">Hora fim</Label>
-              <Input
+              <TimeInput
                 id="cevent-end-time"
-                type="time"
                 lang="pt-BR"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}

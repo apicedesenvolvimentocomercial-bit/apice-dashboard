@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { TimeInput } from '@/components/ui/time-input'
 import { Label } from '@/components/ui/label'
 import {
   updateClinicScheduleAction,
@@ -142,9 +143,8 @@ export function ScheduleSettingsDialog({ open, clientId, schedule, onOpenChange,
                   <Label htmlFor="sched-start" className="text-xs text-muted-foreground">
                     Abertura
                   </Label>
-                  <Input
+                  <TimeInput
                     id="sched-start"
-                    type="time"
                     lang="pt-BR"
                     value={workdayStart}
                     onChange={(e) => setWorkdayStart(e.target.value)}
@@ -155,9 +155,8 @@ export function ScheduleSettingsDialog({ open, clientId, schedule, onOpenChange,
                   <Label htmlFor="sched-end" className="text-xs text-muted-foreground">
                     Fechamento
                   </Label>
-                  <Input
+                  <TimeInput
                     id="sched-end"
-                    type="time"
                     lang="pt-BR"
                     value={workdayEnd}
                     onChange={(e) => setWorkdayEnd(e.target.value)}

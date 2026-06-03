@@ -28,6 +28,53 @@ function timeToMinutes(hhmm: string): number {
   return h * 60 + m
 }
 
+const MIN_VISIBLE_BLOCK = 20 // minutos: altura mínima garantida p/ evento clampado
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+// Encaixa um evento [startWall,endWall] (strings SP "YYYY-MM-DDTHH:mm:ss") dentro
+// da janela do expediente [minMin,maxMin] (minutos do dia). O grid do timeGrid é
+// limitado ao expediente (slotMinTime/slotMaxTime), então um evento agendado fora
+// dele (ex.: 20:00 com expediente até 18:00) NÃO renderiza — cai fora do eixo.
+// Aqui encostamos no fim (ou início) do expediente, preservando a data e
+// garantindo bloco visível mínimo. `clamped` sinaliza p/ mostrar o horário real
+// no título (não mentir a hora).
+function clampEventToWindow(
+  startWall: string,
+  endWall: string,
+  minMin: number,
+  maxMin: number
+): { start: string; end: string; clamped: boolean } {
+  const date = startWall.slice(0, 10)
+  let startMin = Number(startWall.slice(11, 13)) * 60 + Number(startWall.slice(14, 16))
+  let endMin =
+    endWall.slice(0, 10) === date
+      ? Number(endWall.slice(11, 13)) * 60 + Number(endWall.slice(14, 16))
+      : maxMin // cruza a meia-noite → corta no fim do expediente
+  const windowLen = Math.max(MIN_VISIBLE_BLOCK, maxMin - minMin)
+  const block = Math.min(Math.max(endMin - startMin, MIN_VISIBLE_BLOCK), windowLen)
+  let clamped = false
+  if (startMin >= maxMin) {
+    // Depois do expediente → encosta no fim.
+    endMin = maxMin
+    startMin = Math.max(minMin, maxMin - block)
+    clamped = true
+  } else if (startMin < minMin) {
+    // Antes do expediente → encosta no início.
+    startMin = minMin
+    endMin = Math.min(maxMin, minMin + block)
+    clamped = true
+  } else if (endMin > maxMin) {
+    // Começou dentro mas transborda → corta no fim.
+    endMin = maxMin
+    clamped = true
+  }
+  const fmt = (mins: number) => `${date}T${pad2(Math.floor(mins / 60))}:${pad2(mins % 60)}:00`
+  return { start: fmt(startMin), end: fmt(endMin), clamped }
+}
+
 export function CalendarView({
   appointments,
   schedule = DEFAULT_SCHEDULE,
@@ -59,21 +106,39 @@ export function CalendarView({
     return () => clearInterval(interval)
   }, [schedule.workdayEnd])
 
+  const minMin = timeToMinutes(schedule.workdayStart)
+  const maxMin = timeToMinutes(schedule.workdayEnd)
+
   const events = appointments.map((apt) => {
     const start = new Date(apt.scheduledAt)
     const end = new Date(start.getTime() + apt.durationMinutes * 60_000)
     // feat4: Lead excluído → o agendamento pisca um aviso vermelho.
     const leadDeleted = apt.lead?.deletedAt != null
+
+    const realTime = toSPWallClock(start).slice(11, 16)
+    // Encosta no expediente quando agendado fora dele (senão sumia do grid).
+    const win = clampEventToWindow(toSPWallClock(start), toSPWallClock(end), minMin, maxMin)
+
+    // Combo: nome do principal + "+N" quando há mais de um procedimento.
+    const extraProc =
+      apt.procedureIds && apt.procedureIds.length > 1 ? ` +${apt.procedureIds.length - 1}` : ''
+    const baseTitle = leadDeleted
+      ? `⚠ Lead excluído — ${apt.patient.name}`
+      : `${apt.patient.name} — ${apt.procedure.name}${extraProc}`
+    const classNames: string[] = []
+    if (leadDeleted) classNames.push('fc-event-lead-deleted')
+    if (win.clamped) classNames.push('fc-event-clamped')
+
     return {
       id: apt.id,
-      title: leadDeleted
-        ? `⚠ Lead excluído — ${apt.patient.name}`
-        : `${apt.patient.name} — ${apt.procedure.name}`,
-      start: toSPWallClock(start),
-      end: toSPWallClock(end),
+      // Evento clampado mostra o horário real no título — o bloco está na borda
+      // do expediente, mas a hora marcada é a verdadeira.
+      title: win.clamped ? `⏰ ${realTime} · ${baseTitle}` : baseTitle,
+      start: win.start,
+      end: win.end,
       backgroundColor: STATUS_COLORS[apt.status] ?? '#6b7280',
       borderColor: STATUS_COLORS[apt.status] ?? '#6b7280',
-      classNames: leadDeleted ? ['fc-event-lead-deleted'] : [],
+      classNames,
       extendedProps: { appointment: apt },
     }
   })
