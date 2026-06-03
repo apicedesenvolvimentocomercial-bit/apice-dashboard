@@ -242,6 +242,9 @@ model Client {
   // impostos entram na DRE: SIMPLES = DAS sobre receita (imposto sobre lucro ~0);
   // PRESUMIDO/REAL separam ISS/PIS/COFINS (sobre receita) de IRPJ/CSLL (sobre lucro).
   taxRegime TaxRegime @default(SIMPLES)
+  // CNAE (Classificação Nacional de Atividades Econômicas) da clínica. Código
+  // fiscal informativo; lista curada de estética/saúde em lib/cnae-list.ts.
+  cnae String?
   // Segredo do webhook de ingestão de leads, POR-CLÍNICA (seguranca-pendencias #2).
   // Guarda só o sha256 (hex) de um token de alta entropia; o token cru é mostrado
   // uma única vez ao titular ao gerar/rotacionar. O token resolve o `clientId`
@@ -661,6 +664,10 @@ model Appointment {
   patient        Patient   @relation(fields: [patientId], references: [id])
   procedureId    String
   procedure      Procedure @relation(fields: [procedureId], references: [id])
+  // Múltiplos procedimentos por agendamento (combos). `procedureId` segue como o
+  // PRINCIPAL (= procedureIds[0]) p/ compat com relatórios/filtros que usam o
+  // escalar. Array sem FK (lista escalar Postgres); a baixa soma os preços.
+  procedureIds   String[]  @default([])
 
   scheduledAt     DateTime
   durationMinutes Int

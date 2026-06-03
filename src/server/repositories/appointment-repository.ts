@@ -45,6 +45,7 @@ export async function listAppointments(
       createdAt: true,
       patientId: true,
       procedureId: true,
+      procedureIds: true,
       patient: {
         select: { id: true, name: true, phone: true },
       },
@@ -85,6 +86,7 @@ export async function findAppointmentById(
       createdAt: true,
       patientId: true,
       procedureId: true,
+      procedureIds: true,
       patient: {
         select: { id: true, name: true, phone: true, email: true },
       },
@@ -100,7 +102,7 @@ export async function createAppointment(
   clientId: string,
   data: {
     patientId: string
-    procedureId: string
+    procedureIds: string[] // 1+; procedureIds[0] vira o procedimento PRINCIPAL
     scheduledAt: Date
     durationMinutes: number
     notes?: string
@@ -108,7 +110,12 @@ export async function createAppointment(
 ) {
   return prisma.appointment.create({
     data: {
-      ...data,
+      patientId: data.patientId,
+      procedureId: data.procedureIds[0],
+      procedureIds: data.procedureIds,
+      scheduledAt: data.scheduledAt,
+      durationMinutes: data.durationMinutes,
+      notes: data.notes,
       organizationId: ctx.organizationId,
       clientId,
       status: 'SCHEDULED',
@@ -150,15 +157,22 @@ export async function updateAppointment(
   clientId: string,
   data: Partial<{
     patientId: string
-    procedureId: string
+    procedureIds: string[]
     scheduledAt: Date
     durationMinutes: number
     notes: string
   }>
 ) {
+  const { procedureIds, ...rest } = data
   return prisma.appointment.updateMany({
     where: { id: appointmentId, clientId, organizationId: ctx.organizationId, deletedAt: null },
-    data,
+    // Ao trocar os procedimentos, mantém o escalar principal = procedureIds[0].
+    data: {
+      ...rest,
+      ...(procedureIds && procedureIds.length
+        ? { procedureIds, procedureId: procedureIds[0] }
+        : {}),
+    },
   })
 }
 

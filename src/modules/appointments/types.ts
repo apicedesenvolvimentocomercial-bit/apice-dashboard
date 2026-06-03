@@ -44,6 +44,9 @@ export type AppointmentEvent = {
   notes: string | null
   patientId: string
   procedureId: string
+  // Todos os procedimentos do agendamento (combos). procedureIds[0] == procedureId.
+  // Opcional p/ compat com chamadores antigos; vazio = só o principal.
+  procedureIds?: string[]
   // Card do CRM que gerou o agendamento (Fase 2). null = agendamento manual sem
   // card. `deletedAt != null` = Lead excluído (feat4: pisca na agenda).
   lead?: { id: string; deletedAt: Date | null } | null

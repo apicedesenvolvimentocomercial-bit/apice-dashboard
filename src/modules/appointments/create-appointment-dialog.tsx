@@ -1,5 +1,6 @@
 'use client'
 
+import { X } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
@@ -67,6 +68,8 @@ export function CreateAppointmentDialog({
 }: Props) {
   const [isPending, startTransition] = useTransition()
   const [mode, setMode] = useState<Mode>('existing')
+  // Remonta o Select de procedimentos após cada escolha p/ voltar ao placeholder.
+  const [procPickKey, setProcPickKey] = useState(0)
   const [form, setForm] = useState({
     patientId: '',
     // Campos do lead novo (modo "new-lead").
@@ -74,7 +77,7 @@ export function CreateAppointmentDialog({
     phone: '',
     email: '',
     source: 'OTHER',
-    procedureId: '',
+    procedureIds: [] as string[],
     scheduledAt: defaultDate ?? '',
     durationMinutes: 60,
     notes: '',
@@ -121,13 +124,27 @@ export function CreateAppointmentDialog({
   const isFarFuture = dateBlurred && scheduledDate != null && scheduledDate > farFutureThreshold
   const blockedByFarFuture = isFarFuture && !farFutureAck
 
-  function handleProcedureChange(procedureId: string) {
-    const proc = procedures.find((p) => p.id === procedureId)
-    setForm((f) => ({
-      ...f,
-      procedureId,
-      durationMinutes: proc?.durationMinutes ?? f.durationMinutes,
-    }))
+  // Duração default = soma das durações dos procedimentos selecionados.
+  function sumDuration(ids: string[]): number {
+    return ids.reduce((s, id) => s + (procedures.find((p) => p.id === id)?.durationMinutes ?? 0), 0)
+  }
+
+  function addProcedure(id: string) {
+    setForm((f) => {
+      if (f.procedureIds.includes(id)) return f
+      const next = [...f.procedureIds, id]
+      const sum = sumDuration(next)
+      return { ...f, procedureIds: next, durationMinutes: sum > 0 ? sum : f.durationMinutes }
+    })
+    setProcPickKey((k) => k + 1)
+  }
+
+  function removeProcedure(index: number) {
+    setForm((f) => {
+      const next = f.procedureIds.filter((_, i) => i !== index)
+      const sum = sumDuration(next)
+      return { ...f, procedureIds: next, durationMinutes: sum > 0 ? sum : f.durationMinutes }
+    })
   }
 
   function reset() {
@@ -137,7 +154,7 @@ export function CreateAppointmentDialog({
       phone: '',
       email: '',
       source: 'OTHER',
-      procedureId: '',
+      procedureIds: [],
       scheduledAt: defaultDate ?? '',
       durationMinutes: 60,
       notes: '',
@@ -154,7 +171,7 @@ export function CreateAppointmentDialog({
   const whoValid = mode === 'existing' ? !!form.patientId : form.name.trim().length >= 2
   const baseInvalid =
     !whoValid ||
-    !form.procedureId ||
+    form.procedureIds.length === 0 ||
     !form.scheduledAt ||
     isTooOld ||
     blockedByPastWarning ||
@@ -163,7 +180,7 @@ export function CreateAppointmentDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!whoValid || !form.procedureId || !form.scheduledAt) {
+    if (!whoValid || form.procedureIds.length === 0 || !form.scheduledAt) {
       toast.error('Preencha todos os campos obrigatórios')
       return
     }
@@ -188,7 +205,7 @@ export function CreateAppointmentDialog({
         mode === 'existing'
           ? await createAppointmentAction(clientId, {
               patientId: form.patientId,
-              procedureId: form.procedureId,
+              procedureIds: form.procedureIds,
               scheduledAt: form.scheduledAt,
               durationMinutes: Number(form.durationMinutes),
               notes: form.notes,
@@ -198,7 +215,7 @@ export function CreateAppointmentDialog({
               phone: form.phone.trim() || undefined,
               email: form.email.trim() || undefined,
               source: form.source,
-              procedureId: form.procedureId,
+              procedureIds: form.procedureIds,
               scheduledAt: form.scheduledAt,
               durationMinutes: Number(form.durationMinutes),
               notes: form.notes,
@@ -323,11 +340,11 @@ export function CreateAppointmentDialog({
 
           <div className="space-y-1">
             <Label htmlFor="apt-procedure">
-              {mode === 'new-lead' ? 'Procedimento de interesse *' : 'Procedimento *'}
+              {mode === 'new-lead' ? 'Procedimentos de interesse *' : 'Procedimentos *'}
             </Label>
-            <Select value={form.procedureId} onValueChange={handleProcedureChange}>
+            <Select key={procPickKey} onValueChange={addProcedure}>
               <SelectTrigger id="apt-procedure">
-                <SelectValue placeholder="Selecionar procedimento..." />
+                <SelectValue placeholder="Adicionar procedimento..." />
               </SelectTrigger>
               <SelectContent>
                 {procedures.length === 0 ? (
@@ -344,6 +361,34 @@ export function CreateAppointmentDialog({
                 )}
               </SelectContent>
             </Select>
+            {form.procedureIds.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {form.procedureIds.map((id, i) => {
+                  const proc = procedures.find((p) => p.id === id)
+                  return (
+                    <li
+                      key={`${id}-${i}`}
+                      className="flex items-center justify-between rounded-md border bg-muted/40 px-2 py-1 text-sm"
+                    >
+                      <span>{proc?.name ?? 'Procedimento'}</span>
+                      <span className="flex items-center gap-2">
+                        {proc?.durationMinutes ? (
+                          <span className="text-muted-foreground">{proc.durationMinutes}min</span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => removeProcedure(i)}
+                          className="text-muted-foreground hover:text-destructive"
+                          aria-label="Remover procedimento"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

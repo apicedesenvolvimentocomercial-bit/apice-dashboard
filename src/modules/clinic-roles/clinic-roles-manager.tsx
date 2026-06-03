@@ -324,6 +324,10 @@ export function ClinicRolesManager({ roles, users, viewerIsOwner, viewerLevel }:
       </Card>
 
       <RoleDialog
+        // Remonta por cargo: o estado interno é semeado por `initial` só no mount.
+        // Sem `key`, trocar `editing` mantinha o estado do cargo anterior (nome/perms
+        // grudados, config "sumindo" ao reabrir um cargo já configurado).
+        key={editing?.id ?? 'new'}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         initial={editing}

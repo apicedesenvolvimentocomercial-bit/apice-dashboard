@@ -32,7 +32,7 @@ import { logger } from '@/lib/logger'
 
 const appointmentSchema = z.object({
   patientId: z.string().min(1, 'Paciente obrigatório'),
-  procedureId: z.string().min(1, 'Procedimento obrigatório'),
+  procedureIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um procedimento'),
   scheduledAt: z.string().min(1, 'Data obrigatória'),
   durationMinutes: z.number().int().positive(),
   notes: z.string().optional(),
@@ -79,7 +79,7 @@ const scheduledLeadSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email('E-mail inválido').optional().or(z.literal('')),
   source: z.enum(['META_ADS', 'GOOGLE_ADS', 'ORGANIC', 'REFERRAL', 'WHATSAPP', 'WALK_IN', 'OTHER']),
-  procedureId: z.string().min(1, 'Procedimento obrigatório'),
+  procedureIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um procedimento'),
   scheduledAt: z.string().min(1, 'Data obrigatória'),
   durationMinutes: z.number().int().positive(),
   notes: z.string().optional(),
@@ -177,7 +177,7 @@ export async function createScheduledLeadFromAgendaAction(clientId: string, form
     phone: parsed.data.phone,
     email: parsed.data.email || undefined,
     source: parsed.data.source,
-    procedureId: parsed.data.procedureId,
+    procedureIds: parsed.data.procedureIds,
     scheduledAt,
     durationMinutes: parsed.data.durationMinutes,
     notes: parsed.data.notes,

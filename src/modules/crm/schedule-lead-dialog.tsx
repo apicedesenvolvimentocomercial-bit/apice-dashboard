@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
@@ -71,7 +71,8 @@ export function ScheduleLeadDialog({
   onScheduled,
   onCancel,
 }: Props) {
-  const [procedureId, setProcedureId] = useState('')
+  const [procedureIds, setProcedureIds] = useState<string[]>([])
+  const [pickKey, setPickKey] = useState(0)
   const [scheduledAt, setScheduledAt] = useState('')
   const [duration, setDuration] = useState(60)
   const [notes, setNotes] = useState('')
@@ -83,7 +84,8 @@ export function ScheduleLeadDialog({
 
   useEffect(() => {
     if (open) {
-      setProcedureId('')
+      setProcedureIds([])
+      setPickKey((k) => k + 1)
       setScheduledAt('')
       setDuration(60)
       setNotes('')
@@ -120,11 +122,29 @@ export function ScheduleLeadDialog({
   const isFarFuture = dateBlurred && scheduledDate != null && scheduledDate > farFutureThreshold
   const blockedByFarFuture = isFarFuture && !farFutureAck
 
-  // Ao escolher procedimento, herda a duração padrão dele.
-  function pickProcedure(id: string) {
-    setProcedureId(id)
-    const proc = procedures.find((p) => p.id === id)
-    if (proc?.durationMinutes) setDuration(proc.durationMinutes)
+  // Duração default = soma das durações dos procedimentos selecionados.
+  function sumDuration(ids: string[]): number {
+    return ids.reduce((s, id) => s + (procedures.find((p) => p.id === id)?.durationMinutes ?? 0), 0)
+  }
+
+  function addProcedure(id: string) {
+    setProcedureIds((prev) => {
+      if (prev.includes(id)) return prev
+      const next = [...prev, id]
+      const sum = sumDuration(next)
+      if (sum > 0) setDuration(sum)
+      return next
+    })
+    setPickKey((k) => k + 1)
+  }
+
+  function removeProcedure(index: number) {
+    setProcedureIds((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      const sum = sumDuration(next)
+      if (sum > 0) setDuration(sum)
+      return next
+    })
   }
 
   function cancel() {
@@ -134,8 +154,8 @@ export function ScheduleLeadDialog({
 
   function confirm() {
     if (!leadId) return
-    if (!procedureId) {
-      toast.error('Selecione um procedimento')
+    if (procedureIds.length === 0) {
+      toast.error('Selecione ao menos um procedimento')
       return
     }
     if (!scheduledAt) {
@@ -161,7 +181,7 @@ export function ScheduleLeadDialog({
     startTransition(async () => {
       const res = await scheduleLeadAction(leadId, clientId, {
         stageId,
-        procedureId,
+        procedureIds,
         scheduledAt,
         durationMinutes: duration,
         notes: notes || undefined,
@@ -197,10 +217,10 @@ export function ScheduleLeadDialog({
 
         <div className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="schedule-procedure">Procedimento *</Label>
-            <Select value={procedureId} onValueChange={pickProcedure}>
+            <Label htmlFor="schedule-procedure">Procedimentos *</Label>
+            <Select key={pickKey} onValueChange={addProcedure}>
               <SelectTrigger id="schedule-procedure">
-                <SelectValue placeholder="Selecionar procedimento..." />
+                <SelectValue placeholder="Adicionar procedimento..." />
               </SelectTrigger>
               <SelectContent>
                 {procedures.length === 0 ? (
@@ -217,6 +237,34 @@ export function ScheduleLeadDialog({
                 )}
               </SelectContent>
             </Select>
+            {procedureIds.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {procedureIds.map((id, i) => {
+                  const proc = procedures.find((p) => p.id === id)
+                  return (
+                    <li
+                      key={`${id}-${i}`}
+                      className="flex items-center justify-between rounded-md border bg-muted/40 px-2 py-1 text-sm"
+                    >
+                      <span>{proc?.name ?? 'Procedimento'}</span>
+                      <span className="flex items-center gap-2">
+                        {proc?.durationMinutes ? (
+                          <span className="text-muted-foreground">{proc.durationMinutes}min</span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => removeProcedure(i)}
+                          className="text-muted-foreground hover:text-destructive"
+                          aria-label="Remover procedimento"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
             {procedures.length === 0 && (
               <p className="text-xs text-muted-foreground">
                 Nenhum procedimento cadastrado. Cadastre um na aba Procedimentos antes de agendar.
@@ -355,7 +403,7 @@ export function ScheduleLeadDialog({
             disabled={
               pending ||
               procedures.length === 0 ||
-              !procedureId ||
+              procedureIds.length === 0 ||
               !scheduledAt ||
               isTooOld ||
               blockedByPastWarning ||

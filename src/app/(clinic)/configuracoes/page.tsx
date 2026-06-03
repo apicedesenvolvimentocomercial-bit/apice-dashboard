@@ -135,6 +135,7 @@ export default async function ClinicSettingsPage() {
                 state: client.state,
                 notes: client.notes,
                 taxRegime: client.taxRegime,
+                cnae: client.cnae,
               }}
             />
           </CardContent>

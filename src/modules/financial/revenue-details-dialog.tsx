@@ -69,7 +69,10 @@ export function RevenueDetailsDialog({
     setDate(todayISO())
   }, [open])
 
-  const inst = Math.max(1, parseInt(installments || '1', 10) || 1)
+  // Parcelamento só faz sentido em cartão de crédito (mesma regra do registro
+  // manual em create-revenue-dialog). Fora dele, força 1x.
+  const allowsInstallments = paymentMethod === 'CREDIT_CARD'
+  const inst = allowsInstallments ? Math.max(1, parseInt(installments || '1', 10) || 1) : 1
   const disc = Math.min(100, Math.max(0, Number(discountPct || 0)))
   const liquid = price != null ? Math.round(price * (1 - disc / 100) * 100) / 100 : null
 
@@ -112,7 +115,13 @@ export function RevenueDetailsDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Forma de pagamento</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <Select
+                value={paymentMethod}
+                onValueChange={(v) => {
+                  setPaymentMethod(v)
+                  if (v !== 'CREDIT_CARD') setInstallments('1')
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar..." />
                 </SelectTrigger>
@@ -133,8 +142,14 @@ export function RevenueDetailsDialog({
                 min={1}
                 max={36}
                 value={installments}
+                disabled={!allowsInstallments}
                 onChange={(e) => setInstallments(e.target.value)}
               />
+              {!allowsInstallments && (
+                <p className="text-[10px] text-muted-foreground">
+                  Disponível só para cartão de crédito
+                </p>
+              )}
             </div>
           </div>
 

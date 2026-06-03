@@ -7,6 +7,7 @@ import type { RevenueDetails } from '@/modules/financial/types'
 import type { TenantContext } from '@/server/tenant/context'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 import {
+  aggregateProcedureRevenue,
   buildAppointmentRevenueData,
   buildPaidRevenueData,
 } from '@/server/repositories/revenue-repository'
@@ -85,7 +86,7 @@ export async function scheduleLeadAppointment(
     clientId: string
     leadId: string
     stageId: string // etapa SCHEDULED destino
-    procedureId: string
+    procedureIds: string[] // 1+; procedureIds[0] = procedimento principal
     scheduledAt: Date
     durationMinutes: number
     position?: number
@@ -111,12 +112,14 @@ export async function scheduleLeadAppointment(
   })
   if (!stage) return { ok: false, reason: 'stage-not-found' }
 
-  // Procedimento precisa ser da org.
-  const procedure = await prisma.procedure.findFirst({
-    where: { id: params.procedureId, organizationId: ctx.organizationId },
+  // Procedimentos precisam ser da org (todos). Mantém a ordem informada.
+  const procRows = await prisma.procedure.findMany({
+    where: { id: { in: params.procedureIds }, organizationId: ctx.organizationId },
     select: { id: true },
   })
-  if (!procedure) return { ok: false, reason: 'procedure-not-found' }
+  if (procRows.length !== params.procedureIds.length) {
+    return { ok: false, reason: 'procedure-not-found' }
+  }
 
   return scopedTransaction(async (tx) => {
     const patientId = await ensurePatientForLead(tx, ctx, lead)
@@ -126,7 +129,8 @@ export async function scheduleLeadAppointment(
         organizationId: ctx.organizationId,
         clientId: lead.clientId,
         patientId,
-        procedureId: params.procedureId,
+        procedureId: params.procedureIds[0],
+        procedureIds: params.procedureIds,
         scheduledAt: params.scheduledAt,
         durationMinutes: params.durationMinutes,
         status: 'SCHEDULED',
@@ -286,7 +290,14 @@ async function loadMoveContext(
       appointmentId: true,
       stage: { select: { nativeKey: true } },
       appointment: {
-        select: { id: true, status: true, scheduledAt: true, procedureId: true, patientId: true },
+        select: {
+          id: true,
+          status: true,
+          scheduledAt: true,
+          procedureId: true,
+          procedureIds: true,
+          patientId: true,
+        },
       },
     },
   })
@@ -463,11 +474,24 @@ export async function moveLeadWithEffect(
         select: { id: true },
       })
       if (!existing && lead.appointment!.procedureId && lead.appointment!.patientId) {
-        const procedure = await tx.procedure.findFirst({
-          where: { id: lead.appointment!.procedureId, organizationId: ctx.organizationId },
-          select: { price: true, name: true, cost: true },
+        // Combos: soma todos os procedimentos do agendamento numa baixa só.
+        const ids = lead.appointment!.procedureIds.length
+          ? lead.appointment!.procedureIds
+          : [lead.appointment!.procedureId]
+        const procRows = await tx.procedure.findMany({
+          where: { id: { in: ids }, organizationId: ctx.organizationId },
+          select: { id: true, name: true, price: true, cost: true },
         })
-        if (procedure) {
+        const agg = aggregateProcedureRevenue(
+          ids,
+          procRows.map((p) => ({
+            id: p.id,
+            name: p.name,
+            price: Number(p.price),
+            cost: Number(p.cost),
+          }))
+        )
+        if (agg) {
           const details = params.revenueDetails
           const date = (details?.date ? parseLocalDate(details.date) : null) ?? new Date()
           const revenueData = details
@@ -475,11 +499,11 @@ export async function moveLeadWithEffect(
                 organizationId: ctx.organizationId,
                 clientId: lead.clientId,
                 patientId: lead.appointment!.patientId,
-                procedureId: lead.appointment!.procedureId,
+                procedureId: agg.primaryId,
                 appointmentId: lead.appointmentId!,
-                procedureName: procedure.name,
-                price: Number(procedure.price),
-                cost: Number(procedure.cost),
+                procedureName: agg.name,
+                price: agg.price,
+                cost: agg.cost,
                 date,
                 paymentMethod: details.paymentMethod ?? undefined,
                 installments: details.installments,
@@ -490,13 +514,13 @@ export async function moveLeadWithEffect(
                 organizationId: ctx.organizationId,
                 clientId: lead.clientId,
                 patientId: lead.appointment!.patientId,
-                procedureId: lead.appointment!.procedureId,
+                procedureId: agg.primaryId,
                 appointmentId: lead.appointmentId!,
-                amount: Number(procedure.price),
-                cost: Number(procedure.cost),
+                amount: agg.price,
+                cost: agg.cost,
                 date,
                 type: 'PROCEDIMENTO',
-                description: `Procedimento: ${procedure.name}`,
+                description: `Procedimento: ${agg.name}`,
                 createdById: ctx.userId,
               })
           await tx.revenue.create({ data: revenueData })
@@ -687,7 +711,10 @@ export async function regressAndRescheduleLead(
       data: {
         scheduledAt: params.scheduledAt,
         durationMinutes: params.durationMinutes,
+        // Remarcar é single-procedimento: colapsa o combo p/ o escolhido (mantém
+        // procedureIds[0] == procedureId).
         procedureId: params.procedureId,
+        procedureIds: [params.procedureId],
         notes: params.notes,
         status: 'SCHEDULED',
         attendedAt: null,
@@ -1019,7 +1046,7 @@ export async function createLeadScheduledFromAgenda(
     phone?: string
     email?: string
     source: LeadSource
-    procedureId: string
+    procedureIds: string[] // 1+; procedureIds[0] = procedimento principal
     scheduledAt: Date
     durationMinutes: number
     notes?: string
@@ -1033,17 +1060,23 @@ export async function createLeadScheduledFromAgenda(
   })
   if (!scheduledStage) return { ok: false, reason: 'stage-not-found' }
 
-  // Procedimento precisa ser da clínica (belt).
-  const procedure = await prisma.procedure.findFirst({
+  // Procedimentos precisam ser da clínica (belt). Mantém a ordem informada p/ o
+  // principal e o nome de interesse.
+  const procRows = await prisma.procedure.findMany({
     where: {
-      id: params.procedureId,
+      id: { in: params.procedureIds },
       clientId,
       organizationId: ctx.organizationId,
       deletedAt: null,
     },
     select: { id: true, name: true },
   })
-  if (!procedure) return { ok: false, reason: 'procedure-not-found' }
+  if (procRows.length !== params.procedureIds.length) {
+    return { ok: false, reason: 'procedure-not-found' }
+  }
+  const procById = new Map(procRows.map((p) => [p.id, p]))
+  const orderedProcs = params.procedureIds.map((id) => procById.get(id)!).filter(Boolean)
+  const procedureInterest = orderedProcs.map((p) => p.name).join(' + ')
 
   return scopedTransaction(async (tx) => {
     const patient = await tx.patient.create({
@@ -1064,7 +1097,8 @@ export async function createLeadScheduledFromAgenda(
         organizationId: ctx.organizationId,
         clientId,
         patientId: patient.id,
-        procedureId: procedure.id,
+        procedureId: params.procedureIds[0],
+        procedureIds: params.procedureIds,
         scheduledAt: params.scheduledAt,
         durationMinutes: params.durationMinutes,
         status: 'SCHEDULED',
@@ -1082,7 +1116,7 @@ export async function createLeadScheduledFromAgenda(
         phone: params.phone || undefined,
         email: params.email || undefined,
         source: params.source,
-        procedureInterest: procedure.name,
+        procedureInterest,
         notes: params.notes,
         stageId: scheduledStage.id,
         patientId: patient.id,

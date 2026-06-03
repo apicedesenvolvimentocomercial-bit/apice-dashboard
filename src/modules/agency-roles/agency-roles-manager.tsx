@@ -241,6 +241,9 @@ export function AgencyRolesManager({ roles, users, viewerLevel }: Props) {
       </Card>
 
       <RoleDialog
+        // Remonta por cargo: o estado interno é semeado por `initial` só no mount.
+        // Sem `key`, trocar `editing` mantinha o estado do cargo anterior.
+        key={editing?.id ?? 'new'}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         initial={editing}

@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DateInput } from '@/components/ui/date-input'
+import { TimeInput } from '@/components/ui/time-input'
 import {
   createCalendarEventAction,
   deleteCalendarEventAction,
@@ -191,9 +192,8 @@ export function EventDialog(props: Props) {
             </div>
             <div className="space-y-1">
               <Label htmlFor="event-start-time">Hora início</Label>
-              <Input
+              <TimeInput
                 id="event-start-time"
-                type="time"
                 lang="pt-BR"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
@@ -214,9 +214,8 @@ export function EventDialog(props: Props) {
             </div>
             <div className="space-y-1">
               <Label htmlFor="event-end-time">Hora fim</Label>
-              <Input
+              <TimeInput
                 id="event-end-time"
-                type="time"
                 lang="pt-BR"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
