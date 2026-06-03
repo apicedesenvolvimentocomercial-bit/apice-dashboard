@@ -311,6 +311,9 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   em "Convenções de código".
 - `fase11-progresso.md` — infra de testes E2E.
 - `auditoria-*.md`, `deploy-checklist.md` — achados de auditoria e checklist de deploy.
+- `auditoria-produto.md` — revisão completa (2026-06-02): código órfão/obsoleto, feature
+  antiga × nova, estado das integrações e gaps de produto priorizados (P0/P1/P2) vs
+  Salesforce + CRM de clínica; anexo de pesquisa de mercado com fontes.
 - `seguranca-pendencias.md` — achados da revisão de segurança. **Os 2 itens obrigatórios
   estão CONCLUÍDOS (2026-06-01):** rate-limiting (login + webhook) via contador Postgres
   (`src/server/security/*`, tabela `RateLimit` fora da RLS) e segredo do webhook **por-clínica**
