@@ -211,6 +211,7 @@ export function CreateRevenueDialog({
           <div className="space-y-1">
             <Label>Paciente</Label>
             <SearchableSelect
+              portal={false}
               value={form.patientId || NONE_VALUE}
               onChange={(v) => setForm((f) => ({ ...f, patientId: v === NONE_VALUE ? '' : v }))}
               placeholder="Selecionar..."

@@ -94,3 +94,38 @@ DRE automática (fase 2) COMPLETA.
   no Dashboard admin (`modules/financial/consolidated-dre.tsx`, render reusa `dre-report-table.tsx`).
 
 Validação: type-check · lint 0 erros · vitest 163 · build · rls:check:ext, migration no Neon.
+
+## Recebimento no cartão de crédito (2026-06-08) — modo por-clínica
+
+Contrato com a adquirente define como a venda no CRÉDITO entra no financeiro. Config
+por-clínica em `Client.creditReceiptMode` (`CreditReceiptMode`: `INSTALLMENTS` default |
+`UPFRONT_FEE`) + `Client.creditFeeTiers` (JSON `[{min,max,pct}]` — taxa por faixa de nº de
+parcelas). Migration `20260608000000_credit_receipt_mode` (Client é raiz do tenant → sem RLS).
+
+- **INSTALLMENTS (default):** comportamento histórico — N parcelas PENDENTE mês a mês. Zero mudança.
+- **UPFRONT_FEE + `paymentMethod = CREDIT_CARD`:** 1 parcela **PAGA à vista** (recebe tudo na venda)
+  - um **Cost `FINANCIAL_EXPENSE`** (categoria `Taxa de cartão (antecipação)`) = `amount × pct` da
+    faixa do nº de parcelas → entra em _despesas financeiras_ da DRE automaticamente. Outras formas
+    (Pix/dinheiro/débito/transferência) **nunca** geram taxa.
+
+Ponto único de decisão: `buildReceivables` (revenue-repository) — devolve `{rows,status,feeCost}`.
+Helper PURO `lib/credit-fee.ts` (`isCreditUpfront`/`computeCreditFee`/`feePctForInstallments`/
+`parseCreditFeeTiers`, testado). Threading: `createRevenue`, `buildAppointmentRevenueData`
+(agenda/pipeline `closeAppointmentCard`), e `updateRevenue` (regen re-sincroniza a linha de taxa
+por `category`). `buildPaidRevenueData` (baixa lead/auto sem forma) **não** mexido. Config lida por
+request via `getClientCreditConfig`. UI: card owner-only em `/configuracoes`
+(`credit-receipt-config-card.tsx` + `updateCreditReceiptConfigAction`).
+
+Validação: type-check · lint 0 · vitest **180** · prisma generate. Neon estava offline (P1001) → o
+usuário aplica a migration em prod.
+
+## Unificação DRE + remoção da consolidada (2026-06-08)
+
+- **Aba "Relatórios" REMOVIDA** — era uma DRE simplificada duplicada. A DRE em competência (aba
+  **DRE**) é o único lugar; ganhou **Exportar CSV** (linhas via `buildDreRows` exportado de
+  `dre-report-table`). Removidos: `reports-tab.tsx`, `report-actions.ts` (`generateDreAction`) e a
+  `getDreReport` simplificada de `financial-queries.ts` (mortos).
+- **DRE Consolidada do admin REMOVIDA** — a seção do dashboard admin saiu. Removidos:
+  `consolidated-dre.tsx`, `getConsolidatedDreReportAction` (dre-actions), `getConsolidatedDreReport`
+  - `ConsolidatedDreReport` + `sumDreInputs`/`DRE_INPUT_KEYS` (dre-queries). `getDreReport`
+    (por-clínica) e `DreReportTable` permanecem. Validação: type-check · lint 0.

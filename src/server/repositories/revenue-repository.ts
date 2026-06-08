@@ -3,8 +3,34 @@ import { addMonths } from 'date-fns'
 
 import { prisma } from '@/lib/prisma'
 import { monthKey, shortMonthLabel, spDate } from '@/lib/date'
+import {
+  CREDIT_FEE_CATEGORY,
+  computeCreditFee,
+  isCreditUpfront,
+  parseCreditFeeTiers,
+  type CreditReceiptConfig,
+} from '@/lib/credit-fee'
 import type { TenantContext } from '@/server/tenant/context'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
+
+/**
+ * Config de recebimento no crédito da clínica (modo + faixas de taxa). Lida por
+ * request nas escritas de receita p/ decidir cronograma + taxa de antecipação.
+ * Default INSTALLMENTS (sem taxa) quando o registro não existe.
+ */
+export async function getClientCreditConfig(
+  ctx: TenantContext,
+  clientId: string
+): Promise<CreditReceiptConfig> {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, organizationId: ctx.organizationId },
+    select: { creditReceiptMode: true, creditFeeTiers: true },
+  })
+  return {
+    mode: client?.creditReceiptMode ?? 'INSTALLMENTS',
+    tiers: parseCreditFeeTiers(client?.creditFeeTiers),
+  }
+}
 
 export type RevenueRow = Awaited<ReturnType<typeof listRevenues>>[number]
 
@@ -93,13 +119,17 @@ function splitAmount(total: number, n: number): number[] {
 }
 
 // Monta as parcelas (contas a receber) de uma receita + o status resultante da
-// venda. À vista 1x → 1 parcela PAGA na data (QUITADA). Parcelado/prazo → N
-// parcelas PENDENTE, vencendo mês a mês a partir da data (ABERTA).
+// venda + a taxa de antecipação (R$, 0 quando não se aplica). À vista 1x → 1 parcela
+// PAGA na data (QUITADA). Parcelado/prazo → N parcelas PENDENTE, vencendo mês a mês
+// (ABERTA). CRÉDITO em modo UPFRONT_FEE → 1 parcela PAGA na data (recebe à vista) e
+// `feeCost` > 0 (vira despesa financeira no caller); o nº de parcelas só escolhe a
+// faixa da taxa. Ver lib/credit-fee.ts.
 function buildReceivables(opts: {
   amount: number
   installments?: number
   date: Date
   paymentMethod?: string
+  credit?: CreditReceiptConfig
 }): {
   rows: {
     installmentNumber: number
@@ -110,8 +140,29 @@ function buildReceivables(opts: {
     paymentMethod: string | null
   }[]
   status: 'ABERTA' | 'QUITADA'
+  feeCost: number
 } {
   const n = Math.max(1, opts.installments ?? 1)
+
+  // Crédito antecipado: recebe TUDO à vista (1 parcela PAGA) + taxa de antecipação.
+  if (isCreditUpfront(opts.credit, opts.paymentMethod)) {
+    const feeCost = computeCreditFee(opts.credit, opts.paymentMethod, opts.amount, n)
+    return {
+      rows: [
+        {
+          installmentNumber: 1,
+          amount: opts.amount,
+          dueDate: opts.date,
+          status: 'PAGO',
+          paidAt: opts.date,
+          paymentMethod: opts.paymentMethod ?? null,
+        },
+      ],
+      status: 'QUITADA',
+      feeCost,
+    }
+  }
+
   const parts = splitAmount(opts.amount, n)
   const paidUpfront = n === 1 && !!opts.paymentMethod && CASH_METHODS.has(opts.paymentMethod)
   const rows = parts.map((amt, i) => ({
@@ -122,7 +173,30 @@ function buildReceivables(opts: {
     paidAt: paidUpfront ? opts.date : null,
     paymentMethod: opts.paymentMethod ?? null,
   }))
-  return { rows, status: rows.every((r) => r.status === 'PAGO') ? 'QUITADA' : 'ABERTA' }
+  return { rows, status: rows.every((r) => r.status === 'PAGO') ? 'QUITADA' : 'ABERTA', feeCost: 0 }
+}
+
+// Linha de Cost (despesa financeira) da taxa de antecipação do cartão. `category`
+// fixa identifica a linha p/ re-sync na edição da receita. Nunca parcelada.
+function buildCreditFeeCostRow(opts: {
+  organizationId: string
+  clientId: string
+  amount: number
+  date: Date
+  description?: string
+  createdById?: string
+}) {
+  return {
+    organizationId: opts.organizationId,
+    clientId: opts.clientId,
+    type: 'FINANCIAL_EXPENSE' as const,
+    category: CREDIT_FEE_CATEGORY,
+    amount: opts.amount,
+    date: opts.date,
+    description: opts.description ?? CREDIT_FEE_CATEGORY,
+    isRecurring: false,
+    ...(opts.createdById ? { createdById: opts.createdById } : {}),
+  }
 }
 
 /**
@@ -220,16 +294,49 @@ export function buildAppointmentRevenueData(opts: {
   installments?: number
   discountPct?: number
   createdById?: string
+  // Config de recebimento no crédito da clínica. Ausente = INSTALLMENTS (parcelado).
+  credit?: CreditReceiptConfig
 }): Prisma.RevenueUncheckedCreateInput {
   const gross = opts.price
   const discount = Math.round(gross * ((opts.discountPct ?? 0) / 100) * 100) / 100
   const amount = Math.round((gross - discount) * 100) / 100
-  const { rows, status } = buildReceivables({
+  const { rows, status, feeCost } = buildReceivables({
     amount,
     installments: opts.installments,
     date: opts.date,
     paymentMethod: opts.paymentMethod,
+    credit: opts.credit,
   })
+  // Custos vinculados: custo do procedimento (CSP) + taxa de antecipação (se houver).
+  const costRows = [
+    ...(opts.cost > 0
+      ? [
+          {
+            organizationId: opts.organizationId,
+            clientId: opts.clientId,
+            type: 'VARIABLE' as const,
+            category: PROCEDURE_COST_CATEGORY,
+            amount: opts.cost,
+            date: opts.date,
+            description: `Procedimento: ${opts.procedureName}`,
+            isRecurring: false,
+            ...(opts.createdById ? { createdById: opts.createdById } : {}),
+          },
+        ]
+      : []),
+    ...(feeCost > 0
+      ? [
+          buildCreditFeeCostRow({
+            organizationId: opts.organizationId,
+            clientId: opts.clientId,
+            amount: feeCost,
+            date: opts.date,
+            description: `${CREDIT_FEE_CATEGORY}: ${opts.procedureName}`,
+            createdById: opts.createdById,
+          }),
+        ]
+      : []),
+  ]
   return {
     organizationId: opts.organizationId,
     clientId: opts.clientId,
@@ -246,25 +353,7 @@ export function buildAppointmentRevenueData(opts: {
     description: `Procedimento: ${opts.procedureName}`,
     ...(opts.paymentMethod ? { paymentMethod: opts.paymentMethod } : {}),
     ...(opts.createdById ? { createdById: opts.createdById } : {}),
-    ...(opts.cost > 0
-      ? {
-          costs: {
-            create: [
-              {
-                organizationId: opts.organizationId,
-                clientId: opts.clientId,
-                type: 'VARIABLE' as const,
-                category: PROCEDURE_COST_CATEGORY,
-                amount: opts.cost,
-                date: opts.date,
-                description: `Procedimento: ${opts.procedureName}`,
-                isRecurring: false,
-                ...(opts.createdById ? { createdById: opts.createdById } : {}),
-              },
-            ],
-          },
-        }
-      : {}),
+    ...(costRows.length > 0 ? { costs: { create: costRows } } : {}),
     receivables: {
       create: rows.map((r) => ({
         organizationId: opts.organizationId,
@@ -349,11 +438,17 @@ export async function createRevenue(
   const procedures = data.procedures ?? []
   // procedureId scalar = primeiro procedimento (mantém compat com filtros/relatórios).
   const primaryProcedureId = data.procedureId ?? procedures[0]?.procedureId
-  const { rows: receivables, status } = buildReceivables({
+  const credit = await getClientCreditConfig(ctx, clientId)
+  const {
+    rows: receivables,
+    status,
+    feeCost,
+  } = buildReceivables({
     amount: data.amount,
     installments: data.installments,
     date: data.date,
     paymentMethod: data.paymentMethod,
+    credit,
   })
 
   return scopedTransaction(async (tx) => {
@@ -396,9 +491,29 @@ export async function createRevenue(
       },
     })
 
-    const costRows = buildProcedureCostRows(ctx, clientId, data.date, revenue.id, procedures)
-    if (costRows.length > 0) {
-      await tx.cost.createMany({ data: costRows })
+    const procCostRows = buildProcedureCostRows(ctx, clientId, data.date, revenue.id, procedures)
+    // Taxa de antecipação (crédito UPFRONT_FEE): despesa financeira ligada à venda.
+    const feeCostRows: Prisma.CostCreateManyInput[] =
+      feeCost > 0
+        ? [
+            {
+              ...buildCreditFeeCostRow({
+                organizationId: ctx.organizationId,
+                clientId,
+                amount: feeCost,
+                date: data.date,
+                description: data.description
+                  ? `${CREDIT_FEE_CATEGORY}: ${data.description}`
+                  : CREDIT_FEE_CATEGORY,
+                createdById: ctx.userId,
+              }),
+              revenueId: revenue.id,
+            },
+          ]
+        : []
+    const allCostRows = [...procCostRows, ...feeCostRows]
+    if (allCostRows.length > 0) {
+      await tx.cost.createMany({ data: allCostRows })
     }
 
     return revenue
@@ -486,6 +601,7 @@ async function regenerateReceivables(
     installments: number
     date: Date
     paymentMethod?: string | null
+    credit?: CreditReceiptConfig
   }
 ): Promise<'ABERTA' | 'QUITADA'> {
   const existing = await tx.receivable.findMany({
@@ -516,6 +632,7 @@ async function regenerateReceivables(
       installments: remainingInstallments,
       date: opts.date,
       paymentMethod: opts.paymentMethod ?? undefined,
+      credit: opts.credit,
     })
     await tx.receivable.createMany({
       data: rows.map((r) => ({
@@ -626,16 +743,52 @@ export async function updateRevenue(
         select: { amount: true, installments: true, date: true, paymentMethod: true, status: true },
       })
       if (current && current.status !== 'CANCELADA') {
+        const finalAmount = data.amount ?? Number(current.amount)
+        const finalInstallments = data.installments ?? current.installments ?? 1
+        const finalDate = data.date ?? current.date
+        const finalMethod = data.paymentMethod ?? current.paymentMethod
+        const credit = await getClientCreditConfig(ctx, clientId)
         const newStatus = await regenerateReceivables(tx, {
           revenueId,
           clientId,
           organizationId: ctx.organizationId,
-          amount: data.amount ?? Number(current.amount),
-          installments: data.installments ?? current.installments ?? 1,
-          date: data.date ?? current.date,
-          paymentMethod: data.paymentMethod ?? current.paymentMethod,
+          amount: finalAmount,
+          installments: finalInstallments,
+          date: finalDate,
+          paymentMethod: finalMethod,
+          credit,
         })
         await tx.revenue.update({ where: { id: revenueId }, data: { status: newStatus } })
+
+        // Re-sincroniza a taxa de antecipação (despesa financeira): some/ajusta
+        // conforme a forma/parcelas/valor/modo finais. Soft-delete da linha antiga
+        // (a recriação do procedimento acima já pode tê-la apagado — no-op então) +
+        // recria se a taxa final > 0. Mantém a despesa coerente com a venda exibida.
+        await tx.cost.updateMany({
+          where: {
+            revenueId,
+            clientId,
+            type: 'FINANCIAL_EXPENSE',
+            category: CREDIT_FEE_CATEGORY,
+            deletedAt: null,
+          },
+          data: { deletedAt: new Date() },
+        })
+        const feeCost = computeCreditFee(credit, finalMethod, finalAmount, finalInstallments)
+        if (feeCost > 0) {
+          await tx.cost.create({
+            data: {
+              ...buildCreditFeeCostRow({
+                organizationId: ctx.organizationId,
+                clientId,
+                amount: feeCost,
+                date: finalDate,
+                createdById: ctx.userId,
+              }),
+              revenueId,
+            },
+          })
+        }
       }
     }
 

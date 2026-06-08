@@ -271,3 +271,25 @@ slot clicado a cada abertura (antes a data do 1º clique "grudava").
 
 Verificado: `type-check` ✓ · `lint` ✓ (0 erros) · `test` ✓ (139) · `build` ✓. Verificação
 funcional pendente no Neon/manual (sem migration nova).
+
+## Fase 5 — categoria do funil + mover card entre funis (2026-06-08) — FEITO
+
+Migration `20260608010000_pipeline_category` (só coluna; Pipeline já na RLS):
+
+- Enum **`PipelineCategory { LEAD, PATIENT, OTHER }`** + `Pipeline.category @default(OTHER)`.
+  Backfill: COMMERCIAL→LEAD, RETENTION→PATIENT, custom=OTHER. Categoria é SEMÂNTICA
+  (independe de `kind`, que é estrutural). Editável só em funis CUSTOM (`setPipelineCategory`
+  exige `kind=CUSTOM`; nativas têm tipo fixo) via o dialog "Editar pipeline".
+- **Mover card entre funis** (decidido com o usuário: botão, não drag — as abas têm DnD
+  isolado por board). `moveLeadToPipeline` (`pipeline-stage-effects`): pousa na etapa de
+  ENTRADA do destino (nativeKey LEAD/ACTIVE, senão a 1ª). Fluxo por categoria:
+  - **LEAD → PATIENT** = CONVERSÃO: exige os 5 campos do paciente (vira paciente real,
+    `fromScheduledLead=false`) **e** um motivo → o motivo vai no **audit log do admin**
+    (`moveLeadToPipelineAction`, `changes.reason`) + na interação do card.
+  - **demais** (LEAD→LEAD, →OTHER, PATIENT→\*): só reloca o card, sem virar paciente.
+  - Action exige `crm:write` (+ `patients:write` quando converte). UI: novo
+    `move-lead-pipeline-dialog.tsx` aberto pelo botão "Mover para funil" no drawer do lead
+    (`client-card`). Lista de destinos + categoria threaded `pipeline-tabs`→`kanban-board`→
+    subject do `ClientCard`. `getClinicPipelinesWithStages`/`listPipelines` trazem `category`.
+
+Verificado: `type-check` ✓ · `lint` ✓ (0) · `test` ✓ (180). Migration NÃO aplicada em prod.

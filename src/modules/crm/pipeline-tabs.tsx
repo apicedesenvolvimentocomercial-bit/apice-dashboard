@@ -1,6 +1,6 @@
 'use client'
 
-import type { PipelineKind } from '@prisma/client'
+import type { PipelineCategory, PipelineKind } from '@prisma/client'
 import { Loader2, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -21,6 +21,7 @@ export type PipelineTab = {
   id: string
   name: string
   kind: PipelineKind
+  category: PipelineCategory
   order: number
   stages: KanbanStage[]
 }
@@ -129,9 +130,16 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
             clientId={clientId}
             pipelineId={p.id}
             pipelineKind={p.kind}
+            pipelineCategory={p.category}
             pipelineName={p.name}
             procedures={procedures}
             schedule={schedule}
+            // Lista leve de todos os funis p/ o dialog "Mover para funil".
+            allPipelines={pipelines.map((pp) => ({
+              id: pp.id,
+              name: pp.name,
+              category: pp.category,
+            }))}
             highlightLeadId={active === p.id ? highlightLeadId : null}
           />
         </TabsContent>

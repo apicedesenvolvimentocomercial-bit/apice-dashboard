@@ -1,4 +1,4 @@
-import type { StageNativeKey } from '@prisma/client'
+import type { PipelineCategory, StageNativeKey } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
@@ -108,7 +108,7 @@ export async function listPipelines(
       ...(viewerId ? { OR: [{ ownerId: null }, { ownerId: viewerId }] } : {}),
     },
     orderBy: { order: 'asc' },
-    select: { id: true, name: true, kind: true, order: true },
+    select: { id: true, name: true, kind: true, category: true, order: true },
   })
 }
 
@@ -143,7 +143,7 @@ export async function createPipeline(ctx: TenantContext, clientId: string, name:
       // Item 4: pipeline extra é PESSOAL — só o criador (e viewAll/titular) a vê.
       ownerId: ctx.userId,
     },
-    select: { id: true, name: true, kind: true, order: true },
+    select: { id: true, name: true, kind: true, category: true, order: true },
   })
   return { pipeline }
 }
@@ -158,6 +158,23 @@ export async function renamePipeline(
   return prisma.pipeline.updateMany({
     where: { id: pipelineId, clientId, organizationId: ctx.organizationId },
     data: { name },
+  })
+}
+
+/**
+ * Define a categoria semântica (LEAD/PATIENT/OTHER) de uma pipeline CUSTOM. As
+ * nativas têm categoria intrínseca (Comercial=LEAD, Retenção=PATIENT) e não mudam
+ * — por isso o where exige `kind=CUSTOM`. Belt: clientId no where.
+ */
+export async function setPipelineCategory(
+  ctx: TenantContext,
+  pipelineId: string,
+  clientId: string,
+  category: PipelineCategory
+) {
+  return prisma.pipeline.updateMany({
+    where: { id: pipelineId, clientId, organizationId: ctx.organizationId, kind: 'CUSTOM' },
+    data: { category },
   })
 }
 

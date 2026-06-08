@@ -24,6 +24,7 @@ import {
   scheduleLeadAppointment,
   attendLeadWithPatientData,
   moveLeadWithEffect,
+  moveLeadToPipeline,
   regressLeadStage,
   regressAndRescheduleLead,
 } from '@/server/services/pipeline-stage-effects'
@@ -391,6 +392,85 @@ export async function attendLeadAction(leadId: string, clientId: string, formDat
   revalidatePath('/patients')
   revalidatePath(`/clients/${clientId}/patients`)
   return ok({ status: 'moved' as const })
+}
+
+const movePipelineSchema = z.object({
+  targetPipelineId: z.string().min(1, 'Funil destino obrigatório'),
+  // Dados do paciente (obrigatórios só na conversão LEAD→PATIENT; validados aqui).
+  patient: z
+    .object({
+      name: z.string().min(2, 'Nome obrigatório'),
+      phone: z.string().min(1, 'Telefone obrigatório'),
+      email: z.string().email('E-mail inválido'),
+      birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
+      cpf: z.string().min(1, 'CPF obrigatório'),
+    })
+    .optional(),
+  reason: z.string().optional(),
+})
+
+/**
+ * Move um card para OUTRO funil (não entre etapas — isso é `moveLeadAction`). O
+ * fluxo depende da categoria do funil destino (ver `moveLeadToPipeline`):
+ * LEAD→PATIENT exige os 5 campos do paciente + motivo (vira paciente real; o motivo
+ * vai no audit log do admin); demais só relocam. Exige `crm:write` (+ `patients:write`
+ * quando há conversão de paciente).
+ */
+export async function moveLeadToPipelineAction(
+  leadId: string,
+  clientId: string,
+  formData: unknown
+) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'write')
+
+  const parsed = movePipelineSchema.safeParse(formData)
+  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+
+  // Conversão em paciente (dados presentes) também exige permissão de pacientes.
+  if (parsed.data.patient) await assertCan(ctx, 'patients', 'write')
+
+  const result = await moveLeadToPipeline(ctx, {
+    clientId,
+    leadId,
+    targetPipelineId: parsed.data.targetPipelineId,
+    patient: parsed.data.patient
+      ? { ...parsed.data.patient, birthDate: new Date(parsed.data.patient.birthDate) }
+      : undefined,
+    reason: parsed.data.reason?.trim() || undefined,
+  })
+
+  if (!result.ok) {
+    const msg =
+      result.reason === 'same-pipeline'
+        ? 'O card já está neste funil'
+        : result.reason === 'no-stage'
+          ? 'O funil destino não tem etapas. Configure-o antes.'
+          : result.reason === 'needs-patient-data'
+            ? 'Preencha os dados do paciente para mover para um funil de paciente'
+            : result.reason === 'pipeline-not-found'
+              ? 'Funil destino inválido'
+              : 'Lead não encontrado'
+    return fail(msg)
+  }
+
+  // Motivo no audit log do admin (requisito): vai em `changes`.
+  createAuditLog(ctx, {
+    action: 'stage_change',
+    entityType: 'Lead',
+    entityId: leadId,
+    changes: {
+      movedToPipelineId: parsed.data.targetPipelineId,
+      converted: result.converted,
+      ...(parsed.data.reason?.trim() ? { reason: parsed.data.reason.trim() } : {}),
+    },
+  }).catch(() => {})
+  revalidate(clientId)
+  revalidatePath('/patients')
+  revalidatePath(`/clients/${clientId}/patients`)
+  return ok({ status: 'moved' as const, converted: result.converted })
 }
 
 export async function reorderLeadAction(leadId: string, clientId: string, position: number) {

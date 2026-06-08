@@ -1,9 +1,10 @@
 'use client'
 
-import type { PipelineKind } from '@prisma/client'
+import type { PipelineCategory, PipelineKind } from '@prisma/client'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
+  ArrowRightLeft,
   Calendar,
   Download,
   FileText,
@@ -59,7 +60,13 @@ import {
   reassignLeadAction,
 } from '@/server/actions/lead-actions'
 import { deletePatientAction, getPatientAction } from '@/server/actions/patient-actions'
-import { INTERACTION_LABELS, SOURCE_LABELS, type KanbanStage } from '@/modules/crm/types'
+import { MoveLeadPipelineDialog } from '@/modules/crm/move-lead-pipeline-dialog'
+import {
+  INTERACTION_LABELS,
+  SOURCE_LABELS,
+  type KanbanStage,
+  type PipelineMoveTarget,
+} from '@/modules/crm/types'
 import type { ActivityView } from '@/components/shared/activities/types'
 
 /**
@@ -69,7 +76,16 @@ import type { ActivityView } from '@/components/shared/activities/types'
  * Atividades reusa o backend de atividade orientada a cliente (item 1).
  */
 export type ClientCardSubject =
-  | { type: 'lead'; id: string; stages: KanbanStage[]; pipelineKind: PipelineKind }
+  | {
+      type: 'lead'
+      id: string
+      stages: KanbanStage[]
+      pipelineKind: PipelineKind
+      // "Mover para funil": categoria/origem do funil atual + lista de destinos.
+      pipelineId: string
+      pipelineCategory: PipelineCategory
+      pipelines: PipelineMoveTarget[]
+    }
   | { type: 'patient'; id: string }
 
 type LeadDetail = {
@@ -614,6 +630,7 @@ function LeadInfo({
   }
   const [showLoseForm, setShowLoseForm] = useState(false)
   const [loseReason, setLoseReason] = useState('')
+  const [moveOpen, setMoveOpen] = useState(false)
   const [interactionType, setInteractionType] = useState('NOTE')
   const [interactionContent, setInteractionContent] = useState('')
 
@@ -694,6 +711,21 @@ function LeadInfo({
         )}
         {lead.notes && <p className="text-sm italic text-muted-foreground">{lead.notes}</p>}
       </div>
+
+      {/* Mover o card para outro funil. Lead→funil de Paciente converte (dados+motivo). */}
+      {subject.pipelines.length > 1 && (
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMoveOpen(true)}
+            disabled={isPending}
+          >
+            <ArrowRightLeft className="mr-1.5 h-4 w-4" />
+            Mover para funil
+          </Button>
+        </div>
+      )}
 
       {/* Item 4: reatribuir o lead a outro usuário (crm:assignToOthers). */}
       {canReassign && members.length > 1 && (
@@ -826,6 +858,22 @@ function LeadInfo({
           </Button>
         </div>
       )}
+
+      <MoveLeadPipelineDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        clientId={clientId}
+        leadId={lead.id}
+        sourceCategory={subject.pipelineCategory}
+        currentPipelineId={subject.pipelineId}
+        pipelines={subject.pipelines}
+        patientDefaults={{ name: lead.name, phone: lead.phone, email: lead.email }}
+        onMoved={() => {
+          setMoveOpen(false)
+          onClose()
+          onChanged()
+        }}
+      />
     </>
   )
 }

@@ -10,6 +10,7 @@ import {
   aggregateProcedureRevenue,
   buildAppointmentRevenueData,
   buildPaidRevenueData,
+  getClientCreditConfig,
 } from '@/server/repositories/revenue-repository'
 import {
   addPatientToRetention,
@@ -273,6 +274,145 @@ export async function attendLeadWithPatientData(
   return { ok: true }
 }
 
+export type MovePipelineResult =
+  | { ok: true; converted: boolean; patientId: string | null }
+  | {
+      ok: false
+      reason:
+        | 'lead-not-found'
+        | 'pipeline-not-found'
+        | 'same-pipeline'
+        | 'no-stage'
+        | 'needs-patient-data'
+    }
+
+/**
+ * Move um card (Lead) para OUTRO funil. O fluxo depende das categorias semânticas
+ * (`Pipeline.category`):
+ * - **LEAD → PATIENT**: conversão — exige os 5 campos do paciente (vira paciente
+ *   REAL, `fromScheduledLead=false`) e um motivo (registrado na interação + audit
+ *   pela action). Sem os dados → `needs-patient-data`.
+ * - **demais combinações** (LEAD→LEAD, →OTHER, PATIENT→*, etc.): só reloca o card,
+ *   sem virar paciente automático (decisão do produto).
+ * O card pousa na etapa de ENTRADA do destino (nativa LEAD/ACTIVE, senão a 1ª).
+ * Tudo em transação única; belt `clientId` em todo where.
+ */
+export async function moveLeadToPipeline(
+  ctx: TenantContext,
+  params: {
+    clientId: string
+    leadId: string
+    targetPipelineId: string
+    patient?: { name: string; phone: string; email: string; birthDate: Date; cpf: string }
+    reason?: string
+  }
+): Promise<MovePipelineResult> {
+  const lead = await prisma.lead.findFirst({
+    where: {
+      id: params.leadId,
+      clientId: params.clientId,
+      organizationId: ctx.organizationId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      clientId: true,
+      name: true,
+      phone: true,
+      email: true,
+      patientId: true,
+      stage: { select: { pipelineId: true, pipeline: { select: { category: true } } } },
+    },
+  })
+  if (!lead) return { ok: false, reason: 'lead-not-found' }
+
+  const target = await prisma.pipeline.findFirst({
+    where: {
+      id: params.targetPipelineId,
+      clientId: params.clientId,
+      organizationId: ctx.organizationId,
+    },
+    select: {
+      id: true,
+      category: true,
+      stages: { orderBy: { order: 'asc' }, select: { id: true, nativeKey: true } },
+    },
+  })
+  if (!target) return { ok: false, reason: 'pipeline-not-found' }
+  if (target.id === lead.stage.pipelineId) return { ok: false, reason: 'same-pipeline' }
+  if (target.stages.length === 0) return { ok: false, reason: 'no-stage' }
+
+  // Etapa de pouso: a nativa de ENTRADA (LEAD p/ funil de lead, ACTIVE p/ retenção),
+  // senão a primeira etapa por ordem.
+  const landing =
+    target.stages.find((s) => s.nativeKey === 'LEAD') ??
+    target.stages.find((s) => s.nativeKey === 'ACTIVE') ??
+    target.stages[0]
+
+  const isConversion = lead.stage.pipeline.category === 'LEAD' && target.category === 'PATIENT'
+  if (isConversion && !params.patient) return { ok: false, reason: 'needs-patient-data' }
+
+  // Anexa ao fim da etapa de pouso (position fracionário; +1000 do último).
+  const last = await prisma.lead.findFirst({
+    where: { stageId: landing.id, clientId: params.clientId, deletedAt: null },
+    orderBy: { position: 'desc' },
+    select: { position: true },
+  })
+  const position = (last?.position ?? 0) + 1000
+
+  const patientId = await scopedTransaction(async (tx) => {
+    let pid = lead.patientId
+    if (isConversion && params.patient) {
+      const data = {
+        name: params.patient.name,
+        phone: params.patient.phone,
+        email: params.patient.email,
+        birthDate: params.patient.birthDate,
+        cpf: params.patient.cpf,
+        fromScheduledLead: false,
+      }
+      if (pid) {
+        await tx.patient.updateMany({ where: { id: pid, clientId: lead.clientId }, data })
+      } else {
+        const created = await tx.patient.create({
+          data: {
+            organizationId: ctx.organizationId,
+            clientId: lead.clientId,
+            firstVisitAt: new Date(),
+            ...data,
+          },
+        })
+        pid = created.id
+      }
+    }
+
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        stageId: landing.id,
+        position,
+        ...(pid ? { patientId: pid } : {}),
+        updatedById: ctx.userId,
+      },
+    })
+
+    await tx.leadInteraction.create({
+      data: {
+        leadId: lead.id,
+        type: 'NOTE',
+        content: isConversion
+          ? `Convertido em paciente ao mover para outro funil${params.reason ? ` — motivo: ${params.reason}` : ''}.`
+          : 'Card movido para outro funil.',
+        createdById: ctx.userId,
+      },
+    })
+
+    return pid
+  })
+
+  return { ok: true, converted: isConversion, patientId }
+}
+
 // Carrega o contexto de um move: lead (com appointment) + etapa origem/destino.
 async function loadMoveContext(
   ctx: TenantContext,
@@ -509,6 +649,7 @@ export async function moveLeadWithEffect(
                 installments: details.installments,
                 discountPct: details.discountPct,
                 createdById: ctx.userId,
+                credit: await getClientCreditConfig(ctx, lead.clientId),
               })
             : buildPaidRevenueData({
                 organizationId: ctx.organizationId,

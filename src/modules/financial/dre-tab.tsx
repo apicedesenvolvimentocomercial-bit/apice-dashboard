@@ -1,9 +1,10 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
+import { Download, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
@@ -18,7 +19,29 @@ import { getDreReportAction } from '@/server/actions/dre-actions'
 import type { DreReport } from '@/server/queries/dre-queries'
 import type { Period } from '@/server/services/kpi/types'
 
-import { DreReportTable } from './dre-report-table'
+import { buildDreRows, DreReportTable } from './dre-report-table'
+import { toCsv, withBom } from './types'
+
+// Exporta a DRE do período como CSV (mesmas linhas da tabela: receita → lucro líquido).
+function exportDreCsv(report: DreReport) {
+  const rows = buildDreRows(report.input, report.output).map((r) => ({
+    linha: r.label,
+    valor: r.value.toFixed(2).replace('.', ','),
+    margem: r.margin != null ? r.margin.toFixed(1).replace('.', ',') + '%' : '',
+  }))
+  const iso = (d: Date) => new Date(d).toISOString().slice(0, 10)
+  const from = iso(report.range.from)
+  const to = iso(report.range.to)
+  const csv = toCsv(rows, ['linha', 'valor', 'margem'])
+  const blob = new Blob([withBom(csv)], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `dre-${from}-a-${to}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+  toast.success('DRE exportada')
+}
 
 type PeriodOption = 'month' | 'quarter' | 'year' | 'custom'
 
@@ -88,6 +111,15 @@ export function DreTab({ clientId }: { clientId: string }) {
             </div>
           </>
         )}
+        <Button
+          variant="outline"
+          className="ml-auto"
+          disabled={loading || !report}
+          onClick={() => report && exportDreCsv(report)}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Exportar CSV
+        </Button>
       </div>
 
       <Card>

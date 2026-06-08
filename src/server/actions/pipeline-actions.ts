@@ -10,6 +10,7 @@ import { enterClientScope } from '@/server/tenant/client-scope'
 import {
   createPipeline,
   renamePipeline,
+  setPipelineCategory,
   deletePipeline,
 } from '@/server/repositories/pipeline-repository'
 import { createAuditLog } from '@/server/repositories/audit-repository'
@@ -54,6 +55,38 @@ export async function renamePipelineAction(pipelineId: string, clientId: string,
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Nome inválido')
 
   await renamePipeline(ctx, pipelineId, clientId, parsed.data)
+  revalidate(clientId)
+  return ok(null)
+}
+
+const categorySchema = z.enum(['LEAD', 'PATIENT', 'OTHER'])
+
+/**
+ * Define a categoria (LEAD/PATIENT/OTHER) de uma pipeline CUSTOM — rege o fluxo de
+ * mover cards entre funis. Nativas têm categoria fixa (o repo só atualiza CUSTOM).
+ */
+export async function setPipelineCategoryAction(
+  pipelineId: string,
+  clientId: string,
+  category: unknown
+) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'write')
+
+  const parsed = categorySchema.safeParse(category)
+  if (!parsed.success) return fail('Categoria inválida')
+
+  const res = await setPipelineCategory(ctx, pipelineId, clientId, parsed.data)
+  if (res.count === 0) return fail('Apenas funis personalizados têm categoria editável')
+
+  createAuditLog(ctx, {
+    action: 'update',
+    entityType: 'Pipeline',
+    entityId: pipelineId,
+    changes: { category: parsed.data },
+  }).catch(() => {})
   revalidate(clientId)
   return ok(null)
 }

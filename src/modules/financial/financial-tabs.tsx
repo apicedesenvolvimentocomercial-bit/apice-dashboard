@@ -9,7 +9,6 @@ import { ReceivablesTab } from './receivables-tab'
 import { AssetsTab } from './assets-tab'
 import { RevenuesTab } from './revenues-tab'
 import { CostsTab } from './costs-tab'
-import { ReportsTab } from './reports-tab'
 import type {
   CostRow,
   FinancialSummary,
@@ -62,7 +61,6 @@ export function FinancialTabs({
           <TabsTrigger value="receivables">Contas a Receber</TabsTrigger>
           <TabsTrigger value="costs">Custos</TabsTrigger>
           <TabsTrigger value="assets">Ativos</TabsTrigger>
-          <TabsTrigger value="reports">Relatórios</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -97,10 +95,6 @@ export function FinancialTabs({
 
         <TabsContent value="costs" className="mt-6 space-y-4">
           <CostsTab costs={costs} clientId={clientId} />
-        </TabsContent>
-
-        <TabsContent value="reports" className="mt-6">
-          <ReportsTab clientId={clientId} />
         </TabsContent>
       </Tabs>
     </div>

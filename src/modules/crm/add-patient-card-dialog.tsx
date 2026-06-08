@@ -95,6 +95,7 @@ export function AddPatientCardDialog({
             </p>
           ) : (
             <SearchableSelect
+              portal={false}
               value={patientId}
               onChange={setPatientId}
               placeholder="Selecione um paciente"

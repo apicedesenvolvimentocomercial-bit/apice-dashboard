@@ -1,3 +1,4 @@
+import { metricLabel } from '@/shared/goal-labels'
 import type { InsightCandidate, InsightRule, PrismaLike, RuleInput } from '../types'
 
 const KEY = 'goal_at_risk'
@@ -79,7 +80,7 @@ export const goalAtRiskRule: InsightRule = {
       category: 'OPERATIONAL',
       severity: 'WARNING',
       title: 'Meta em risco de não bater',
-      diagnosis: `Meta "${worst.goal.metric}" está com ${(worst.progress * 100).toFixed(0)}% de atingimento faltando ${daysLeft} dia(s) para o fim do período.`,
+      diagnosis: `Meta "${metricLabel(worst.goal.metric)}" está com ${(worst.progress * 100).toFixed(0)}% de atingimento faltando ${daysLeft} dia(s) para o fim do período.`,
       estimatedImpact: null,
       suggestion:
         'Concentre esforços comerciais nesta meta — reative leads, acelere agendamentos e reforce upsell.',

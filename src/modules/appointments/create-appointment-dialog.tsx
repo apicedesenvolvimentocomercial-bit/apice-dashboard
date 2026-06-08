@@ -273,6 +273,7 @@ export function CreateAppointmentDialog({
             <div className="space-y-1">
               <Label htmlFor="apt-patient">Paciente *</Label>
               <SearchableSelect
+                portal={false}
                 id="apt-patient"
                 value={form.patientId}
                 onChange={(v) => setForm((f) => ({ ...f, patientId: v }))}
