@@ -18,7 +18,9 @@ import { fail, NotFoundError, ok, runAction } from '@/types/errors'
 const createSchema = z.object({
   name: z.string().trim().min(2, 'Nome muito curto').max(120),
   category: z.string().trim().max(80).optional(),
-  kind: z.enum(['TANGIVEL', 'INTANGIVEL']),
+  // Depreciação de equipamentos (tangível) foi descontinuada — só intangível
+  // (amortização). Ver migration drop_tangible_assets.
+  kind: z.literal('INTANGIVEL'),
   acquisitionValue: z.number().positive('Valor deve ser positivo'),
   residualValue: z.number().min(0).optional(),
   acquisitionDate: z.string().min(1, 'Data obrigatória'),
