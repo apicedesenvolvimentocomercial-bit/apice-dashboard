@@ -1,4 +1,17 @@
-import type { LeadSource, StageNativeKey } from '@prisma/client'
+import type { LeadSource, PipelineCategory, StageNativeKey } from '@prisma/client'
+
+// Funil destino p/ o dialog "Mover para funil" (lightweight: sem etapas/leads).
+export type PipelineMoveTarget = {
+  id: string
+  name: string
+  category: PipelineCategory
+}
+
+export const PIPELINE_CATEGORY_LABELS: Record<PipelineCategory, string> = {
+  LEAD: 'Lead',
+  PATIENT: 'Paciente',
+  OTHER: 'Outro',
+}
 
 export type KanbanLead = {
   id: string

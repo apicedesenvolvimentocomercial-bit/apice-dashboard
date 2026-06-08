@@ -4,7 +4,6 @@ import { Suspense } from 'react'
 import { PeriodFilter } from '@/components/dashboard/period-filter'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AdminDashboard } from '@/modules/dashboard/admin-dashboard'
-import { ConsolidatedDre } from '@/modules/financial/consolidated-dre'
 import { getAdminDashboard } from '@/server/queries/dashboard-queries'
 import { parsePeriodParam } from '@/server/services/kpi'
 
@@ -36,16 +35,6 @@ export default async function DashboardPage({ searchParams }: Props) {
       <Suspense key={`${period}-${from ?? ''}-${to ?? ''}`} fallback={<DashboardSkeleton />}>
         <DashboardContent period={period} from={from} to={to} />
       </Suspense>
-
-      <section className="space-y-3 pt-2">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">DRE Consolidada</h2>
-          <p className="text-sm text-muted-foreground">
-            Resultado de todas as clínicas somado, em regime de competência.
-          </p>
-        </div>
-        <ConsolidatedDre />
-      </section>
     </div>
   )
 }

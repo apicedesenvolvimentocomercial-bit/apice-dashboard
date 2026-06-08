@@ -10,9 +10,13 @@ const PopoverTrigger = PopoverPrimitive.Trigger
 
 const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
->(({ className, align = 'center', sideOffset = 4, ...props }, ref) => (
-  <PopoverPrimitive.Portal>
+  // `portal` (default true): quando false, NÃO portaliza o conteúdo. Render dentro
+  // de um Dialog precisa disso — o portal joga o conteúdo p/ fora do container do
+  // react-remove-scroll do Dialog, que então BLOQUEIA a rolagem por roda/trackpad
+  // (só a barra arrasta). Sem portal, a lista vive dentro do lock e rola normal.
+  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & { portal?: boolean }
+>(({ className, align = 'center', sideOffset = 4, portal = true, ...props }, ref) => {
+  const content = (
     <PopoverPrimitive.Content
       ref={ref}
       align={align}
@@ -23,8 +27,9 @@ const PopoverContent = React.forwardRef<
       )}
       {...props}
     />
-  </PopoverPrimitive.Portal>
-))
+  )
+  return portal ? <PopoverPrimitive.Portal>{content}</PopoverPrimitive.Portal> : content
+})
 PopoverContent.displayName = PopoverPrimitive.Content.displayName
 
 export { Popover, PopoverTrigger, PopoverContent }

@@ -1,6 +1,6 @@
 'use client'
 
-import type { PipelineKind } from '@prisma/client'
+import type { PipelineCategory, PipelineKind } from '@prisma/client'
 import { ChevronDown, ChevronUp, Loader2, Lock, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -15,7 +15,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { deletePipelineAction, renamePipelineAction } from '@/server/actions/pipeline-actions'
+import {
+  deletePipelineAction,
+  renamePipelineAction,
+  setPipelineCategoryAction,
+} from '@/server/actions/pipeline-actions'
 import {
   createStageAction,
   deleteStageAction,
@@ -44,6 +48,7 @@ type Props = {
   clientId: string
   pipelineId: string
   pipelineKind: PipelineKind
+  pipelineCategory: PipelineCategory
   pipelineName: string
   stages: KanbanStage[]
 }
@@ -61,12 +66,14 @@ export function StageEditorDialog({
   clientId,
   pipelineId,
   pipelineKind,
+  pipelineCategory,
   pipelineName,
   stages,
 }: Props) {
   const router = useRouter()
   const [rows, setRows] = useState<Row[]>([])
   const [name, setName] = useState(pipelineName)
+  const [category, setCategory] = useState<PipelineCategory>(pipelineCategory)
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -75,6 +82,7 @@ export function StageEditorDialog({
   useEffect(() => {
     if (!open) return
     setName(pipelineName)
+    setCategory(pipelineCategory)
     setRows(
       stages.map((s) => ({
         id: s.id,
@@ -87,7 +95,7 @@ export function StageEditorDialog({
         dirty: false,
       }))
     )
-  }, [open, stages, pipelineName])
+  }, [open, stages, pipelineName, pipelineCategory])
 
   function patchRow(id: string, patch: Partial<Row>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch, dirty: true } : r)))
@@ -178,6 +186,15 @@ export function StageEditorDialog({
         return
       }
     }
+    // Tipo do funil (só CUSTOM; se mudou).
+    if (!isNativePipeline && category !== pipelineCategory) {
+      const r = await setPipelineCategoryAction(pipelineId, clientId, category)
+      if (!r.success) {
+        setSaving(false)
+        toast.error(r.error.message)
+        return
+      }
+    }
     // Etapas alteradas.
     const dirty = rows.filter((r) => r.dirty)
     const results = await Promise.all(
@@ -206,6 +223,31 @@ export function StageEditorDialog({
             Nome da pipeline
           </label>
           <Input id="pipeline-name" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+
+        {/* Categoria semântica — só editável em funis CUSTOM. Rege o fluxo de mover
+            cards entre funis (Lead→Paciente converte; ver "Mover para funil"). */}
+        <div className="space-y-1">
+          <label htmlFor="pipeline-category" className="text-xs font-medium text-muted-foreground">
+            Tipo do funil
+          </label>
+          {isNativePipeline ? (
+            <p className="text-sm text-muted-foreground">
+              {category === 'LEAD' ? 'Lead' : category === 'PATIENT' ? 'Paciente' : 'Outro'} (funil
+              nativo — tipo fixo)
+            </p>
+          ) : (
+            <select
+              id="pipeline-category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as PipelineCategory)}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="LEAD">Lead</option>
+              <option value="PATIENT">Paciente</option>
+              <option value="OTHER">Outro</option>
+            </select>
+          )}
         </div>
 
         <div className="space-y-2">

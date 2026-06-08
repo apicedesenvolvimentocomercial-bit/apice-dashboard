@@ -1,4 +1,4 @@
-import type { PipelineKind } from '@prisma/client'
+import type { PipelineCategory, PipelineKind } from '@prisma/client'
 
 import { getPipeline, findLeadById, type PipelineData } from '@/server/repositories/lead-repository'
 import { listProceduresForSelect } from '@/server/repositories/procedure-repository'
@@ -69,6 +69,7 @@ export type PipelineWithStages = {
   id: string
   name: string
   kind: PipelineKind
+  category: PipelineCategory
   order: number
   stages: PipelineData
 }

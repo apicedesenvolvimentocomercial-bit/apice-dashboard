@@ -11,7 +11,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { PipelineKind, StageNativeKey } from '@prisma/client'
+import type { PipelineCategory, PipelineKind, StageNativeKey } from '@prisma/client'
 import { Pencil } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
@@ -44,7 +44,7 @@ import { LeadCard } from './lead-card'
 import { RescheduleLeadDialog } from './reschedule-lead-dialog'
 import { ScheduleLeadDialog, type ProcedureOption } from './schedule-lead-dialog'
 import { StageEditorDialog } from './stage-editor-dialog'
-import type { KanbanLead, KanbanStage } from './types'
+import type { KanbanLead, KanbanStage, PipelineMoveTarget } from './types'
 
 type Props = {
   stages: KanbanStage[]
@@ -52,7 +52,11 @@ type Props = {
   pipelineId: string
   /** Tipo do funil. RETENTION puxa pacientes já cadastrados; demais = leads. */
   pipelineKind: PipelineKind
+  /** Categoria semântica (LEAD/PATIENT/OTHER) — rege o fluxo de mover entre funis. */
+  pipelineCategory: PipelineCategory
   pipelineName: string
+  /** Todos os funis da clínica (leve) p/ o dialog "Mover para funil". */
+  allPipelines: PipelineMoveTarget[]
   /** Procedimentos da clínica p/ o dialog de Agendado (2a). */
   procedures: ProcedureOption[]
   /** Expediente da clínica p/ as validações do dialog de Agendado (2a). */
@@ -66,7 +70,9 @@ export function KanbanBoard({
   clientId,
   pipelineId,
   pipelineKind,
+  pipelineCategory,
   pipelineName,
+  allPipelines,
   procedures,
   schedule,
   highlightLeadId,
@@ -509,6 +515,7 @@ export function KanbanBoard({
         clientId={clientId}
         pipelineId={pipelineId}
         pipelineKind={pipelineKind}
+        pipelineCategory={pipelineCategory}
         pipelineName={pipelineName}
         stages={stages}
       />
@@ -679,7 +686,19 @@ export function KanbanBoard({
       <ClientCard
         open={drawerLeadId !== null}
         clientId={clientId}
-        subject={drawerLeadId ? { type: 'lead', id: drawerLeadId, stages, pipelineKind } : null}
+        subject={
+          drawerLeadId
+            ? {
+                type: 'lead',
+                id: drawerLeadId,
+                stages,
+                pipelineKind,
+                pipelineId,
+                pipelineCategory,
+                pipelines: allPipelines,
+              }
+            : null
+        }
         onClose={() => setDrawerLeadId(null)}
         onChanged={handleLeadUpdated}
       />

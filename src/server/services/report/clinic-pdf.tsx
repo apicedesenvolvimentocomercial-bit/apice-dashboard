@@ -2,6 +2,7 @@ import React from 'react'
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { metricLabel } from '@/shared/goal-labels'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -317,7 +318,7 @@ export function ClinicReportPdf({ data }: { data: ClinicReportData }) {
                   key={i}
                   style={i < data.goalsProgress.length - 1 ? s.tableRow : s.tableLastRow}
                 >
-                  <Text style={[s.tdCell, s.flex2]}>{g.metric}</Text>
+                  <Text style={[s.tdCell, s.flex2]}>{metricLabel(g.metric)}</Text>
                   <Text style={[s.tdCell, s.flex1, s.textRight]}>
                     {g.currentValue.toLocaleString('pt-BR')}
                   </Text>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { ClinicSettingsForm } from '@/components/clinic/settings/clinic-settings-form'
+import { CreditReceiptConfigCard } from '@/components/clinic/settings/credit-receipt-config-card'
 import { WebhookTokenCard } from '@/components/clinic/settings/webhook-token-card'
 import { AppearanceForm } from '@/components/shared/settings/appearance-form'
 import { ChangePasswordForm } from '@/components/shared/settings/change-password-form'
@@ -17,6 +18,7 @@ import {
   resolveClinicActorLevel,
 } from '@/server/repositories/clinic-role-repository'
 import { findUserProfileById } from '@/server/repositories/user-repository'
+import { parseCreditFeeTiers } from '@/lib/credit-fee'
 import { prisma } from '@/lib/prisma'
 
 export const metadata: Metadata = { title: 'Configurações' }
@@ -140,6 +142,13 @@ export default async function ClinicSettingsPage() {
             />
           </CardContent>
         </Card>
+      )}
+
+      {client && isOwner && (
+        <CreditReceiptConfigCard
+          initialMode={client.creditReceiptMode}
+          initialTiers={parseCreditFeeTiers(client.creditFeeTiers)}
+        />
       )}
 
       {isOwner && (

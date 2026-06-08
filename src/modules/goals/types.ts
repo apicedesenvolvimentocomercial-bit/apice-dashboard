@@ -29,18 +29,5 @@ export type GoalView = {
 
 export type GoalAssignTarget = { id: string; name: string }
 
-export const METRIC_LABEL: Record<GoalView['metric'], string> = {
-  REVENUE: 'Receita',
-  LEADS: 'Leads',
-  CONVERSION_RATE: 'Taxa de conversão',
-  NO_SHOW_RATE: 'Taxa de no-show',
-  AVERAGE_TICKET: 'Ticket médio',
-  APPOINTMENTS: 'Agendamentos',
-  NEW_PATIENTS: 'Novos pacientes',
-}
-
-export const PERIOD_LABEL: Record<GoalView['period'], string> = {
-  MONTHLY: 'Mensal',
-  QUARTERLY: 'Trimestral',
-  YEARLY: 'Anual',
-}
+// Rótulos canônicos vivem em `@/shared/goal-labels` (server + UI). Reexport p/ compat.
+export { METRIC_LABEL, PERIOD_LABEL } from '@/shared/goal-labels'

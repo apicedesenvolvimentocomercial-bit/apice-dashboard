@@ -90,6 +90,9 @@ export function AppointmentDetailDialog({
   // retrocede o card (feat2). Lead já excluído → aviso piscante (feat4).
   const hasActiveLead = !!appointment.lead && appointment.lead.deletedAt == null
   const leadDeleted = appointment.lead?.deletedAt != null
+  // Compareceu mas a receita ainda não foi lançada (usuário escolheu "registrar
+  // depois"). Reabrir o agendamento oferece o botão p/ lançar a baixa agora.
+  const attendedNoRevenue = appointment.status === 'ATTENDED' && !appointment.revenue
 
   // Faltando até 30 min para o horário, ou já passou → marcar comparecimento/
   // falta. Mais de 30 min antes → só cancelar ou reagendar.
@@ -474,6 +477,23 @@ export function AppointmentDetailDialog({
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {attendedNoRevenue && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950/40">
+                  <p className="text-sm text-green-800 dark:text-green-200">
+                    Comparecimento registrado, sem receita lançada.
+                  </p>
+                  <Button
+                    size="sm"
+                    className="mt-2 bg-green-600 hover:bg-green-700"
+                    onClick={() => setShowRevenueDetails(true)}
+                    disabled={isPending}
+                  >
+                    <Check className="mr-1.5 h-4 w-4" />
+                    Registrar receita
+                  </Button>
                 </div>
               )}
 

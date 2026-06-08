@@ -151,6 +151,55 @@ export async function updateClinicSettingsAction(
   })
 }
 
+// Config de recebimento no crédito (modo + faixas de taxa de antecipação). Só o
+// TITULAR altera — é um termo do contrato com a adquirente que muda como o
+// financeiro lança contas a receber e despesa financeira. Ver lib/credit-fee.ts.
+const creditFeeTierSchema = z
+  .object({
+    min: z.number().int().min(1, 'Parcela mínima ≥ 1').max(99),
+    max: z.number().int().min(1).max(99),
+    pct: z.number().min(0, 'Taxa ≥ 0').max(100, 'Taxa ≤ 100%'),
+  })
+  .refine((t) => t.max >= t.min, { message: 'Parcela final deve ser ≥ inicial', path: ['max'] })
+
+const updateCreditReceiptConfigSchema = z.object({
+  creditReceiptMode: z.enum(['INSTALLMENTS', 'UPFRONT_FEE']),
+  creditFeeTiers: z.array(creditFeeTierSchema).max(20).default([]),
+})
+
+export async function updateCreditReceiptConfigAction(
+  input: z.infer<typeof updateCreditReceiptConfigSchema>
+) {
+  return runAction(async () => {
+    const ctx = await getClinicContext()
+    await assertCan(ctx, 'settings', 'write')
+    if (!ctx.isOwner) {
+      throw new ForbiddenError('Apenas o titular da clínica pode alterar o recebimento no crédito')
+    }
+
+    const parsed = updateCreditReceiptConfigSchema.safeParse(input)
+    if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
+
+    // Em modo parcelado (INSTALLMENTS) as faixas são irrelevantes — zera p/ não
+    // confundir leituras futuras.
+    const tiers = parsed.data.creditReceiptMode === 'UPFRONT_FEE' ? parsed.data.creditFeeTiers : []
+
+    await updateClient(ctx, ctx.clientId, {
+      creditReceiptMode: parsed.data.creditReceiptMode,
+      creditFeeTiers: tiers,
+    })
+    createAuditLog(ctx, {
+      action: 'update',
+      entityType: 'Client',
+      entityId: ctx.clientId,
+      changes: { creditReceiptMode: parsed.data.creditReceiptMode, creditFeeTiers: tiers },
+    }).catch(() => {})
+
+    revalidatePath('/configuracoes')
+    return null
+  })
+}
+
 /**
  * Gera/rotaciona o token de webhook POR-CLÍNICA (seguranca-pendencias #2). Só o
  * TITULAR (coroa) gerencia — é um segredo de integração. Guarda só o sha256 e

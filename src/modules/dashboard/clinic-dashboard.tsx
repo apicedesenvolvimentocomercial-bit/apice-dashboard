@@ -6,6 +6,7 @@ import { InfoHint } from '@/components/dashboard/info-hint'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, formatPercent } from '@/lib/utils'
+import { metricLabel } from '@/shared/goal-labels'
 import type { ClinicDashboardData } from '@/server/queries/dashboard-queries'
 
 import type { DashboardVisibility } from '@/server/auth/dashboard-visibility'
@@ -468,7 +469,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
               goalsProgress.map((g) => (
                 <div key={g.id}>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{g.metric}</span>
+                    <span className="font-medium">{metricLabel(g.metric)}</span>
                     <span className="text-muted-foreground">{g.progressPct.toFixed(0)}%</span>
                   </div>
                   <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">

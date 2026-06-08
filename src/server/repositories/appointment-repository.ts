@@ -56,6 +56,10 @@ export async function listAppointments(
       // Lead excluído → a agenda pisca um aviso (feat4). `id` alimenta o
       // retrocesso ao excluir o agendamento (feat2).
       lead: { select: { id: true, deletedAt: true } },
+      // Receita já lançada p/ este agendamento (UNIQUE por appointmentId). Só o
+      // `id` p/ a agenda saber se mostra o botão "Registrar receita" (ATTENDED
+      // sem receita) sem expor o valor.
+      revenue: { select: { id: true } },
     },
   })
 }

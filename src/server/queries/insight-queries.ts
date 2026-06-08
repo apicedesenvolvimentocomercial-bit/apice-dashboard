@@ -4,8 +4,32 @@ import { prisma } from '@/lib/prisma'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { assertCan } from '@/server/auth/assert-can'
+import { runInsightsForClinic } from '@/server/services/insights/engine'
 
 export type InsightRow = Awaited<ReturnType<typeof listInsights>>[number]
+
+/**
+ * Lista os insights RECALCULANDO antes (carregamento automático ao abrir a página).
+ * O recálculo é best-effort: uma regra que falhe não quebra a tela, e roda com
+ * `notify:false` — só a ação explícita "Recalcular"/cron dispara notificação, para
+ * que uma simples visita não gere alertas. Gate `insights:read` + escopo via
+ * `listInsights`. Idempotente: o engine cria/resolve sem duplicar.
+ */
+export async function listInsightsFresh(
+  clientId: string,
+  filters?: {
+    status?: InsightStatus[]
+    severity?: InsightSeverity[]
+    category?: InsightCategory[]
+  }
+): Promise<Awaited<ReturnType<typeof listInsights>>> {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'insights', 'read')
+  await runInsightsForClinic(ctx.organizationId, clientId, { notify: false }).catch(() => {})
+  return listInsights(clientId, filters)
+}
 
 export async function listInsights(
   clientId: string,

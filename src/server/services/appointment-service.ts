@@ -5,6 +5,7 @@ import {
   aggregateProcedureRevenue,
   buildAppointmentRevenueData,
   buildPaidRevenueData,
+  getClientCreditConfig,
 } from '@/server/repositories/revenue-repository'
 import type { TenantContext } from '@/server/tenant/context'
 
@@ -74,6 +75,7 @@ export async function createRevenueFromAppointment(
         installments: details.installments,
         discountPct: details.discountPct,
         createdById: ctx.userId,
+        credit: await getClientCreditConfig(ctx, clientId),
       })
     : buildPaidRevenueData({
         organizationId: ctx.organizationId,

@@ -43,6 +43,9 @@ export async function listReceivables(
   })
   return rows.map((r) => ({
     id: r.id,
+    // Agrupador: parcelas da MESMA venda compartilham o revenueId (UI de Contas a
+    // receber agrupa por venda e expande nas parcelas).
+    revenueId: r.revenue.id,
     installmentNumber: r.installmentNumber,
     totalInstallments: r.revenue.installments ?? 1,
     amount: Number(r.amount),

@@ -20,6 +20,10 @@ type Props = {
   disabled?: boolean
   id?: string
   className?: string
+  // Default true. Passe `false` quando o select vive DENTRO de um Dialog — sem
+  // portal a lista rola por roda/trackpad (o portal a tira do lock de scroll do
+  // Dialog, que bloqueia a roda e só deixa arrastar a barra).
+  portal?: boolean
 }
 
 /**
@@ -37,6 +41,7 @@ export function SearchableSelect({
   disabled,
   id,
   className,
+  portal = true,
 }: Props) {
   const [open, setOpen] = useState(false)
   const selected = options.find((o) => o.value === value)
@@ -61,7 +66,11 @@ export function SearchableSelect({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+        portal={portal}
+      >
         <CommandPrimitive className="flex flex-col overflow-hidden rounded-md bg-popover text-popover-foreground">
           <div className="flex items-center border-b px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />

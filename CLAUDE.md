@@ -251,6 +251,14 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
     sozinha (ATTENDED vira terminal → sem botão cancelar).
   - **Busca global** (`pipeline-search`): filtra leads de TODAS as pipelines em memória (dados já
     no SSR via `getClinicPipelinesWithStages`) por nome/telefone/email — client-side, sem servidor.
+- **Recebimento no crédito (`Client.creditReceiptMode`)** — ledger `dre-progresso.md`. Toda
+  escrita de receita passa por `buildReceivables` (revenue-repository), que lê a config via
+  `getClientCreditConfig` + o helper PURO `lib/credit-fee.ts`. `INSTALLMENTS` (default) = parcelas
+  PENDENTE mês a mês (comportamento antigo). `UPFRONT_FEE` + `paymentMethod=CREDIT_CARD` = 1 parcela
+  PAGA à vista + Cost `FINANCIAL_EXPENSE` (categoria `Taxa de cartão (antecipação)`) = `amount × pct`
+  da faixa. **Novo caminho de baixa/forma de pagamento que gere parcelas → passe `credit` p/
+  `buildReceivables`/`buildAppointmentRevenueData`**, senão a antecipação não é aplicada. A taxa
+  vira despesa financeira na DRE sem código extra.
 - **Datas**: fuso da app = `America/Sao_Paulo`; use os helpers de `src/lib/date.ts`
   (`spDate`, `parseLocalDate`), não `new Date(string)` cru.
 - **Auditoria**: mutations relevantes chamam `createAuditLog(ctx, {...})` (best-effort,

@@ -24,8 +24,20 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createGoalAction, updateGoalAction } from '@/server/actions/goal-actions'
+import { isPercentMetric } from '@/shared/goal-labels'
 
 import { METRIC_LABEL, PERIOD_LABEL, type GoalAssignTarget, type GoalView } from './types'
+
+// Métrica de %: banco guarda fração (0..1); o input mostra o número humano (60).
+const pctRound = (n: number) => Math.round(n * 1e6) / 1e6
+// Valor armazenado → exibido no input (×100 p/ %).
+function toDisplayTarget(metric: GoalView['metric'], stored: number): string {
+  return String(isPercentMetric(metric) ? pctRound(stored * 100) : stored)
+}
+// Valor digitado → armazenado (÷100 p/ %).
+function toStoredTarget(metric: GoalView['metric'], display: number): number {
+  return isPercentMetric(metric) ? display / 100 : display
+}
 
 // Meta existente para o modo edição: campos que o form edita.
 export type GoalEditInitial = Pick<
@@ -95,7 +107,9 @@ export function CreateGoalDialog({
 
   const [metric, setMetric] = useState<GoalView['metric']>(initial?.metric ?? 'REVENUE')
   const [period, setPeriod] = useState<GoalView['period']>(initial?.period ?? 'MONTHLY')
-  const [targetValue, setTargetValue] = useState(initial ? String(initial.targetValue) : '')
+  const [targetValue, setTargetValue] = useState(
+    initial ? toDisplayTarget(initial.metric, initial.targetValue) : ''
+  )
   const [startDate, setStartDate] = useState(initial ? isoOf(initial.startDate) : isoToday())
   const [endDate, setEndDate] = useState(
     initial ? isoOf(initial.endDate) : defaultEndForPeriod('MONTHLY')
@@ -113,7 +127,7 @@ export function CreateGoalDialog({
     if (!initial) return
     setMetric(initial.metric)
     setPeriod(initial.period)
-    setTargetValue(String(initial.targetValue))
+    setTargetValue(toDisplayTarget(initial.metric, initial.targetValue))
     setStartDate(isoOf(initial.startDate))
     setEndDate(isoOf(initial.endDate))
     setNotes(initial.notes ?? '')
@@ -133,7 +147,7 @@ export function CreateGoalDialog({
     const payload = {
       metric,
       period,
-      targetValue: Number(targetValue),
+      targetValue: toStoredTarget(metric, Number(targetValue)),
       startDate,
       endDate,
       notes: notes || undefined,
@@ -304,15 +318,29 @@ export function CreateGoalDialog({
 
           <div className="space-y-1">
             <Label htmlFor="target">Valor alvo</Label>
-            <Input
-              id="target"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              value={targetValue}
-              onChange={(e) => setTargetValue(e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                id="target"
+                type="number"
+                step={isPercentMetric(metric) ? '0.1' : '0.01'}
+                min="0"
+                max={isPercentMetric(metric) ? '100' : undefined}
+                required
+                value={targetValue}
+                onChange={(e) => setTargetValue(e.target.value)}
+                className={isPercentMetric(metric) ? 'pr-8' : undefined}
+              />
+              {isPercentMetric(metric) && (
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  %
+                </span>
+              )}
+            </div>
+            {isPercentMetric(metric) && (
+              <p className="text-xs text-muted-foreground">
+                Informe a porcentagem (ex.: 60 para 60%).
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

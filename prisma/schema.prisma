@@ -245,6 +245,15 @@ model Client {
   // CNAE (Classificação Nacional de Atividades Econômicas) da clínica. Código
   // fiscal informativo; lista curada de estética/saúde em lib/cnae-list.ts.
   cnae String?
+
+  // Recebimento no cartão de crédito (ledger dre-progresso.md / convenções). Default
+  // INSTALLMENTS = recebe parcelado (comportamento histórico — não muda nada). Em
+  // UPFRONT_FEE a venda no crédito é recebida À VISTA + taxa de antecipação vira custo.
+  creditReceiptMode CreditReceiptMode @default(INSTALLMENTS)
+  // Taxa de antecipação por FAIXA de parcelas (modo UPFRONT_FEE). JSON:
+  // [{ "min": 1, "max": 1, "pct": 2.0 }, { "min": 2, "max": 6, "pct": 4.5 }, ...].
+  // % aplicada sobre o líquido da venda; faixa escolhida pelo nº de parcelas.
+  creditFeeTiers Json?
   // Segredo do webhook de ingestão de leads, POR-CLÍNICA (seguranca-pendencias #2).
   // Guarda só o sha256 (hex) de um token de alta entropia; o token cru é mostrado
   // uma única vez ao titular ao gerar/rotacionar. O token resolve o `clientId`
@@ -378,6 +387,17 @@ enum PipelineKind {
   CUSTOM // funil livre criado pela clínica
 }
 
+// Categoria SEMÂNTICA do funil escolhida pela clínica (independente de `kind`, que
+// é estrutural). Define o fluxo ao MOVER um card entre funis: LEAD→PATIENT exige
+// completar o cadastro do paciente + motivo (vira paciente real, audit log); demais
+// combinações só relocam o card (sem virar paciente automático). Comercial nasce LEAD,
+// Retenção nasce PATIENT, custom nasce OTHER. Ver pipelines-progresso.md.
+enum PipelineCategory {
+  LEAD
+  PATIENT
+  OTHER
+}
+
 // Identidade ESTÁVEL da função de uma etapa nativa (Fase 2). O nome é renomeável
 // e isWon/isLost só cobrem 2 das 5; o código decide o efeito de negócio do drag
 // por este campo, não pelo nome. Cadeia COMMERCIAL: LEAD<SCHEDULED<ATTENDED<CLOSED
@@ -403,6 +423,9 @@ model Pipeline {
   client         Client       @relation(fields: [clientId], references: [id])
   name           String
   kind           PipelineKind @default(CUSTOM)
+  // Categoria semântica (LEAD/PATIENT/OTHER) que rege o fluxo de mover card entre
+  // funis. Default OTHER (custom); nativas recebem LEAD/PATIENT no backfill.
+  category       PipelineCategory @default(OTHER)
   order          Int // posição entre as abas da clínica
   createdAt      DateTime     @default(now())
 
@@ -707,6 +730,17 @@ enum TaxRegime {
   SIMPLES
   PRESUMIDO
   REAL
+}
+
+// Modelo de recebimento no CARTÃO DE CRÉDITO (contrato com a adquirente).
+// INSTALLMENTS (default) = a clínica recebe PARCELADO conforme o cliente paga
+// (1 parcela a receber por mês — comportamento histórico). UPFRONT_FEE = a clínica
+// recebe TUDO À VISTA na venda e paga uma taxa de antecipação ao banco; a taxa
+// vira um Cost FINANCIAL_EXPENSE (despesa financeira na DRE). A taxa por faixa de
+// nº de parcelas fica em `Client.creditFeeTiers`. Ver "convenções de código".
+enum CreditReceiptMode {
+  INSTALLMENTS
+  UPFRONT_FEE
 }
 
 // Categoria da receita p/ o split da receita bruta na DRE. FINANCEIRA NÃO entra na

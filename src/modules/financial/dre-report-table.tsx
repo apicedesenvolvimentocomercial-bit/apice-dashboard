@@ -7,15 +7,16 @@ import {
   type DREOutput,
 } from '@/server/services/dre/calcular-dre'
 
-type Row = {
+export type DreRowData = {
   label: string
   value: number
   kind: 'subtotal' | 'deduction' | 'item' | 'result'
   margin?: number | null
 }
 
-function buildRows(i: DREInput, o: DREOutput): Row[] {
-  const item = (label: string, value: number): Row[] =>
+/** Linhas da DRE (receita → lucro líquido). Fonte única p/ a tabela e o export CSV. */
+export function buildDreRows(i: DREInput, o: DREOutput): DreRowData[] {
+  const item = (label: string, value: number): DreRowData[] =>
     value ? [{ label, value, kind: 'item' as const }] : []
   return [
     { label: 'Receita Bruta', value: o.receitaBruta, kind: 'subtotal' },
@@ -59,7 +60,7 @@ function buildRows(i: DREInput, o: DREOutput): Row[] {
 
 /** Render puro da DRE (receita → lucro líquido). Reusado pela clínica e pelo admin. */
 export function DreReportTable({ input, output }: { input: DREInput; output: DREOutput }) {
-  const rows = buildRows(input, output)
+  const rows = buildDreRows(input, output)
   return (
     <div className="divide-y">
       {rows.map((row, idx) => (
@@ -69,7 +70,7 @@ export function DreReportTable({ input, output }: { input: DREInput; output: DRE
   )
 }
 
-function DreRow({ row }: { row: Row }) {
+function DreRow({ row }: { row: DreRowData }) {
   const isSubtotal = row.kind === 'subtotal' || row.kind === 'result'
   const isResult = row.kind === 'result'
   const isItem = row.kind === 'item' || row.kind === 'deduction'

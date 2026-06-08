@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'
+import { isPercentMetric } from '@/shared/goal-labels'
 import { deleteGoalAction } from '@/server/actions/goal-actions'
 
 import { CreateGoalDialog } from './create-goal-dialog'
@@ -33,9 +34,7 @@ type Props = {
 
 function formatValue(metric: GoalView['metric'], value: number): string {
   if (metric === 'REVENUE' || metric === 'AVERAGE_TICKET') return formatCurrency(value)
-  if (metric === 'CONVERSION_RATE' || metric === 'NO_SHOW_RATE') {
-    return `${(value * 100).toFixed(1)}%`
-  }
+  if (isPercentMetric(metric)) return `${(value * 100).toFixed(1)}%`
   return value.toLocaleString('pt-BR')
 }
 

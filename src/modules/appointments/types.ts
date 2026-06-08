@@ -50,4 +50,7 @@ export type AppointmentEvent = {
   // Card do CRM que gerou o agendamento (Fase 2). null = agendamento manual sem
   // card. `deletedAt != null` = Lead excluído (feat4: pisca na agenda).
   lead?: { id: string; deletedAt: Date | null } | null
+  // Receita já lançada p/ este agendamento (UNIQUE por appointmentId). null =
+  // ainda sem baixa → a agenda mostra "Registrar receita" se ATTENDED.
+  revenue?: { id: string } | null
 }
