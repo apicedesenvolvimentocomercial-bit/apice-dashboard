@@ -4,7 +4,6 @@ import { Loader2, Plus } from 'lucide-react'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DateInput } from '@/components/ui/date-input'
 import {
@@ -17,13 +16,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   createFixedAssetAction,
   deleteFixedAssetAction,
@@ -103,8 +95,8 @@ export function AssetsTab({ clientId }: { clientId: string }) {
         </div>
       ) : rows.length === 0 ? (
         <p className="py-16 text-center text-sm text-muted-foreground">
-          Nenhum ativo cadastrado. Cadastre equipamentos/móveis (tangível) ou software (intangível)
-          para a depreciação entrar na DRE.
+          Nenhum ativo intangível cadastrado. Cadastre software, licenças ou marcas para a
+          amortização entrar na DRE.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-md border">
@@ -112,11 +104,10 @@ export function AssetsTab({ clientId }: { clientId: string }) {
             <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Ativo</th>
-                <th className="px-3 py-2">Tipo</th>
                 <th className="px-3 py-2">Aquisição</th>
                 <th className="px-3 py-2 text-right">Valor</th>
                 <th className="px-3 py-2 text-right">Vida útil</th>
-                <th className="px-3 py-2 text-right">Deprec./mês</th>
+                <th className="px-3 py-2 text-right">Amort./mês</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
@@ -128,11 +119,6 @@ export function AssetsTab({ clientId }: { clientId: string }) {
                     {a.category && (
                       <span className="ml-1 text-xs text-muted-foreground">· {a.category}</span>
                     )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <Badge variant="outline">
-                      {a.kind === 'TANGIVEL' ? 'Tangível' : 'Intangível'}
-                    </Badge>
                   </td>
                   <td className="px-3 py-2">{dt(a.acquisitionDate)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{brl(a.acquisitionValue)}</td>
@@ -333,7 +319,6 @@ function NewAssetDialog({ clientId, onSaved }: { clientId: string; onSaved: () =
   const [form, setForm] = useState({
     name: '',
     category: '',
-    kind: 'TANGIVEL' as 'TANGIVEL' | 'INTANGIVEL',
     acquisitionValue: '',
     residualValue: '',
     acquisitionDate: '',
@@ -352,7 +337,7 @@ function NewAssetDialog({ clientId, onSaved }: { clientId: string; onSaved: () =
       const res = await createFixedAssetAction(clientId, {
         name: form.name,
         category: form.category || undefined,
-        kind: form.kind,
+        kind: 'INTANGIVEL',
         acquisitionValue,
         residualValue: form.residualValue ? Number(form.residualValue) : undefined,
         acquisitionDate: form.acquisitionDate,
@@ -367,7 +352,6 @@ function NewAssetDialog({ clientId, onSaved }: { clientId: string; onSaved: () =
       setForm({
         name: '',
         category: '',
-        kind: 'TANGIVEL',
         acquisitionValue: '',
         residualValue: '',
         acquisitionDate: '',
@@ -386,41 +370,28 @@ function NewAssetDialog({ clientId, onSaved }: { clientId: string; onSaved: () =
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Novo ativo</DialogTitle>
+          <DialogTitle>Novo ativo intangível</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Ativos intangíveis (software, licenças, marcas) entram na DRE pela amortização.
+            Depreciação de equipamentos foi descontinuada.
+          </p>
           <div className="space-y-1.5">
             <Label>Nome</Label>
             <Input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="Ex: Laser CO2"
+              placeholder="Ex: Licença do software de gestão"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Tipo</Label>
-              <Select
-                value={form.kind}
-                onValueChange={(v) => setForm((f) => ({ ...f, kind: v as typeof f.kind }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="TANGIVEL">Tangível (depreciação)</SelectItem>
-                  <SelectItem value="INTANGIVEL">Intangível (amortização)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Categoria (opcional)</Label>
-              <Input
-                value={form.category}
-                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                placeholder="Equipamento"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label>Categoria (opcional)</Label>
+            <Input
+              value={form.category}
+              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+              placeholder="Software"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

@@ -164,6 +164,7 @@ export default async function ClinicSettingsPage() {
       {isOwner && messaging && (
         <MessageTemplatesCard
           clientId={ctx.clientId}
+          operationMode={messaging.operationMode}
           templates={messaging.templates}
           recent={messaging.recent}
         />

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { env } from '@/lib/env'
 import { monthBoundsFor, spDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
 import { ensureNativePipelines } from '@/server/repositories/pipeline-repository'
@@ -10,6 +11,8 @@ import {
 import {
   ensureDefaultMessageTemplates,
   enqueueMessage,
+  renderTemplate,
+  resolveTemplate,
   RETENTION_TEMPLATE_KEYS,
 } from '@/server/services/message-service'
 
@@ -37,6 +40,67 @@ const BUCKET_TEMPLATE: Partial<Record<RetentionStageKey, string>> = {
   REACTIVATION: RETENTION_TEMPLATE_KEYS.REACTIVATION,
   WINBACK: RETENTION_TEMPLATE_KEYS.WINBACK,
   // LOYALTY: sem mensagem — paciente recorrente comprometido (não precisa de cutucão).
+}
+
+const STAGE_LABEL: Record<RetentionStageKey, string> = {
+  POST_CARE: 'Pós-procedimento',
+  NURTURE: 'Nutrição',
+  REACTIVATION: 'Reativação',
+  LOYALTY: 'Fidelização',
+  WINBACK: 'Salvamento',
+}
+
+/**
+ * Modo MANUAL: o toque da régua vira uma ATIVIDADE atrelada ao paciente (o time
+ * envia à mão). domain CLINIC, type MESSAGE, sem responsável (global). A descrição
+ * já traz a mensagem sugerida (template renderizado) + o contato. Grava também uma
+ * linha no ledger `OutboundMessage` (status TASK) p/ idempotência — não recria a
+ * tarefa toda noite.
+ */
+async function createRetentionTask(params: {
+  organizationId: string
+  clientId: string
+  patientId: string
+  bucket: RetentionStageKey
+  templateKey: string
+  vars: Record<string, string>
+  phone: string | null
+  dedupeKey: string
+}): Promise<void> {
+  const { organizationId, clientId, patientId, bucket, templateKey, vars, phone, dedupeKey } =
+    params
+  const tpl = await resolveTemplate(clientId, templateKey)
+  const body = tpl ? renderTemplate(tpl.body, vars) : ''
+  const description =
+    (body ? body + '\n\n' : '') +
+    (phone ? `Contato: ${phone}` : 'Paciente sem telefone cadastrado.')
+
+  await prisma.activity.create({
+    data: {
+      organizationId,
+      clientId,
+      domain: 'CLINIC',
+      type: 'MESSAGE',
+      title: `${STAGE_LABEL[bucket]}: contatar ${vars.nome}`,
+      description,
+      status: 'PENDING',
+      priority: 'MEDIUM',
+      patientId,
+      dueDate: new Date(),
+    },
+  })
+  await prisma.outboundMessage.create({
+    data: {
+      organizationId,
+      clientId,
+      patientId,
+      channel: 'WHATSAPP',
+      templateKey,
+      payload: { ...vars, to: phone ?? '' },
+      status: 'TASK',
+      dedupeKey,
+    },
+  })
 }
 
 export type BucketInput = {
@@ -72,8 +136,13 @@ export async function runRetentionJob() {
       organizationId: true,
       inactivityDays: true,
       winbackDays: true,
+      operationMode: true,
     },
   })
+
+  // WhatsApp só envia de verdade quando a integração está ligada; senão, mesmo no
+  // modo AUTOMATED os toques caem como tarefa.
+  const whatsappEnabled = env.WHATSAPP_API_ENABLED
 
   // Fronteira "hoje" no fuso de SP: fechados antes disso migram (= dia seguinte).
   const now = new Date()
@@ -84,10 +153,15 @@ export async function runRetentionJob() {
   let activated = 0
   let moved = 0
   let queued = 0
+  let tasked = 0
 
   for (const client of clients) {
     await ensureNativePipelines(client.id, client.organizationId)
     await ensureDefaultMessageTemplates(client.id, client.organizationId)
+
+    // Envia mensagem só se a clínica escolheu AUTOMATED E o WhatsApp está integrado;
+    // caso contrário, o toque vira atividade atrelada ao paciente.
+    const automate = client.operationMode === 'AUTOMATED' && whatsappEnabled
 
     const stageMap = await getRetentionStageMap(client.id)
     const entryStageId = stageMap.POST_CARE ?? stageMap.NURTURE
@@ -215,25 +289,48 @@ export async function runRetentionJob() {
         moved++
       }
 
-      // Enfileira a mensagem do bucket (idempotente por dedupeKey ancorado na última
-      // visita — 1 mensagem por bucket por ciclo de visita; LOYALTY não cutuca).
+      // Toque do bucket (idempotente por dedupeKey ancorado na última visita — 1 por
+      // bucket por ciclo de visita; LOYALTY não cutuca). AUTOMATED → enfileira
+      // mensagem; MANUAL (ou WhatsApp off) → cria atividade atrelada ao paciente.
       const templateKey = BUCKET_TEMPLATE[bucket]
       if (templateKey) {
         const anchor = lastVisitAt ? lastVisitAt.toISOString().slice(0, 10) : 'none'
-        await enqueueMessage({
-          organizationId: client.organizationId,
-          clientId: client.id,
-          patientId,
-          templateKey,
-          to: card.phone,
-          vars: {
+        const dedupeKey = `ret:${patientId}:${bucket}:${anchor}`
+        const already = await prisma.outboundMessage.findUnique({
+          where: { dedupeKey },
+          select: { id: true },
+        })
+        if (!already) {
+          const vars = {
             nome: card.name.split(' ')[0] ?? card.name,
             procedimento: lastVisit?.procedure?.name ?? 'procedimento',
             clinica: client.name,
-          },
-          dedupeKey: `ret:${patientId}:${bucket}:${anchor}`,
-        })
-        queued++
+          }
+          if (automate) {
+            await enqueueMessage({
+              organizationId: client.organizationId,
+              clientId: client.id,
+              patientId,
+              templateKey,
+              to: card.phone,
+              vars,
+              dedupeKey,
+            })
+            queued++
+          } else {
+            await createRetentionTask({
+              organizationId: client.organizationId,
+              clientId: client.id,
+              patientId,
+              bucket,
+              templateKey,
+              vars,
+              phone: card.phone,
+              dedupeKey,
+            })
+            tasked++
+          }
+        }
       }
     }
   }
@@ -244,6 +341,7 @@ export async function runRetentionJob() {
     activated,
     moved,
     queued,
+    tasked,
   })
-  return { clients: clients.length, migrated, activated, moved, queued }
+  return { clients: clients.length, migrated, activated, moved, queued, tasked }
 }

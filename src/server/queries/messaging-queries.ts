@@ -1,3 +1,5 @@
+import type { OperationMode } from '@prisma/client'
+
 import { prisma } from '@/lib/prisma'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -27,6 +29,7 @@ export type OutboundMessageRow = {
  * fila, para a clínica configurar a régua de retenção. Gateado por `settings:read`.
  */
 export async function getClinicMessaging(clientId: string): Promise<{
+  operationMode: OperationMode
   templates: MessageTemplateRow[]
   recent: OutboundMessageRow[]
 }> {
@@ -37,7 +40,11 @@ export async function getClinicMessaging(clientId: string): Promise<{
 
   await ensureDefaultMessageTemplates(clientId, ctx.organizationId)
 
-  const [templates, recent] = await Promise.all([
+  const [client, templates, recent] = await Promise.all([
+    prisma.client.findFirst({
+      where: { id: clientId, organizationId: ctx.organizationId },
+      select: { operationMode: true },
+    }),
     prisma.messageTemplate.findMany({
       where: { clientId, deletedAt: null },
       orderBy: { key: 'asc' },
@@ -60,6 +67,7 @@ export async function getClinicMessaging(clientId: string): Promise<{
   ])
 
   return {
+    operationMode: client?.operationMode ?? 'MANUAL',
     templates,
     recent: recent.map((m) => ({
       id: m.id,

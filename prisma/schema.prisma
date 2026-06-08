@@ -194,6 +194,16 @@ enum ClientStatus {
   CHURNED
 }
 
+// Modo de operação da clínica (futuro: plano de pagamento). MANUAL = os toques da
+// régua de retenção viram ATIVIDADE atrelada ao paciente (o time envia à mão).
+// AUTOMATED = a régua envia mensagem sozinha — mas só de fato quando o WhatsApp
+// está integrado (`env.WHATSAPP_API_ENABLED`); enquanto não, cai em tarefa também.
+// Ver retencao-reforma-progresso.md.
+enum OperationMode {
+  MANUAL
+  AUTOMATED
+}
+
 model Client {
   id             String       @id @default(cuid())
   organizationId String
@@ -237,6 +247,11 @@ model Client {
   // quais o paciente sai de "Reativação" e cai em "Salvamento/Inativos". Reforma
   // da retenção (retencao-reforma-progresso.md).
   winbackDays Int @default(120)
+
+  // Modo de operação (futuro plano de pagamento). MANUAL (default) = toques da
+  // régua viram atividade atrelada ao paciente; AUTOMATED = envia mensagem (quando
+  // o WhatsApp estiver integrado). Ver retencao-reforma-progresso.md.
+  operationMode OperationMode @default(MANUAL)
 
   // Janela de cancelamento → no-show. Ao arrastar um card para "Cancelado":
   // null (default) = regra do MESMO DIA (cancelar no dia do procedimento conta
@@ -1476,6 +1491,7 @@ enum OutboundMessageStatus {
   SENT // entregue ao provider (externalId preenchido)
   FAILED // provider recusou/erro
   SKIPPED // condição deixou de valer (ex.: paciente sem telefone)
+  TASK // modo MANUAL: virou uma atividade atrelada ao paciente (não envia)
 }
 
 // Template de mensagem por-clínica, identificado por `key` estável (ex.:
