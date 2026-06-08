@@ -181,6 +181,23 @@ templateKey, vars, scheduledFor?, dedupeKey?})` → grava `OutboundMessage` QUEU
   (`settings:read`, semeia defaults) + `message-actions.updateMessageTemplateAction`
   (`settings:write`, belt clientId) + `message-templates-card.tsx`.
 
+### Modo de operação MANUAL × AUTOMÁTICO (2026-06-08, 3ª leva)
+
+`Client.operationMode` enum `OperationMode { MANUAL, AUTOMATED }` (default MANUAL;
+migration `20260608040000_operation_mode` + valor `TASK` em `OutboundMessageStatus`).
+Futuro = plano de pagamento; por ora é opção em Configurações.
+
+- **No retention-job:** `automate = operationMode === 'AUTOMATED' && env.WHATSAPP_API_ENABLED`.
+  - `automate` → `enqueueMessage` (fila → messages-job → WhatsApp).
+  - senão → **`createRetentionTask`**: cria `Activity` (domain CLINIC, type MESSAGE, SEM
+    responsável = "global", **`patientId` atrelado**, descrição = mensagem renderizada +
+    contato) + linha no ledger `OutboundMessage` status `TASK` (idempotência: dedupeKey
+    `ret:{patientId}:{bucket}:{dataÚltimaVisita}`, checado antes de criar).
+  - Enquanto o WhatsApp não estiver integrado, MESMO no AUTOMÁTICO cai em tarefa.
+- **UI:** seletor "Manual (tarefas) × Automático (mensagens)" no card da régua
+  (`message-templates-card.tsx` → `ModeSelector`); `setOperationModeAction`
+  (`settings:write`). A fila mostra status "Virou tarefa" (TASK).
+
 ### Pendências conhecidas (próximas sessões)
 
 - **Email como canal real (GRÁTIS)**: `messages-job` entregar via Resend (já integrado) p/

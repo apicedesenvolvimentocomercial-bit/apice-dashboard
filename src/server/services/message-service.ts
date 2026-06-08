@@ -49,6 +49,23 @@ export function renderTemplate(body: string, vars: Record<string, string>): stri
   return body.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => vars[key] ?? '')
 }
 
+/**
+ * Resolve o template de uma chave: o da clínica (ativo) ou o default embutido.
+ * Retorna `null` se a chave não tem default e a clínica não tem template.
+ */
+export async function resolveTemplate(
+  clientId: string,
+  key: string
+): Promise<{ title: string | null; body: string } | null> {
+  const tpl = await prisma.messageTemplate.findFirst({
+    where: { clientId, key, isActive: true, deletedAt: null },
+    select: { title: true, body: true },
+  })
+  if (tpl) return tpl
+  const def = DEFAULT_MESSAGE_TEMPLATES[key]
+  return def ? { title: def.title, body: def.body } : null
+}
+
 export type EnqueueMessageParams = {
   organizationId: string
   clientId: string

@@ -15,6 +15,30 @@ const updateTemplateSchema = z.object({
   isActive: z.boolean(),
 })
 
+const operationModeSchema = z.enum(['MANUAL', 'AUTOMATED'])
+
+/**
+ * Define o modo de operação da clínica (MANUAL = toques viram tarefa; AUTOMATED =
+ * envia mensagem quando o WhatsApp estiver integrado). Gateado por `settings:write`.
+ */
+export async function setOperationModeAction(clientId: string, mode: unknown) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'settings', 'write')
+
+  const parsed = operationModeSchema.safeParse(mode)
+  if (!parsed.success) return fail('Modo inválido')
+
+  await prisma.client.updateMany({
+    where: { id: clientId, organizationId: ctx.organizationId },
+    data: { operationMode: parsed.data },
+  })
+
+  revalidatePath('/configuracoes')
+  return ok(null)
+}
+
 /**
  * Edita um template de mensagem da clínica (título/corpo/ativo). Gateado por
  * `settings:write`. Belt: `clientId` no where (não confia só na RLS).

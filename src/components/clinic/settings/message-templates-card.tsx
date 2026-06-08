@@ -1,5 +1,7 @@
 'use client'
 
+import type { OperationMode } from '@prisma/client'
+import { ListTodo, Send } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -10,11 +12,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { updateMessageTemplateAction } from '@/server/actions/message-actions'
+import {
+  setOperationModeAction,
+  updateMessageTemplateAction,
+} from '@/server/actions/message-actions'
 import type { MessageTemplateRow, OutboundMessageRow } from '@/server/queries/messaging-queries'
 
 type Props = {
   clientId: string
+  operationMode: OperationMode
   templates: MessageTemplateRow[]
   recent: OutboundMessageRow[]
 }
@@ -38,21 +44,27 @@ const STATUS: Record<string, { label: string; cls: string }> = {
     cls: 'bg-destructive/10 text-destructive dark:bg-destructive/20',
   },
   SKIPPED: { label: 'Ignorada', cls: 'bg-muted text-muted-foreground' },
+  TASK: {
+    label: 'Virou tarefa',
+    cls: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200',
+  },
 }
 
-export function MessageTemplatesCard({ clientId, templates, recent }: Props) {
+export function MessageTemplatesCard({ clientId, operationMode, templates, recent }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Mensagens automáticas (retenção)</CardTitle>
+        <CardTitle className="text-base">Régua de retenção</CardTitle>
         <CardDescription>
-          Régua enviada conforme o paciente avança no funil de retenção. Use{' '}
+          Toques enviados conforme o paciente avança no funil de retenção. Use{' '}
           <code className="text-xs">{'{{nome}}'}</code>,{' '}
           <code className="text-xs">{'{{procedimento}}'}</code> e{' '}
           <code className="text-xs">{'{{clinica}}'}</code> como variáveis.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <ModeSelector clientId={clientId} mode={operationMode} />
+
         {templates.map((t) => (
           <TemplateEditor key={t.id} clientId={clientId} template={t} />
         ))}
@@ -103,6 +115,86 @@ export function MessageTemplatesCard({ clientId, templates, recent }: Props) {
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function ModeSelector({ clientId, mode }: { clientId: string; mode: OperationMode }) {
+  const [isPending, startTransition] = useTransition()
+  const [current, setCurrent] = useState<OperationMode>(mode)
+
+  function choose(next: OperationMode) {
+    if (next === current || isPending) return
+    const prev = current
+    setCurrent(next) // otimista
+    startTransition(async () => {
+      const res = await setOperationModeAction(clientId, next)
+      if (!res.success) {
+        setCurrent(prev)
+        toast.error(res.error.message)
+        return
+      }
+      toast.success('Modo de operação atualizado!')
+    })
+  }
+
+  const options: {
+    value: OperationMode
+    icon: typeof ListTodo
+    title: string
+    desc: string
+    note?: string
+  }[] = [
+    {
+      value: 'MANUAL',
+      icon: ListTodo,
+      title: 'Manual (tarefas)',
+      desc: 'Cada toque da régua vira uma tarefa atrelada ao paciente, com a mensagem pronta para o time enviar à mão.',
+    },
+    {
+      value: 'AUTOMATED',
+      icon: Send,
+      title: 'Automático (mensagens)',
+      desc: 'A régua envia as mensagens sozinha pelo WhatsApp.',
+      note: 'Requer integração do WhatsApp — em breve. Enquanto não, os toques caem como tarefa.',
+    },
+  ]
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium">Modo de operação</Label>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((o) => {
+          const Icon = o.icon
+          const active = current === o.value
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => choose(o.value)}
+              disabled={isPending}
+              aria-pressed={active}
+              className={cn(
+                'flex flex-col gap-1 rounded-lg border p-3 text-left transition-colors disabled:opacity-60',
+                active
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                  : 'border-border hover:bg-accent'
+              )}
+            >
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <Icon
+                  className={cn('h-4 w-4', active ? 'text-primary' : 'text-muted-foreground')}
+                />
+                {o.title}
+              </span>
+              <span className="text-xs text-muted-foreground">{o.desc}</span>
+              {o.note && (
+                <span className="text-[11px] text-amber-600 dark:text-amber-400">{o.note}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

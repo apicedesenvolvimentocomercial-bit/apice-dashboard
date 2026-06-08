@@ -12,6 +12,7 @@ import { createPipelineAction } from '@/server/actions/pipeline-actions'
 
 import { KanbanBoard } from './kanban-board'
 import { PipelineSearch } from './pipeline-search'
+import { RetentionHelp } from './retention-help'
 import type { ProcedureOption } from './schedule-lead-dialog'
 import type { KanbanStage } from './types'
 
@@ -93,24 +94,31 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
         <PipelineSearch pipelines={pipelines} onSelect={handleSearchSelect} />
       </div>
 
-      <TabsList className="shrink-0 self-start">
-        {pipelines.map((p) => (
-          <TabsTrigger key={p.id} value={p.id}>
-            {p.name}
-          </TabsTrigger>
-        ))}
-        {pipelines.length < MAX_PIPELINES && (
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={creating}
-            aria-label="Nova pipeline"
-            className="ml-1 inline-flex h-7 items-center justify-center rounded-sm px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
-          >
-            {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          </button>
-        )}
-      </TabsList>
+      <div className="flex shrink-0 items-center gap-1.5 self-start">
+        <TabsList>
+          {pipelines.map((p) => (
+            <TabsTrigger key={p.id} value={p.id}>
+              {p.name}
+            </TabsTrigger>
+          ))}
+          {pipelines.length < MAX_PIPELINES && (
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={creating}
+              aria-label="Nova pipeline"
+              className="ml-1 inline-flex h-7 items-center justify-center rounded-sm px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+            >
+              {creating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+            </button>
+          )}
+        </TabsList>
+        {pipelines.find((p) => p.id === active)?.kind === 'RETENTION' && <RetentionHelp />}
+      </div>
 
       {pipelines.map((p) => (
         <TabsContent
