@@ -227,9 +227,16 @@ model Client {
   // (a UI sempre tratou como number[]; só o repo serializava). 1ª NF respeitada.
   workdays     Int[]  @default([1, 2, 3, 4, 5, 6])
 
-  // Dias sem operação/procedimento após os quais um paciente cai p/ INACTIVE na
-  // pipeline RETENTION (Fase 2e). Movido pelo cron de retenção.
+  // Dias sem operação/procedimento após os quais um paciente é considerado "fora
+  // da janela de retorno" na pipeline RETENTION. Hoje é o FALLBACK quando o
+  // procedimento da última visita não tem `recurrenceDays` próprio (reforma do
+  // ciclo de vida — retencao-reforma-progresso.md). Movido pelo cron de retenção.
   inactivityDays Int @default(30)
+
+  // Corte Reativação→Salvamento (WINBACK): dias desde a última visita acima dos
+  // quais o paciente sai de "Reativação" e cai em "Salvamento/Inativos". Reforma
+  // da retenção (retencao-reforma-progresso.md).
+  winbackDays Int @default(120)
 
   // Janela de cancelamento → no-show. Ao arrastar um card para "Cancelado":
   // null (default) = regra do MESMO DIA (cancelar no dia do procedimento conta
@@ -291,6 +298,8 @@ model Client {
   receivables         Receivable[]
   fixedAssets         FixedAsset[]
   activityTypes       ClinicActivityType[]
+  messageTemplates    MessageTemplate[]
+  outboundMessages    OutboundMessage[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -409,8 +418,17 @@ enum StageNativeKey {
   ATTENDED
   CLOSED
   NO_SHOW
+  // RETENÇÃO legado (pré-reforma do ciclo de vida) — mantidos no enum p/ o
+  // backfill remapear cards; não são mais semeados em pipelines novas.
   ACTIVE
   INACTIVE
+  // Ciclo de vida do paciente (reforma da retenção — retencao-reforma-progresso.md).
+  // Buckets calculados pelo cron por tempo desde a última visita + recorrência.
+  POST_CARE // Pós-procedimento (0–24h) — Encantamento
+  NURTURE // Nutrição (2–15d) — Cuidado real
+  REACTIVATION // Reativação (janela de recorrência venceu) — Autoridade
+  LOYALTY // Fidelização (recorrente + retorno marcado) — Recorrência
+  WINBACK // Salvamento (inativo longo) — Comunidade
 }
 
 // Um funil da clínica. Substitui o antigo `StageKind` em PipelineStage: agora
@@ -604,16 +622,22 @@ model Patient {
   firstVisitAt DateTime?
   lastVisitAt  DateTime?
 
+  // Retorno esperado = última visita + recorrência do procedimento principal
+  // (denorm p/ UI + cron de retenção; setado ao comparecer). Reforma da retenção
+  // (retencao-reforma-progresso.md). Best-effort; o cron recomputa do zero.
+  nextReturnDueAt DateTime?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  leads        Lead[]
-  appointments Appointment[]
-  revenues     Revenue[]
-  activities   Activity[]
-  clientNotes  ClientNote[]
-  documents    Document[]
+  leads            Lead[]
+  appointments     Appointment[]
+  revenues         Revenue[]
+  activities       Activity[]
+  clientNotes      ClientNote[]
+  documents        Document[]
+  outboundMessages OutboundMessage[]
 
   @@index([organizationId, clientId])
   @@index([clientId, deletedAt])
@@ -651,6 +675,11 @@ model Procedure {
   price           Decimal @db.Decimal(12, 2)
   cost            Decimal @db.Decimal(12, 2)
   durationMinutes Int?
+  // Janela recomendada de retorno / fim do efeito do procedimento, em dias. Dirige
+  // a etapa de Reativação do funil de retenção (reforma — retencao-reforma-progresso.md):
+  // o cron compara `now` vs `últimaVisita + recurrenceDays`. `null` = procedimento
+  // único (sem recorrência); cai no fallback `Client.inactivityDays`.
+  recurrenceDays  Int?
   isActive        Boolean @default(true)
 
   createdAt DateTime  @default(now())
@@ -1426,6 +1455,75 @@ model Notification {
   @@index([userId, readAt])
   @@index([userId, createdAt])
   @@index([clientId, readAt])
+}
+
+// =====================================================
+// MENSAGERIA AO PACIENTE (reforma da retenção)
+// =====================================================
+// Fundação p/ disparo real de comunicação (WhatsApp/SMS/email). Hoje despacha pelo
+// WhatsappMockProvider; trocar a factory (integrations/index.ts) pelo provider real
+// não muda este modelo. Ledger: retencao-reforma-progresso.md / auditoria-produto.md
+// (gap P0: "mede tudo, age em nada").
+
+enum MessageChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum OutboundMessageStatus {
+  QUEUED // na fila, aguardando o messages-job
+  SENT // entregue ao provider (externalId preenchido)
+  FAILED // provider recusou/erro
+  SKIPPED // condição deixou de valer (ex.: paciente sem telefone)
+}
+
+// Template de mensagem por-clínica, identificado por `key` estável (ex.:
+// "retention.post_care"). `body` tem placeholders {{var}} resolvidos no envio.
+model MessageTemplate {
+  id             String         @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client         @relation(fields: [clientId], references: [id])
+  key            String
+  channel        MessageChannel @default(WHATSAPP)
+  title          String?
+  body           String         @db.Text
+  isActive       Boolean        @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([clientId, key])
+  @@index([organizationId, clientId])
+}
+
+// Fila de mensagens de saída. O messages-job (cron, cross-clínica) pega QUEUED com
+// `scheduledFor <= now` e despacha pelo provider. `dedupeKey` (@unique) garante
+// idempotência — o retention-job reenfileira sem duplicar.
+model OutboundMessage {
+  id             String                @id @default(cuid())
+  organizationId String
+  clientId       String
+  client         Client                @relation(fields: [clientId], references: [id])
+  patientId      String?
+  patient        Patient?              @relation(fields: [patientId], references: [id])
+  channel        MessageChannel        @default(WHATSAPP)
+  templateKey    String
+  payload        Json // variáveis do template + destino resolvido
+  status         OutboundMessageStatus @default(QUEUED)
+  scheduledFor   DateTime              @default(now())
+  sentAt         DateTime?
+  externalId     String?
+  error          String?
+  dedupeKey      String?               @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, clientId])
+  @@index([clientId, status, scheduledFor])
 }
 
 // =====================================================

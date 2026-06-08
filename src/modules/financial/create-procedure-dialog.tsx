@@ -24,7 +24,14 @@ type Props = {
   onSaved: () => void
 }
 
-const EMPTY = { name: '', price: '', cost: '', durationMinutes: '', description: '' }
+const EMPTY = {
+  name: '',
+  price: '',
+  cost: '',
+  durationMinutes: '',
+  recurrenceDays: '',
+  description: '',
+}
 
 export function CreateProcedureDialog({ open, clientId, procedure, onOpenChange, onSaved }: Props) {
   const [isPending, startTransition] = useTransition()
@@ -39,6 +46,7 @@ export function CreateProcedureDialog({ open, clientId, procedure, onOpenChange,
               price: String(procedure.price),
               cost: String(procedure.cost),
               durationMinutes: procedure.durationMinutes ? String(procedure.durationMinutes) : '',
+              recurrenceDays: procedure.recurrenceDays ? String(procedure.recurrenceDays) : '',
               description: procedure.description ?? '',
             }
           : EMPTY
@@ -75,6 +83,7 @@ export function CreateProcedureDialog({ open, clientId, procedure, onOpenChange,
       price,
       cost,
       durationMinutes: form.durationMinutes ? parseInt(form.durationMinutes) : undefined,
+      recurrenceDays: form.recurrenceDays ? parseInt(form.recurrenceDays) : null,
     }
 
     startTransition(async () => {
@@ -123,16 +132,32 @@ export function CreateProcedureDialog({ open, clientId, procedure, onOpenChange,
             </div>
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="pr-duration">Duração (minutos)</Label>
-            <Input
-              id="pr-duration"
-              type="number"
-              min={1}
-              placeholder="60"
-              {...f('durationMinutes')}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="pr-duration">Duração (minutos)</Label>
+              <Input
+                id="pr-duration"
+                type="number"
+                min={1}
+                placeholder="60"
+                {...f('durationMinutes')}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pr-recurrence">Recorrência (dias)</Label>
+              <Input
+                id="pr-recurrence"
+                type="number"
+                min={1}
+                placeholder="ex: 90"
+                {...f('recurrenceDays')}
+              />
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Recorrência = janela recomendada de retorno / fim do efeito. Deixe vazio para
+            procedimento único. Move o paciente para &quot;Reativação&quot; no funil de retenção.
+          </p>
 
           <div className="space-y-1">
             <Label htmlFor="pr-desc">Descrição</Label>

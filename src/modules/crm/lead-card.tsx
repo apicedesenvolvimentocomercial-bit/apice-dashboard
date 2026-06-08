@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Phone } from 'lucide-react'
+import { CalendarClock, Phone } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -38,6 +38,10 @@ export function LeadCard({ lead, onClick, isDragOverlay = false, highlight = fal
   }, [highlight])
 
   const style = { transform: CSS.Translate.toString(transform), transition }
+
+  // Retorno esperado (reforma da retenção): só nos cards com paciente ligado.
+  const dueAt = lead.patient?.nextReturnDueAt ? new Date(lead.patient.nextReturnDueAt) : null
+  const isOverdue = dueAt ? dueAt.getTime() < Date.now() : false
 
   return (
     // dnd-kit injeta role/tabIndex/handlers de teclado via {...attributes}/{...listeners}
@@ -79,6 +83,22 @@ export function LeadCard({ lead, onClick, isDragOverlay = false, highlight = fal
         <div className="mt-1.5 flex items-center gap-1">
           <Phone className="h-3 w-3 shrink-0 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">{lead.phone}</span>
+        </div>
+      )}
+      {dueAt && (
+        <div
+          className={cn(
+            'mt-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs',
+            isOverdue
+              ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200'
+              : 'bg-muted text-muted-foreground'
+          )}
+        >
+          <CalendarClock className="h-3 w-3 shrink-0" />
+          <span className="truncate">
+            {isOverdue ? 'Retorno atrasado ' : 'Retorno '}
+            {formatDistanceToNow(dueAt, { addSuffix: true, locale: ptBR })}
+          </span>
         </div>
       )}
     </div>

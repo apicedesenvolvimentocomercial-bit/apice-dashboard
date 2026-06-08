@@ -13,8 +13,16 @@ const NATIVE_KEY_RANK: Record<StageNativeKey, number> = {
   ATTENDED: 2,
   CLOSED: 3,
   NO_SHOW: 4,
+  // Retenção legado (pré-reforma) — só p/ pipelines ainda não migradas.
   ACTIVE: 0,
   INACTIVE: 1,
+  // Ciclo de vida do paciente (reforma da retenção). Ranks 0–4 dentro do funil
+  // de RETENÇÃO; não colidem com o comercial (funis distintos).
+  POST_CARE: 0,
+  NURTURE: 1,
+  REACTIVATION: 2,
+  LOYALTY: 3,
+  WINBACK: 4,
 }
 
 /**

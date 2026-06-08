@@ -22,13 +22,32 @@ type Person = {
   patientId?: string | null
 }
 
-/** Etapa ACTIVE da pipeline RETENTION da clínica (ou null se ausente). */
-export async function getRetentionActiveStageId(clientId: string): Promise<string | null> {
+// Etapas nativas do ciclo de vida da retenção (reforma — retencao-reforma-progresso.md).
+export type RetentionStageKey = 'POST_CARE' | 'NURTURE' | 'REACTIVATION' | 'LOYALTY' | 'WINBACK'
+
+/** Mapa nativeKey→stageId da pipeline RETENTION da clínica (vazio se ausente). */
+export async function getRetentionStageMap(
+  clientId: string
+): Promise<Partial<Record<RetentionStageKey, string>>> {
   const retention = await prisma.pipeline.findFirst({
     where: { clientId, kind: 'RETENTION' },
     select: { stages: { select: { id: true, nativeKey: true } } },
   })
-  return retention?.stages.find((s) => s.nativeKey === 'ACTIVE')?.id ?? null
+  const map: Partial<Record<RetentionStageKey, string>> = {}
+  for (const s of retention?.stages ?? []) {
+    if (s.nativeKey) map[s.nativeKey as RetentionStageKey] = s.id
+  }
+  return map
+}
+
+/**
+ * Etapa de ENTRADA da pipeline RETENTION (Pós-procedimento / POST_CARE). É onde um
+ * card recém-chegado pousa; o cron recalcula o bucket certo na próxima rodada.
+ * (Substitui o antigo `getRetentionActiveStageId` — ACTIVE virou POST_CARE.)
+ */
+export async function getRetentionEntryStageId(clientId: string): Promise<string | null> {
+  const map = await getRetentionStageMap(clientId)
+  return map.POST_CARE ?? map.NURTURE ?? null
 }
 
 /**
@@ -83,8 +102,8 @@ export async function addPatientToRetention(
   organizationId: string,
   patientId: string
 ): Promise<void> {
-  const activeStageId = await getRetentionActiveStageId(clientId)
-  if (!activeStageId) return
+  const entryStageId = await getRetentionEntryStageId(clientId)
+  if (!entryStageId) return
 
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, clientId, organizationId, deletedAt: null },
@@ -115,7 +134,7 @@ export async function addPatientToRetention(
       phone: patient.phone,
       email: patient.email,
       source: 'WALK_IN',
-      stageId: activeStageId,
+      stageId: entryStageId,
       patientId,
     },
   })

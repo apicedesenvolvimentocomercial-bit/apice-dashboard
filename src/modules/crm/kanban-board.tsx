@@ -432,6 +432,7 @@ export function KanbanBoard({
           stageId: lead.stageId,
           position: lastPos + 1000,
           appointmentId: null,
+          patient: null,
         }
         return { ...stage, leads: [...stage.leads, newLead] }
       })

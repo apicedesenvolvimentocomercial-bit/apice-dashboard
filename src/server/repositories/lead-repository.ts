@@ -55,6 +55,9 @@ export async function getPipeline(
           stageId: true,
           position: true,
           appointmentId: true,
+          // Retorno esperado do paciente (reforma da retenção) — o card de retenção
+          // mostra "retorno em {data}" / "atrasado há Nd". Null fora da retenção.
+          patient: { select: { nextReturnDueAt: true } },
         },
       },
     },

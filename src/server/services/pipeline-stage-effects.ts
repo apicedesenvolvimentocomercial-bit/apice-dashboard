@@ -14,7 +14,7 @@ import {
 } from '@/server/repositories/revenue-repository'
 import {
   addPatientToRetention,
-  getRetentionActiveStageId,
+  getRetentionEntryStageId,
 } from '@/server/services/retention-service'
 
 /**
@@ -342,11 +342,11 @@ export async function moveLeadToPipeline(
   if (target.id === lead.stage.pipelineId) return { ok: false, reason: 'same-pipeline' }
   if (target.stages.length === 0) return { ok: false, reason: 'no-stage' }
 
-  // Etapa de pouso: a nativa de ENTRADA (LEAD p/ funil de lead, ACTIVE p/ retenção),
-  // senão a primeira etapa por ordem.
+  // Etapa de pouso: a nativa de ENTRADA (LEAD p/ funil de lead, POST_CARE p/
+  // retenção), senão a primeira etapa por ordem.
   const landing =
     target.stages.find((s) => s.nativeKey === 'LEAD') ??
-    target.stages.find((s) => s.nativeKey === 'ACTIVE') ??
+    target.stages.find((s) => s.nativeKey === 'POST_CARE') ??
     target.stages[0]
 
   const isConversion = lead.stage.pipeline.category === 'LEAD' && target.category === 'PATIENT'
@@ -1318,13 +1318,14 @@ export async function syncPipelineCardForManualAppointment(
   const isRealPatient = !patient.fromScheduledLead || attendedCount > 0 || !!retentionLead
 
   if (isRealPatient) {
-    // Garante card de retenção (remove duplicatas comerciais ativas) e o ativa.
+    // Garante card de retenção (remove duplicatas comerciais ativas). Pousa na etapa
+    // de entrada; o cron de retenção recalcula o bucket certo na próxima rodada.
     await addPatientToRetention(clientId, ctx.organizationId, patientId)
-    const activeStageId = await getRetentionActiveStageId(clientId)
-    if (activeStageId) {
+    const entryStageId = await getRetentionEntryStageId(clientId)
+    if (entryStageId) {
       await prisma.lead.updateMany({
         where: { clientId, patientId, deletedAt: null, stage: { pipeline: { kind: 'RETENTION' } } },
-        data: { stageId: activeStageId },
+        data: { stageId: entryStageId },
       })
     }
     return
