@@ -2,50 +2,98 @@ import { prisma } from '@/lib/prisma'
 import { monthBoundsFor, spDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
 import { ensureNativePipelines } from '@/server/repositories/pipeline-repository'
-import { removeActiveCommercialDuplicates } from '@/server/services/retention-service'
+import {
+  getRetentionStageMap,
+  removeActiveCommercialDuplicates,
+  type RetentionStageKey,
+} from '@/server/services/retention-service'
+import {
+  ensureDefaultMessageTemplates,
+  enqueueMessage,
+  RETENTION_TEMPLATE_KEYS,
+} from '@/server/services/message-service'
 
 /**
- * Cron de retenção (Fase 2e + itens 6/7). Cross-clínica → roda em contexto admin
- * (GUC nula), exceção legítima de RLS (ver rls-gambiarra §entrypoints). Por clínica:
+ * Cron de retenção — CICLO DE VIDA DO PACIENTE (reforma — retencao-reforma-progresso.md).
+ * Cross-clínica → contexto admin (GUC nula), exceção legítima de RLS. Por clínica:
  *
- *  1. Garante a pipeline RETENTION + etapas nativas (ACTIVE/INACTIVE).
- *  2a. MIGRAÇÃO (item 7): cards no "Fechado" comercial fechados ANTES de hoje
- *      migram para Retenção/Ativo (o MESMO card move; sai do comercial). Remove
- *      cards comerciais ativos duplicados do mesmo cliente.
- *  2b. Rede de segurança: pacientes que comparecerem (≥1 Appointment ATTENDED),
- *      sem card de retenção e sem card comercial ativo → cria card em ACTIVE.
- *  3. Inatividade: ACTIVE → INACTIVE para quem não teve atividade na janela.
+ *  1. Garante a pipeline RETENTION (5 etapas nativas) + templates default.
+ *  2. MIGRAÇÃO: cards no "Fechado" comercial (fechados ANTES de hoje) entram na
+ *     retenção na etapa de ENTRADA (Pós-procedimento). Remove duplicatas comerciais.
+ *  3. Rede de segurança: pacientes que comparecerem, sem card de retenção e sem card
+ *     comercial ativo → entram na retenção.
+ *  4. PROGRESSÃO: cada card de retenção é reposicionado no BUCKET calculado por tempo
+ *     desde a última visita + recorrência do procedimento, e a mensagem-template do
+ *     bucket é enfileirada (idempotente por dedupeKey ancorado na última visita).
  *
- * `closedAt` permanece no card migrado (conversão lê por closedAt, não por etapa).
- * Idempotente: rodar de novo não duplica nem re-migra.
+ * Idempotente: rodar de novo não duplica card nem mensagem.
  */
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+const BUCKET_TEMPLATE: Partial<Record<RetentionStageKey, string>> = {
+  POST_CARE: RETENTION_TEMPLATE_KEYS.POST_CARE,
+  NURTURE: RETENTION_TEMPLATE_KEYS.NURTURE,
+  REACTIVATION: RETENTION_TEMPLATE_KEYS.REACTIVATION,
+  WINBACK: RETENTION_TEMPLATE_KEYS.WINBACK,
+  // LOYALTY: sem mensagem — paciente recorrente comprometido (não precisa de cutucão).
+}
+
+export type BucketInput = {
+  now: Date
+  lastVisitAt: Date | null
+  /** Janela recomendada de retorno (recurrenceDays do procedimento ou fallback). */
+  returnWindowDays: number
+  hasFutureAppt: boolean
+  isRecurrent: boolean
+  winbackDays: number
+}
+
+/** Decide o bucket de retenção (função pura — testável). Ver regras no ledger. */
+export function computeRetentionBucket(input: BucketInput): RetentionStageKey {
+  const { now, lastVisitAt, returnWindowDays, hasFutureAppt, isRecurrent, winbackDays } = input
+  if (!lastVisitAt) return 'NURTURE' // card sem visita registrada → estado neutro
+
+  const daysSince = Math.floor((now.getTime() - lastVisitAt.getTime()) / DAY_MS)
+  if (daysSince <= 1) return 'POST_CARE'
+  if (hasFutureAppt && isRecurrent) return 'LOYALTY' // recorrente com retorno marcado
+  if (daysSince <= 15) return 'NURTURE'
+  if (daysSince <= returnWindowDays) return 'NURTURE' // ainda dentro da janela de retorno
+  if (daysSince <= winbackDays) return 'REACTIVATION' // janela venceu, não remarcou
+  return 'WINBACK' // inativo longo
+}
+
 export async function runRetentionJob() {
   const clients = await prisma.client.findMany({
     where: { deletedAt: null, status: { not: 'INACTIVE' } },
-    select: { id: true, organizationId: true, inactivityDays: true },
+    select: {
+      id: true,
+      name: true,
+      organizationId: true,
+      inactivityDays: true,
+      winbackDays: true,
+    },
   })
 
   // Fronteira "hoje" no fuso de SP: fechados antes disso migram (= dia seguinte).
-  const b = monthBoundsFor(new Date())
+  const now = new Date()
+  const b = monthBoundsFor(now)
   const startOfTodaySP = spDate(b.year, b.month0, b.day, 0, 0, 0)
 
   let migrated = 0
   let activated = 0
-  let deactivated = 0
+  let moved = 0
+  let queued = 0
 
   for (const client of clients) {
     await ensureNativePipelines(client.id, client.organizationId)
+    await ensureDefaultMessageTemplates(client.id, client.organizationId)
 
-    const retention = await prisma.pipeline.findFirst({
-      where: { clientId: client.id, kind: 'RETENTION' },
-      select: { stages: { select: { id: true, nativeKey: true } } },
-    })
-    if (!retention) continue
-    const activeStage = retention.stages.find((s) => s.nativeKey === 'ACTIVE')
-    const inactiveStage = retention.stages.find((s) => s.nativeKey === 'INACTIVE')
-    if (!activeStage || !inactiveStage) continue
+    const stageMap = await getRetentionStageMap(client.id)
+    const entryStageId = stageMap.POST_CARE ?? stageMap.NURTURE
+    if (!entryStageId) continue
 
-    // (2a) Migração: Fechado (fechado antes de hoje) → Retenção/Ativo.
+    // (2) Migração: Fechado (fechado antes de hoje) → entrada da retenção.
     const commercial = await prisma.pipeline.findFirst({
       where: { clientId: client.id, kind: 'COMMERCIAL' },
       select: { stages: { select: { id: true, nativeKey: true } } },
@@ -63,19 +111,14 @@ export async function runRetentionJob() {
         select: { id: true, name: true, phone: true, email: true, patientId: true },
       })
       for (const lead of closedLeads) {
-        // Remove outros cards comerciais ativos do mesmo cliente (dedup).
         await removeActiveCommercialDuplicates(client.id, client.organizationId, lead, lead.id)
-        // Move o próprio card p/ retenção (mantém closedAt/patientId).
-        await prisma.lead.update({
-          where: { id: lead.id },
-          data: { stageId: activeStage.id },
-        })
+        await prisma.lead.update({ where: { id: lead.id }, data: { stageId: entryStageId } })
         migrated++
       }
     }
 
-    // (2b) Rede de segurança: pacientes que comparecerem, sem card de retenção e
-    // sem card comercial ativo → entra em Ativo. (Exclui fantasmas de no-show.)
+    // (3) Rede de segurança: pacientes ATTENDED sem card de retenção e sem card
+    // comercial ativo → entra na retenção.
     const completedPatients = await prisma.patient.findMany({
       where: {
         clientId: client.id,
@@ -103,58 +146,95 @@ export async function runRetentionJob() {
           phone: p.phone,
           email: p.email,
           source: 'WALK_IN',
-          stageId: activeStage.id,
+          stageId: entryStageId,
           patientId: p.id,
         },
       })
       activated++
     }
 
-    // (3) Inatividade: cards em ACTIVE com paciente sem atividade na janela.
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - client.inactivityDays)
-
-    const activeCards = await prisma.lead.findMany({
+    // (4) Progressão: reposiciona cada card no bucket calculado + enfileira mensagem.
+    const cards = await prisma.lead.findMany({
       where: {
         clientId: client.id,
-        stageId: activeStage.id,
         deletedAt: null,
         patientId: { not: null },
+        stage: { pipeline: { kind: 'RETENTION' } },
       },
-      select: { id: true, patientId: true },
+      select: { id: true, stageId: true, patientId: true, name: true, phone: true },
     })
 
-    for (const card of activeCards) {
-      if (!card.patientId) continue
-      const recentAppt = await prisma.appointment.findFirst({
-        where: {
-          patientId: card.patientId,
-          clientId: client.id,
-          deletedAt: null,
-          status: 'ATTENDED',
-          attendedAt: { gte: cutoff },
-        },
-        select: { id: true },
-      })
-      if (recentAppt) continue
+    for (const card of cards) {
+      const patientId = card.patientId
+      if (!patientId) continue
 
-      const recentRevenue = await prisma.revenue.findFirst({
-        where: {
-          patientId: card.patientId,
-          clientId: client.id,
-          deletedAt: null,
-          date: { gte: cutoff },
-        },
-        select: { id: true },
-      })
-      if (recentRevenue) continue
+      const [lastVisit, futureAppt, attendedCount, patientRow] = await Promise.all([
+        prisma.appointment.findFirst({
+          where: { patientId, clientId: client.id, status: 'ATTENDED', deletedAt: null },
+          orderBy: { attendedAt: 'desc' },
+          select: { attendedAt: true, procedure: { select: { name: true, recurrenceDays: true } } },
+        }),
+        prisma.appointment.findFirst({
+          where: {
+            patientId,
+            clientId: client.id,
+            status: { in: ['SCHEDULED', 'CONFIRMED'] },
+            scheduledAt: { gt: now },
+            deletedAt: null,
+          },
+          select: { id: true },
+        }),
+        prisma.appointment.count({
+          where: { patientId, clientId: client.id, status: 'ATTENDED', deletedAt: null },
+        }),
+        prisma.patient.findUnique({ where: { id: patientId }, select: { nextReturnDueAt: true } }),
+      ])
 
-      // Sem atividade na janela → INACTIVE.
-      await prisma.lead.update({
-        where: { id: card.id },
-        data: { stageId: inactiveStage.id },
+      const lastVisitAt = lastVisit?.attendedAt ?? null
+      const returnWindowDays = lastVisit?.procedure?.recurrenceDays ?? client.inactivityDays
+      const bucket = computeRetentionBucket({
+        now,
+        lastVisitAt,
+        returnWindowDays,
+        hasFutureAppt: !!futureAppt,
+        isRecurrent: attendedCount >= 2,
+        winbackDays: client.winbackDays,
       })
-      deactivated++
+
+      // Denorm do retorno esperado (UI): última visita + janela. Só escreve se mudou.
+      const nextReturnDueAt = lastVisitAt
+        ? new Date(lastVisitAt.getTime() + returnWindowDays * DAY_MS)
+        : null
+      if (nextReturnDueAt?.getTime() !== (patientRow?.nextReturnDueAt?.getTime() ?? undefined)) {
+        await prisma.patient.update({ where: { id: patientId }, data: { nextReturnDueAt } })
+      }
+
+      const targetStageId = stageMap[bucket]
+      if (targetStageId && targetStageId !== card.stageId) {
+        await prisma.lead.update({ where: { id: card.id }, data: { stageId: targetStageId } })
+        moved++
+      }
+
+      // Enfileira a mensagem do bucket (idempotente por dedupeKey ancorado na última
+      // visita — 1 mensagem por bucket por ciclo de visita; LOYALTY não cutuca).
+      const templateKey = BUCKET_TEMPLATE[bucket]
+      if (templateKey) {
+        const anchor = lastVisitAt ? lastVisitAt.toISOString().slice(0, 10) : 'none'
+        await enqueueMessage({
+          organizationId: client.organizationId,
+          clientId: client.id,
+          patientId,
+          templateKey,
+          to: card.phone,
+          vars: {
+            nome: card.name.split(' ')[0] ?? card.name,
+            procedimento: lastVisit?.procedure?.name ?? 'procedimento',
+            clinica: client.name,
+          },
+          dedupeKey: `ret:${patientId}:${bucket}:${anchor}`,
+        })
+        queued++
+      }
     }
   }
 
@@ -162,7 +242,8 @@ export async function runRetentionJob() {
     clients: clients.length,
     migrated,
     activated,
-    deactivated,
+    moved,
+    queued,
   })
-  return { clients: clients.length, migrated, activated, deactivated }
+  return { clients: clients.length, migrated, activated, moved, queued }
 }

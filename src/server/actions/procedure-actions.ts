@@ -19,6 +19,8 @@ const procedureSchema = z.object({
   price: z.number().nonnegative('Preço deve ser positivo'),
   cost: z.number().nonnegative('Custo deve ser positivo'),
   durationMinutes: z.number().int().positive().optional(),
+  // Janela de retorno / fim do efeito (reforma da retenção). null = procedimento único.
+  recurrenceDays: z.number().int().positive().nullable().optional(),
   categoryId: z.string().optional(),
 })
 

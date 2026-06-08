@@ -317,6 +317,15 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   Fechado→Retenção (cron, dia seguinte), dedup comercial, conversão por `closedAt`, etapa
   "Cancelado" + `Client.noShowWindowHours`, `Patient.fromScheduledLead` — ver invariantes
   em "Convenções de código".
+- `retencao-reforma-progresso.md` — reforma do funil de RETENÇÃO em ciclo de vida do
+  paciente (5 etapas: Pós-procedimento→Nutrição→Reativação→Fidelização→Salvamento). Os
+  cards são BUCKETS calculados pelo cron (`computeRetentionBucket` em `retention-job`) por
+  tempo desde a última visita + `Procedure.recurrenceDays` (janela de recorrência por
+  procedimento; fallback `Client.inactivityDays`; corte WINBACK = `Client.winbackDays`).
+  Fundação de mensageria (`MessageTemplate`/`OutboundMessage` + RLS, `message-service`,
+  `messages-job`, cron `api/cron/messages`) enfileira a mensagem do bucket pelo provider
+  (HOJE `WhatsappMockProvider`). Fases A+B+mensageria FEITAS (2026-06-08); C real (WhatsApp)
+  - D (NPS/indicação/clube) pendentes.
 - `fase11-progresso.md` — infra de testes E2E.
 - `auditoria-*.md`, `deploy-checklist.md` — achados de auditoria e checklist de deploy.
 - `auditoria-produto.md` — revisão completa (2026-06-02): código órfão/obsoleto, feature

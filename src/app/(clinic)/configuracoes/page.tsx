@@ -2,7 +2,9 @@ import type { Metadata } from 'next'
 
 import { ClinicSettingsForm } from '@/components/clinic/settings/clinic-settings-form'
 import { CreditReceiptConfigCard } from '@/components/clinic/settings/credit-receipt-config-card'
+import { MessageTemplatesCard } from '@/components/clinic/settings/message-templates-card'
 import { WebhookTokenCard } from '@/components/clinic/settings/webhook-token-card'
+import { getClinicMessaging } from '@/server/queries/messaging-queries'
 import { AppearanceForm } from '@/components/shared/settings/appearance-form'
 import { ChangePasswordForm } from '@/components/shared/settings/change-password-form'
 import { ProfileForm } from '@/components/shared/settings/profile-form'
@@ -47,7 +49,7 @@ export default async function ClinicSettingsPage() {
   // qualquer CLIENT_OWNER; agora reflete a coroa real.
   const isOwner = ctx.isOwner
 
-  const [profile, client, roles, users, viewerLevel, webhookCfg] = await Promise.all([
+  const [profile, client, roles, users, viewerLevel, webhookCfg, messaging] = await Promise.all([
     findUserProfileById(ctx.userId),
     findClientById(ctx, ctx.clientId),
     canManageRoles ? listClinicRoles(ctx) : Promise.resolve([]),
@@ -59,6 +61,7 @@ export default async function ClinicSettingsPage() {
           select: { webhookTokenHash: true },
         })
       : Promise.resolve(null),
+    isOwner ? getClinicMessaging(ctx.clientId) : Promise.resolve(null),
   ])
 
   const roleItems = roles.map((r) => ({
@@ -155,6 +158,14 @@ export default async function ClinicSettingsPage() {
         <WebhookTokenCard
           hasToken={!!webhookCfg?.webhookTokenHash}
           appUrl={env.NEXT_PUBLIC_APP_URL}
+        />
+      )}
+
+      {isOwner && messaging && (
+        <MessageTemplatesCard
+          clientId={ctx.clientId}
+          templates={messaging.templates}
+          recent={messaging.recent}
         />
       )}
 

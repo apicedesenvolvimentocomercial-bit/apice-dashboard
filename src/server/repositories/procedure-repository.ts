@@ -39,6 +39,7 @@ export async function listProceduresWithStats(ctx: TenantContext, clientId: stri
       price: true,
       cost: true,
       durationMinutes: true,
+      recurrenceDays: true,
       isActive: true,
       categoryId: true,
       category: { select: { id: true, name: true } },
@@ -63,6 +64,7 @@ export async function listProceduresWithStats(ctx: TenantContext, clientId: stri
       cost,
       margin,
       durationMinutes: p.durationMinutes,
+      recurrenceDays: p.recurrenceDays,
       isActive: p.isActive,
       categoryId: p.categoryId,
       category: p.category,
@@ -134,6 +136,7 @@ export async function createProcedure(
     price: number
     cost: number
     durationMinutes?: number
+    recurrenceDays?: number | null
     categoryId?: string
   }
 ) {
@@ -146,6 +149,7 @@ export async function createProcedure(
       price: data.price,
       cost: data.cost,
       durationMinutes: data.durationMinutes,
+      recurrenceDays: data.recurrenceDays,
       categoryId: data.categoryId,
     },
   })
@@ -161,6 +165,7 @@ export async function updateProcedure(
     price: number
     cost: number
     durationMinutes: number
+    recurrenceDays: number | null
     isActive: boolean
     categoryId: string
   }>

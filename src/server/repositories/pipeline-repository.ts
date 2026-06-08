@@ -65,24 +65,55 @@ export const COMMERCIAL_NATIVE_STAGES = [
   },
 ] as const
 
+// Ciclo de vida do paciente (reforma da retenção — retencao-reforma-progresso.md).
+// As 5 etapas são BUCKETS calculados pelo cron (tempo desde a última visita +
+// recorrência do procedimento), não arrastadas à mão. ACTIVE/INACTIVE legados
+// foram remapeados (NURTURE/WINBACK) pelo backfill da migration.
 export const RETENTION_NATIVE_STAGES = [
   {
-    name: 'Ativo',
+    name: 'Pós-procedimento',
     order: 0,
+    color: '#a855f7',
+    isWon: false,
+    isLost: false,
+    isNative: true,
+    nativeKey: 'POST_CARE' as const,
+  },
+  {
+    name: 'Nutrição',
+    order: 1,
     color: '#22c55e',
     isWon: false,
     isLost: false,
     isNative: true,
-    nativeKey: 'ACTIVE' as const,
+    nativeKey: 'NURTURE' as const,
   },
   {
-    name: 'Inativo',
-    order: 1,
-    color: '#94a3b8',
+    name: 'Reativação',
+    order: 2,
+    color: '#f59e0b',
     isWon: false,
     isLost: false,
     isNative: true,
-    nativeKey: 'INACTIVE' as const,
+    nativeKey: 'REACTIVATION' as const,
+  },
+  {
+    name: 'Fidelização',
+    order: 3,
+    color: '#3b82f6',
+    isWon: false,
+    isLost: false,
+    isNative: true,
+    nativeKey: 'LOYALTY' as const,
+  },
+  {
+    name: 'Salvamento',
+    order: 4,
+    color: '#ef4444',
+    isWon: false,
+    isLost: false,
+    isNative: true,
+    nativeKey: 'WINBACK' as const,
   },
 ] as const
 
@@ -255,7 +286,13 @@ const COMMERCIAL_NATIVE_ORDER: StageNativeKey[] = [
   'CLOSED',
   'NO_SHOW',
 ]
-const RETENTION_NATIVE_ORDER: StageNativeKey[] = ['ACTIVE', 'INACTIVE']
+const RETENTION_NATIVE_ORDER: StageNativeKey[] = [
+  'POST_CARE',
+  'NURTURE',
+  'REACTIVATION',
+  'LOYALTY',
+  'WINBACK',
+]
 
 /**
  * Preenche `nativeKey` em etapas NATIVAS que estão sem ele. Necessário para
