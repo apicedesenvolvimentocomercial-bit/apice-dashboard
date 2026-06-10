@@ -49,6 +49,26 @@ export class ConflictError extends AppError {
 
 export type ErrorPayload = { code: string; message: string; fields?: Record<string, string[]> }
 
+/**
+ * Converte um erro de validação do zod em `Result` de falha COM o mapa de
+ * campos (Fase 4 do plano de correções). Antes as actions devolviam só a 1ª
+ * issue como string (`code: 'ERROR'`): a UI não conseguia marcar campo a campo
+ * nem distinguir validação de erro genérico. `fields` segue o shape do
+ * `flatten().fieldErrors` do zod ({ campo: [mensagens] }).
+ */
+export function validationFail(error: {
+  issues: { message: string }[]
+  flatten: () => { fieldErrors: Record<string, string[] | undefined> }
+}): { success: false; error: ErrorPayload } {
+  const first = error.issues[0]?.message
+  return fail(
+    new ValidationError(
+      first ? `Dados inválidos: ${first}` : 'Dados inválidos',
+      error.flatten().fieldErrors as Record<string, string[]>
+    )
+  )
+}
+
 export type Result<T> = { success: true; data: T } | { success: false; error: ErrorPayload }
 
 export function ok<T>(data: T): { success: true; data: T } {

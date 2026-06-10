@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { parseLocalDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
-import { ok, fail } from '@/types/errors'
+import { ok, fail, validationFail } from '@/types/errors'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -103,7 +103,7 @@ export async function createRevenueAction(clientId: string, formData: unknown) {
   enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
   await assertCan(ctx, 'financial', 'write')
   const parsed = revenueSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const date = parseLocalDate(parsed.data.date)
   if (!date) return fail('Data inválida')
@@ -154,7 +154,7 @@ export async function updateRevenueAction(revenueId: string, clientId: string, f
   enterClientScope(clientId)
   await assertCan(ctx, 'financial', 'write')
   const parsed = revenueSchema.partial().safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   let date: Date | undefined
   if (parsed.data.date) {

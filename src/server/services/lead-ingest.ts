@@ -21,8 +21,11 @@ const PROVIDER_SOURCE: Record<string, LeadSource> = {
 }
 
 export type IngestResult =
-  | { ok: true; leadId: string }
+  | { ok: true; leadId: string; deduped?: true }
   | { ok: false; reason: 'unknown-provider' | 'client-not-found' | 'no-lead-stage' | 'invalid' }
+
+/** Janela de dedupe do webhook (decisão N do plano de correções). */
+const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000
 
 // Campo opcional de texto: mantém a leniência antiga (não-string ⇒ ausente, igual
 // ao `typeof === 'string'` de antes) mas adiciona teto de tamanho. Endurece contra
@@ -75,6 +78,27 @@ export async function ingestLead(
     select: { id: true },
   })
   if (!leadStage) return { ok: false, reason: 'no-lead-stage' }
+
+  // Dedupe (decisão N): retry do provedor / double-submit reposta o MESMO contato.
+  // Telefone ou e-mail igual nas últimas 24h → devolve o lead existente (idempotente)
+  // em vez de duplicar o card no funil. Sem phone/email não há chave segura (nome
+  // colide demais) → segue criando.
+  if (phone || email) {
+    const matchers: object[] = []
+    if (phone) matchers.push({ phone })
+    if (email) matchers.push({ email: { equals: email, mode: 'insensitive' as const } })
+    const existing = await prisma.lead.findFirst({
+      where: {
+        clientId,
+        deletedAt: null,
+        createdAt: { gte: new Date(Date.now() - DEDUPE_WINDOW_MS) },
+        OR: matchers,
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    })
+    if (existing) return { ok: true, leadId: existing.id, deduped: true }
+  }
 
   const lead = await prisma.lead.create({
     data: {

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
-import { ok, fail } from '@/types/errors'
+import { ok, fail, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
@@ -39,7 +39,7 @@ export async function createStageAction(pipelineId: string, clientId: string, fo
   await assertCan(ctx, 'crm', 'write')
 
   const parsed = createSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const stage = await createStage(ctx, pipelineId, clientId, parsed.data)
   if (!stage) return fail('Pipeline não encontrada')
@@ -66,7 +66,7 @@ export async function updateStageAction(stageId: string, clientId: string, formD
   await assertCan(ctx, 'crm', 'write')
 
   const parsed = updateSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   await updateStage(ctx, stageId, clientId, parsed.data)
   revalidate(clientId)

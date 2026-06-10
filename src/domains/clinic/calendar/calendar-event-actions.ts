@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { combineCalendarDateTime } from '@/lib/calendar-time'
 import { getClinicContext } from '@/server/auth/clinic-context'
 import { assertCan } from '@/server/auth/assert-can'
-import { fail, NotFoundError, runAction } from '@/types/errors'
+import { fail, NotFoundError, runAction, validationFail } from '@/types/errors'
 
 import { getClinicCalendar } from './calendar-queries'
 import {
@@ -112,7 +112,7 @@ export async function getClinicCalendarRangeAction(fromISO: string, toISO: strin
 
 export async function createClinicCalendarEventAction(input: unknown) {
   const parsed = createSchema.safeParse(input)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   return runAction(async () => {
     const ctx = await getClinicContext()
@@ -190,7 +190,7 @@ export async function createClinicCalendarEventAction(input: unknown) {
 
 export async function updateClinicCalendarEventAction(eventId: string, input: unknown) {
   const parsed = updateSchema.safeParse(input)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   return runAction(async () => {
     const ctx = await getClinicContext()

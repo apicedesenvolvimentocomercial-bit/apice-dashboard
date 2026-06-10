@@ -61,17 +61,21 @@ export type DREOutput = {
 // HELPERS
 // ======================================
 
-function toNumber(value?: number): number {
-  if (typeof value !== 'number') return 0
-  if (!Number.isFinite(value)) return 0
-  return value
+// K2 (plano de correções): toda a aritmética roda em CENTAVOS INTEIROS — a DRE
+// é conferida por contador e precisa fechar no centavo (somas encadeadas em
+// float derivam: 0.1+0.2 ≠ 0.3). Entradas/saídas seguem em reais (bordas).
+function cents(value?: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0
+  return Math.round(value * 100)
 }
+
+const reais = (c: number): number => c / 100
 
 // Calcula a margem com PRECISÃO TOTAL (não arredonda aqui).
 // O arredondamento para exibição é responsabilidade da camada de UI.
-function percentual(valor: number, base: number): number {
-  if (base <= 0) return 0
-  return (valor / base) * 100
+function percentual(valorCents: number, baseCents: number): number {
+  if (baseCents <= 0) return 0
+  return (valorCents / baseCents) * 100
 }
 
 // ======================================
@@ -81,73 +85,70 @@ function percentual(valor: number, base: number): number {
 export function calcularDRE(data: DREInput): DREOutput {
   // RECEITA BRUTA
   const receitaBruta =
-    toNumber(data.receitaProcedimentos) +
-    toNumber(data.receitaPacotes) +
-    toNumber(data.receitaRecorrencia) +
-    toNumber(data.receitaProdutos) +
-    toNumber(data.outrasReceitas)
+    cents(data.receitaProcedimentos) +
+    cents(data.receitaPacotes) +
+    cents(data.receitaRecorrencia) +
+    cents(data.receitaProdutos) +
+    cents(data.outrasReceitas)
 
   // DEDUÇÕES
   const deducoes =
-    toNumber(data.impostosSobreReceita) +
-    toNumber(data.cancelamentos) +
-    toNumber(data.inadimplencia) +
-    toNumber(data.descontos)
+    cents(data.impostosSobreReceita) +
+    cents(data.cancelamentos) +
+    cents(data.inadimplencia) +
+    cents(data.descontos)
 
   // RECEITA LÍQUIDA
   const receitaLiquida = receitaBruta - deducoes
 
   // CSP
   const csp =
-    toNumber(data.custoProdutos) +
-    toNumber(data.comissoes) +
-    toNumber(data.custosOperacionaisDiretos)
+    cents(data.custoProdutos) + cents(data.comissoes) + cents(data.custosOperacionaisDiretos)
 
   // LUCRO BRUTO
   const lucroBruto = receitaLiquida - csp
 
   // DESPESAS OPERACIONAIS (OPEX, sem juros)
   const despesasOperacionais =
-    toNumber(data.despesasMarketing) +
-    toNumber(data.despesasComerciais) +
-    toNumber(data.despesasAdministrativas)
+    cents(data.despesasMarketing) +
+    cents(data.despesasComerciais) +
+    cents(data.despesasAdministrativas)
 
   // EBITDA
   const ebitda = lucroBruto - despesasOperacionais
 
   // DEPRECIAÇÃO + AMORTIZAÇÃO
-  const depreciacaoAmortizacao = toNumber(data.depreciacao) + toNumber(data.amortizacao)
+  const depreciacaoAmortizacao = cents(data.depreciacao) + cents(data.amortizacao)
 
   // EBIT
   const ebit = ebitda - depreciacaoAmortizacao
 
   // RESULTADO FINANCEIRO (receitas financeiras - despesas financeiras)
-  const resultadoFinanceiro =
-    toNumber(data.receitasFinanceiras) - toNumber(data.despesasFinanceiras)
+  const resultadoFinanceiro = cents(data.receitasFinanceiras) - cents(data.despesasFinanceiras)
 
   // LAIR (lucro antes do IR)
   const lair = ebit + resultadoFinanceiro
 
   // IMPOSTO SOBRE LUCRO
-  const impostoSobreLucro = toNumber(data.impostoSobreLucro)
+  const impostoSobreLucro = cents(data.impostoSobreLucro)
 
   // LUCRO LÍQUIDO
   const lucroLiquido = lair - impostoSobreLucro
 
   return {
-    receitaBruta,
-    deducoes,
-    receitaLiquida,
-    csp,
-    lucroBruto,
-    despesasOperacionais,
-    ebitda,
-    depreciacaoAmortizacao,
-    ebit,
-    resultadoFinanceiro,
-    lair,
-    impostoSobreLucro,
-    lucroLiquido,
+    receitaBruta: reais(receitaBruta),
+    deducoes: reais(deducoes),
+    receitaLiquida: reais(receitaLiquida),
+    csp: reais(csp),
+    lucroBruto: reais(lucroBruto),
+    despesasOperacionais: reais(despesasOperacionais),
+    ebitda: reais(ebitda),
+    depreciacaoAmortizacao: reais(depreciacaoAmortizacao),
+    ebit: reais(ebit),
+    resultadoFinanceiro: reais(resultadoFinanceiro),
+    lair: reais(lair),
+    impostoSobreLucro: reais(impostoSobreLucro),
+    lucroLiquido: reais(lucroLiquido),
     margemBruta: percentual(lucroBruto, receitaLiquida),
     margemEbitda: percentual(ebitda, receitaLiquida),
     margemLiquida: percentual(lucroLiquido, receitaLiquida),

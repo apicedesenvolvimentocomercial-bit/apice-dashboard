@@ -1,38 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["gru1"],
-  "crons": [
-    {
-      "path": "/api/cron/recurring-costs",
-      "schedule": "0 4 * * *"
-    },
-    {
-      "path": "/api/cron/snapshots",
-      "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/insights",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/cron/notifications",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/reports",
-      "schedule": "0 6 1 * *"
-    },
-    {
-      "path": "/api/cron/session-cleanup",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/retention",
-      "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/cron/messages",
-      "schedule": "30 7 * * *"
-    }
-  ]
+  "regions": ["gru1"]
 }

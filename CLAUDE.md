@@ -249,8 +249,16 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
     verdade**: arrastar Compareceu→Cancelado no funil avisa (banner âmbar `wasAttended` no
     `cancel-lead-dialog`) que desfaz comparecimento/baixa — não bloqueia. A agenda se protege
     sozinha (ATTENDED vira terminal → sem botão cancelar).
-  - **Busca global** (`pipeline-search`): filtra leads de TODAS as pipelines em memória (dados já
-    no SSR via `getClinicPipelinesWithStages`) por nome/telefone/email — client-side, sem servidor.
+  - **Kanban é PAGINADO por coluna** (M1 — plano de correções): o SSR traz só a 1ª página
+    (`KANBAN_CARDS_PAGE`=50) + `totalLeads` real por etapa; o resto vem por cursor
+    (`loadStageLeadsAction`, ordem estável position+id). NÃO volte o `getPipeline` a carregar
+    tudo — a retenção tem 1 card por paciente (payload sem teto).
+  - **Busca global** (`pipeline-search`): SERVER-SIDE (`searchLeadsAction` → `searchLeads`,
+    debounce 250ms) — a busca em memória só veria a 1ª página. O resultado injeta o card na
+    coluna (`ensureLead`) se ele estiver além da página carregada, e então destaca.
+  - **Board de RETENÇÃO é somente-leitura (M2):** drag desabilitado (`dragDisabled`) — os
+    buckets são posicionados pelo cron (mover à mão seria desfeito à noite). Cards seguem
+    clicáveis (drawer) e o "+" de adicionar paciente continua.
 - **Recebimento no crédito (`Client.creditReceiptMode`)** — ledger `dre-progresso.md`. Toda
   escrita de receita passa por `buildReceivables` (revenue-repository), que lê a config via
   `getClientCreditConfig` + o helper PURO `lib/credit-fee.ts`. `INSTALLMENTS` (default) = parcelas
@@ -289,10 +297,32 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
 
 ## Ambiente & comandos
 
-- **`.env` = PRODUÇÃO (Supabase).** Não rode a app contra ele para testar; o usuário
-  aplica migrations em prod (`prisma migrate deploy`). Verificado nesta sessão:
-  prod=Supabase, `.env.test`=Neon (DBs distintos).
+- **`.env` = PRODUÇÃO (Supabase).** Não rode a app contra ele para testar. Migrations
+  em prod agora rodam NO BUILD da Vercel (`scripts/migrate-if-prod.mjs`, só
+  `VERCEL_ENV=production`) — não aplique à mão. Verificado: prod=Supabase,
+  `.env.test`=Neon (DBs distintos).
+- **Jobs/crons rodam pelo INNGEST** (`src/inngest/` + rota `/api/inngest`) — os crons
+  do vercel.json foram REMOVIDOS (plano Hobby limita a 2/dia). Horários preservados
+  (fuso SP); retenção usa FAN-OUT (`retention/clinic.due` por clínica, ≤5 paralelas,
+  via `runRetentionForClientId`); mensagens despacham a cada 15min. Prod exige
+  `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + app sincronizado no dashboard; dev =
+  `npx inngest-cli dev`. Throw na função → retry + alerta no dashboard (monitor de
+  cron). Rotas `/api/cron/*` seguem vivas p/ disparo manual com `CRON_SECRET`.
+- **Fila `OutboundMessage`: claim atômico + retry** (messages-job). QUEUED→SENDING via
+  `updateMany` condicional (execuções sobrepostas NUNCA enviam 2×); falha transitória
+  volta p/ QUEUED com backoff 30min×2ⁿ até `MAX_ATTEMPTS=5` (FAILED terminal); SENDING
+  órfão >15min é re-enfileirado. Não marque SENT/FAILED por fora desse fluxo.
+- **Observabilidade:** `logger.info` SAI em produção (nível via `LOG_LEVEL`; debug só
+  dev). Health público em `/api/health`. Sentry: DSN via `NEXT_PUBLIC_SENTRY_DSN`,
+  `sendDefaultPii:false` (LGPD — não reative), traces 0.1.
+- **CI (GitHub Actions, `.github/workflows/ci.yml`):** todo push roda lint/types/unit/
+  build + (serializado num grupo) migrations+integração+rls-checks no Neon. Secrets:
+  `TEST_DATABASE_URL`, `TEST_APP_DATABASE_URL`, `TEST_DIRECT_URL`.
 - **E2E / verificação** usa o Neon descartável via `.env.test`:
+  - `npm run test:integration` — vitest de INTEGRAÇÃO contra o Neon real (client do
+    app + extensão de RLS). Arquivos `src/**/*.integration.test.ts` (excluídos da
+    suíte unitária); reset/seed + guard anti-produção em `src/test/integration/db.ts`;
+    execução serial. Os testes TRUNCAM o banco — seed E2E deve vir depois.
   - `npm run test:e2e` — Playwright (sobe `next dev` herdando `DATABASE_URL`=Neon via
     `dotenv -e .env.test`). Cold-start pode estourar; pré-aqueça `/login`.
   - `npm run seed:test` — seed E2E (admin@senno.dev/admin123, owner-a@senno.dev/owner123 →

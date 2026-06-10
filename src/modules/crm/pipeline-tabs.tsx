@@ -14,7 +14,7 @@ import { KanbanBoard } from './kanban-board'
 import { PipelineSearch } from './pipeline-search'
 import { RetentionHelp } from './retention-help'
 import type { ProcedureOption } from './schedule-lead-dialog'
-import type { KanbanStage } from './types'
+import type { KanbanLead, KanbanStage } from './types'
 
 const MAX_PIPELINES = 6
 
@@ -45,6 +45,11 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
   const [creating, setCreating] = useState(false)
   // Card destacado pela busca global (feat6) — limpa sozinho após alguns segundos.
   const [highlightLeadId, setHighlightLeadId] = useState<string | null>(null)
+  // Card vindo da busca que pode estar ALÉM da página carregada da coluna (M1):
+  // o board o injeta na coluna certa antes de destacar.
+  const [ensureLead, setEnsureLead] = useState<{ pipelineId: string; lead: KanbanLead } | null>(
+    null
+  )
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Mantém uma aba válida ativa quando a lista muda (criação/exclusão).
@@ -61,9 +66,10 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
     []
   )
 
-  function handleSearchSelect(pipelineId: string, leadId: string) {
+  function handleSearchSelect(pipelineId: string, lead: KanbanLead) {
     setActive(pipelineId)
-    setHighlightLeadId(leadId)
+    setEnsureLead({ pipelineId, lead })
+    setHighlightLeadId(lead.id)
     if (highlightTimer.current) clearTimeout(highlightTimer.current)
     highlightTimer.current = setTimeout(() => setHighlightLeadId(null), 4000)
   }
@@ -91,7 +97,7 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
     // dentro da qual rolar horizontalmente.
     <Tabs value={active} onValueChange={setActive} className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="shrink-0">
-        <PipelineSearch pipelines={pipelines} onSelect={handleSearchSelect} />
+        <PipelineSearch clientId={clientId} onSelect={handleSearchSelect} />
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 self-start">
@@ -149,6 +155,7 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
               category: pp.category,
             }))}
             highlightLeadId={active === p.id ? highlightLeadId : null}
+            ensureLead={ensureLead?.pipelineId === p.id ? ensureLead.lead : null}
           />
         </TabsContent>
       ))}

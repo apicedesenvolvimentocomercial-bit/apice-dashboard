@@ -1,0 +1,88 @@
+# CI (decisão B2 do plano de correções): TUDO roda em todo push —
+# qualidade (lint/types/unit/build) + integração e provas de RLS contra o Neon.
+#
+# Secrets exigidos (Settings → Secrets and variables → Actions):
+#   TEST_DATABASE_URL      — Neon, role RESTRITO/pooled (= DATABASE_URL do .env.test)
+#   TEST_APP_DATABASE_URL  — Neon, role de app NOBYPASSRLS (= APP_DATABASE_URL)
+#   TEST_DIRECT_URL        — Neon, role DONO/direto (= DIRECT_URL; migrations + truncate)
+#
+# O job de integração serializa via concurrency group próprio: todos os pushes
+# compartilham UM banco Neon — duas execuções simultâneas se corromperiam.
+name: CI
+
+on:
+  push:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint · tipos · unit · build
+    runs-on: ubuntu-latest
+    env:
+      # Dummies só para passar a validação do src/lib/env.ts no build.
+      # Nenhum passo deste job toca banco de verdade.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+      NEXTAUTH_SECRET: ci-dummy-secret-com-mais-de-32-caracteres
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run type-check
+      - run: npm test
+      - run: npm run build
+
+  integration:
+    name: Integração + provas de RLS (Neon)
+    runs-on: ubuntu-latest
+    # Banco de teste é um só: serializa entre TODAS as branches, sem cancelar
+    # (a execução seguinte fica na fila).
+    concurrency:
+      group: neon-test-db
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Montar .env.test a partir dos secrets
+        run: |
+          cat > .env.test <<'EOF'
+          NEXTAUTH_URL=http://localhost:3000
+          NEXTAUTH_SECRET=ci-dummy-secret-com-mais-de-32-caracteres
+          AUTH_TRUST_HOST=true
+          NEXT_PUBLIC_APP_URL=http://localhost:3000
+          NEXT_PUBLIC_APP_NAME=Senno
+          WHATSAPP_API_ENABLED=false
+          META_ADS_ENABLED=false
+          GOOGLE_ADS_ENABLED=false
+          EOF
+          {
+            echo "DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}"
+            echo "APP_DATABASE_URL=${{ secrets.TEST_APP_DATABASE_URL }}"
+            echo "DIRECT_URL=${{ secrets.TEST_DIRECT_URL }}"
+          } >> .env.test
+      - name: Aplicar migrations no Neon
+        run: npm run migrate:test
+      # Os testes de integração TRUNCAM o banco → o seed E2E (que os rls:check
+      # esperam) precisa vir DEPOIS deles.
+      - name: Testes de integração
+        run: npm run test:integration
+      - name: Seed E2E (pré-requisito dos rls:check)
+        run: npm run seed:test
+      - name: 'Prova RLS: leitura'
+        run: npm run rls:check
+      - name: 'Prova RLS: escrita cross-clínica barrada'
+        run: npm run rls:check:write
+      - name: 'Prova RLS: extensão real do app'
+        run: npm run rls:check:ext

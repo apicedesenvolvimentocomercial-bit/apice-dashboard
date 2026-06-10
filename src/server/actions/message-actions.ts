@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
-import { ok, fail } from '@/types/errors'
+import { ok, fail, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
@@ -54,7 +54,7 @@ export async function updateMessageTemplateAction(
   await assertCan(ctx, 'settings', 'write')
 
   const parsed = updateTemplateSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const res = await prisma.messageTemplate.updateMany({
     where: { id: templateId, clientId, organizationId: ctx.organizationId, deletedAt: null },

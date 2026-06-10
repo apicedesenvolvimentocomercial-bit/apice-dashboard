@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
-import { ok, fail } from '@/types/errors'
+import { ok, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
@@ -38,7 +38,7 @@ export async function createProcedureAction(clientId: string, formData: unknown)
   await assertCan(ctx, 'procedures', 'write')
 
   const parsed = procedureSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   await createProcedure(ctx, clientId, {
     ...parsed.data,
@@ -59,7 +59,7 @@ export async function updateProcedureAction(
   await assertCan(ctx, 'procedures', 'write')
 
   const parsed = procedureSchema.partial().safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   await updateProcedure(ctx, procedureId, clientId, {
     ...parsed.data,

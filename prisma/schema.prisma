@@ -316,6 +316,11 @@ model Client {
   messageTemplates    MessageTemplate[]
   outboundMessages    OutboundMessage[]
 
+  // Alvo da FK COMPOSTA (clientId, organizationId) dos modelos operacionais
+  // (decisão J1): o banco garante a invariante organizationId == client.organizationId
+  // que antes era só convenção de código. As FKs vivem na migration
+  // `org_invariant_fk` (Prisma não expressa FK composta extra no DSL).
+  @@unique([id, organizationId])
   @@unique([organizationId, slug])
   @@index([organizationId, status])
   @@index([organizationId, deletedAt])
@@ -673,7 +678,9 @@ model ProcedureCategory {
 
   procedures Procedure[]
 
-  @@unique([clientId, name])
+  // Unicidade clientId+name é PARCIAL (WHERE "deletedAt" IS NULL), criada em
+  // migration — o DSL do Prisma não expressa partial unique (mesmo padrão do
+  // PipelineDeal). Permite recriar categoria com o nome de uma soft-deletada (I1).
   @@index([clientId])
 }
 
@@ -933,11 +940,18 @@ model Cost {
   recurringSource    Cost?   @relation("RecurringInstances", fields: [recurringSourceId], references: [id], onDelete: SetNull)
   recurringInstances Cost[]  @relation("RecurringInstances")
 
+  // Mês de competência ("YYYY-MM", fuso SP) da INSTÂNCIA gerada de template
+  // recorrente. Com recurringSourceId forma o unique anti-duplicação (decisão H1):
+  // execuções concorrentes do cron nunca criam 2 filhos no mesmo mês (P2002 = skip).
+  // null em templates/custos avulsos — NULLs não colidem no unique do Postgres.
+  recurringMonthKey String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdById String?
   deletedAt   DateTime?
 
+  @@unique([recurringSourceId, recurringMonthKey])
   @@index([organizationId, clientId])
   @@index([clientId, date])
   @@index([clientId, type])
@@ -1488,8 +1502,9 @@ enum MessageChannel {
 
 enum OutboundMessageStatus {
   QUEUED // na fila, aguardando o messages-job
+  SENDING // CLAIMED por uma execução do job (claim atômico — plano de correções 1.2)
   SENT // entregue ao provider (externalId preenchido)
-  FAILED // provider recusou/erro
+  FAILED // esgotou as tentativas (terminal) — ver attempts/nextAttemptAt
   SKIPPED // condição deixou de valer (ex.: paciente sem telefone)
   TASK // modo MANUAL: virou uma atividade atrelada ao paciente (não envia)
 }
@@ -1511,8 +1526,11 @@ model MessageTemplate {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  @@unique([clientId, key])
+  // Unicidade clientId+key é PARCIAL (WHERE "deletedAt" IS NULL), criada em
+  // migration (I1 — ver ProcedureCategory). Recriar template com key de um
+  // soft-deletado não pode dar P2002.
   @@index([organizationId, clientId])
+  @@index([clientId, key])
 }
 
 // Fila de mensagens de saída. O messages-job (cron, cross-clínica) pega QUEUED com
@@ -1535,11 +1553,20 @@ model OutboundMessage {
   error          String?
   dedupeKey      String?               @unique
 
+  // Retry com backoff (plano de correções 1.2). `attempts` incrementa no CLAIM;
+  // falha transitória volta p/ QUEUED com `nextAttemptAt` futuro (backoff
+  // exponencial); FAILED só quando esgota MAX_ATTEMPTS. SENDING preso além do
+  // limite é re-enfileirado pelo próprio job (recovery de crash).
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([organizationId, clientId])
   @@index([clientId, status, scheduledFor])
+  // Dispatcher cross-clínica: varre por status+scheduledFor sem filtro de clientId.
+  @@index([status, scheduledFor])
 }
 
 // =====================================================

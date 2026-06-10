@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { positionBetween } from './dnd-position'
+import { isPositionExhausted, positionBetween } from './dnd-position'
 
 describe('lib/dnd-position', () => {
   describe('positionBetween', () => {
@@ -58,6 +58,37 @@ describe('lib/dnd-position', () => {
       expect(positionBetween(-1000, 0)).toBe(-500)
       expect(positionBetween(0, null)).toBe(1000)
       expect(positionBetween(null, 0)).toBe(-1000)
+    })
+  })
+
+  describe('isPositionExhausted (Fase 4 — esgotamento da bissecção)', () => {
+    it('posição estritamente entre os vizinhos NÃO está esgotada', () => {
+      expect(isPositionExhausted(1000, 2000, 1500)).toBe(false)
+      expect(isPositionExhausted(null, 2000, 1000)).toBe(false)
+      expect(isPositionExhausted(1000, null, 2000)).toBe(false)
+      expect(isPositionExhausted(null, null, 1000)).toBe(false)
+    })
+
+    it('bissecção repetida entre os mesmos vizinhos ESGOTA e é detectada', () => {
+      // Insere sempre "logo após prev": prev fixo, next desce a cada inserção.
+      const prev = 1000
+      let next = 1000 + 1e-9
+      let exhaustedAt: number | null = null
+      for (let i = 0; i < 80; i++) {
+        const mid = positionBetween(prev, next)
+        if (isPositionExhausted(prev, next, mid)) {
+          exhaustedAt = i
+          break
+        }
+        next = mid
+      }
+      // Sem a detecção o loop produziria mid === prev silenciosamente.
+      expect(exhaustedAt).not.toBeNull()
+    })
+
+    it('flagra posição igual a um dos vizinhos (ordem indeterminada)', () => {
+      expect(isPositionExhausted(1000, 2000, 1000)).toBe(true)
+      expect(isPositionExhausted(1000, 2000, 2000)).toBe(true)
     })
   })
 })

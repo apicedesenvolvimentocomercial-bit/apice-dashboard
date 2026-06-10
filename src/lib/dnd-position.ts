@@ -16,3 +16,21 @@ export function positionBetween(prev: number | null, next: number | null): numbe
   if (next == null) return (prev as number) + 1000
   return (prev + next) / 2
 }
+
+/**
+ * Detecta o ESGOTAMENTO de precisão da bissecção (Fase 4 do plano de correções):
+ * após ~50 inserções entre os mesmos vizinhos, a média de floats deixa de
+ * produzir um valor ESTRITAMENTE entre eles (vira igual a um dos dois) e a
+ * ordenação fica indeterminada. Quando isto retorna true, o caller deve pedir
+ * a renumeração da coluna no servidor (`rebalanceLeadAction`) em vez de
+ * persistir a posição degenerada.
+ */
+export function isPositionExhausted(
+  prev: number | null,
+  next: number | null,
+  position: number
+): boolean {
+  if (prev != null && position <= prev) return true
+  if (next != null && position >= next) return true
+  return false
+}

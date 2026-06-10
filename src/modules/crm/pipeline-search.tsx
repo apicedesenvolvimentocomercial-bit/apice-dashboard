@@ -1,75 +1,71 @@
 'use client'
 
-import { Search, X } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { Loader2, Search, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Input } from '@/components/ui/input'
-import type { PipelineTab } from './pipeline-tabs'
+import { searchLeadsAction } from '@/server/actions/lead-actions'
+
+import type { KanbanLead } from './types'
 
 type Match = {
-  leadId: string
-  leadName: string
-  phone: string | null
-  email: string | null
+  lead: KanbanLead
   pipelineId: string
   pipelineName: string
   stageName: string
 }
 
 type Props = {
-  pipelines: PipelineTab[]
-  /** Achou e clicou → o pai troca de aba e destaca o card. */
-  onSelect: (pipelineId: string, leadId: string) => void
+  clientId: string
+  /** Achou e clicou → o pai troca de aba, injeta o card (se fora da página) e destaca. */
+  onSelect: (pipelineId: string, lead: KanbanLead) => void
 }
 
-const MAX_RESULTS = 25
-const onlyDigits = (s: string) => s.replace(/\D/g, '')
-
 /**
- * feat6 — Busca global de leads/pacientes em TODAS as pipelines de uma vez. Os
- * dados já vêm carregados no SSR (≤6 funis), então o filtro roda em memória —
- * instantâneo, sem ida ao servidor. Casa por nome, telefone (dígitos) ou e-mail.
+ * feat6 — Busca global de leads/pacientes em TODAS as pipelines de uma vez.
+ * SERVER-SIDE (M1 do plano de correções): o board agora é paginado por coluna,
+ * então a busca em memória só veria a 1ª página. Debounce de 250ms; casa por
+ * nome, telefone (dígitos) ou e-mail.
  */
-export function PipelineSearch({ pipelines, onSelect }: Props) {
+export function PipelineSearch({ clientId, onSelect }: Props) {
   const [query, setQuery] = useState('')
   const [focused, setFocused] = useState(false)
+  const [matches, setMatches] = useState<Match[]>([])
+  const [searching, setSearching] = useState(false)
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Descarte de respostas fora de ordem (a busca anterior pode chegar depois).
+  const requestSeq = useRef(0)
 
-  const matches = useMemo<Match[]>(() => {
-    const q = query.trim().toLowerCase()
-    if (q.length < 2) return []
-    const qDigits = onlyDigits(q)
-    const out: Match[] = []
-    for (const p of pipelines) {
-      for (const stage of p.stages) {
-        for (const lead of stage.leads) {
-          const byName = lead.name.toLowerCase().includes(q)
-          const byEmail = !!lead.email && lead.email.toLowerCase().includes(q)
-          const byPhone =
-            qDigits.length >= 3 && !!lead.phone && onlyDigits(lead.phone).includes(qDigits)
-          if (byName || byEmail || byPhone) {
-            out.push({
-              leadId: lead.id,
-              leadName: lead.name,
-              phone: lead.phone,
-              email: lead.email,
-              pipelineId: p.id,
-              pipelineName: p.name,
-              stageName: stage.name,
-            })
-            if (out.length >= MAX_RESULTS) return out
-          }
-        }
-      }
+  useEffect(() => {
+    const q = query.trim()
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    if (q.length < 2) {
+      setMatches([])
+      setSearching(false)
+      return
     }
-    return out
-  }, [query, pipelines])
+    setSearching(true)
+    const seq = ++requestSeq.current
+    debounceTimer.current = setTimeout(() => {
+      searchLeadsAction(clientId, q).then((res) => {
+        if (seq !== requestSeq.current) return // resposta velha — descarta
+        setSearching(false)
+        if (res.success) setMatches(res.data as unknown as Match[])
+        else setMatches([])
+      })
+    }, 250)
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    }
+  }, [query, clientId])
 
   const showDropdown = focused && query.trim().length >= 2
 
   function pick(m: Match) {
-    onSelect(m.pipelineId, m.leadId)
+    onSelect(m.pipelineId, m.lead)
     setQuery('')
+    setMatches([])
     setFocused(false)
   }
 
@@ -106,13 +102,17 @@ export function PipelineSearch({ pipelines, onSelect }: Props) {
 
       {showDropdown && (
         <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-md border bg-popover py-1 text-popover-foreground shadow-lg">
-          {matches.length === 0 ? (
+          {searching ? (
+            <p className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando…
+            </p>
+          ) : matches.length === 0 ? (
             <p className="px-3 py-2 text-sm text-muted-foreground">Nenhum resultado.</p>
           ) : (
             matches.map((m) => (
               <button
                 type="button"
-                key={`${m.pipelineId}-${m.leadId}`}
+                key={`${m.pipelineId}-${m.lead.id}`}
                 // onMouseDown roda antes do blur do input → o clique registra.
                 onMouseDown={(e) => {
                   e.preventDefault()
@@ -120,11 +120,11 @@ export function PipelineSearch({ pipelines, onSelect }: Props) {
                 }}
                 className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
               >
-                <span className="font-medium">{m.leadName}</span>
+                <span className="font-medium">{m.lead.name}</span>
                 <span className="text-xs text-muted-foreground">
                   {m.pipelineName} › {m.stageName}
-                  {m.phone ? ` · ${m.phone}` : ''}
-                  {m.email ? ` · ${m.email}` : ''}
+                  {m.lead.phone ? ` · ${m.lead.phone}` : ''}
+                  {m.lead.email ? ` · ${m.lead.email}` : ''}
                 </span>
               </button>
             ))

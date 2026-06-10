@@ -1,5 +1,6 @@
 import type { CostType, RevenueType } from '@prisma/client'
 
+import { fromCents, toCents } from '@/lib/money'
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
 import { PROCEDURE_COST_CATEGORY } from '@/server/repositories/revenue-repository'
@@ -75,24 +76,26 @@ export async function buildDreInput(
       }),
     ])
 
-  // --- Receita por tipo ---
+  // --- Receita por tipo --- (K2: acumulações em CENTAVOS — float não deriva)
   const revByType = new Map<RevenueType, number>()
-  for (const r of revenuesByType) revByType.set(r.type, Number(r._sum.amount ?? 0))
-  const rev = (t: RevenueType) => revByType.get(t) ?? 0
+  for (const r of revenuesByType) revByType.set(r.type, toCents(Number(r._sum.amount ?? 0)))
+  const rev = (t: RevenueType) => fromCents(revByType.get(t) ?? 0)
 
   // --- Custos por tipo (somando categorias) + CSP de procedimento por categoria ---
   const costByType = new Map<CostType, number>()
-  let custoProdutos = 0
-  let custosOperacionaisDiretos = 0
+  let custoProdutosCents = 0
+  let custosOperacionaisDiretosCents = 0
   for (const g of costsGrouped) {
-    const amount = Number(g._sum.amount ?? 0)
-    costByType.set(g.type, (costByType.get(g.type) ?? 0) + amount)
+    const amountCents = toCents(Number(g._sum.amount ?? 0))
+    costByType.set(g.type, (costByType.get(g.type) ?? 0) + amountCents)
     if (g.type === 'VARIABLE') {
-      if (g.category === PROCEDURE_COST_CATEGORY) custoProdutos += amount
-      else custosOperacionaisDiretos += amount
+      if (g.category === PROCEDURE_COST_CATEGORY) custoProdutosCents += amountCents
+      else custosOperacionaisDiretosCents += amountCents
     }
   }
-  const cost = (t: CostType) => costByType.get(t) ?? 0
+  const cost = (t: CostType) => fromCents(costByType.get(t) ?? 0)
+  const custoProdutos = fromCents(custoProdutosCents)
+  const custosOperacionaisDiretos = fromCents(custosOperacionaisDiretosCents)
 
   const { depreciacao, amortizacao } = depreciationForPeriod(
     assets.map((a) => ({

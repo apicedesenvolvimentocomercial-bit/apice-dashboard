@@ -40,11 +40,21 @@ export type RecurringCostPrisma = {
  *
  * Pure-ish service: aceita `prisma` por DI para facilitar testes unitários.
  */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === 'P2002'
+  )
+}
+
 export async function runRecurringCostsJob(
   referenceDate: Date = new Date(),
   prisma: RecurringCostPrisma = defaultPrisma as unknown as RecurringCostPrisma
 ): Promise<RecurringRunResult> {
   const { year, month0, day, monthStart, nextMonthStart } = monthBoundsFor(referenceDate)
+  const monthKey = `${year}-${String(month0 + 1).padStart(2, '0')}`
 
   const templates = await prisma.cost.findMany({
     where: {
@@ -104,10 +114,18 @@ export async function runRecurringCostsJob(
           campaignId: t.campaignId,
           createdById: t.createdById,
           recurringSourceId: t.id,
+          // Unique (recurringSourceId, recurringMonthKey) — anti-duplicação H1.
+          recurringMonthKey: monthKey,
         },
       })
       created++
     } catch (err) {
+      // P2002 = outra execução concorrente criou o filho deste mês entre o
+      // findFirst e o create — a constraint fez o papel dela; conta como skip.
+      if (isUniqueViolation(err)) {
+        skipped++
+        continue
+      }
       errors++
       logger.error('Recurring cost generation failed', {
         templateId: t.id,
@@ -121,7 +139,7 @@ export async function runRecurringCostsJob(
     created,
     skipped,
     errors,
-    month: `${year}-${String(month0 + 1).padStart(2, '0')}`,
+    month: monthKey,
   })
 
   return { scanned: templates.length, created, skipped, errors }

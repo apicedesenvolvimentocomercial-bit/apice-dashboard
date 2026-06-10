@@ -5,15 +5,19 @@
 import * as Sentry from '@sentry/nextjs'
 
 Sentry.init({
-  dsn: 'https://bb99e21322fe9c2dcc209dcf5d3c33ec@o4511412266532864.ingest.us.sentry.io/4511412267515904',
+  // DSN via env (não hardcoded): permite desligar por ambiente e rotacionar sem
+  // commit. `undefined` desabilita o SDK silenciosamente (ex.: dev sem Sentry).
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+  // 10% das transações: suficiente p/ p95 de latência sem estourar a cota do
+  // plano gratuito (decisão 1.3 do plano de correções).
+  tracesSampleRate: 0.1,
 
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
+  // LGPD (decisão 1.3): NÃO enviar PII por padrão — o sistema opera dados de
+  // pacientes (contexto de saúde, Art. 11). IP/cookies/headers ficam fora dos
+  // eventos; o stack trace continua íntegro para debug.
+  sendDefaultPii: false,
 })

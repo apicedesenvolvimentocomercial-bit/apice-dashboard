@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "prisma generate && next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && node scripts/migrate-if-prod.mjs && next build",
     "postinstall": "prisma generate",
     "db:up": "prisma dev -n senno",
     "db:down": "prisma dev stop senno",
@@ -16,6 +16,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "dotenv -e .env.test -- vitest run --config vitest.integration.config.ts",
     "test:e2e": "dotenv -e .env.test -- playwright test",
     "migrate:test": "dotenv -e .env.test -- prisma migrate deploy",
     "seed:test": "dotenv -e .env.test -- tsx prisma/seed-e2e.ts",
@@ -67,7 +68,6 @@
     "@react-pdf/renderer": "^4.5.1",
     "@sentry/nextjs": "^10.53.1",
     "@supabase/supabase-js": "^2.106.2",
-    "@tanstack/react-query": "^5.62.7",
     "@tanstack/react-table": "^8.20.5",
     "@types/bcryptjs": "^2.4.6",
     "@typescript-eslint/parser": "^8.59.1",
@@ -78,6 +78,7 @@
     "cmdk": "^1.0.4",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
+    "inngest": "^4.5.1",
     "lucide-react": "^0.469.0",
     "next": "^16.2.6",
     "next-auth": "^5.0.0-beta.25",
@@ -90,8 +91,7 @@
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.24.1",
-    "zustand": "^5.0.3"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",

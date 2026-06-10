@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { parseLocalDate } from '@/lib/date'
-import { ok, fail } from '@/types/errors'
+import { ok, fail, validationFail } from '@/types/errors'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -57,7 +57,7 @@ export async function createCostAction(clientId: string, formData: unknown) {
   await assertCan(ctx, 'financial', 'write')
 
   const parsed = costSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const date = parseLocalDate(parsed.data.date)
   if (!date) return fail('Data inválida')
@@ -83,7 +83,7 @@ export async function updateCostAction(costId: string, clientId: string, formDat
   await assertCan(ctx, 'financial', 'write')
 
   const parsed = costSchema.partial().safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   let date: Date | undefined
   if (parsed.data.date) {
@@ -128,7 +128,7 @@ export async function createEquipmentRentalAction(clientId: string, formData: un
   await assertCan(ctx, 'financial', 'write')
 
   const parsed = rentalSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const date = parseLocalDate(parsed.data.startDate)
   if (!date) return fail('Data inválida')

@@ -3,7 +3,6 @@ import { Inter } from 'next/font/google'
 import { headers } from 'next/headers'
 import { CookieConsent } from '@/components/cookie-consent'
 import { DismissibleToaster } from '@/components/dismissible-toaster'
-import { QueryProvider } from '@/components/providers/query-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 
 import './globals.css'
@@ -26,7 +25,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider nonce={nonce}>
-          <QueryProvider>{children}</QueryProvider>
+          {children}
           <CookieConsent />
           <DismissibleToaster />
         </ThemeProvider>

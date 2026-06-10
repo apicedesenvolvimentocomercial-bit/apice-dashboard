@@ -9,7 +9,7 @@ import { decideCalendarSync } from '@/lib/activity-calendar-sync'
 import { APP_TIMEZONE, parseLocalDate, spDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
-import { fail, ForbiddenError, NotFoundError, runAction } from '@/types/errors'
+import { fail, ForbiddenError, NotFoundError, runAction, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import {
@@ -91,7 +91,7 @@ function combineDateTime(dateStr?: string | null, timeStr?: string | null): Date
 
 export async function createActivityAction(formData: unknown) {
   const parsed = activitySchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   return runAction(async () => {
     const ctx = await getTenantContext()
@@ -231,7 +231,7 @@ export async function createActivityAction(formData: unknown) {
 
 export async function updateActivityAction(activityId: string, formData: unknown) {
   const parsed = activitySchema.partial().safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   return runAction(async () => {
     const ctx = await getTenantContext()
