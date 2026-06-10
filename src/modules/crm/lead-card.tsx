@@ -18,15 +18,23 @@ type Props = {
   isDragOverlay?: boolean
   /** Destaque visual + scroll quando achado pela busca global (feat6). */
   highlight?: boolean
+  /** M2: card de retenção não arrasta (os buckets são posicionados pelo cron). */
+  dragDisabled?: boolean
 }
 
-export function LeadCard({ lead, onClick, isDragOverlay = false, highlight = false }: Props) {
+export function LeadCard({
+  lead,
+  onClick,
+  isDragOverlay = false,
+  highlight = false,
+  dragDisabled = false,
+}: Props) {
   // useSortable engloba useDraggable e adiciona contexto de ordenação dentro
   // do SortableContext da coluna (drop sobre outro card = reorder relativo).
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
     data: { lead },
-    disabled: isDragOverlay,
+    disabled: isDragOverlay || dragDisabled,
   })
 
   // Ao virar destaque (busca), rola o card até a viewport da coluna.
@@ -60,7 +68,8 @@ export function LeadCard({ lead, onClick, isDragOverlay = false, highlight = fal
         if (!isDragging) onClick()
       }}
       className={cn(
-        'cursor-grab select-none rounded-lg border bg-background p-3',
+        'select-none rounded-lg border bg-background p-3',
+        dragDisabled ? 'cursor-pointer' : 'cursor-grab',
         'transition-all hover:shadow-sm',
         isDragging && 'opacity-30',
         isDragOverlay && 'rotate-1 cursor-grabbing opacity-100 shadow-xl',

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
-import { fail, NotFoundError, runAction } from '@/types/errors'
+import { fail, NotFoundError, runAction, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { getTenantContext } from '@/server/tenant/context'
 import {
@@ -44,7 +44,7 @@ function revalidate() {
 
 export async function createCalendarEventAction(input: unknown) {
   const parsed = createSchema.safeParse(input)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   return runAction(async () => {
     const ctx = await getTenantContext()
@@ -78,7 +78,7 @@ export async function createCalendarEventAction(input: unknown) {
 
 export async function updateCalendarEventAction(eventId: string, input: unknown) {
   const parsed = updateSchema.safeParse(input)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   return runAction(async () => {
     const ctx = await getTenantContext()

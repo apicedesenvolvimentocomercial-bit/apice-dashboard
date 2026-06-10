@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import type { RevenueDetails } from '@/modules/financial/types'
-import { NotFoundError, ok, fail } from '@/types/errors'
+import { NotFoundError, ok, fail, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
@@ -13,12 +13,16 @@ import {
   createLead,
   createLeadForPatient,
   listPatientsWithoutExistingCard,
+  listStageLeads,
+  rebalanceStageLeads,
+  searchLeads,
   updateLead,
   reorderLead,
   reassignLead,
   findLeadById,
   softDeleteLead,
 } from '@/server/repositories/lead-repository'
+import { resolveOwnerScope } from '@/server/auth/owner-scope'
 import { winLead, loseLead, addInteraction } from '@/server/services/lead-service'
 import {
   scheduleLeadAppointment,
@@ -81,7 +85,7 @@ export async function createLeadAction(clientId: string, formData: unknown) {
   await assertCan(ctx, 'crm', 'write')
 
   const parsed = leadSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const lead = await createLead(ctx, clientId, {
     ...parsed.data,
@@ -104,7 +108,7 @@ export async function updateLeadAction(leadId: string, clientId: string, formDat
   await assertCan(ctx, 'crm', 'write')
 
   const parsed = leadSchema.partial().safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   await updateLead(ctx, leadId, clientId, {
     ...parsed.data,
@@ -112,6 +116,76 @@ export async function updateLeadAction(leadId: string, clientId: string, formDat
   })
   revalidate(clientId)
   return ok(null)
+}
+
+/**
+ * Próxima página de cards de uma coluna do kanban (M1 do plano de correções —
+ * botão "carregar mais"). Mesma ordem estável (position,id) e MESMO escopo de
+ * dono do SSR: retenção é base compartilhada (sem filtro), demais funis filtram
+ * por `resolveOwnerScope` (quem não tem crm:viewAll só vê os próprios cards).
+ */
+export async function loadStageLeadsAction(clientId: string, stageId: string, cursor?: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'read')
+
+  // Belt: a etapa precisa ser desta clínica; o kind decide o escopo de dono.
+  const stage = await prisma.pipelineStage.findFirst({
+    where: { id: stageId, clientId },
+    select: { pipeline: { select: { kind: true } } },
+  })
+  if (!stage) return fail('Etapa não encontrada')
+
+  const ownerId = stage.pipeline.kind === 'RETENTION' ? null : await resolveOwnerScope(ctx, 'crm')
+  const page = await listStageLeads(ctx, clientId, stageId, {
+    cursor,
+    ownerId,
+  })
+  return ok(page)
+}
+
+/**
+ * Renumera a coluna quando a bissecção de posição esgota a precisão do Float
+ * (Fase 4): o board detecta via `isPositionExhausted` e chama isto em vez de
+ * persistir uma posição degenerada (que deixaria a ordem indeterminada).
+ */
+export async function rebalanceLeadAction(
+  leadId: string,
+  clientId: string,
+  stageId: string,
+  beforeLeadId: string | null
+) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'write')
+
+  const count = await rebalanceStageLeads(ctx, clientId, stageId, leadId, beforeLeadId)
+  if (count === 0) return fail('Lead não encontrado nesta etapa')
+  revalidate(clientId)
+  return ok({ rebalanced: count })
+}
+
+/**
+ * Busca global de cards (M1) — server-side porque o board agora é paginado e a
+ * busca em memória só enxergaria a 1ª página de cada coluna.
+ */
+export async function searchLeadsAction(clientId: string, term: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'read')
+  const ownerId = await resolveOwnerScope(ctx, 'crm')
+  const rows = await searchLeads(ctx, clientId, term, ownerId)
+  return ok(
+    rows.map(({ stage, ...lead }) => ({
+      lead,
+      pipelineId: stage.pipeline.id,
+      pipelineName: stage.pipeline.name,
+      stageName: stage.name,
+    }))
+  )
 }
 
 /**
@@ -235,7 +309,7 @@ export async function regressRescheduleLeadAction(
   await assertCan(ctx, 'appointments', 'write')
 
   const parsed = rescheduleSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const scheduledAt = parseScheduledAt(parsed.data.scheduledAt)
   if (isTooOldToSchedule(scheduledAt)) {
@@ -291,7 +365,7 @@ export async function scheduleLeadAction(leadId: string, clientId: string, formD
   await assertCan(ctx, 'appointments', 'write')
 
   const parsed = scheduleSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const scheduledAt = parseScheduledAt(parsed.data.scheduledAt)
   if (isTooOldToSchedule(scheduledAt)) {
@@ -354,7 +428,7 @@ export async function attendLeadAction(leadId: string, clientId: string, formDat
   await assertCan(ctx, 'patients', 'write')
 
   const parsed = attendSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const result = await attendLeadWithPatientData(ctx, {
     clientId,
@@ -427,7 +501,7 @@ export async function moveLeadToPipelineAction(
   await assertCan(ctx, 'crm', 'write')
 
   const parsed = movePipelineSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   // Conversão em paciente (dados presentes) também exige permissão de pacientes.
   if (parsed.data.patient) await assertCan(ctx, 'patients', 'write')

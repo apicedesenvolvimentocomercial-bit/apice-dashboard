@@ -18,13 +18,13 @@ function revalidate(clientId: string) {
   revalidatePath(`/clients/${clientId}/financial`)
 }
 
-export async function listReceivablesAction(clientId: string) {
+export async function listReceivablesAction(clientId: string, cursor?: string) {
   return runAction(async () => {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
     enterClientScope(clientId)
     await assertCan(ctx, 'financial', 'read')
-    return listReceivables(ctx, clientId)
+    return listReceivables(ctx, clientId, undefined, cursor ? { cursor } : undefined)
   })
 }
 

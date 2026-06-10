@@ -12,7 +12,7 @@ import { getClinicContext } from '@/server/auth/clinic-context'
 import { assertCan } from '@/server/auth/assert-can'
 import { can } from '@/server/auth/permissions'
 import { dispatchNotification } from '@/server/services/notification-service'
-import { fail, NotFoundError, ValidationError, runAction } from '@/types/errors'
+import { fail, NotFoundError, ValidationError, runAction, validationFail } from '@/types/errors'
 
 import {
   createClinicActivity,
@@ -129,7 +129,7 @@ async function resolveActivityType(
 
 export async function createClinicActivityAction(formData: unknown) {
   const parsed = activitySchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   // Item 1: atividade de clínica é SEMPRE sobre um lead/paciente.
   if (!parsed.data.targetType || !parsed.data.targetId) {
@@ -260,7 +260,7 @@ export async function createClinicActivityAction(formData: unknown) {
 
 export async function updateClinicActivityAction(activityId: string, formData: unknown) {
   const parsed = activitySchema.partial().safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   return runAction(async () => {
     const ctx = await getClinicContext()

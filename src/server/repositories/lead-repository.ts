@@ -2,14 +2,40 @@ import type { LeadSource } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
+import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 
 export type PipelineData = Awaited<ReturnType<typeof getPipeline>>
 export type FullLead = Awaited<ReturnType<typeof findLeadById>>
 
+/** Cards carregados por coluna no SSR e por página do “carregar mais” (M1 do
+ *  plano de correções — antes era ILIMITADO: a retenção tem 1 card por paciente
+ *  e o payload do CRM crescia sem teto com a base). */
+export const KANBAN_CARDS_PAGE = 50
+
+// Shape de card do kanban — compartilhado pelo SSR (getPipeline) e pelo
+// "carregar mais" (listStageLeads); precisa casar com KanbanLead da UI.
+const kanbanLeadSelect = {
+  id: true,
+  name: true,
+  phone: true,
+  email: true,
+  source: true,
+  procedureInterest: true,
+  tags: true,
+  createdAt: true,
+  stageId: true,
+  position: true,
+  appointmentId: true,
+  // Retorno esperado do paciente (reforma da retenção) — o card de retenção
+  // mostra "retorno em {data}" / "atrasado há Nd". Null fora da retenção.
+  patient: { select: { nextReturnDueAt: true } },
+} as const
+
 /**
- * Etapas de uma pipeline (com seus leads). Escopa via `pipeline.organizationId`
- * para a barreira de org no nível do repo (SEC-002). A pipeline em si (e as
- * nativas semeadas) é garantida fora daqui — ver pipeline-repository.
+ * Etapas de uma pipeline (com a 1ª PÁGINA de leads + total real por etapa).
+ * Escopa via `pipeline.organizationId` para a barreira de org no nível do repo
+ * (SEC-002). A pipeline em si (e as nativas semeadas) é garantida fora daqui —
+ * ver pipeline-repository.
  */
 export async function getPipeline(
   ctx: TenantContext,
@@ -19,7 +45,13 @@ export async function getPipeline(
   // userId = só os cards desse usuário (Lead.assignedToId).
   ownerId: string | null = null
 ) {
-  return prisma.pipelineStage.findMany({
+  const leadsWhere = {
+    organizationId: ctx.organizationId,
+    clientId,
+    deletedAt: null,
+    ...(ownerId ? { assignedToId: ownerId } : {}),
+  }
+  const stages = await prisma.pipelineStage.findMany({
     where: {
       pipelineId,
       clientId,
@@ -36,31 +68,130 @@ export async function getPipeline(
       nativeKey: true,
       order: true,
       leads: {
-        where: {
-          organizationId: ctx.organizationId,
-          clientId,
-          deletedAt: null,
-          ...(ownerId ? { assignedToId: ownerId } : {}),
-        },
-        orderBy: { position: 'asc' },
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          email: true,
-          source: true,
-          procedureInterest: true,
-          tags: true,
-          createdAt: true,
-          stageId: true,
-          position: true,
-          appointmentId: true,
-          // Retorno esperado do paciente (reforma da retenção) — o card de retenção
-          // mostra "retorno em {data}" / "atrasado há Nd". Null fora da retenção.
-          patient: { select: { nextReturnDueAt: true } },
-        },
+        where: leadsWhere,
+        // id como desempate → ordem estável p/ o cursor do "carregar mais".
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        take: KANBAN_CARDS_PAGE,
+        select: kanbanLeadSelect,
+      },
+      // Total REAL da coluna (a UI mostra o badge e decide o "carregar mais").
+      _count: { select: { leads: { where: leadsWhere } } },
+    },
+  })
+  return stages.map(({ _count, ...stage }) => ({ ...stage, totalLeads: _count.leads }))
+}
+
+/**
+ * Próxima página de cards de UMA etapa (cursor = id do último card carregado),
+ * na mesma ordem estável do SSR (position, id). Consumido pelo
+ * `loadStageLeadsAction` (botão "carregar mais" da coluna).
+ */
+export async function listStageLeads(
+  ctx: TenantContext,
+  clientId: string,
+  stageId: string,
+  opts?: { cursor?: string; ownerId?: string | null; take?: number }
+) {
+  const take = opts?.take ?? KANBAN_CARDS_PAGE
+  const rows = await prisma.lead.findMany({
+    where: {
+      organizationId: ctx.organizationId,
+      clientId,
+      stageId,
+      deletedAt: null,
+      ...(opts?.ownerId ? { assignedToId: opts.ownerId } : {}),
+    },
+    orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    take: take + 1, // sonda de hasMore
+    ...(opts?.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+    select: kanbanLeadSelect,
+  })
+  const hasMore = rows.length > take
+  const pageRows = hasMore ? rows.slice(0, take) : rows
+  return { rows: pageRows, hasMore }
+}
+
+/**
+ * Busca global de cards em TODAS as pipelines da clínica (M1 — a busca era
+ * client-side sobre o SSR; com páginas de 50, cards além da 1ª página sumiriam
+ * dela). Nome/e-mail por substring case-insensitive; telefone por substring dos
+ * DÍGITOS digitados (best-effort: telefone armazenado com máscara pode escapar).
+ * Mesmo escopo de dono do board: retenção compartilhada, demais por `ownerId`.
+ */
+export async function searchLeads(
+  ctx: TenantContext,
+  clientId: string,
+  term: string,
+  ownerId: string | null,
+  limit = 25
+) {
+  const q = term.trim()
+  if (q.length < 2) return []
+  const qDigits = q.replace(/\D/g, '')
+  const matchers: object[] = [
+    { name: { contains: q, mode: 'insensitive' as const } },
+    { email: { contains: q, mode: 'insensitive' as const } },
+  ]
+  if (qDigits.length >= 3) matchers.push({ phone: { contains: qDigits } })
+
+  return prisma.lead.findMany({
+    where: {
+      organizationId: ctx.organizationId,
+      clientId,
+      deletedAt: null,
+      ...(ownerId
+        ? { OR: [{ stage: { pipeline: { kind: 'RETENTION' } } }, { assignedToId: ownerId }] }
+        : {}),
+      AND: [{ OR: matchers }],
+    },
+    take: limit,
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      ...kanbanLeadSelect,
+      stage: {
+        select: { name: true, pipeline: { select: { id: true, name: true } } },
       },
     },
+  })
+}
+
+/**
+ * Renumera as posições de uma coluna (Fase 4 — esgotamento da bissecção de
+ * Float): reordena os cards da etapa em passos de 1000, colocando `leadId`
+ * antes de `beforeLeadId` (ou no fim, se null). Transação com escopo (RLS) e
+ * belt de clientId em cada update. Retorna o nº de cards renumerados; 0 = o
+ * lead não pertence à etapa (caller falha).
+ */
+export async function rebalanceStageLeads(
+  ctx: TenantContext,
+  clientId: string,
+  stageId: string,
+  leadId: string,
+  beforeLeadId: string | null
+): Promise<number> {
+  return scopedTransaction(async (tx) => {
+    const rows = await tx.lead.findMany({
+      where: { organizationId: ctx.organizationId, clientId, stageId, deletedAt: null },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      select: { id: true },
+    })
+    if (!rows.some((r) => r.id === leadId)) return 0
+
+    const rest = rows.filter((r) => r.id !== leadId)
+    let insertIdx = rest.length
+    if (beforeLeadId) {
+      const i = rest.findIndex((r) => r.id === beforeLeadId)
+      if (i >= 0) insertIdx = i
+    }
+    const ordered = [...rest.slice(0, insertIdx), { id: leadId }, ...rest.slice(insertIdx)]
+
+    for (let i = 0; i < ordered.length; i++) {
+      await tx.lead.updateMany({
+        where: { id: ordered[i].id, clientId },
+        data: { position: (i + 1) * 1000 },
+      })
+    }
+    return ordered.length
   })
 }
 

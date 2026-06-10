@@ -55,6 +55,13 @@ const envSchema = z
 
     NEXT_PUBLIC_SENTRY_DSN: optionalUrl('NEXT_PUBLIC_SENTRY_DSN'),
 
+    // Inngest (scheduler + fila — decisão Q1). O SDK lê do process.env sozinho;
+    // declaradas aqui só p/ documentação/validação de presença. Em produção as
+    // DUAS precisam existir (sem elas as funções agendadas não rodam); em dev o
+    // `npx inngest-cli dev` dispensa chaves.
+    INNGEST_EVENT_KEY: optionalString(),
+    INNGEST_SIGNING_KEY: optionalString(),
+
     NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
     NEXT_PUBLIC_APP_NAME: z.string().default('Senno'),
 

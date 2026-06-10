@@ -1,4 +1,3 @@
-import { addYears } from 'date-fns'
 import { cache } from 'react'
 
 import { prisma } from '@/lib/prisma'
@@ -165,47 +164,43 @@ export const getAdminDashboard = cache(
       })
       .sort((a, b) => b.revenue - a.revenue)
 
-    // Receita 12 meses: chave YYYY-MM com label curta pt-BR
+    // Receita 12 meses: chave YYYY-MM com label curta pt-BR.
+    // 3.2 do plano de correções: a soma mensal é feita NO BANCO (GROUP BY mês em
+    // fuso SP) — antes era findMany de 24 meses da org inteira somado em JS
+    // (dezenas de milhares de linhas trafegadas por render). Query crua = sem a
+    // extensão de RLS, correto aqui: dashboard admin é a exceção cross-clínica
+    // (GUC nula) e o filtro de org está no próprio SQL.
     const now = new Date()
     const monthsBack = 12
-    const fromMonths = spDate(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1)
     const fromMonthsPrevYear = spDate(now.getFullYear() - 1, now.getMonth() - (monthsBack - 1), 1)
-    const toPrevYear = spDate(now.getFullYear() - 1, now.getMonth() + 1, 1)
 
-    const [curYearRows, prevYearRows] = await Promise.all([
-      prisma.revenue.findMany({
-        where: {
-          organizationId: ctx.organizationId,
-          deletedAt: null,
-          date: { gte: fromMonths },
-        },
-        select: { amount: true, date: true },
-      }),
-      prisma.revenue.findMany({
-        where: {
-          organizationId: ctx.organizationId,
-          deletedAt: null,
-          date: { gte: fromMonthsPrevYear, lt: toPrevYear },
-        },
-        select: { amount: true, date: true },
-      }),
-    ])
+    // `date` é timestamp SEM fuso guardando UTC → reinterpreta como UTC e converte
+    // p/ SP antes de extrair o mês (mesma semântica do helper monthKey).
+    const monthlyTotals = await prisma.$queryRaw<{ month: string; total: number }[]>`
+      SELECT
+        to_char(("date" AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM') AS month,
+        COALESCE(SUM("amount"), 0)::float8 AS total
+      FROM "Revenue"
+      WHERE "organizationId" = ${ctx.organizationId}
+        AND "deletedAt" IS NULL
+        AND "date" >= ${fromMonthsPrevYear}
+      GROUP BY 1
+    `
 
     const buckets = new Map<string, { revenue: number; previousYear: number; label: string }>()
     for (let i = monthsBack - 1; i >= 0; i--) {
       const first = spDate(now.getFullYear(), now.getMonth() - i, 1)
       buckets.set(monthKey(first), { revenue: 0, previousYear: 0, label: shortMonthLabel(first) })
     }
-    for (const r of curYearRows) {
-      const k = monthKey(r.date)
-      const b = buckets.get(k)
-      if (b) b.revenue += Number(r.amount)
-    }
-    for (const r of prevYearRows) {
-      // Desloca a data em +1 ano preservando fuso e calcula o bucket pelo mês SP.
-      const k = monthKey(addYears(r.date, 1))
-      const b = buckets.get(k)
-      if (b) b.previousYear += Number(r.amount)
+    for (const row of monthlyTotals) {
+      // Janela atual: o mês entra direto no bucket.
+      const cur = buckets.get(row.month)
+      if (cur) cur.revenue += row.total
+      // Ano anterior: desloca a chave +1 ano; a própria membership no bucket
+      // delimita a janela (meses fora caem no get() vazio).
+      const [y, m] = row.month.split('-')
+      const shifted = buckets.get(`${Number(y) + 1}-${m}`)
+      if (shifted) shifted.previousYear += row.total
     }
 
     const revenueByMonth = Array.from(buckets.values()).map((b) => ({
@@ -421,14 +416,11 @@ export const getClinicDashboard = cache(
       })
     )
 
-    // Mantém Client.healthScore sincronizado com o valor ao vivo (período atual).
-    // Períodos históricos não sobrescrevem o score do mês corrente.
-    if (period === 'month' && kpis.healthScore != null) {
-      await prisma.client.update({
-        where: { id: clientId },
-        data: { healthScore: kpis.healthScore },
-      })
-    }
+    // NÃO escrever aqui (decisão 2.6 do plano de correções): isto é uma QUERY
+    // cacheada — `Client.healthScore` persistido é responsabilidade exclusiva do
+    // snapshots-job (1×/dia). O dashboard exibe o valor VIVO de `kpis.healthScore`
+    // sem efeito colateral; escrever por render causava write amplification e
+    // corrida com o snapshot noturno.
 
     return {
       range,

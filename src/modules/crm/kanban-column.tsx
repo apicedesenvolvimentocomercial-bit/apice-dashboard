@@ -14,9 +14,22 @@ type Props = {
   onLeadClick: (leadId: string) => void
   /** Card a destacar (busca global, feat6). */
   highlightLeadId?: string | null
+  /** "Carregar mais" (M1): busca a próxima página da coluna. */
+  onLoadMore: () => void
+  loadingMore?: boolean
+  /** M2: retenção é board SOMENTE-LEITURA (o cron posiciona os buckets). */
+  dragDisabled?: boolean
 }
 
-export function KanbanColumn({ stage, onAddLead, onLeadClick, highlightLeadId }: Props) {
+export function KanbanColumn({
+  stage,
+  onAddLead,
+  onLeadClick,
+  highlightLeadId,
+  onLoadMore,
+  loadingMore,
+  dragDisabled,
+}: Props) {
   // O droppable da coluna captura drop em áreas vazias. Quando o usuário
   // solta sobre outro card, o SortableContext decide a posição relativa.
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { stageId: stage.id } })
@@ -32,7 +45,10 @@ export function KanbanColumn({ stage, onAddLead, onLeadClick, highlightLeadId }:
           />
           <span className="text-sm font-medium">{stage.name}</span>
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {stage.leads.length}
+            {/* Total REAL da coluna; com página parcial vira "carregados de total". */}
+            {stage.totalLeads > stage.leads.length
+              ? `${stage.leads.length} de ${stage.totalLeads}`
+              : stage.totalLeads}
           </span>
         </div>
         {/* Etapas nativas de desfecho/processo não aceitam card criado direto:
@@ -62,6 +78,7 @@ export function KanbanColumn({ stage, onAddLead, onLeadClick, highlightLeadId }:
               lead={lead}
               onClick={() => onLeadClick(lead.id)}
               highlight={highlightLeadId === lead.id}
+              dragDisabled={dragDisabled}
             />
           ))}
 
@@ -69,6 +86,18 @@ export function KanbanColumn({ stage, onAddLead, onLeadClick, highlightLeadId }:
             <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
               Nenhum lead
             </div>
+          )}
+
+          {stage.totalLeads > stage.leads.length && (
+            <button
+              onClick={onLoadMore}
+              disabled={loadingMore}
+              className="rounded-md border border-dashed py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              {loadingMore
+                ? 'Carregando…'
+                : `Carregar mais (${stage.totalLeads - stage.leads.length} restantes)`}
+            </button>
           )}
         </div>
       </SortableContext>

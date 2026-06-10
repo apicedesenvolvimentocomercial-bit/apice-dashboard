@@ -19,8 +19,14 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import type { ClinicSchedule } from '@/modules/appointments/types'
-import { positionBetween } from '@/lib/dnd-position'
-import { moveLeadAction, reorderLeadAction, regressLeadAction } from '@/server/actions/lead-actions'
+import { isPositionExhausted, positionBetween } from '@/lib/dnd-position'
+import {
+  loadStageLeadsAction,
+  moveLeadAction,
+  rebalanceLeadAction,
+  reorderLeadAction,
+  regressLeadAction,
+} from '@/server/actions/lead-actions'
 import { RevenueDetailsDialog } from '@/modules/financial/revenue-details-dialog'
 import type { RevenueDetails } from '@/modules/financial/types'
 import {
@@ -63,6 +69,9 @@ type Props = {
   schedule: ClinicSchedule
   /** Card a destacar (busca global, feat6). Limpa sozinho após alguns segundos. */
   highlightLeadId?: string | null
+  /** Card vindo da busca global que pode estar além da página carregada (M1):
+   *  é injetado na coluna correspondente antes do destaque/scroll. */
+  ensureLead?: KanbanLead | null
 }
 
 export function KanbanBoard({
@@ -76,6 +85,7 @@ export function KanbanBoard({
   procedures,
   schedule,
   highlightLeadId,
+  ensureLead,
 }: Props) {
   const router = useRouter()
   const [stages, setStages] = useState<KanbanStage[]>(initialStages)
@@ -140,15 +150,47 @@ export function KanbanBoard({
     snapshot: KanbanStage[]
   } | null>(null)
   const [isPending, startTransition] = useTransition()
+  // M1: colunas com página parcial — id da coluna carregando a próxima página.
+  const [loadingMoreStageId, setLoadingMoreStageId] = useState<string | null>(null)
+
+  // M2: retenção é board SOMENTE-LEITURA — os buckets são posicionados pelo
+  // cron diário (mover à mão seria desfeito à noite); o card continua clicável.
+  const dragDisabled = pipelineKind === 'RETENTION'
 
   // Snapshot tirada no início do drag — usada para reverter caso o backend
   // falhe e para descobrir qual era a coluna original (cross-column vs
   // mesma coluna).
   const dragSnapshot = useRef<KanbanStage[] | null>(null)
 
+  // Cursor de paginação POR COLUNA (M1). Vive fora de `stages` de propósito: a
+  // inserção do ensureLead (busca) e cards criados localmente entram no array,
+  // mas o cursor precisa apontar p/ o fim da página CONTÍGUA carregada do
+  // servidor — derivá-lo do último item do array pularia cards intermediários.
+  const cursorByStage = useRef<Map<string, string | null>>(new Map())
+
   useEffect(() => {
+    const cursors = new Map<string, string | null>()
+    for (const s of initialStages) {
+      cursors.set(s.id, s.leads.length > 0 ? s.leads[s.leads.length - 1].id : null)
+    }
+    cursorByStage.current = cursors
     setStages(initialStages)
   }, [initialStages])
+
+  // Injeta o card achado pela busca quando ele está além da página carregada.
+  useEffect(() => {
+    if (!ensureLead) return
+    setStages((prev) =>
+      prev.map((s) => {
+        if (s.id !== ensureLead.stageId) return s
+        if (s.leads.some((l) => l.id === ensureLead.id)) return s
+        const leads = [...s.leads, ensureLead].sort(
+          (a, b) => a.position - b.position || a.id.localeCompare(b.id)
+        )
+        return { ...s, leads }
+      })
+    )
+  }, [ensureLead])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -345,8 +387,32 @@ export function KanbanBoard({
     }
 
     if (movingColumns) {
+      // Cross-column com posição esgotada é raríssimo (coluna recém-recebida);
+      // o move segue com a posição degenerada (ordem ambígua entre 2 cards) e
+      // um reorder posterior dispara o rebalance.
       persistMove(leadId, destStage.id, newPosition, snapshot)
     } else {
+      // Fase 4: bissecção esgotou a precisão do Float (≈50 inserções no mesmo
+      // ponto) → renumera a coluna no servidor preservando a ordem visual.
+      if (
+        isPositionExhausted(prevLead?.position ?? null, nextLead?.position ?? null, newPosition)
+      ) {
+        startTransition(async () => {
+          const res = await rebalanceLeadAction(
+            leadId,
+            clientId,
+            destStage.id,
+            nextLead?.id ?? null
+          )
+          if (!res.success) {
+            toast.error(res.error.message)
+            setStages(snapshot)
+            return
+          }
+          router.refresh()
+        })
+        return
+      }
       // No-op se o card não mudou de posição numérica (mesma coluna, sem
       // hover sobre outro card).
       const originalPos = originalStage?.leads.find((l) => l.id === leadId)?.position
@@ -410,6 +476,33 @@ export function KanbanBoard({
     })
   }
 
+  // M1: anexa a próxima página de cards à coluna (cursor = último carregado;
+  // mesma ordem estável do SSR). Dedupe defensivo por id — um drag concorrente
+  // pode ter trazido um card para a coluna entre as páginas.
+  function loadMore(stageId: string) {
+    const cursor = cursorByStage.current.get(stageId)
+    if (!cursor || loadingMoreStageId) return
+    setLoadingMoreStageId(stageId)
+    loadStageLeadsAction(clientId, stageId, cursor).then((res) => {
+      setLoadingMoreStageId(null)
+      if (!res.success) {
+        toast.error(res.error.message)
+        return
+      }
+      const incoming = res.data.rows as unknown as KanbanLead[]
+      if (incoming.length > 0) {
+        cursorByStage.current.set(stageId, incoming[incoming.length - 1].id)
+      }
+      setStages((prev) =>
+        prev.map((s) => {
+          if (s.id !== stageId) return s
+          const have = new Set(s.leads.map((l) => l.id))
+          return { ...s, leads: [...s.leads, ...incoming.filter((l) => !have.has(l.id))] }
+        })
+      )
+    })
+  }
+
   function openCreateDialog(stageId: string) {
     setCreateStageId(stageId)
     setCreateDialogOpen(true)
@@ -434,7 +527,7 @@ export function KanbanBoard({
           appointmentId: null,
           patient: null,
         }
-        return { ...stage, leads: [...stage.leads, newLead] }
+        return { ...stage, leads: [...stage.leads, newLead], totalLeads: stage.totalLeads + 1 }
       })
     )
   }
@@ -481,6 +574,9 @@ export function KanbanBoard({
                 onAddLead={() => openCreateDialog(stage.id)}
                 onLeadClick={(leadId) => setDrawerLeadId(leadId)}
                 highlightLeadId={highlightLeadId}
+                onLoadMore={() => loadMore(stage.id)}
+                loadingMore={loadingMoreStageId === stage.id}
+                dragDisabled={dragDisabled}
               />
             ))
           )}

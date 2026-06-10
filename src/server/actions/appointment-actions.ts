@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
-import { ok, fail, NotFoundError } from '@/types/errors'
+import { ok, fail, NotFoundError, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
@@ -119,7 +119,7 @@ export async function createAppointmentAction(clientId: string, formData: unknow
   await assertCan(ctx, 'appointments', 'write')
 
   const parsed = appointmentSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const scheduledAt = parseScheduledAt(parsed.data.scheduledAt)
   const dateCheck = rejectIfTooOld(scheduledAt)
@@ -165,7 +165,7 @@ export async function createScheduledLeadFromAgendaAction(clientId: string, form
   await assertCan(ctx, 'appointments', 'write')
 
   const parsed = scheduledLeadSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const scheduledAt = parseScheduledAt(parsed.data.scheduledAt)
   const dateCheck = rejectIfTooOld(scheduledAt)
@@ -214,7 +214,7 @@ export async function updateAppointmentAction(
   await assertCan(ctx, 'appointments', 'write')
 
   const parsed = appointmentSchema.partial().safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   let scheduledAt: Date | undefined
   if (parsed.data.scheduledAt) {
@@ -263,7 +263,7 @@ export async function attendAppointmentAction(
   await assertCan(ctx, 'patients', 'write')
 
   const parsed = attendSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const res = await attendAppointment(ctx, {
     clientId,

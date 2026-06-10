@@ -4,25 +4,34 @@ import { prisma } from '@/lib/prisma'
 import type { TenantContext } from '@/server/tenant/context'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 
-export type ReceivableRow = Awaited<ReturnType<typeof listReceivables>>[number]
+export type ReceivableRow = Awaited<ReturnType<typeof listReceivables>>['rows'][number]
+
+export const RECEIVABLES_PAGE_SIZE = 200
 
 /**
- * Contas a receber (parcelas) de uma clínica. Sempre escopado por `clientId` (belt)
- * + RLS (a action entra escopo). Ver ledger dre-progresso.md.
+ * Contas a receber (parcelas) de uma clínica, PAGINADO por cursor (decisão L do
+ * plano de correções — antes truncava em 500 SILENCIOSAMENTE: parcela fora do
+ * corte simplesmente não aparecia na tela de financeiro). Ordem estável
+ * (dueDate, id) p/ o cursor; `hasMore`/`nextCursor` dirigem o "carregar mais".
+ * Sempre escopado por `clientId` (belt) + RLS (a action entra escopo).
  */
 export async function listReceivables(
   ctx: TenantContext,
   clientId: string,
-  filters?: { status?: 'PENDENTE' | 'PAGO' | 'PERDIDO' | 'CANCELADO' }
+  filters?: { status?: 'PENDENTE' | 'PAGO' | 'PERDIDO' | 'CANCELADO' },
+  page?: { cursor?: string; take?: number }
 ) {
+  const take = page?.take ?? RECEIVABLES_PAGE_SIZE
   const rows = await prisma.receivable.findMany({
     where: {
       organizationId: ctx.organizationId,
       clientId,
       ...(filters?.status ? { status: filters.status } : {}),
     },
-    orderBy: [{ dueDate: 'asc' }],
-    take: 500,
+    orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
+    // +1 = sonda de hasMore (sem COUNT extra).
+    take: take + 1,
+    ...(page?.cursor ? { cursor: { id: page.cursor }, skip: 1 } : {}),
     select: {
       id: true,
       installmentNumber: true,
@@ -41,20 +50,26 @@ export async function listReceivables(
       },
     },
   })
-  return rows.map((r) => ({
-    id: r.id,
-    // Agrupador: parcelas da MESMA venda compartilham o revenueId (UI de Contas a
-    // receber agrupa por venda e expande nas parcelas).
-    revenueId: r.revenue.id,
-    installmentNumber: r.installmentNumber,
-    totalInstallments: r.revenue.installments ?? 1,
-    amount: Number(r.amount),
-    dueDate: r.dueDate,
-    status: r.status,
-    paidAt: r.paidAt,
-    paymentMethod: r.paymentMethod,
-    label: r.revenue.patient?.name ?? r.revenue.description ?? 'Receita',
-  }))
+  const hasMore = rows.length > take
+  const pageRows = hasMore ? rows.slice(0, take) : rows
+  return {
+    rows: pageRows.map((r) => ({
+      id: r.id,
+      // Agrupador: parcelas da MESMA venda compartilham o revenueId (UI de Contas a
+      // receber agrupa por venda e expande nas parcelas).
+      revenueId: r.revenue.id,
+      installmentNumber: r.installmentNumber,
+      totalInstallments: r.revenue.installments ?? 1,
+      amount: Number(r.amount),
+      dueDate: r.dueDate,
+      status: r.status,
+      paidAt: r.paidAt,
+      paymentMethod: r.paymentMethod,
+      label: r.revenue.patient?.name ?? r.revenue.description ?? 'Receita',
+    })),
+    hasMore,
+    nextCursor: hasMore ? pageRows[pageRows.length - 1].id : null,
+  }
 }
 
 // Recalcula o status da venda após uma parcela mudar: QUITADA quando não há mais

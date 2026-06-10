@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { parseLocalDate } from '@/lib/date'
-import { ConflictError, fail, runAction } from '@/types/errors'
+import { ConflictError, fail, runAction, validationFail } from '@/types/errors'
 import { prisma } from '@/lib/prisma'
 import { createGoal, softDeleteGoal, updateGoal } from '@/server/repositories/goal-repository'
 import { assertCan } from '@/server/auth/assert-can'
@@ -48,7 +48,7 @@ function revalidate(clientId: string) {
 
 export async function createGoalAction(clientId: string, formData: unknown) {
   const parsed = goalSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const startDate = parseLocalDate(parsed.data.startDate)
   const endDate = parseLocalDate(parsed.data.endDate)
@@ -112,7 +112,7 @@ export async function createGoalAction(clientId: string, formData: unknown) {
 
 export async function updateGoalAction(goalId: string, clientId: string, formData: unknown) {
   const parsed = goalSchema.partial().safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   let startDate: Date | undefined
   let endDate: Date | undefined

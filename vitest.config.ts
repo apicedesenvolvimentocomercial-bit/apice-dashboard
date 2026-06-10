@@ -5,6 +5,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // Testes de integração (banco Neon real, .env.test) rodam por outro config:
+    // `npm run test:integration` → vitest.integration.config.ts. O glob acima
+    // pegaria `*.integration.test.ts` também, por isso a exclusão explícita.
+    exclude: ['src/**/*.integration.test.ts', 'node_modules/**'],
     globals: false,
   },
   resolve: {

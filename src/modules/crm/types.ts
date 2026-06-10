@@ -41,7 +41,10 @@ export type KanbanStage = {
   isNative: boolean
   nativeKey: StageNativeKey | null
   order: number
+  /** 1ª página de cards (M1 — o SSR limita a KANBAN_CARDS_PAGE por coluna). */
   leads: KanbanLead[]
+  /** Total REAL da coluna no banco — badge "N de M" + decide o "carregar mais". */
+  totalLeads: number
 }
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {

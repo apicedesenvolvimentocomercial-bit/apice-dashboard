@@ -101,17 +101,38 @@ function summarize(g: Group, now: number) {
 export function ReceivablesTab({ clientId }: { clientId: string }) {
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasMore, setHasMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [pending, startTransition] = useTransition()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
+  // Recarrega a PRIMEIRA página (estado inicial e após mutações — a parcela
+  // alterada pode mudar de posição/status, então não dá pra remendar in-place).
   const load = useCallback(() => {
     setLoading(true)
     listReceivablesAction(clientId).then((res) => {
-      if (res.success) setRows(res.data as Row[])
-      else toast.error(res.error.message)
+      if (res.success) {
+        setRows(res.data.rows as Row[])
+        setHasMore(res.data.hasMore)
+        setNextCursor(res.data.nextCursor)
+      } else toast.error(res.error.message)
       setLoading(false)
     })
   }, [clientId])
+
+  const loadMore = useCallback(() => {
+    if (!nextCursor) return
+    setLoadingMore(true)
+    listReceivablesAction(clientId, nextCursor).then((res) => {
+      if (res.success) {
+        setRows((prev) => [...prev, ...(res.data.rows as Row[])])
+        setHasMore(res.data.hasMore)
+        setNextCursor(res.data.nextCursor)
+      } else toast.error(res.error.message)
+      setLoadingMore(false)
+    })
+  }, [clientId, nextCursor])
 
   useEffect(() => load(), [load])
 
@@ -309,6 +330,19 @@ export function ReceivablesTab({ clientId }: { clientId: string }) {
           })}
         </tbody>
       </table>
+      {hasMore && (
+        <div className="flex justify-center border-t py-3">
+          <Button size="sm" variant="outline" disabled={loadingMore} onClick={loadMore}>
+            {loadingMore ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Carregando…
+              </>
+            ) : (
+              'Carregar mais parcelas'
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
-import { ok, fail, NotFoundError } from '@/types/errors'
+import { ok, fail, NotFoundError, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
@@ -75,7 +75,7 @@ export async function createPatientAction(clientId: string, formData: unknown) {
   await assertCan(ctx, 'patients', 'write')
 
   const parsed = createPatientSchema.safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos: ' + parsed.error.issues[0]?.message)
+  if (!parsed.success) return validationFail(parsed.error)
 
   const patient = await createPatient(ctx, clientId, {
     ...parsed.data,
@@ -107,7 +107,7 @@ export async function updatePatientAction(patientId: string, clientId: string, f
   await assertCan(ctx, 'patients', 'write')
 
   const parsed = patientSchema.partial().safeParse(formData)
-  if (!parsed.success) return fail('Dados inválidos')
+  if (!parsed.success) return validationFail(parsed.error)
 
   await updatePatient(ctx, patientId, clientId, {
     ...parsed.data,
