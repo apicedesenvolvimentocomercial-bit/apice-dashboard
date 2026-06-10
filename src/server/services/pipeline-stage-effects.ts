@@ -16,6 +16,12 @@ import {
   addPatientToRetention,
   getRetentionEntryStageId,
 } from '@/server/services/retention-service'
+import { logger } from '@/lib/logger'
+import {
+  dispatchNotification,
+  getRecipientsForClient,
+  type DispatchTarget,
+} from '@/server/services/notification-service'
 
 /**
  * Efeitos de negócio disparados quando um card (Lead) entra numa etapa NATIVA
@@ -1114,6 +1120,44 @@ export async function cancelAppointmentSync(
       })
     }
   })
+
+  // Aviso de desfecho (best-effort, fora da tx): responsável pelo agendamento +
+  // titular ficam sabendo — exceto quem registrou (já sabe). category 'crm' →
+  // filtrável nas preferências do cargo.
+  try {
+    const apt = await prisma.appointment.findFirst({
+      where: { id: appointmentId, clientId, organizationId: ctx.organizationId },
+      select: { assignedToId: true, patient: { select: { name: true } } },
+    })
+    const targets = new Map<string, DispatchTarget>()
+    for (const t of await getRecipientsForClient(ctx.organizationId, clientId)) {
+      targets.set(t.userId, t)
+    }
+    if (apt?.assignedToId) {
+      const u = await prisma.user.findFirst({
+        where: { id: apt.assignedToId, isActive: true, deletedAt: null },
+        select: { id: true, email: true, name: true },
+      })
+      if (u) targets.set(u.id, { userId: u.id, email: u.email, name: u.name, clientId })
+    }
+    targets.delete(ctx.userId)
+    if (targets.size > 0) {
+      const who = apt?.patient?.name ?? 'Paciente'
+      await dispatchNotification([...targets.values()], {
+        type: 'SYSTEM',
+        category: 'crm',
+        title: status === 'NO_SHOW' ? `Falta registrada: ${who}` : `Agendamento cancelado: ${who}`,
+        message: `Motivo: ${cancelReason}`,
+        link: '/appointments',
+        metadata: { appointmentId, status },
+      })
+    }
+  } catch (err) {
+    logger.warn('cancel notification failed', {
+      appointmentId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
 
   return { hadLead: !!(lead && cancelStageId) }
 }

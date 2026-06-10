@@ -21,14 +21,19 @@ import {
 } from '@/server/actions/clinic-role-actions'
 import {
   DASHBOARD_PERM_KEY,
+  NOTIFICATION_PERM_KEY,
+  notificationChannelEnabled,
   parseDashboardPermissions,
+  parseNotificationPermissions,
   type ClinicModulePerm,
   type ClinicRolePermissions,
   type DashboardPermissions,
+  type NotificationPermissions,
 } from '@/server/auth/clinic-permissions'
 
 import { CLINIC_MODULES } from './clinic-modules'
 import { DASHBOARD_SECTIONS } from './dashboard-catalog'
+import { NOTIFICATION_CATEGORIES } from './notification-catalog'
 
 export type RoleDialogInitial = {
   id: string
@@ -78,7 +83,22 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
   const [dashboard, setDashboard] = useState<DashboardPermissions>(() =>
     initial ? parseDashboardPermissions(initial.permissions) : {}
   )
+  // Preferências de notificação. Opt-out: ausência = ligado (contrário do
+  // dashboard) — notificação é útil por padrão, o cargo desliga o que não quer.
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPermissions>(() =>
+    initial ? parseNotificationPermissions(initial.permissions) : {}
+  )
   const [pending, startTransition] = useTransition()
+
+  // Liga/desliga um canal de uma categoria, materializando o outro canal no
+  // estado (p/ não perder o valor implícito "ligado" ao gravar objeto parcial).
+  function setNotifChannel(cat: string, channel: 'inApp' | 'email', on: boolean) {
+    setNotifPrefs((prev) => {
+      const inApp = channel === 'inApp' ? on : notificationChannelEnabled(prev, cat, 'inApp')
+      const email = channel === 'email' ? on : notificationChannelEnabled(prev, cat, 'email')
+      return { ...prev, [cat]: { inApp, email } }
+    })
+  }
 
   // Liga/desliga uma seção inteira do dashboard (master). Desligar limpa os
   // itens; ligar deixa items indefinido = todos visíveis dentro da seção.
@@ -136,6 +156,8 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
     // Visibilidade do dashboard vive sob a chave reservada `dashboard`. O cast é
     // necessário porque o tipo do mapa de abas não cobre este shape distinto.
     ;(permissions as Record<string, unknown>)[DASHBOARD_PERM_KEY] = dashboard
+    // Preferências de notificação sob a chave reservada `notifications`.
+    ;(permissions as Record<string, unknown>)[NOTIFICATION_PERM_KEY] = notifPrefs
 
     if (level < minLevel) {
       toast.error('Nível inválido: não pode ficar no seu nível ou acima')
@@ -332,6 +354,42 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
                         ))}
                       </div>
                     )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Notificações</p>
+            <p className="text-xs text-muted-foreground">
+              O que este cargo recebe no sino (e por email, quando a categoria envia). Tudo vem
+              ligado por padrão — desmarque o que não interessa. O titular recebe tudo, independente
+              disto.
+            </p>
+            <div className="divide-y rounded-md border">
+              {NOTIFICATION_CATEGORIES.map((cat) => {
+                const inApp = notificationChannelEnabled(notifPrefs, cat.key, 'inApp')
+                const email = notificationChannelEnabled(notifPrefs, cat.key, 'email')
+                return (
+                  <div key={cat.key} className="flex items-center justify-between gap-3 p-3">
+                    <div>
+                      <div className="text-sm font-medium">{cat.label}</div>
+                      <div className="text-xs text-muted-foreground">{cat.description}</div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-4">
+                      <ActionBox
+                        label="No app"
+                        checked={inApp}
+                        onChange={() => setNotifChannel(cat.key, 'inApp', !inApp)}
+                      />
+                      {cat.email && (
+                        <ActionBox
+                          label="Email"
+                          checked={email}
+                          onChange={() => setNotifChannel(cat.key, 'email', !email)}
+                        />
+                      )}
+                    </div>
                   </div>
                 )
               })}

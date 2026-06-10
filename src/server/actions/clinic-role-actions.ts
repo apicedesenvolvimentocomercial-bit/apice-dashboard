@@ -64,7 +64,19 @@ const dashboardSectionSchema = z.object({
   items: z.record(z.string(), z.boolean()).optional(),
 })
 const dashboardBlockSchema = z.record(z.string(), dashboardSectionSchema)
-const permissionsSchema = z.record(z.string(), z.union([modulePermSchema, dashboardBlockSchema]))
+// Chave reservada `notifications`: preferência por categoria — boolean (liga/
+// desliga tudo) ou canais ({ inApp, email }). Ausência = ligado (opt-out).
+// A ORDEM da união importa: dashboard antes (exige `access`), senão um bloco
+// de dashboard casaria aqui (objeto zod não-strict aceita chaves extras).
+const notificationCategorySchema = z.union([
+  z.boolean(),
+  z.object({ inApp: z.boolean().optional(), email: z.boolean().optional() }),
+])
+const notificationBlockSchema = z.record(z.string(), notificationCategorySchema)
+const permissionsSchema = z.record(
+  z.string(),
+  z.union([modulePermSchema, dashboardBlockSchema, notificationBlockSchema])
+)
 
 const createRoleSchema = z.object({
   name: z.string().trim().min(2, 'Nome do cargo muito curto').max(60),

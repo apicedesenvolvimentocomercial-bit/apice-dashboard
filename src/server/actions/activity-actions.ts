@@ -390,6 +390,7 @@ async function notifyAssignee(
   try {
     await dispatchNotification([{ userId: user.id, email: user.email, name: user.name }], {
       type: 'SYSTEM',
+      category: 'activities',
       title: `Nova atividade: ${activity.title}`,
       message: when
         ? `Você foi designado para "${activity.title}". Vencimento: ${when}.`
