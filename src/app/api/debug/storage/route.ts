@@ -51,5 +51,11 @@ export async function GET() {
     bucketName: CLIENT_DOCUMENTS_BUCKET,
     bucket,
     nodeEnv: env.NODE_ENV,
+    // DECISIVO: na Vercel, NODE_ENV é "production" até em deploy de PREVIEW.
+    // Quem diz o ambiente real (e qual escopo de env var se aplica) é VERCEL_ENV:
+    // "production" | "preview" | "development". Var marcada só "Production" fica
+    // UNDEFINED em deploy preview — exatamente o sintoma investigado.
+    vercelEnv: process.env.VERCEL_ENV ?? null,
+    gitBranch: process.env.VERCEL_GIT_COMMIT_REF ?? null,
   })
 }
