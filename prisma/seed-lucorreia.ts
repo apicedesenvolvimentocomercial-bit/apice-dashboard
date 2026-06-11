@@ -186,9 +186,129 @@ async function main() {
     await prisma.client.update({ where: { id: clinic.id }, data: { ownerId: owner.id } })
   }
 
+  // ── Cargos + acessos de TESTE (espelham o seed E2E; senha cargo123).
+  // ATENÇÃO: contas de teste em PRODUÇÃO — remova após validar (lista de
+  // pessoas em /configuracoes, ou rode um cleanup).
+  const fullTab = { access: true, read: true, write: true, delete: false }
+  const cargoHash = await hash('cargo123', 12)
+
+  // Níveis únicos por clínica: se o nível desejado já está ocupado por um
+  // cargo de OUTRO nome (criado à mão), usa o próximo livre.
+  const existingRoles = await prisma.clinicRole.findMany({
+    where: { clientId: clinic.id },
+    select: { name: true, level: true },
+  })
+  const usedLevels = new Set(existingRoles.map((r) => r.level))
+  const byName = new Map(existingRoles.map((r) => [r.name, r.level]))
+  function pickLevel(name: string, desired: number): number {
+    const current = byName.get(name)
+    if (current !== undefined) return current // cargo já existe: mantém o nível
+    let lvl = desired
+    while (usedLevels.has(lvl)) lvl++
+    usedLevels.add(lvl)
+    return lvl
+  }
+
+  const cargoDefs = [
+    {
+      name: 'Gerente',
+      desiredLevel: 1,
+      canManageRoles: true,
+      permissions: {
+        crm: { ...fullTab, assignToOthers: true, viewAll: true },
+        appointments: { ...fullTab, assignToOthers: true, viewAll: true },
+        activities: { ...fullTab, assignToOthers: true, viewAll: true },
+        patients: fullTab,
+        financial: fullTab,
+        goals: { ...fullTab, viewAll: true },
+        insights: { access: true, read: true },
+        procedures: fullTab,
+        reports: { access: true, read: true },
+        staff: { access: true, read: true, write: true }, // pode convidar
+        dashboard: {
+          commercialKpis: { access: true },
+          financialKpis: { access: true },
+          tracking: { access: true },
+        },
+      },
+    },
+    {
+      name: 'Atendente',
+      desiredLevel: 2,
+      canManageRoles: false,
+      permissions: {
+        crm: fullTab,
+        appointments: fullTab,
+        activities: fullTab,
+        patients: fullTab,
+        dashboard: { commercialKpis: { access: true, items: { noShow: false } } },
+      },
+    },
+    {
+      name: 'Financeiro',
+      desiredLevel: 3,
+      canManageRoles: false,
+      permissions: {
+        financial: fullTab,
+        reports: { access: true, read: true },
+        dashboard: { financialKpis: { access: true }, revenueCharts: { access: true } },
+      },
+    },
+  ]
+
+  const roleIdByName = new Map<string, string>()
+  for (const def of cargoDefs) {
+    const role = await prisma.clinicRole.upsert({
+      where: { clientId_name: { clientId: clinic.id, name: def.name } },
+      update: { permissions: def.permissions, canManageRoles: def.canManageRoles },
+      create: {
+        clientId: clinic.id,
+        name: def.name,
+        level: pickLevel(def.name, def.desiredLevel),
+        canManageRoles: def.canManageRoles,
+        permissions: def.permissions,
+      },
+    })
+    roleIdByName.set(def.name, role.id)
+  }
+
+  const testUsers = [
+    { email: 'gerente-lucorreia@senno.dev', name: 'Gerente (teste)', role: 'Gerente' },
+    { email: 'atendente-lucorreia@senno.dev', name: 'Atendente (teste)', role: 'Atendente' },
+    { email: 'financeiro-lucorreia@senno.dev', name: 'Financeiro (teste)', role: 'Financeiro' },
+    { email: 'semcargo-lucorreia@senno.dev', name: 'Sem Cargo (teste)', role: null },
+  ] as const
+  for (const u of testUsers) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: {
+        clientId: clinic.id,
+        clinicRoleId: u.role ? roleIdByName.get(u.role) : null,
+        isActive: true,
+        deletedAt: null,
+        passwordHash: cargoHash,
+      },
+      create: {
+        email: u.email,
+        name: u.name,
+        passwordHash: cargoHash,
+        role: 'CLIENT_STAFF',
+        isActive: true,
+        organizationId: org.id,
+        clientId: clinic.id,
+        clinicRoleId: u.role ? roleIdByName.get(u.role) : null,
+      },
+    })
+  }
+
   console.log('✅ Pronto!')
   console.log(`   Clínica: ${CLINIC_NAME}`)
   console.log(`   Login: ${OWNER_EMAIL} / ${OWNER_PASSWORD} (CLIENT_OWNER)`)
+  console.log('   Acessos de TESTE (senha cargo123 — remover após validar):')
+  console.log('     gerente-lucorreia@senno.dev    (todas as abas + convite + dashboard amplo)')
+  console.log('     atendente-lucorreia@senno.dev  (só comercial; dashboard sem no-show)')
+  console.log('     financeiro-lucorreia@senno.dev (só financeiro + exportações)')
+  console.log('     semcargo-lucorreia@senno.dev   (sem cargo → expulso no login)')
 }
 
 main()

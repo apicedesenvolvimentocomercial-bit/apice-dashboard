@@ -77,6 +77,13 @@ compartilhado. Só primitivos de UI, display burro (`components/shared`), tipos
   `clinic-permissions.ts` é só reexport compat. **Hierarquia LINEAR:** cada cargo tem `level`
   (menor = mais alto); quem gerencia cargos (`canManageRoles`) só atua sobre cargos de level maior
   que o seu — não promove acima de si nem mexe em par. Coroa/ADMIN está acima de tudo.
+  **ANTI-ESCALAÇÃO (subconjunto):** criar/editar cargo passa por `assertNoEscalation` →
+  `findPermissionEscalations(granted, actorPerms)` (role-permissions): gestor NÃO concede
+  módulo/ação/seção-de-dashboard que ele próprio não tem (titular concede tudo). **Convidar
+  pessoas p/ a clínica = capacidade `staff:write` no JSON do cargo** (chave SEM aba; checkbox
+  "Pode convidar pessoas" no role-dialog) — `inviteClientOwnerAction` exige `staff:write` +
+  `assertClientAccess` (CLIENT\_\* só convida p/ a própria clínica); UI no card "Pessoas" de
+  `/configuracoes`; convidado entra CLIENT_STAFF SEM cargo (deny-by-default até ganhar um).
 - `assert-can.ts` — `assertCan(ctx, module, action)` no topo de cada action/query.
 - **Cargos de clínica** (`ClinicRole`): permissões por aba num JSON
   (`access` master + `read/write/delete/assignToOthers/viewAll`). Aba sem `access`

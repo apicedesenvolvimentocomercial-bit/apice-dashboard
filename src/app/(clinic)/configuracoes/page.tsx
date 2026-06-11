@@ -11,6 +11,8 @@ import { ProfileForm } from '@/components/shared/settings/profile-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { env } from '@/lib/env'
 import { ClinicRolesManager } from '@/modules/clinic-roles/clinic-roles-manager'
+import { InviteUserDialog } from '@/modules/clinic-roles/invite-user-dialog'
+import { can } from '@/server/auth/permissions'
 import { getClinicContext } from '@/server/auth/clinic-context'
 import { parseClinicRolePermissions } from '@/server/auth/clinic-permissions'
 import { findClientById } from '@/server/repositories/client-repository'
@@ -44,6 +46,10 @@ export default async function ClinicSettingsPage() {
     })
     canManageRoles = !!role?.canManageRoles
   }
+
+  // Pode CONVIDAR pessoas? Titular ou cargo com staff:write (checkbox "Pode
+  // convidar pessoas" do cargo). Independente de canManageRoles.
+  const canInvite = ctx.isOwner || (await can(ctx.userId, ctx.role, 'staff', 'write'))
 
   // Dados sensíveis da clínica: só o TITULAR edita (Bloco B). O card antes usava
   // qualquer CLIENT_OWNER; agora reflete a coroa real.
@@ -168,6 +174,21 @@ export default async function ClinicSettingsPage() {
           templates={messaging.templates}
           recent={messaging.recent}
         />
+      )}
+
+      {canInvite && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Pessoas</CardTitle>
+            <CardDescription>
+              Convide novos acessos por email. Quem entra começa sem cargo (nenhum acesso) até
+              receber um na lista abaixo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <InviteUserDialog clientId={ctx.clientId} />
+          </CardContent>
+        </Card>
       )}
 
       {canManageRoles && (

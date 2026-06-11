@@ -170,6 +170,8 @@ async function main() {
     insights: { access: true, read: true },
     procedures: fullTab,
     reports: { access: true, read: true },
+    // Capacidade sem aba: convidar pessoas (checkbox "Pode convidar" do cargo).
+    staff: { access: true, read: true, write: true },
     dashboard: {
       commercialKpis: { access: true },
       financialKpis: { access: true },

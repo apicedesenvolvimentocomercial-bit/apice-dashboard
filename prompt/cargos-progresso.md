@@ -142,6 +142,18 @@ novos `clinic-role-repository.ts`/`clinic-role-actions.ts`, `client-users.tsx`, 
 
 ### Log de progresso
 
+- 2026-06-11: **Convite pelo lado CLÍNICA + anti-escalação.** Capacidade `staff:write`
+  no JSON do cargo = "Pode convidar pessoas" (checkbox no role-dialog; chave sem aba —
+  não entra no catálogo/sidebar). Card "Pessoas" em `/configuracoes` (visível p/ titular
+  ou cargo com staff:write) com `invite-user-dialog` → `inviteClientOwnerAction`
+  (ganhou `assertClientAccess`+`enterClientScope`: CLIENT\_\* só convida p/ a própria
+  clínica — antes podia mirar clínica-irmã da org). Convidado = CLIENT_STAFF sem cargo
+  (deny-by-default). **Anti-escalação (subconjunto):** `findPermissionEscalations` em
+  role-permissions (8 testes unit) + `assertNoEscalation` em create/update de cargo —
+  gestor não concede módulo/ação/dashboard que não tem; titular concede tudo. NOTA:
+  `assignClinicRoleAction` NÃO re-checa subconjunto (atribuir cargo EXISTENTE criado por
+  alguém mais privilegiado segue possível dentro da hierarquia de level — aceito, o
+  conteúdo do cargo foi autorado por quem podia).
 - 2026-05-24: plano aprovado, ledger criado, decisões D1-D9 fechadas.
 - 2026-05-24: **Bloco A DONE** (1.1+1.2+1.3). Schema (Client.ownerId, User.clinicRoleId, model ClinicRole) + migration `20260524120000_clinic_roles_ownership` (com backfill de ownerId e RLS policy p/ ClinicRole) aplicada no .env.test. `permissions.ts`: `can()` agora resolve coroa→cargo→fallback; novo `clinic-permissions.ts` (tipos + clinicRoleCan/clinicRoleHasTabAccess/parse). `assert-can` aceita ClinicPermAction (read|write|delete|assignToOthers|viewAll). Claims: clinicRoleId no JWT/session/login/re-sync + next-auth.d.ts. `TenantContext.clinicRoleId`. `ClinicContext` ganhou `clinicRoleId`+`isOwner` (isOwner lido do DB por request, não do JWT). Jobs (reports/snapshots) e teste de isolamento atualizados p/ novo shape. tsc OK. Verify: owner-a (agora titular Alpha via backfill) loga, navega 5 abas + /configuracoes, screenshot OK — login/permissões intactos. **Decisão impl:** isClinicOwner NÃO vai no JWT (evita stale pós-transferência); calculado em getClinicContext via query. canSync não enxerga cargo (sem DB) — não usar como gate p/ roles de clínica.
 - 2026-05-24: **Bloco B DONE** (gate funcional + titularidade backend). Novo `clinic-tabs.ts`: `TAB_MODULE` (href→módulo), `getVisibleTabs(ctx)`, `assertTabAccess`, `gateClinicTab(tab)`. ALWAYS_VISIBLE = overview/notificacoes/settings (todo user vê). Sidebar (`clinic-sidebar.tsx`) recebe `visibleHrefs` e filtra; layout `(clinic)/layout.tsx` calcula via getVisibleTabs + passa. Gate de rota: `await gateClinicTab('<tab>')` no topo das 8 pages gateáveis (crm/financial/patients/goals/appointments/insights/procedures/atividades). Titularidade auto da clínica no `acceptInviteAction` (1º CLIENT_OWNER vira coroa, updateMany ownerId:null). Campos sensíveis da clínica travados só p/ titular em `updateClinicSettingsAction` (checa Client.ownerId===userId, ForbiddenError). Nova action `clinic-owner-actions.ts` `transferClinicOwnershipAction` (só titular; alvo CLIENT_OWNER ativo; updateMany condicional anti-corrida; audit log). tsc OK. Verify: criou cargo restrito (crm+appointments+activities) + CLIENT_STAFF, logou → sidebar só mostra liberadas+ALWAYS_VISIBLE, /financial por URL redireciona /overview, /crm acessível. Screenshot confirmou.

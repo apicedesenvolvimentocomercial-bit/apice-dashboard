@@ -15,7 +15,8 @@ import {
 } from '@/server/repositories/client-repository'
 import { createDefaultPipelineStages } from '@/server/services/client-service'
 import { assertCan } from '@/server/auth/assert-can'
-import { getTenantContext } from '@/server/tenant/context'
+import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { ConflictError, ForbiddenError, NotFoundError, fail, ok, runAction } from '@/types/errors'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 
@@ -141,12 +142,18 @@ const inviteClientOwnerSchema = z.object({
 
 export async function inviteClientOwnerAction(formData: z.infer<typeof inviteClientOwnerSchema>) {
   const ctx = await getTenantContext()
-  await assertCan(ctx, 'staff', 'write')
 
   const parsed = inviteClientOwnerSchema.safeParse(formData)
   if (!parsed.success) return fail(parsed.error.errors[0].message)
 
   const { clientId, email, role = 'CLIENT_OWNER' } = parsed.data
+
+  // Tenant belt: CLIENT_* só convida p/ a PRÓPRIA clínica (sem isto, staff:write
+  // de uma clínica convidava p/ qualquer clínica da org). Admin/STAFF: qualquer
+  // clínica da org. `staff:write` no cargo da clínica = "pode convidar pessoas".
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'staff', 'write')
 
   const client = await prisma.client.findFirst({
     where: { id: clientId, organizationId: ctx.organizationId, deletedAt: null },
@@ -195,6 +202,7 @@ export async function inviteClientOwnerAction(formData: z.infer<typeof inviteCli
   logger.info('Clinic user invited', { invitationId: invitation.id, clientId, email, role })
 
   revalidatePath(`/clients/${clientId}/users`)
+  revalidatePath('/configuracoes') // lado clínica: lista de pessoas vive lá
   return ok({ inviteUrl })
 }
 
