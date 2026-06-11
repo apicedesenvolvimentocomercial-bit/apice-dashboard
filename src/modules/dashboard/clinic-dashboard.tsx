@@ -49,9 +49,10 @@ type Props = {
  * por linha; cada widget vale um nº de unidades — KPI = 1, funil = 1,5,
  * gráficos de receita = 2,5. Como há meios-valores, o grid real é de 8 colunas
  * (1 unidade = 2 colunas): KPI `col-span-2`, funil `col-span-3`, gráficos
- * `col-span-5`. Buracos verticais são tapados POSICIONANDO o próximo widget na
- * mesma coluna (ex.: Metas sob o gráfico de receita) — encaixe determinístico,
- * sem JS de medição.
+ * `col-span-5`. A altura também é em unidades (linhas de 5.5rem) e a grade de
+ * widgets usa `grid-auto-flow: row dense` — qualquer item escondido pela
+ * visibilidade por cargo tem seu vão tapado pelo navegador automaticamente,
+ * sem JS de medição. Ver bloco "Grade única de widgets" abaixo.
  */
 export function ClinicDashboard({ data, visibility }: Props) {
   const {
@@ -389,163 +390,174 @@ export function ClinicDashboard({ data, visibility }: Props) {
   const showInsights = vis('tracking', 'insights')
   const showGoals = vis('tracking', 'goals')
 
-  const hasRevenueCol = showRevGenerated || showRevReceived // coluna 2,5 un.
-  const hasSideCol = showFunnel || showLeadsSource // coluna 1,5 un.
-  const chartsTwoCol = hasRevenueCol && hasSideCol
-  const showChartsBlock = hasRevenueCol || hasSideCol
+  // ---- Grade única de widgets (encaixe automático, sem buracos) ----
+  // Largura em UNIDADES (8 colunas; 1 un. = 2 col): gráficos/procedimentos/
+  // metas = 2,5 un. (`col-span-5`); funil/origem/insights = 1,5 un.
+  // (`col-span-3`). Altura em LINHAS de 5.5rem (`auto-rows`): cards de gráfico
+  // = 4 linhas fixas; LISTAS (metas/insights) ganham span CALCULADO pela
+  // contagem de itens — o card cresce em linhas em vez de rolar (server
+  // component: a contagem é conhecida no render). `grid-flow-row-dense` faz o
+  // navegador recuar widgets para tapar o vão de qualquer item escondido pelo
+  // cargo. No mobile (< lg) tudo empilha com altura natural (spans lg-only).
+  const ROW_PX = 88 // 5.5rem
+  const GAP_PX = 12 // gap-3
+  /** Linhas de grade necessárias p/ `px` de conteúdo (mín. 2). */
+  const rowsForPx = (px: number) => Math.max(2, Math.ceil((px + GAP_PX) / (ROW_PX + GAP_PX)))
 
-  // Metas sobe para a coluna do gráfico de receita (tapa o vão vertical que a
-  // unificação dos dois gráficos deixou). Sem a coluna de receita, vira faixa
-  // própria no fim, como antes.
-  const goalsInRevenueCol = showGoals && hasRevenueCol
+  // Estimativa generosa por item (folga vira respiro no fim do card; os textos
+  // dos insights são limitados com line-clamp p/ a altura ficar previsível).
+  const goalsRows = rowsForPx(96 + goalsProgress.length * 76)
+  const insightsRows = rowsForPx(96 + Math.max(insightsOpen.length, 1) * 120)
 
-  const goalsCard = showGoals ? (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Progresso de metas</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {goalsProgress.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma meta ativa.</p>
-        ) : (
-          goalsProgress.map((g) => (
-            <div key={g.id}>
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{metricLabel(g.metric)}</span>
-                <span className="text-muted-foreground">{g.progressPct.toFixed(0)}%</span>
+  // Span vertical dinâmico via var CSS (classe estática = JIT-safe).
+  const dynamicRowSpan = 'lg:[grid-row:span_var(--rows)]'
+
+  const widgets: React.ReactNode[] = []
+  if (showRevGenerated || showRevReceived) {
+    widgets.push(
+      <div key="revenueCharts" className="lg:col-span-5 lg:row-span-4">
+        <RevenueChartsCard
+          generated={revenueByMonth}
+          received={receivedByMonth}
+          receivedCenterIndex={receivedCenterIndex}
+          showGenerated={showRevGenerated}
+          showReceived={showRevReceived}
+        />
+      </div>
+    )
+  }
+  if (showFunnel) {
+    widgets.push(
+      <Card key="funnel" className="lg:col-span-3 lg:row-span-4">
+        <CardHeader>
+          <CardTitle className="text-base">Funil de conversão</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Leads criados no período, por etapa atual. Fechado conta pela data de fechamento.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <FunnelBars data={funnel} />
+        </CardContent>
+      </Card>
+    )
+  }
+  if (showLeadsSource) {
+    widgets.push(
+      <Card key="leadsSource" className="lg:col-span-3 lg:row-span-4">
+        <CardHeader>
+          <CardTitle className="text-base">Origem dos leads</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SharePieChart
+            data={leadsBySource.map((s) => ({
+              name: LEAD_SOURCE_LABEL[s.source] ?? s.source,
+              value: s.count,
+            }))}
+            valueFormat="count"
+            unitLabel="leads"
+          />
+        </CardContent>
+      </Card>
+    )
+  }
+  if (showRevByProcedure) {
+    widgets.push(
+      <Card key="revenueByProcedure" className="lg:col-span-5 lg:row-span-4">
+        <CardHeader>
+          <CardTitle className="text-base">Receita por procedimento</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HorizontalBarChart
+            data={revenueByProcedure.map((p) => ({ label: p.name, value: p.total }))}
+          />
+        </CardContent>
+      </Card>
+    )
+  }
+  if (showGoals) {
+    widgets.push(
+      <Card
+        key="goals"
+        className={`lg:col-span-5 ${dynamicRowSpan}`}
+        style={{ '--rows': goalsRows } as React.CSSProperties}
+      >
+        <CardHeader>
+          <CardTitle className="text-base">Progresso de metas</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {goalsProgress.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma meta ativa.</p>
+          ) : (
+            goalsProgress.map((g) => (
+              <div key={g.id}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{metricLabel(g.metric)}</span>
+                  <span className="text-muted-foreground">{g.progressPct.toFixed(0)}%</span>
+                </div>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${Math.min(100, g.progressPct)}%` }}
+                  />
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {g.currentValue.toLocaleString('pt-BR')} de{' '}
+                  {g.targetValue.toLocaleString('pt-BR')} · termina{' '}
+                  {new Intl.DateTimeFormat('pt-BR').format(g.endDate)}
+                </p>
               </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full bg-primary transition-all"
-                  style={{ width: `${Math.min(100, g.progressPct)}%` }}
-                />
+            ))
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+  if (showInsights) {
+    widgets.push(
+      <Card
+        key="insights"
+        className={`lg:col-span-3 ${dynamicRowSpan}`}
+        style={{ '--rows': insightsRows } as React.CSSProperties}
+      >
+        <CardHeader>
+          <CardTitle className="text-base">Insights ativos</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {insightsOpen.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum insight aberto.</p>
+          ) : (
+            insightsOpen.map((i) => (
+              <div
+                key={i.id}
+                className={`rounded-md border p-3 text-sm ${SEVERITY_TONE[i.severity] ?? ''}`}
+              >
+                <p className="font-medium leading-tight">{i.title}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{i.diagnosis}</p>
+                <p className="mt-1 line-clamp-2 text-xs">
+                  <span className="font-medium">Sugestão:</span> {i.suggestion}
+                </p>
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {g.currentValue.toLocaleString('pt-BR')} de {g.targetValue.toLocaleString('pt-BR')}{' '}
-                · termina {new Intl.DateTimeFormat('pt-BR').format(g.endDate)}
-              </p>
-            </div>
-          ))
-        )}
-      </CardContent>
-    </Card>
-  ) : null
-
-  const procInsightsTwoCol = showRevByProcedure && showInsights
-  const showProcInsightsBlock = showRevByProcedure || showInsights
+            ))
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-4">
       {kpiCards.length > 0 && (
         // KPIs: 1 unidade cada, mesmo tamanho — 4 por linha no desktop,
-        // degradando para 3/2/1 em telas menores.
+        // degradando para 3/2/1 em telas menores. Grid fluido nunca abre
+        // buraco: esconder card só encurta a última linha.
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{kpiCards}</div>
       )}
 
-      {showChartsBlock && (
-        // Linha de unidades 2,5 + 1,5 → grid de 8 colunas (5 + 3). Quando só
-        // um lado existe (cargo escondeu o outro), o presente estica.
-        <div
-          className={
-            chartsTwoCol ? 'grid items-start gap-3 lg:grid-cols-8' : 'grid items-start gap-3'
-          }
-        >
-          {hasRevenueCol && (
-            <div className={chartsTwoCol ? 'grid gap-3 lg:col-span-5' : 'grid gap-3'}>
-              <RevenueChartsCard
-                generated={revenueByMonth}
-                received={receivedByMonth}
-                receivedCenterIndex={receivedCenterIndex}
-                showGenerated={showRevGenerated}
-                showReceived={showRevReceived}
-              />
-              {goalsInRevenueCol && goalsCard}
-            </div>
-          )}
-
-          {hasSideCol && (
-            // Coluna 1,5 un.: Funil + Origem dos leads empilhados.
-            <div className={chartsTwoCol ? 'grid gap-3 lg:col-span-3' : 'grid gap-3'}>
-              {showFunnel && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Funil de conversão</CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      Leads criados no período, por etapa atual. Fechado conta pela data de
-                      fechamento.
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <FunnelBars data={funnel} />
-                  </CardContent>
-                </Card>
-              )}
-              {showLeadsSource && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Origem dos leads</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <SharePieChart
-                      data={leadsBySource.map((s) => ({
-                        name: LEAD_SOURCE_LABEL[s.source] ?? s.source,
-                        value: s.count,
-                      }))}
-                      valueFormat="count"
-                      unitLabel="leads"
-                    />
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
+      {widgets.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 lg:grid-flow-row-dense lg:auto-rows-[5.5rem] lg:grid-cols-8">
+          {widgets}
         </div>
       )}
-
-      {showProcInsightsBlock && (
-        // Mesma régua de unidades (5 + 3): Receita por procedimento + Insights.
-        <div className={procInsightsTwoCol ? 'grid gap-3 lg:grid-cols-8' : 'grid gap-3'}>
-          {showRevByProcedure && (
-            <Card className={procInsightsTwoCol ? 'lg:col-span-5' : undefined}>
-              <CardHeader>
-                <CardTitle className="text-base">Receita por procedimento</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <HorizontalBarChart
-                  data={revenueByProcedure.map((p) => ({ label: p.name, value: p.total }))}
-                />
-              </CardContent>
-            </Card>
-          )}
-          {showInsights && (
-            <Card className={procInsightsTwoCol ? 'lg:col-span-3' : undefined}>
-              <CardHeader>
-                <CardTitle className="text-base">Insights ativos</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {insightsOpen.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum insight aberto.</p>
-                ) : (
-                  insightsOpen.map((i) => (
-                    <div
-                      key={i.id}
-                      className={`rounded-md border p-3 text-sm ${SEVERITY_TONE[i.severity] ?? ''}`}
-                    >
-                      <p className="font-medium leading-tight">{i.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{i.diagnosis}</p>
-                      <p className="mt-1 text-xs">
-                        <span className="font-medium">Sugestão:</span> {i.suggestion}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {showGoals && !goalsInRevenueCol && goalsCard}
     </div>
   )
 }
