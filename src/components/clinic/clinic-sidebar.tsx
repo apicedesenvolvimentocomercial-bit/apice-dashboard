@@ -5,6 +5,7 @@ import {
   Bell,
   Calendar,
   DollarSign,
+  Download,
   Kanban,
   LayoutDashboard,
   Lightbulb,
@@ -34,6 +35,7 @@ function buildClinicNav(role: ClinicRole): NavItem[] {
     { href: '/goals', label: 'Metas', icon: Target },
     { href: '/insights', label: 'Insights', icon: Lightbulb },
     { href: '/procedures', label: 'Procedimentos', icon: Stethoscope },
+    { href: '/exportacoes', label: 'Exportações', icon: Download },
     { href: '/notificacoes', label: 'Notificações', icon: Bell },
     isOwner
       ? { href: '/configuracoes', label: 'Configurações', icon: Settings }

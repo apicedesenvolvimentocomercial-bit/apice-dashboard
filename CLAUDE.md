@@ -194,6 +194,13 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   `organizationId` — a org tem várias clínicas); transação interativa usa **`scopedTransaction`**
   (`@/server/tenant/scoped-transaction`), nunca `prisma.$transaction` cru. Detalhe + exceções
   admin/por-usuário: seção RLS.
+- **Export de dados (aba Exportações da clínica + `/api/export/[clientId]/[resource]`)**:
+  datasets centralizados em `src/server/services/export-service.ts` (9 recursos; cada um
+  declara o MÓDULO de origem — a rota faz `assertCan(module,'read')` e a page
+  `/exportacoes` esconde o card sem ele; aba gateada pelo módulo `reports`). Formatos:
+  CSV (BOM UTF-8) e XLSX (`exceljs`, valores como literais — sem vetor de fórmula);
+  PDF executivo = rota `/api/reports/[clientId]/pdf` (exige `financial:read`). Dataset
+  novo → adicione em `EXPORT_RESOURCES` (service) e o card/rota saem de graça.
 - **Export CSV**: neutralize formula injection — célula iniciada por `= + - @ \t \r` ganha
   prefixo `'` antes de escapar aspas (ver `escapeCsv` em `api/export/[clientId]/[resource]`).
   Vale também p/ qualquer CSV gerado no client.

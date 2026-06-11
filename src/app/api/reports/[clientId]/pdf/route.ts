@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import React from 'react'
 
 import { auth } from '@/server/auth'
+import { assertCan } from '@/server/auth/assert-can'
 import { getTenantContext, assertClientAccess } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { ForbiddenError } from '@/types/errors'
@@ -35,6 +36,10 @@ export async function GET(req: Request, { params }: { params: Promise<Params> })
     // isso a rota roda como contexto admin (GUC nula). Também faz os helpers do
     // revenue-repository (`scopedTransaction`) setarem a GUC corretamente.
     enterClientScope(clientId)
+
+    // O relatório expõe KPIs financeiros — exige financial:read (titular/ADMIN
+    // passam direto; cargo decide o resto).
+    await assertCan(ctx, 'financial', 'read')
 
     const url = new URL(req.url)
     const fromStr = url.searchParams.get('from')

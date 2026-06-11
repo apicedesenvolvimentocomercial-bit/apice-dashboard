@@ -26,6 +26,7 @@ export type ClinicTab =
   | 'goals'
   | 'insights'
   | 'procedures'
+  | 'reports'
   | 'notificacoes'
   | 'settings'
 
@@ -40,6 +41,7 @@ export const TAB_MODULE: Record<string, ClinicTab> = {
   '/goals': 'goals',
   '/insights': 'insights',
   '/procedures': 'procedures',
+  '/exportacoes': 'reports',
   '/notificacoes': 'notificacoes',
   '/configuracoes': 'settings',
 }
