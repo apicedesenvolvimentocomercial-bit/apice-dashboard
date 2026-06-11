@@ -44,6 +44,15 @@ type Props = {
   visibility?: DashboardVisibility
 }
 
+/**
+ * LAYOUT EM UNIDADES (decisão estética 2026-06-11): a página tem 4 "espaços"
+ * por linha; cada widget vale um nº de unidades — KPI = 1, funil = 1,5,
+ * gráficos de receita = 2,5. Como há meios-valores, o grid real é de 8 colunas
+ * (1 unidade = 2 colunas): KPI `col-span-2`, funil `col-span-3`, gráficos
+ * `col-span-5`. Buracos verticais são tapados POSICIONANDO o próximo widget na
+ * mesma coluna (ex.: Metas sob o gráfico de receita) — encaixe determinístico,
+ * sem JS de medição.
+ */
 export function ClinicDashboard({ data, visibility }: Props) {
   const {
     kpis,
@@ -69,13 +78,6 @@ export function ClinicDashboard({ data, visibility }: Props) {
     return s.items[item] !== false
   }
 
-  // Linha HERO: os 4 números que resumem a clínica, maiores e em destaque.
-  const showHeroRevenue = vis('financialKpis', 'revenue')
-  const showHeroProfit = vis('financialKpis', 'netProfit')
-  const showHeroConversion = vis('commercialKpis', 'conversion')
-  const showHeroHealth = vis('financialKpis', 'healthScore')
-  const showHero = showHeroRevenue || showHeroProfit || showHeroConversion || showHeroHealth
-
   // Card de No-show absorve Comparecimento e Receita perdida como linhas
   // secundárias (são o mesmo assunto: desfecho dos agendamentos). Se o cargo
   // esconder o No-show mas mostrar um dos dois, eles voltam como card próprio.
@@ -90,9 +92,106 @@ export function ClinicDashboard({ data, visibility }: Props) {
   const showTimeToFirstContact =
     vis('commercialKpis', 'timeToFirstContact') && kpis.commercial.avgTimeToFirstContactMin != null
 
-  const secondaryCards: React.ReactNode[] = []
+  // Todos os cards no MESMO tamanho (1 unidade cada); a hierarquia vem da
+  // ORDEM — os 4 números-resumo (faturamento, lucro, conversão, health)
+  // abrem a grade.
+  const kpiCards: React.ReactNode[] = []
+  if (vis('financialKpis', 'revenue')) {
+    kpiCards.push(
+      <KpiCard
+        key="revenue"
+        label="Faturamento"
+        value={formatCurrency(kpis.financial.totalRevenue)}
+        delta={data.kpis.revenueGrowthMoM}
+      />
+    )
+  }
+  if (vis('financialKpis', 'netProfit')) {
+    kpiCards.push(
+      <KpiCard
+        key="netProfit"
+        label="Lucro líquido"
+        value={formatCurrency(kpis.financial.netProfit)}
+        delta={rel(kpis.financial.netProfit, prev.financial.netProfit)}
+        tone={kpis.financial.netProfit < 0 ? 'critical' : 'default'}
+      />
+    )
+  }
+  if (vis('commercialKpis', 'conversion')) {
+    kpiCards.push(
+      <KpiCard
+        key="conversion"
+        label="Conversão"
+        value={formatPercent(kpis.commercial.conversionRate)}
+        delta={rel(kpis.commercial.conversionRate, prev.commercial.conversionRate)}
+        tone={(kpis.commercial.conversionRate ?? 1) < 0.1 ? 'warning' : 'default'}
+      />
+    )
+  }
+  if (vis('financialKpis', 'healthScore')) {
+    kpiCards.push(
+      <KpiCard
+        key="healthScore"
+        label="Health Score"
+        value={kpis.healthScore != null ? String(kpis.healthScore) : '—'}
+        tone={
+          kpis.healthScore == null
+            ? 'default'
+            : kpis.healthScore <= 40
+              ? 'critical'
+              : kpis.healthScore <= 60
+                ? 'warning'
+                : 'good'
+        }
+        info={
+          <>
+            <p className="font-medium text-foreground">Health Score (0–100)</p>
+            <p className="mt-1">
+              Nota composta da saúde da clínica. Soma ponderada de até 6 dimensões; dimensões sem
+              dado são ignoradas e o peso é redistribuído.
+            </p>
+            <ul className="mt-2 space-y-1">
+              <li>
+                <span className="font-medium">Conversão</span> (peso 25%): pontua 100 a cada 20% de
+                conversão lead → venda.
+              </li>
+              <li>
+                <span className="font-medium">No-show invertido</span> (peso 20%): 100 com 0% de
+                faltas; cai a 0 com 25%.
+              </li>
+              <li>
+                <span className="font-medium">Margem líquida</span> (peso 20%): 100 a partir de 40%
+                de margem.
+              </li>
+              <li>
+                <span className="font-medium">Crescimento MoM</span> (peso 15%): 100 com +20% mês a
+                mês; 0 com −20%.
+              </li>
+              <li>
+                <span className="font-medium">Leads vs meta</span> (peso 10%): % de atingimento da
+                meta de leads ativa (prorateada ao período).
+              </li>
+              <li>
+                <span className="font-medium">Tempo até 1º contato</span> (peso 10%): 100
+                instantâneo; 0 a partir de 120 min.
+              </li>
+            </ul>
+            <p className="mt-2">
+              Faixas: <span className="font-medium text-rose-600">0–40 crítico</span>
+              {' · '}
+              <span className="font-medium text-amber-600">41–60 atenção</span>
+              {' · '}
+              <span className="font-medium">61–80 bom</span>
+              {' · '}
+              <span className="font-medium text-emerald-600">81–100 excelente</span>.
+            </p>
+          </>
+        }
+      />
+    )
+  }
   if (vis('commercialKpis', 'leads')) {
-    secondaryCards.push(
+    kpiCards.push(
       <KpiCard
         key="leads"
         label="Leads totais"
@@ -102,7 +201,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     )
   }
   if (vis('commercialKpis', 'appointments')) {
-    secondaryCards.push(
+    kpiCards.push(
       <KpiCard
         key="appointments"
         label="Agendamentos"
@@ -112,7 +211,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     )
   }
   if (showNoShow) {
-    secondaryCards.push(
+    kpiCards.push(
       <KpiCard
         key="noShow"
         label="No-show"
@@ -153,7 +252,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     )
   } else {
     if (showAttendance) {
-      secondaryCards.push(
+      kpiCards.push(
         <KpiCard
           key="attendance"
           label="Comparecimento"
@@ -163,7 +262,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
       )
     }
     if (showLostRevenue) {
-      secondaryCards.push(
+      kpiCards.push(
         <KpiCard
           key="lostRevenue"
           label="Receita perdida"
@@ -174,7 +273,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     }
   }
   if (vis('financialKpis', 'averageTicket')) {
-    secondaryCards.push(
+    kpiCards.push(
       <KpiCard
         key="averageTicket"
         label="Ticket médio"
@@ -194,7 +293,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     )
   }
   if (vis('financialKpis', 'costs')) {
-    secondaryCards.push(
+    kpiCards.push(
       <KpiCard
         key="costs"
         label="Custos"
@@ -205,7 +304,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     )
   }
   if (vis('financialKpis', 'netMargin')) {
-    secondaryCards.push(
+    kpiCards.push(
       <KpiCard
         key="netMargin"
         label="Margem líquida"
@@ -216,7 +315,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     )
   }
   if (vis('financialKpis', 'roi')) {
-    secondaryCards.push(
+    kpiCards.push(
       <KpiCard
         key="roi"
         label="ROI marketing"
@@ -241,7 +340,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     )
   }
   if (vis('financialKpis', 'cac')) {
-    secondaryCards.push(
+    kpiCards.push(
       <KpiCard
         key="cac"
         label="CAC"
@@ -268,7 +367,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     )
   }
   if (showTimeToFirstContact) {
-    secondaryCards.push(
+    kpiCards.push(
       <KpiCard
         key="timeToFirstContact"
         label="Tempo até 1º contato"
@@ -282,139 +381,77 @@ export function ClinicDashboard({ data, visibility }: Props) {
     )
   }
 
-  // Bloco de gráficos: coluna esquerda (2/3) = card único de receita (toggle
-  // Gerada|Recebida); coluna direita (1/3) = Funil + Origem dos leads. Como a
-  // contagem visível varia por cargo, só usamos o layout 2-colunas quando há
-  // conteúdo dos DOIS lados; senão o que sobra estica (sem vão lateral).
   const showRevGenerated = vis('revenueCharts', 'revenueGenerated')
   const showRevReceived = vis('revenueCharts', 'revenueReceived')
   const showFunnel = vis('revenueCharts', 'funnel')
   const showLeadsSource = vis('distributions', 'leadsBySource')
   const showRevByProcedure = vis('distributions', 'revenueByProcedure')
+  const showInsights = vis('tracking', 'insights')
+  const showGoals = vis('tracking', 'goals')
 
-  const hasRevenueCol = showRevGenerated || showRevReceived // coluna esquerda
-  const hasSideCol = showFunnel || showLeadsSource // coluna direita
+  const hasRevenueCol = showRevGenerated || showRevReceived // coluna 2,5 un.
+  const hasSideCol = showFunnel || showLeadsSource // coluna 1,5 un.
   const chartsTwoCol = hasRevenueCol && hasSideCol
   const showChartsBlock = hasRevenueCol || hasSideCol
 
-  // Faixa "Receita por procedimento (2/3) + Insights (1/3)". Cada lado depende
-  // do cargo, então só vira 2 colunas quando ambos aparecem; senão o presente
-  // estica. Progresso de metas fica numa faixa própria abaixo.
-  const showInsights = vis('tracking', 'insights')
-  const showGoals = vis('tracking', 'goals')
+  // Metas sobe para a coluna do gráfico de receita (tapa o vão vertical que a
+  // unificação dos dois gráficos deixou). Sem a coluna de receita, vira faixa
+  // própria no fim, como antes.
+  const goalsInRevenueCol = showGoals && hasRevenueCol
+
+  const goalsCard = showGoals ? (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Progresso de metas</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {goalsProgress.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma meta ativa.</p>
+        ) : (
+          goalsProgress.map((g) => (
+            <div key={g.id}>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{metricLabel(g.metric)}</span>
+                <span className="text-muted-foreground">{g.progressPct.toFixed(0)}%</span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${Math.min(100, g.progressPct)}%` }}
+                />
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {g.currentValue.toLocaleString('pt-BR')} de {g.targetValue.toLocaleString('pt-BR')}{' '}
+                · termina {new Intl.DateTimeFormat('pt-BR').format(g.endDate)}
+              </p>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  ) : null
+
   const procInsightsTwoCol = showRevByProcedure && showInsights
   const showProcInsightsBlock = showRevByProcedure || showInsights
 
   return (
-    <div className="space-y-6">
-      {showHero && (
-        // Linha hero: os 4 números-resumo, maiores. Grid de 4 no desktop.
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {showHeroRevenue && (
-            <KpiCard
-              size="lg"
-              label="Faturamento"
-              value={formatCurrency(kpis.financial.totalRevenue)}
-              delta={data.kpis.revenueGrowthMoM}
-            />
-          )}
-          {showHeroProfit && (
-            <KpiCard
-              size="lg"
-              label="Lucro líquido"
-              value={formatCurrency(kpis.financial.netProfit)}
-              delta={rel(kpis.financial.netProfit, prev.financial.netProfit)}
-              tone={kpis.financial.netProfit < 0 ? 'critical' : 'default'}
-            />
-          )}
-          {showHeroConversion && (
-            <KpiCard
-              size="lg"
-              label="Conversão"
-              value={formatPercent(kpis.commercial.conversionRate)}
-              delta={rel(kpis.commercial.conversionRate, prev.commercial.conversionRate)}
-              tone={(kpis.commercial.conversionRate ?? 1) < 0.1 ? 'warning' : 'default'}
-            />
-          )}
-          {showHeroHealth && (
-            <KpiCard
-              size="lg"
-              label="Health Score"
-              value={kpis.healthScore != null ? String(kpis.healthScore) : '—'}
-              tone={
-                kpis.healthScore == null
-                  ? 'default'
-                  : kpis.healthScore <= 40
-                    ? 'critical'
-                    : kpis.healthScore <= 60
-                      ? 'warning'
-                      : 'good'
-              }
-              info={
-                <>
-                  <p className="font-medium text-foreground">Health Score (0–100)</p>
-                  <p className="mt-1">
-                    Nota composta da saúde da clínica. Soma ponderada de até 6 dimensões; dimensões
-                    sem dado são ignoradas e o peso é redistribuído.
-                  </p>
-                  <ul className="mt-2 space-y-1">
-                    <li>
-                      <span className="font-medium">Conversão</span> (peso 25%): pontua 100 a cada
-                      20% de conversão lead → venda.
-                    </li>
-                    <li>
-                      <span className="font-medium">No-show invertido</span> (peso 20%): 100 com 0%
-                      de faltas; cai a 0 com 25%.
-                    </li>
-                    <li>
-                      <span className="font-medium">Margem líquida</span> (peso 20%): 100 a partir
-                      de 40% de margem.
-                    </li>
-                    <li>
-                      <span className="font-medium">Crescimento MoM</span> (peso 15%): 100 com +20%
-                      mês a mês; 0 com −20%.
-                    </li>
-                    <li>
-                      <span className="font-medium">Leads vs meta</span> (peso 10%): % de
-                      atingimento da meta de leads ativa (prorateada ao período).
-                    </li>
-                    <li>
-                      <span className="font-medium">Tempo até 1º contato</span> (peso 10%): 100
-                      instantâneo; 0 a partir de 120 min.
-                    </li>
-                  </ul>
-                  <p className="mt-2">
-                    Faixas: <span className="font-medium text-rose-600">0–40 crítico</span>
-                    {' · '}
-                    <span className="font-medium text-amber-600">41–60 atenção</span>
-                    {' · '}
-                    <span className="font-medium">61–80 bom</span>
-                    {' · '}
-                    <span className="font-medium text-emerald-600">81–100 excelente</span>.
-                  </p>
-                </>
-              }
-            />
-          )}
-        </div>
-      )}
-
-      {secondaryCards.length > 0 && (
-        // Grid compacto com os demais indicadores (4 por linha no desktop,
-        // degradando para 3/2/1 em telas menores).
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {secondaryCards}
-        </div>
+    <div className="space-y-4">
+      {kpiCards.length > 0 && (
+        // KPIs: 1 unidade cada, mesmo tamanho — 4 por linha no desktop,
+        // degradando para 3/2/1 em telas menores.
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{kpiCards}</div>
       )}
 
       {showChartsBlock && (
+        // Linha de unidades 2,5 + 1,5 → grid de 8 colunas (5 + 3). Quando só
+        // um lado existe (cargo escondeu o outro), o presente estica.
         <div
           className={
-            chartsTwoCol ? 'grid items-start gap-4 lg:grid-cols-3' : 'grid items-start gap-4'
+            chartsTwoCol ? 'grid items-start gap-3 lg:grid-cols-8' : 'grid items-start gap-3'
           }
         >
           {hasRevenueCol && (
-            <div className={chartsTwoCol ? 'lg:col-span-2' : undefined}>
+            <div className={chartsTwoCol ? 'grid gap-3 lg:col-span-5' : 'grid gap-3'}>
               <RevenueChartsCard
                 generated={revenueByMonth}
                 received={receivedByMonth}
@@ -422,13 +459,13 @@ export function ClinicDashboard({ data, visibility }: Props) {
                 showGenerated={showRevGenerated}
                 showReceived={showRevReceived}
               />
+              {goalsInRevenueCol && goalsCard}
             </div>
           )}
 
           {hasSideCol && (
-            // Coluna direita: Funil + Origem dos leads empilhados. A Origem
-            // encaixa no espaço que sobra ao lado do gráfico de receita.
-            <div className="grid gap-4">
+            // Coluna 1,5 un.: Funil + Origem dos leads empilhados.
+            <div className={chartsTwoCol ? 'grid gap-3 lg:col-span-3' : 'grid gap-3'}>
               {showFunnel && (
                 <Card>
                   <CardHeader>
@@ -466,11 +503,10 @@ export function ClinicDashboard({ data, visibility }: Props) {
       )}
 
       {showProcInsightsBlock && (
-        // Receita por procedimento (2/3) + Insights ativos (1/3). Vira 2 colunas
-        // só quando os dois aparecem; senão o presente ocupa a largura toda.
-        <div className={procInsightsTwoCol ? 'grid gap-4 lg:grid-cols-3' : 'grid gap-4'}>
+        // Mesma régua de unidades (5 + 3): Receita por procedimento + Insights.
+        <div className={procInsightsTwoCol ? 'grid gap-3 lg:grid-cols-8' : 'grid gap-3'}>
           {showRevByProcedure && (
-            <Card className={procInsightsTwoCol ? 'lg:col-span-2' : undefined}>
+            <Card className={procInsightsTwoCol ? 'lg:col-span-5' : undefined}>
               <CardHeader>
                 <CardTitle className="text-base">Receita por procedimento</CardTitle>
               </CardHeader>
@@ -482,7 +518,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
             </Card>
           )}
           {showInsights && (
-            <Card>
+            <Card className={procInsightsTwoCol ? 'lg:col-span-3' : undefined}>
               <CardHeader>
                 <CardTitle className="text-base">Insights ativos</CardTitle>
               </CardHeader>
@@ -509,38 +545,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
         </div>
       )}
 
-      {showGoals && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Progresso de metas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {goalsProgress.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma meta ativa.</p>
-            ) : (
-              goalsProgress.map((g) => (
-                <div key={g.id}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{metricLabel(g.metric)}</span>
-                    <span className="text-muted-foreground">{g.progressPct.toFixed(0)}%</span>
-                  </div>
-                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full bg-primary transition-all"
-                      style={{ width: `${Math.min(100, g.progressPct)}%` }}
-                    />
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {g.currentValue.toLocaleString('pt-BR')} de{' '}
-                    {g.targetValue.toLocaleString('pt-BR')} · termina{' '}
-                    {new Intl.DateTimeFormat('pt-BR').format(g.endDate)}
-                  </p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {showGoals && !goalsInRevenueCol && goalsCard}
     </div>
   )
 }
