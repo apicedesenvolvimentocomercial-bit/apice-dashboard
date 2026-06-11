@@ -119,6 +119,23 @@ request via `getClientCreditConfig`. UI: card owner-only em `/configuracoes`
 Validação: type-check · lint 0 · vitest **180** · prisma generate. Neon estava offline (P1001) → o
 usuário aplica a migration em prod.
 
+## Revalidação de KPIs do dashboard (2026-06-11)
+
+Auditoria geral dos KPIs (pedido do usuário) — correções que tocam o domínio DRE:
+
+- **Gráfico "Receita recebida" virou CAIXA REAL via `Receivable`** (`revenue-series.ts`):
+  meses ≤ atual somam parcelas PAGAS por `paidAt`; meses futuros somam PENDENTES por
+  `dueDate`; vencida não-paga NÃO aparece (é inadimplência). A simulação antiga
+  (`amount ÷ installments`) distorcia clínicas com `UPFRONT_FEE`. Parcela PAGA de venda
+  cancelada segue contando (o dinheiro entrou).
+- **`status != CANCELADA` propagado** aos pontos que ficaram para trás: dashboard admin
+  (groupBy por clínica + SQL cru dos 12 meses), série "Receita gerada", e metas REVENUE
+  (3 sites: dashboard `currentGoalValue`, `goal-repository.getCurrentGoalValue`, insight
+  `goal-at-risk`).
+- **Pacientes "reais"** (`fromScheduledLead=false` OU ≥1 ATTENDED) agora filtram o CAC /
+  novos pacientes dos KPIs e a meta NEW_PATIENTS (3 sites idem) — provisórios de
+  agendamento não inflam mais.
+
 ## Unificação DRE + remoção da consolidada (2026-06-08)
 
 - **Aba "Relatórios" REMOVIDA** — era uma DRE simplificada duplicada. A DRE em competência (aba

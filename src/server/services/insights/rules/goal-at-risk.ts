@@ -13,7 +13,14 @@ async function currentValue(
   switch (goal.metric) {
     case 'REVENUE': {
       const r = await prisma.revenue.aggregate({
-        where: { organizationId, clientId, deletedAt: null, date: range },
+        // Competência: CANCELADA não bate meta (mesmo filtro dos KPIs).
+        where: {
+          organizationId,
+          clientId,
+          deletedAt: null,
+          status: { not: 'CANCELADA' },
+          date: range,
+        },
         _sum: { amount: true },
       })
       return Number(r._sum.amount ?? 0)
@@ -28,7 +35,17 @@ async function currentValue(
       })
     case 'NEW_PATIENTS':
       return prisma.patient.count({
-        where: { organizationId, clientId, deletedAt: null, createdAt: range },
+        // Pacientes reais — espelha aba Pacientes/CAC.
+        where: {
+          organizationId,
+          clientId,
+          deletedAt: null,
+          createdAt: range,
+          OR: [
+            { fromScheduledLead: false },
+            { appointments: { some: { status: 'ATTENDED', deletedAt: null } } },
+          ],
+        },
       })
     default:
       return 0

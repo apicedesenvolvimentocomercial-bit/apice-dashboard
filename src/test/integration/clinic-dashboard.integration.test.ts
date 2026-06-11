@@ -34,6 +34,7 @@ import {
   getAdminPrisma,
   resetDb,
   seedBaseline,
+  seedSessionUser,
   type Baseline,
 } from './db'
 
@@ -45,6 +46,7 @@ describe('getClinicDashboard (leitura sem efeito colateral)', () => {
     await resetDb()
     base = await seedBaseline()
     session.user.organizationId = base.organizationId
+    await seedSessionUser(session.user.id, base.organizationId)
 
     const admin = getAdminPrisma()
     // Receita + custo no mês corrente → healthScore computável (não-nulo).

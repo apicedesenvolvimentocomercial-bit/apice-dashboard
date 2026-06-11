@@ -12,6 +12,15 @@ export type ClinicKpis = {
   healthScore: number | null
   revenueGrowthMoM: number | null
   previousRevenue: number
+  /**
+   * KPIs do período ANTERIOR comparável (period-to-date — ver
+   * `comparablePreviousRange`). Alimenta os deltas dos cards do dashboard;
+   * o agregado já era computado (custo zero a mais).
+   */
+  previous: {
+    commercial: CommercialKpis
+    financial: FinancialKpis
+  }
 }
 
 type ClientScope = { organizationId: string; clientIds?: string[] }
@@ -108,6 +117,13 @@ async function aggregateForRange(
         ...clientFilter,
         deletedAt: null,
         createdAt: { gte: range.from, lte: range.to },
+        // Só pacientes REAIS (mesmo filtro da aba Pacientes): agendar cria
+        // paciente provisório (fromScheduledLead) que inflaria o CAC e a
+        // contagem de novos pacientes sem ninguém ter comparecido.
+        OR: [
+          { fromScheduledLead: false },
+          { appointments: { some: { status: 'ATTENDED', deletedAt: null } } },
+        ],
       },
     }),
     prisma.lead.findMany({
@@ -239,6 +255,30 @@ export async function computeClinicKpis(
     { noShowCount: current.noShowCount }
   )
 
+  const previousCommercial = calculateCommercialKpis({
+    leadsCount: previous.leadsCount,
+    wonCount: previous.wonCount,
+    appointmentsCount: previous.appointmentsCount,
+    attendedCount: previous.attendedCount,
+    noShowCount: previous.noShowCount,
+    avgTimeToFirstContactMin: previous.avgTimeToFirstContactMin,
+  })
+
+  const previousFinancial = calculateFinancialKpis(
+    {
+      revenueTotal: previous.revenueTotal,
+      costTotalAll: previous.costTotal,
+      costMarketing: previous.costMarketing,
+      costVariable: previous.costVariable,
+      revenueCount: previous.revenueCount,
+      newPatientsCount: previous.newPatientsCount,
+      revenueAttributedToMarketing: previous.revenueAttributedToMarketing,
+      lostRevenueFromNoShows:
+        previous.lostRevenueFromNoShows > 0 ? previous.lostRevenueFromNoShows : undefined,
+    },
+    { noShowCount: previous.noShowCount }
+  )
+
   const revenueGrowthMoM = calculateMoMGrowth(current.revenueTotal, previous.revenueTotal)
 
   const healthScore = calculateHealthScore({
@@ -259,6 +299,7 @@ export async function computeClinicKpis(
     healthScore,
     revenueGrowthMoM,
     previousRevenue: previous.revenueTotal,
+    previous: { commercial: previousCommercial, financial: previousFinancial },
   }
 }
 

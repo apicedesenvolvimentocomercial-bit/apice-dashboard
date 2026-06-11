@@ -206,6 +206,28 @@ Futuro = plano de pagamento; por ora é opção em Configurações.
   na factory `integrations/index.ts` + assinatura de webhook. Mock já despacha a fila.
 - **Fase D**: NPS (`Survey`), indicação (`Referral`), clube (`Subscription` — cobrança = PAGO).
 
+### Spec "Tempo até 1º contato" (decisão do usuário, 2026-06-11 — implementar na Fase C)
+
+`Lead.firstContactAt` mede o tempo de RESPOSTA da atendente, não a criação do lead.
+O write falso no ingest do webhook (gravava `new Date()` na criação = sempre ~0 min)
+foi REMOVIDO (2026-06-11); hoje NADA escreve o campo — o KPI do dashboard só renderiza
+quando houver dado real. Três casos, por origem do lead:
+
+1. **Walk-in / criado à mão**: NÃO entra na métrica (não houve "contato" a medir;
+   marcar adulteraria o dado). `firstContactAt` permanece null.
+2. **Webhook (formulário de anúncio)**: contador inicia no `createdAt` **ajustado ao
+   horário de funcionamento da clínica** (lead da meia-noite começa a contar na
+   abertura do expediente — precisa de config de horário por clínica, hoje
+   inexistente) e PARA na primeira mensagem da atendente no WhatsApp. (Futuro:
+   chatbot 24/7 atende fora do expediente.)
+3. **WhatsApp inbound**: botão "Registrar Lead" na conversa (evita prestador virar
+   lead). Conta do clique no botão ATÉ a atendente responder (`firstContactAt` =
+   timestamp da 1ª mensagem da atendente APÓS o registro).
+
+Dependências: integração WhatsApp real (saber quando a atendente respondeu) + modelo
+de horário de funcionamento por clínica (caso 2). O insight `slow-first-contact` e a
+dimensão de 10% do Health Score voltam a funcionar de graça quando o campo for escrito.
+
 > Migrations NÃO aplicadas em prod (usuário aplica via `prisma migrate deploy`, EM ORDEM:
 > `20260608020000_retention_lifecycle_enum` ANTES de `20260608030000_retention_lifecycle`).
 > Verificação funcional no Neon (`.env.test`) pendente.
