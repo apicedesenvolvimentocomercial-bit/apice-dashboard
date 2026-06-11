@@ -17,8 +17,6 @@ type Props = {
   delta?: number | null
   invertDelta?: boolean
   tone?: 'default' | 'warning' | 'critical' | 'good'
-  /** `lg` = card "hero" (linha de destaque do dashboard): valor maior. */
-  size?: 'default' | 'lg'
   children?: React.ReactNode
 }
 
@@ -30,7 +28,6 @@ export function KpiCard({
   delta,
   invertDelta = false,
   tone = 'default',
-  size = 'default',
   children,
 }: Props) {
   const toneClass: Record<NonNullable<Props['tone']>, string> = {
@@ -70,9 +67,7 @@ export function KpiCard({
       </CardHeader>
       <CardContent className="space-y-1">
         <div className="flex items-end justify-between gap-2">
-          <p className={cn('font-bold leading-tight', size === 'lg' ? 'text-3xl' : 'text-2xl')}>
-            {value}
-          </p>
+          <p className="text-2xl font-bold leading-tight">{value}</p>
           {renderDelta()}
         </div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}

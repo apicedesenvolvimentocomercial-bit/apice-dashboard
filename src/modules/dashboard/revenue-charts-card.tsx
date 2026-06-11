@@ -37,7 +37,9 @@ export function RevenueChartsCard({
   const hasToggle = showGenerated && showReceived
 
   return (
-    <Card>
+    // h-full: na grade de unidades do dashboard este card vive num wrapper
+    // com row-span fixo — o card preenche a célula inteira.
+    <Card className="h-full">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
         <CardTitle className="flex items-center gap-1.5 text-base">
           <span>
