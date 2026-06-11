@@ -99,7 +99,8 @@ export async function getCurrentGoalValue(
   switch (goal.metric) {
     case 'REVENUE': {
       const r = await prisma.revenue.aggregate({
-        where: { ...base, date: range, ...byUser('createdById') },
+        // Competência: venda CANCELADA não bate meta (mesmo filtro dos KPIs).
+        where: { ...base, status: { not: 'CANCELADA' }, date: range, ...byUser('createdById') },
         _sum: { amount: true },
       })
       return Number(r._sum.amount ?? 0)
@@ -114,7 +115,17 @@ export async function getCurrentGoalValue(
       })
     case 'NEW_PATIENTS':
       return prisma.patient.count({
-        where: { ...base, createdAt: range, ...byUser('createdById') },
+        // Pacientes reais (espelha aba Pacientes): provisórios de agendamento
+        // (fromScheduledLead sem comparecimento) não batem meta.
+        where: {
+          ...base,
+          createdAt: range,
+          ...byUser('createdById'),
+          OR: [
+            { fromScheduledLead: false },
+            { appointments: { some: { status: 'ATTENDED', deletedAt: null } } },
+          ],
+        },
       })
     case 'CONVERSION_RATE':
     case 'NO_SHOW_RATE':

@@ -1,8 +1,6 @@
 import { FunnelBars } from '@/components/charts/funnel-bars'
 import { HorizontalBarChart } from '@/components/charts/horizontal-bar-chart'
-import { RevenueCostBars } from '@/components/charts/revenue-cost-bars'
 import { SharePieChart } from '@/components/charts/share-pie-chart'
-import { InfoHint } from '@/components/dashboard/info-hint'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, formatPercent } from '@/lib/utils'
@@ -11,7 +9,7 @@ import type { ClinicDashboardData } from '@/server/queries/dashboard-queries'
 
 import type { DashboardVisibility } from '@/server/auth/dashboard-visibility'
 
-import { ReceivedRevenueChart } from './received-revenue-chart'
+import { RevenueChartsCard } from './revenue-charts-card'
 
 const LEAD_SOURCE_LABEL: Record<string, string> = {
   META_ADS: 'Meta Ads',
@@ -27,6 +25,16 @@ const SEVERITY_TONE: Record<string, string> = {
   CRITICAL: 'border-rose-300 bg-rose-50/60 dark:border-rose-900 dark:bg-rose-950/40',
   WARNING: 'border-amber-300 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/40',
   INFO: 'border-sky-300 bg-sky-50/60 dark:border-sky-900 dark:bg-sky-950/40',
+}
+
+/**
+ * Delta relativo vs período anterior comparável. `null` (sem seta) quando não
+ * dá para comparar com honestidade: valor ausente ou base anterior ≤ 0 (inclui
+ * lucro anterior negativo — variação % sobre base negativa é enganosa).
+ */
+function rel(curr: number | null | undefined, prev: number | null | undefined): number | null {
+  if (curr == null || prev == null || prev <= 0) return null
+  return (curr - prev) / prev
 }
 
 type Props = {
@@ -49,6 +57,8 @@ export function ClinicDashboard({ data, visibility }: Props) {
     goalsProgress,
   } = data
 
+  const prev = kpis.previous
+
   // vis(section) = seção visível? vis(section, item) = item visível?
   // Sem mapa de visibilidade, tudo aparece.
   const vis = (section: string, item?: string): boolean => {
@@ -59,15 +69,223 @@ export function ClinicDashboard({ data, visibility }: Props) {
     return s.items[item] !== false
   }
 
-  const showCommercial = vis('commercialKpis')
-  const showFinancial = vis('financialKpis')
-  const showKpiGrid = showCommercial || showFinancial
+  // Linha HERO: os 4 números que resumem a clínica, maiores e em destaque.
+  const showHeroRevenue = vis('financialKpis', 'revenue')
+  const showHeroProfit = vis('financialKpis', 'netProfit')
+  const showHeroConversion = vis('commercialKpis', 'conversion')
+  const showHeroHealth = vis('financialKpis', 'healthScore')
+  const showHero = showHeroRevenue || showHeroProfit || showHeroConversion || showHeroHealth
 
-  // Bloco de gráficos: coluna esquerda (2/3) = gráficos de receita empilhados;
-  // coluna direita (1/3) = Funil + Origem dos leads empilhados (a Origem
-  // preenche o vão abaixo do funil). Como a contagem visível varia por cargo,
-  // só usamos o layout 2-colunas quando há conteúdo dos DOIS lados; senão o
-  // que sobra estica para a largura toda (sem vão lateral).
+  // Card de No-show absorve Comparecimento e Receita perdida como linhas
+  // secundárias (são o mesmo assunto: desfecho dos agendamentos). Se o cargo
+  // esconder o No-show mas mostrar um dos dois, eles voltam como card próprio.
+  const showNoShow = vis('commercialKpis', 'noShow')
+  const showAttendance = vis('commercialKpis', 'attendance')
+  const showLostRevenue = vis('financialKpis', 'lostRevenue')
+
+  // "Tempo até 1º contato" só aparece com dado real: hoje nada escreve
+  // `firstContactAt` (o write falso do webhook foi removido); o card volta
+  // sozinho quando a integração WhatsApp instrumentar o campo (spec no ledger
+  // retencao-reforma-progresso.md).
+  const showTimeToFirstContact =
+    vis('commercialKpis', 'timeToFirstContact') && kpis.commercial.avgTimeToFirstContactMin != null
+
+  const secondaryCards: React.ReactNode[] = []
+  if (vis('commercialKpis', 'leads')) {
+    secondaryCards.push(
+      <KpiCard
+        key="leads"
+        label="Leads totais"
+        value={String(kpis.commercial.leadsCount)}
+        delta={rel(kpis.commercial.leadsCount, prev.commercial.leadsCount)}
+      />
+    )
+  }
+  if (vis('commercialKpis', 'appointments')) {
+    secondaryCards.push(
+      <KpiCard
+        key="appointments"
+        label="Agendamentos"
+        value={String(kpis.commercial.appointmentsCount)}
+        delta={rel(kpis.commercial.appointmentsCount, prev.commercial.appointmentsCount)}
+      />
+    )
+  }
+  if (showNoShow) {
+    secondaryCards.push(
+      <KpiCard
+        key="noShow"
+        label="No-show"
+        value={formatPercent(kpis.commercial.noShowRate)}
+        delta={rel(kpis.commercial.noShowRate, prev.commercial.noShowRate)}
+        invertDelta
+        tone={(kpis.commercial.noShowRate ?? 0) > 0.25 ? 'critical' : 'default'}
+        info={
+          <>
+            <p className="font-medium text-foreground">Taxa de no-show</p>
+            <p className="mt-1">
+              Percentual de agendamentos em que o paciente não compareceu sem avisar. Calculado como{' '}
+              <span className="font-medium">no-shows ÷ (atendidos + no-shows)</span>.
+            </p>
+            <p className="mt-1">
+              Apenas desfechos conhecidos entram no cálculo — agendamentos futuros, cancelamentos
+              comunicados e remarcações não diluem a taxa. Acima de 25% a clínica deve agir
+              (lembrete por WhatsApp, exigir sinal etc.).
+            </p>
+            <p className="mt-1">
+              <span className="font-medium">Receita perdida</span> = soma do preço dos procedimentos
+              agendados nos no-shows do período.
+            </p>
+          </>
+        }
+      >
+        {(showAttendance || showLostRevenue) && (
+          <div className="space-y-0.5 text-xs text-muted-foreground">
+            {showAttendance && (
+              <p>Comparecimento: {formatPercent(kpis.commercial.attendanceRate)}</p>
+            )}
+            {showLostRevenue && (
+              <p>Receita perdida: {formatCurrency(kpis.financial.estimatedLostRevenue)}</p>
+            )}
+          </div>
+        )}
+      </KpiCard>
+    )
+  } else {
+    if (showAttendance) {
+      secondaryCards.push(
+        <KpiCard
+          key="attendance"
+          label="Comparecimento"
+          value={formatPercent(kpis.commercial.attendanceRate)}
+          delta={rel(kpis.commercial.attendanceRate, prev.commercial.attendanceRate)}
+        />
+      )
+    }
+    if (showLostRevenue) {
+      secondaryCards.push(
+        <KpiCard
+          key="lostRevenue"
+          label="Receita perdida"
+          value={formatCurrency(kpis.financial.estimatedLostRevenue)}
+          info={<p>Soma do preço dos procedimentos em no-show.</p>}
+        />
+      )
+    }
+  }
+  if (vis('financialKpis', 'averageTicket')) {
+    secondaryCards.push(
+      <KpiCard
+        key="averageTicket"
+        label="Ticket médio"
+        value={formatCurrency(kpis.financial.averageTicket)}
+        delta={rel(kpis.financial.averageTicket, prev.financial.averageTicket)}
+        info={
+          <>
+            <p className="font-medium text-foreground">Ticket médio</p>
+            <p className="mt-1">
+              Valor médio por receita lançada no período. Calculado como{' '}
+              <span className="font-medium">receita total ÷ número de receitas</span>. Quanto mais
+              alto, mais a clínica fatura por atendimento.
+            </p>
+          </>
+        }
+      />
+    )
+  }
+  if (vis('financialKpis', 'costs')) {
+    secondaryCards.push(
+      <KpiCard
+        key="costs"
+        label="Custos"
+        value={formatCurrency(kpis.financial.totalCosts)}
+        delta={rel(kpis.financial.totalCosts, prev.financial.totalCosts)}
+        invertDelta
+      />
+    )
+  }
+  if (vis('financialKpis', 'netMargin')) {
+    secondaryCards.push(
+      <KpiCard
+        key="netMargin"
+        label="Margem líquida"
+        value={formatPercent(kpis.financial.netMargin)}
+        delta={rel(kpis.financial.netMargin, prev.financial.netMargin)}
+        tone={(kpis.financial.netMargin ?? 1) < 0.2 ? 'warning' : 'default'}
+      />
+    )
+  }
+  if (vis('financialKpis', 'roi')) {
+    secondaryCards.push(
+      <KpiCard
+        key="roi"
+        label="ROI marketing"
+        value={kpis.financial.roi != null ? `${(kpis.financial.roi * 100).toFixed(0)}%` : '—'}
+        info={
+          <>
+            <p className="font-medium text-foreground">ROI de marketing</p>
+            <p className="mt-1">
+              Retorno sobre o investimento em marketing. Calculado como{' '}
+              <span className="font-medium">
+                (receita atribuída a marketing − custo de marketing) ÷ custo de marketing
+              </span>
+              .
+            </p>
+            <p className="mt-1">
+              100% significa que cada R$ 1 investido trouxe R$ 1 de lucro além do investimento.
+              Valores negativos indicam que o marketing custou mais do que gerou.
+            </p>
+          </>
+        }
+      />
+    )
+  }
+  if (vis('financialKpis', 'cac')) {
+    secondaryCards.push(
+      <KpiCard
+        key="cac"
+        label="CAC"
+        value={formatCurrency(kpis.financial.cac)}
+        delta={rel(kpis.financial.cac, prev.financial.cac)}
+        invertDelta
+        info={
+          <>
+            <p className="font-medium text-foreground">CAC — Custo de Aquisição de Cliente</p>
+            <p className="mt-1">
+              Quanto custou, em média, conquistar cada novo paciente no período. Calculado como{' '}
+              <span className="font-medium">
+                custo total de marketing ÷ novos pacientes cadastrados
+              </span>
+              . Pacientes provisórios de agendamento (que nunca compareceram) não contam.
+            </p>
+            <p className="mt-1">
+              Compare com o ticket médio: se o CAC for maior que o ticket, a clínica está gastando
+              mais para atrair do que recebe por atendimento.
+            </p>
+          </>
+        }
+      />
+    )
+  }
+  if (showTimeToFirstContact) {
+    secondaryCards.push(
+      <KpiCard
+        key="timeToFirstContact"
+        label="Tempo até 1º contato"
+        value={`${kpis.commercial.avgTimeToFirstContactMin} min`}
+        delta={rel(
+          kpis.commercial.avgTimeToFirstContactMin,
+          prev.commercial.avgTimeToFirstContactMin
+        )}
+        invertDelta
+      />
+    )
+  }
+
+  // Bloco de gráficos: coluna esquerda (2/3) = card único de receita (toggle
+  // Gerada|Recebida); coluna direita (1/3) = Funil + Origem dos leads. Como a
+  // contagem visível varia por cargo, só usamos o layout 2-colunas quando há
+  // conteúdo dos DOIS lados; senão o que sobra estica (sem vão lateral).
   const showRevGenerated = vis('revenueCharts', 'revenueGenerated')
   const showRevReceived = vis('revenueCharts', 'revenueReceived')
   const showFunnel = vis('revenueCharts', 'funnel')
@@ -89,159 +307,38 @@ export function ClinicDashboard({ data, visibility }: Props) {
 
   return (
     <div className="space-y-6">
-      {showKpiGrid && (
-        // 4 KPIs por linha no desktop (xl), degradando para 3/2/1 em telas
-        // menores. Cards maiores e legíveis; vãos só no fim da última linha
-        // quando o cargo mostra menos itens (sem card órfão no meio).
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {vis('commercialKpis', 'leads') && (
-            <KpiCard label="Leads totais" value={String(kpis.commercial.leadsCount)} />
-          )}
-          {vis('commercialKpis', 'appointments') && (
-            <KpiCard label="Agendamentos" value={String(kpis.commercial.appointmentsCount)} />
-          )}
-          {vis('commercialKpis', 'attendance') && (
-            <KpiCard label="Comparecimento" value={formatPercent(kpis.commercial.attendanceRate)} />
-          )}
-          {vis('commercialKpis', 'noShow') && (
+      {showHero && (
+        // Linha hero: os 4 números-resumo, maiores. Grid de 4 no desktop.
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {showHeroRevenue && (
             <KpiCard
-              label="No-show"
-              value={formatPercent(kpis.commercial.noShowRate)}
-              invertDelta
-              tone={(kpis.commercial.noShowRate ?? 0) > 0.25 ? 'critical' : 'default'}
-              info={
-                <>
-                  <p className="font-medium text-foreground">Taxa de no-show</p>
-                  <p className="mt-1">
-                    Percentual de agendamentos em que o paciente não compareceu sem avisar.
-                    Calculado como{' '}
-                    <span className="font-medium">no-shows ÷ (atendidos + no-shows)</span>.
-                  </p>
-                  <p className="mt-1">
-                    Apenas desfechos conhecidos entram no cálculo — agendamentos futuros,
-                    cancelamentos comunicados e remarcações não diluem a taxa. Acima de 25% a
-                    clínica deve agir (lembrete por WhatsApp, exigir sinal etc.).
-                  </p>
-                </>
-              }
-            />
-          )}
-          {vis('commercialKpis', 'conversion') && (
-            <KpiCard
-              label="Conversão"
-              value={formatPercent(kpis.commercial.conversionRate)}
-              tone={(kpis.commercial.conversionRate ?? 1) < 0.1 ? 'warning' : 'default'}
-            />
-          )}
-          {vis('financialKpis', 'revenue') && (
-            <KpiCard
+              size="lg"
               label="Faturamento"
               value={formatCurrency(kpis.financial.totalRevenue)}
               delta={data.kpis.revenueGrowthMoM}
             />
           )}
-          {vis('financialKpis', 'costs') && (
-            <KpiCard label="Custos" value={formatCurrency(kpis.financial.totalCosts)} />
-          )}
-          {vis('financialKpis', 'netProfit') && (
+          {showHeroProfit && (
             <KpiCard
+              size="lg"
               label="Lucro líquido"
               value={formatCurrency(kpis.financial.netProfit)}
+              delta={rel(kpis.financial.netProfit, prev.financial.netProfit)}
               tone={kpis.financial.netProfit < 0 ? 'critical' : 'default'}
             />
           )}
-          {vis('financialKpis', 'averageTicket') && (
+          {showHeroConversion && (
             <KpiCard
-              label="Ticket médio"
-              value={formatCurrency(kpis.financial.averageTicket)}
-              info={
-                <>
-                  <p className="font-medium text-foreground">Ticket médio</p>
-                  <p className="mt-1">
-                    Valor médio por receita lançada no período. Calculado como{' '}
-                    <span className="font-medium">receita total ÷ número de receitas</span>. Quanto
-                    mais alto, mais a clínica fatura por atendimento.
-                  </p>
-                </>
-              }
+              size="lg"
+              label="Conversão"
+              value={formatPercent(kpis.commercial.conversionRate)}
+              delta={rel(kpis.commercial.conversionRate, prev.commercial.conversionRate)}
+              tone={(kpis.commercial.conversionRate ?? 1) < 0.1 ? 'warning' : 'default'}
             />
           )}
-          {vis('financialKpis', 'grossMargin') && (
-            <KpiCard label="Margem bruta" value={formatPercent(kpis.financial.grossMargin)} />
-          )}
-          {vis('financialKpis', 'netMargin') && (
+          {showHeroHealth && (
             <KpiCard
-              label="Margem líquida"
-              value={formatPercent(kpis.financial.netMargin)}
-              tone={(kpis.financial.netMargin ?? 1) < 0.2 ? 'warning' : 'default'}
-            />
-          )}
-          {vis('financialKpis', 'roi') && (
-            <KpiCard
-              label="ROI marketing"
-              value={kpis.financial.roi != null ? `${(kpis.financial.roi * 100).toFixed(0)}%` : '—'}
-              info={
-                <>
-                  <p className="font-medium text-foreground">ROI de marketing</p>
-                  <p className="mt-1">
-                    Retorno sobre o investimento em marketing. Calculado como{' '}
-                    <span className="font-medium">
-                      (receita atribuída a marketing − custo de marketing) ÷ custo de marketing
-                    </span>
-                    .
-                  </p>
-                  <p className="mt-1">
-                    100% significa que cada R$ 1 investido trouxe R$ 1 de lucro além do
-                    investimento. Valores negativos indicam que o marketing custou mais do que
-                    gerou.
-                  </p>
-                </>
-              }
-            />
-          )}
-          {vis('financialKpis', 'cac') && (
-            <KpiCard
-              label="CAC"
-              value={formatCurrency(kpis.financial.cac)}
-              info={
-                <>
-                  <p className="font-medium text-foreground">CAC — Custo de Aquisição de Cliente</p>
-                  <p className="mt-1">
-                    Quanto custou, em média, conquistar cada novo paciente no período. Calculado
-                    como{' '}
-                    <span className="font-medium">
-                      custo total de marketing ÷ novos pacientes cadastrados
-                    </span>
-                    .
-                  </p>
-                  <p className="mt-1">
-                    Compare com o ticket médio: se o CAC for maior que o ticket, a clínica está
-                    gastando mais para atrair do que recebe por atendimento.
-                  </p>
-                </>
-              }
-            />
-          )}
-          {vis('commercialKpis', 'timeToFirstContact') && (
-            <KpiCard
-              label="Tempo até 1º contato"
-              value={
-                kpis.commercial.avgTimeToFirstContactMin != null
-                  ? `${kpis.commercial.avgTimeToFirstContactMin} min`
-                  : '—'
-              }
-              invertDelta
-            />
-          )}
-          {vis('financialKpis', 'lostRevenue') && (
-            <KpiCard
-              label="Receita perdida"
-              value={formatCurrency(kpis.financial.estimatedLostRevenue)}
-              info={<p>Soma do preço dos procedimentos em no-show.</p>}
-            />
-          )}
-          {vis('financialKpis', 'healthScore') && (
-            <KpiCard
+              size="lg"
               label="Health Score"
               value={kpis.healthScore != null ? String(kpis.healthScore) : '—'}
               tone={
@@ -279,7 +376,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
                     </li>
                     <li>
                       <span className="font-medium">Leads vs meta</span> (peso 10%): % de
-                      atingimento da meta de leads, limitado a 100.
+                      atingimento da meta de leads ativa (prorateada ao período).
                     </li>
                     <li>
                       <span className="font-medium">Tempo até 1º contato</span> (peso 10%): 100
@@ -302,89 +399,44 @@ export function ClinicDashboard({ data, visibility }: Props) {
         </div>
       )}
 
+      {secondaryCards.length > 0 && (
+        // Grid compacto com os demais indicadores (4 por linha no desktop,
+        // degradando para 3/2/1 em telas menores).
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {secondaryCards}
+        </div>
+      )}
+
       {showChartsBlock && (
-        // 2/3 + 1/3 só quando há conteúdo dos dois lados; senão a coluna presente
-        // estica para a largura toda (sem vão lateral feio quando o cargo esconde).
         <div
           className={
             chartsTwoCol ? 'grid items-start gap-4 lg:grid-cols-3' : 'grid items-start gap-4'
           }
         >
           {hasRevenueCol && (
-            <div className={chartsTwoCol ? 'grid gap-4 lg:col-span-2' : 'grid gap-4'}>
-              {showRevGenerated && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-1.5 text-base">
-                      <span>Receita gerada x Custos — últimos 12 meses</span>
-                      <InfoHint label="Receita gerada x Custos">
-                        <p className="font-medium text-foreground">Receita gerada</p>
-                        <p className="mt-1">
-                          Soma do valor cheio das vendas no mês em que foram lançadas, independente
-                          do parcelamento. É a referência contábil de quanto foi faturado.
-                        </p>
-                        <p className="mt-2">
-                          <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
-                          parcelado em 12x e vendido em maio aparece como{' '}
-                          <span className="font-medium">R$ 5.000 em maio</span> aqui.
-                        </p>
-                      </InfoHint>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <RevenueCostBars data={revenueByMonth} revenueName="Receita gerada" />
-                  </CardContent>
-                </Card>
-              )}
-              {showRevReceived && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-1.5 text-base">
-                      <span>Receita recebida x Custos</span>
-                      <InfoHint label="Receita recebida x Custos">
-                        <p className="font-medium text-foreground">Receita recebida</p>
-                        <p className="mt-1">
-                          Simulação do fluxo de caixa: o valor da venda é distribuído pelos meses
-                          conforme o número de parcelas. Cada mês mostra o que efetivamente entra no
-                          caixa.
-                        </p>
-                        <p className="mt-2">
-                          <span className="font-medium">Exemplo:</span> um procedimento de R$ 5.000
-                          parcelado em 12x vendido em maio aparece como{' '}
-                          <span className="font-medium">R$ 416,67 em maio</span> e o mesmo valor em
-                          cada um dos 11 meses seguintes (até abril do ano seguinte).
-                        </p>
-                        <p className="mt-2">
-                          <span className="font-medium">Custos futuros:</span> incluem a projeção
-                          dos custos fixos cadastrados (custos recorrentes ainda não lançados).
-                          Mudanças nesses custos refletem aqui automaticamente.
-                        </p>
-                        <p className="mt-2 text-muted-foreground">
-                          Use as setas para navegar pelos meses anteriores e posteriores. O mês
-                          central fica sempre destacado no rodapé do gráfico.
-                        </p>
-                      </InfoHint>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ReceivedRevenueChart
-                      data={receivedByMonth}
-                      centerIndex={receivedCenterIndex}
-                    />
-                  </CardContent>
-                </Card>
-              )}
+            <div className={chartsTwoCol ? 'lg:col-span-2' : undefined}>
+              <RevenueChartsCard
+                generated={revenueByMonth}
+                received={receivedByMonth}
+                receivedCenterIndex={receivedCenterIndex}
+                showGenerated={showRevGenerated}
+                showReceived={showRevReceived}
+              />
             </div>
           )}
 
           {hasSideCol && (
             // Coluna direita: Funil + Origem dos leads empilhados. A Origem
-            // encaixa no espaço que sobra ao lado dos gráficos de receita.
+            // encaixa no espaço que sobra ao lado do gráfico de receita.
             <div className="grid gap-4">
               {showFunnel && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base">Funil de conversão</CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                      Leads criados no período, por etapa atual. Fechado conta pela data de
+                      fechamento.
+                    </p>
                   </CardHeader>
                   <CardContent>
                     <FunnelBars data={funnel} />

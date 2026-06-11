@@ -33,6 +33,7 @@ import {
   getAdminPrisma,
   resetDb,
   seedBaseline,
+  seedSessionUser,
   type Baseline,
 } from './db'
 
@@ -44,6 +45,7 @@ describe('getAdminDashboard — série mensal agregada no banco', () => {
     await resetDb()
     base = await seedBaseline()
     session.user.organizationId = base.organizationId
+    await seedSessionUser(session.user.id, base.organizationId)
 
     const admin = getAdminPrisma()
     const mkRevenue = (date: Date, amount: number) =>

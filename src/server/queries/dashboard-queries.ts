@@ -72,6 +72,9 @@ export const getAdminDashboard = cache(
         where: {
           organizationId: ctx.organizationId,
           deletedAt: null,
+          // Competência (DRE): venda CANCELADA não é receita — mesmo filtro
+          // dos KPIs da clínica (clinic-kpis), senão os números divergem.
+          status: { not: 'CANCELADA' },
           date: { gte: range.from, lte: range.to },
         },
         _sum: { amount: true },
@@ -103,12 +106,14 @@ export const getAdminDashboard = cache(
         },
         _count: { _all: true },
       }),
+      // Conversão conta por `closedAt` SEM filtro de etapa (invariante dos itens
+      // 6/7): o card Fechado migra p/ Retenção no dia seguinte e sai da etapa
+      // isWon — filtrar por etapa subconta tudo que não fechou hoje.
       prisma.lead.findMany({
         where: {
           organizationId: ctx.organizationId,
           deletedAt: null,
           closedAt: { gte: range.from, lte: range.to },
-          stage: { isWon: true },
         },
         select: { clientId: true },
       }),
@@ -183,6 +188,7 @@ export const getAdminDashboard = cache(
       FROM "Revenue"
       WHERE "organizationId" = ${ctx.organizationId}
         AND "deletedAt" IS NULL
+        AND "status" <> 'CANCELADA'
         AND "date" >= ${fromMonthsPrevYear}
       GROUP BY 1
     `
@@ -297,73 +303,119 @@ export const getClinicDashboard = cache(
     enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
     const range = getRange(period, customFrom, customTo)
 
-    const [kpis, revenueSeries, stages, proceduresAgg, leadsBySource, insightsOpen, goals] =
-      await Promise.all([
-        computeClinicKpis(ctx, clientId, range),
-        getRevenueMonthlySeries(ctx, clientId),
-        prisma.pipelineStage.findMany({
-          // Funil do dashboard = pipeline comercial (nativa). Mantém o
-          // comportamento anterior ao multi-pipeline (era o funil NEW).
-          where: { clientId, pipeline: { kind: 'COMMERCIAL' } },
-          orderBy: { order: 'asc' },
-          select: {
-            id: true,
-            name: true,
-            isWon: true,
-            isLost: true,
-            _count: { select: { leads: { where: { deletedAt: null } } } },
+    // Meta de leads ativa (escopo CLINIC) alimenta a dimensão "Leads vs meta"
+    // do Health Score (peso 10% — antes ficava sempre morta: nada passava
+    // `leadTarget`). O alvo é prorateado à fração do range selecionado (meta
+    // mensal vista no filtro "Hoje" vira o alvo de 1 dia).
+    const leadsGoal = await prisma.goal.findFirst({
+      where: {
+        organizationId: ctx.organizationId,
+        clientId,
+        deletedAt: null,
+        metric: 'LEADS',
+        scopeType: 'CLINIC',
+        startDate: { lte: range.to },
+        endDate: { gte: range.from },
+      },
+      orderBy: { endDate: 'asc' },
+      select: { targetValue: true, startDate: true, endDate: true },
+    })
+    const leadTarget = leadsGoal ? prorateLeadTarget(leadsGoal, range) : undefined
+
+    const [
+      kpis,
+      revenueSeries,
+      stages,
+      closedInRange,
+      proceduresAgg,
+      leadsBySource,
+      insightsOpen,
+      goals,
+    ] = await Promise.all([
+      computeClinicKpis(ctx, clientId, range, leadTarget ? { leadTarget } : undefined),
+      getRevenueMonthlySeries(ctx, clientId),
+      prisma.pipelineStage.findMany({
+        // Funil do dashboard = pipeline comercial (nativa), por COORTE do
+        // período: conta leads CRIADOS no range em cada etapa (não o estoque
+        // total — antes o funil ignorava o filtro de período). A etapa
+        // "Fechado" é sobrescrita abaixo por `closedAt` (o card migra p/
+        // Retenção no dia seguinte e sumiria da contagem por etapa).
+        where: { clientId, pipeline: { kind: 'COMMERCIAL' } },
+        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          isWon: true,
+          isLost: true,
+          _count: {
+            select: {
+              leads: {
+                where: { deletedAt: null, createdAt: { gte: range.from, lte: range.to } },
+              },
+            },
           },
-        }),
-        prisma.revenue.groupBy({
-          by: ['procedureId'],
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            deletedAt: null,
-            date: { gte: range.from, lte: range.to },
-            procedureId: { not: null },
-          },
-          _sum: { amount: true },
-          _count: { _all: true },
-          orderBy: { _sum: { amount: 'desc' } },
-          take: 8,
-        }),
-        prisma.lead.groupBy({
-          by: ['source'],
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            deletedAt: null,
-            createdAt: { gte: range.from, lte: range.to },
-          },
-          _count: { _all: true },
-        }),
-        prisma.insight.findMany({
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            status: { in: ['OPEN', 'ACKNOWLEDGED'] },
-          },
-          orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
-          take: 6,
-          select: {
-            id: true,
-            title: true,
-            severity: true,
-            suggestion: true,
-            diagnosis: true,
-          },
-        }),
-        prisma.goal.findMany({
-          where: {
-            organizationId: ctx.organizationId,
-            clientId,
-            deletedAt: null,
-            endDate: { gte: new Date() },
-          },
-          orderBy: { endDate: 'asc' },
-        }),
-      ])
+        },
+      }),
+      // Fechados no período (mesma régua do KPI de conversão): por closedAt,
+      // sem filtro de etapa — ver invariante dos itens 6/7.
+      prisma.lead.count({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          closedAt: { gte: range.from, lte: range.to },
+        },
+      }),
+      prisma.revenue.groupBy({
+        by: ['procedureId'],
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          date: { gte: range.from, lte: range.to },
+          procedureId: { not: null },
+        },
+        _sum: { amount: true },
+        _count: { _all: true },
+        orderBy: { _sum: { amount: 'desc' } },
+        take: 8,
+      }),
+      prisma.lead.groupBy({
+        by: ['source'],
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          createdAt: { gte: range.from, lte: range.to },
+        },
+        _count: { _all: true },
+      }),
+      prisma.insight.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          status: { in: ['OPEN', 'ACKNOWLEDGED'] },
+        },
+        orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
+        take: 6,
+        select: {
+          id: true,
+          title: true,
+          severity: true,
+          suggestion: true,
+          diagnosis: true,
+        },
+      }),
+      prisma.goal.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          endDate: { gte: new Date() },
+        },
+        orderBy: { endDate: 'asc' },
+      }),
+    ])
 
     // Séries "Receita gerada" e "Receita recebida" — extraídas para
     // getRevenueMonthlySeries e reusadas pela aba financeiro.
@@ -388,7 +440,9 @@ export const getClinicDashboard = cache(
 
     const funnel = stages.map((s) => ({
       stage: s.name,
-      count: s._count.leads,
+      // Etapa ganha mostra os fechamentos do PERÍODO (closedAt) — os cards já
+      // migraram p/ Retenção e não estão mais "na etapa".
+      count: s.isWon ? closedInRange : s._count.leads,
       isWon: s.isWon,
       isLost: s.isLost,
     }))
@@ -467,6 +521,22 @@ async function filterGoalsForViewer<
   })
 }
 
+/**
+ * Prorata o alvo da meta de leads à fração do range do dashboard: meta de 100
+ * leads/mês olhada na semana vira alvo ~25. Range maior que a meta escala na
+ * outra direção (alvo > targetValue) — proporção honesta nos dois sentidos.
+ */
+function prorateLeadTarget(
+  goal: { targetValue: unknown; startDate: Date; endDate: Date },
+  range: PeriodRange
+): number | undefined {
+  const goalMs = goal.endDate.getTime() - goal.startDate.getTime() + 1
+  if (goalMs <= 0) return undefined
+  const rangeMs = range.to.getTime() - range.from.getTime() + 1
+  const target = Number(goal.targetValue) * (rangeMs / goalMs)
+  return Number.isFinite(target) && target > 0 ? target : undefined
+}
+
 async function currentGoalValue(
   organizationId: string,
   clientId: string,
@@ -476,7 +546,14 @@ async function currentGoalValue(
   switch (goal.metric) {
     case 'REVENUE': {
       const r = await prisma.revenue.aggregate({
-        where: { organizationId, clientId, deletedAt: null, date: range },
+        // Competência: venda CANCELADA não bate meta (mesmo filtro dos KPIs).
+        where: {
+          organizationId,
+          clientId,
+          deletedAt: null,
+          status: { not: 'CANCELADA' },
+          date: range,
+        },
         _sum: { amount: true },
       })
       return Number(r._sum.amount ?? 0)
@@ -493,7 +570,18 @@ async function currentGoalValue(
     }
     case 'NEW_PATIENTS': {
       return prisma.patient.count({
-        where: { organizationId, clientId, deletedAt: null, createdAt: range },
+        where: {
+          organizationId,
+          clientId,
+          deletedAt: null,
+          createdAt: range,
+          // Pacientes reais (espelha a aba Pacientes / CAC): provisórios de
+          // agendamento não batem meta.
+          OR: [
+            { fromScheduledLead: false },
+            { appointments: { some: { status: 'ATTENDED', deletedAt: null } } },
+          ],
+        },
       })
     }
     default:
