@@ -150,10 +150,162 @@ async function main() {
     },
   })
 
+  // ── Cargos de clínica + staff variado (teste 10b: visibilidade de aba e de
+  // dashboard por cargo; isolamento por staff). Senha de todos: cargo123.
+  const cargoHash = await hash('cargo123', 12)
+
+  const fullTab = { access: true, read: true, write: true, delete: false }
+
+  // Permissões SEMPRE re-gravadas no upsert (update + create): o Neon pode ter
+  // cargos homônimos criados à mão em testes manuais — `update:{}` preservaria
+  // o JSON antigo e o E2E asserta o shape daqui. `level` fica só no create
+  // (re-gravar arriscaria colidir o unique [clientId, level]).
+  const gerentePerms = {
+    crm: { ...fullTab, assignToOthers: true, viewAll: true },
+    appointments: { ...fullTab, assignToOthers: true, viewAll: true },
+    activities: { ...fullTab, assignToOthers: true, viewAll: true },
+    patients: fullTab,
+    financial: fullTab,
+    goals: { ...fullTab, viewAll: true },
+    insights: { access: true, read: true },
+    procedures: fullTab,
+    reports: { access: true, read: true },
+    dashboard: {
+      commercialKpis: { access: true },
+      financialKpis: { access: true },
+      tracking: { access: true },
+    },
+  }
+
+  // Gerente (level 1): todas as abas + dashboard amplo + gerencia cargos.
+  const gerenteA = await prisma.clinicRole.upsert({
+    where: { clientId_name: { clientId: clinicA.id, name: 'Gerente' } },
+    update: { permissions: gerentePerms, canManageRoles: true },
+    create: {
+      clientId: clinicA.id,
+      name: 'Gerente',
+      level: 1,
+      canManageRoles: true,
+      permissions: gerentePerms,
+    },
+  })
+
+  // Atendente (level 2): só operação comercial — SEM financeiro/metas/insights/
+  // procedimentos/exportações. Dashboard: só KPIs comerciais, com o item
+  // "noShow" explicitamente DESLIGADO (testa o gate por item).
+  const atendentePerms = {
+    crm: fullTab,
+    appointments: fullTab,
+    activities: fullTab,
+    patients: fullTab,
+    dashboard: {
+      commercialKpis: { access: true, items: { noShow: false } },
+    },
+  }
+  const atendenteA = await prisma.clinicRole.upsert({
+    where: { clientId_name: { clientId: clinicA.id, name: 'Atendente' } },
+    update: { permissions: atendentePerms },
+    create: {
+      clientId: clinicA.id,
+      name: 'Atendente',
+      level: 2,
+      permissions: atendentePerms,
+    },
+  })
+
+  // Financeiro (level 3): só dinheiro + exportações. Dashboard financeiro.
+  const financeiroPerms = {
+    financial: fullTab,
+    reports: { access: true, read: true },
+    dashboard: {
+      financialKpis: { access: true },
+      revenueCharts: { access: true },
+    },
+  }
+  const financeiroA = await prisma.clinicRole.upsert({
+    where: { clientId_name: { clientId: clinicA.id, name: 'Financeiro' } },
+    update: { permissions: financeiroPerms },
+    create: {
+      clientId: clinicA.id,
+      name: 'Financeiro',
+      level: 3,
+      permissions: financeiroPerms,
+    },
+  })
+
+  // Espelho na clínica B (isolamento por STAFF, não só por owner).
+  const atendenteBPerms = {
+    crm: fullTab,
+    appointments: fullTab,
+    patients: fullTab,
+    dashboard: { commercialKpis: { access: true } },
+  }
+  const atendenteB = await prisma.clinicRole.upsert({
+    where: { clientId_name: { clientId: clinicB.id, name: 'Atendente' } },
+    update: { permissions: atendenteBPerms },
+    create: {
+      clientId: clinicB.id,
+      name: 'Atendente',
+      level: 2,
+      permissions: atendenteBPerms,
+    },
+  })
+
+  const staffUsers: { email: string; name: string; clientId: string; roleId: string | null }[] = [
+    {
+      email: 'gerente-a@senno.dev',
+      name: 'Gerente Alpha',
+      clientId: clinicA.id,
+      roleId: gerenteA.id,
+    },
+    {
+      email: 'atendente-a@senno.dev',
+      name: 'Atendente Alpha',
+      clientId: clinicA.id,
+      roleId: atendenteA.id,
+    },
+    {
+      email: 'financeiro-a@senno.dev',
+      name: 'Financeiro Alpha',
+      clientId: clinicA.id,
+      roleId: financeiroA.id,
+    },
+    // Sem cargo: deny-by-default deve expulsar p/ /login.
+    { email: 'semcargo-a@senno.dev', name: 'Sem Cargo Alpha', clientId: clinicA.id, roleId: null },
+    {
+      email: 'atendente-b@senno.dev',
+      name: 'Atendente Bravo',
+      clientId: clinicB.id,
+      roleId: atendenteB.id,
+    },
+  ]
+  for (const u of staffUsers) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: { clientId: u.clientId, clinicRoleId: u.roleId },
+      create: {
+        email: u.email,
+        name: u.name,
+        passwordHash: cargoHash,
+        role: 'CLIENT_STAFF',
+        isActive: true,
+        organizationId: org.id,
+        clientId: u.clientId,
+        clinicRoleId: u.roleId,
+      },
+    })
+  }
+
   console.log('✅ Seed E2E concluído!')
   console.log('   Admin: admin@senno.dev / admin123')
   console.log('   Owner A: owner-a@senno.dev / owner123 (Clínica Alpha → Paciente Alpha)')
   console.log('   Owner B: owner-b@senno.dev / owner123 (Clínica Bravo → Paciente Bravo)')
+  console.log('   Staff (senha cargo123):')
+  console.log('     gerente-a@senno.dev    (Alpha, todas as abas + dashboard amplo)')
+  console.log('     atendente-a@senno.dev  (Alpha, só comercial; dashboard sem noShow)')
+  console.log('     financeiro-a@senno.dev (Alpha, só financeiro+exportações)')
+  console.log('     semcargo-a@senno.dev   (Alpha, SEM cargo → deny-by-default)')
+  console.log('     atendente-b@senno.dev  (Bravo, só comercial)')
 }
 
 main()
