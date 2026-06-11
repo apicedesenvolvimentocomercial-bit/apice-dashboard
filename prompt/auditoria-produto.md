@@ -63,7 +63,7 @@ Estado confirmado por varredura do código:
 | Integração              | Estado no código                                                                                    | Padrão mercado (clínica 2025)                   |
 | ----------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | WhatsApp / SMS          | **Mock apenas** (`src/server/integrations/whatsapp/mock-provider.ts`; `IWhatsappProvider` definido) | Obrigatório. 2-way text, confirmação 1-clique   |
-| Lembrete de agendamento | **Inexistente**                                                                                     | Padrão: 48h + 24h antes; corta no-show até ~30% |
+| Lembrete de agendamento | **FEITO (2026-06-10):** `appointment-reminders-job` (D-1, fila/tarefa, provider-agnostic)           | Padrão: 48h + 24h antes; corta no-show até ~30% |
 | Reativação de inativo   | **Meio:** `retention-job` marca INACTIVE mas **não dispara nada**                                   | Campanha multi-touch automática                 |
 | Email                   | Só transacional (reset / convite / relatório mensal via Resend) — **funcional**                     | Drip / sequências de nurture                    |
 | Booking online          | **Inexistente** (agenda é interna)                                                                  | Self-scheduling do paciente = padrão            |
