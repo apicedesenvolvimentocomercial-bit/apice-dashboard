@@ -44,7 +44,7 @@ transversal.
 
 ## 6. Riscos residuais / próximos passos
 
-1. **Cron `findDueActivities`/`findOverdueActivities` varre a tabela inteira** filtrando só `status`+`dueDate` (ambos domínios). Não regrediu, mas escala mal. Recomendado: índice `[status, dueDate]` (ou `[domain, status, dueDate]`) + paginação; medir antes/depois. Não feito aqui (precisa migration + medição em prod).
+1. ~~**Cron `findDueActivities`/`findOverdueActivities` varre a tabela inteira**~~ — **RESOLVIDO (2026-06-11):** medição em prod (Seq Scan 3.01s) justificou; índice `[status, dueDate]` criado (migration `20260611000000_activity_status_duedate_index`). Ver deploy-checklist §8.
 2. ~~**Migration `activity_domain` p/ prod**~~ — **RESOLVIDO** (aplicada em prod, confirmado 2026-05-22).
 3. **Runtime nunca testado** localmente — `.env` aponta p/ produção (Accelerate/Vercel), sem dev DB. Toda verificação foi `tsc`/`eslint`/`vitest` (mock). Recomendado um smoke test manual pós-deploy nas telas da clínica.
 4. ~~**Rename `(client)` → `(clinic)` + namespacing definitivo de rota**~~ — **FECHADO

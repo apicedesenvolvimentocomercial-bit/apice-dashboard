@@ -1246,6 +1246,10 @@ model Activity {
   @@index([organizationId, status])
   @@index([assignedToId, status])
   @@index([dueDate])
+  // Cron de notificações (findDue/findOverdueActivities) é CROSS-org: filtra só
+  // status+dueDate. Medido em prod (2026-06-11): Seq Scan 3.01s na overdue.
+  // status primeiro (IN de 2 valores) + range em dueDate = Index Scan.
+  @@index([status, dueDate])
   @@index([organizationId, status, dueDate])
   // Domínio clínica: queries escopam por clientId. Cobre where+orderBy reais
   // das listagens de atividade da clínica (Fase 3 da reforma divisão total).
