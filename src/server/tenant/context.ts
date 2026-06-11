@@ -1,3 +1,5 @@
+import { cache } from 'react'
+
 import type { UserRole } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
@@ -12,18 +14,46 @@ export type TenantContext = {
   clinicRoleId: string | null
 }
 
+/**
+ * Estado FRESCO do usuário, 1 query por request (dedupe via React cache).
+ * O JWT identifica QUEM é (`userId`); os claims de autorização (role, clientId,
+ * clinicRoleId) saem do DB a cada request — mudança de cargo/role/desativação
+ * vale na hora, sem esperar o re-sync de 10 min do token (achados Crítico 1 e
+ * Médio 1 da auditoria de usuários, 2026-06-10).
+ */
+const getFreshUser = cache(async (userId: string) => {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      organizationId: true,
+      role: true,
+      clientId: true,
+      clinicRoleId: true,
+      isActive: true,
+      deletedAt: true,
+    },
+  })
+})
+
 export async function getTenantContext(): Promise<TenantContext> {
   const session = await auth()
-  if (!session?.user?.id || !session.user.organizationId) {
+  if (!session?.user?.id) {
+    throw new UnauthorizedError()
+  }
+
+  // Autorização decide pelo DB, não pelo cookie: usuário desativado/removido
+  // perde acesso no request seguinte mesmo com JWT ainda válido.
+  const fresh = await getFreshUser(session.user.id)
+  if (!fresh || !fresh.isActive || fresh.deletedAt || !fresh.organizationId) {
     throw new UnauthorizedError()
   }
 
   return {
     userId: session.user.id,
-    organizationId: session.user.organizationId,
-    role: session.user.role as UserRole,
-    clientId: session.user.clientId ?? null,
-    clinicRoleId: session.user.clinicRoleId ?? null,
+    organizationId: fresh.organizationId,
+    role: fresh.role,
+    clientId: fresh.clientId,
+    clinicRoleId: fresh.clinicRoleId,
   }
 }
 

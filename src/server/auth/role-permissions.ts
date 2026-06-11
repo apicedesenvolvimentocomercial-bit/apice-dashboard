@@ -113,6 +113,44 @@ export function dashboardItemVisible(
 }
 
 /**
+ * Preferências de NOTIFICAÇÃO por cargo. Vivem sob a chave reservada
+ * `notifications` do mesmo JSON de permissões (espelha o padrão `dashboard`) —
+ * não é um módulo/aba e NÃO entra em roleCan/roleHasTabAccess.
+ *
+ * Default OPT-OUT (contrário do dashboard): categoria/canal ausente ⇒ LIGADO.
+ * Notificação é útil por padrão; o cargo desliga o que não quer. `true` liga
+ * tudo; `false` desliga tudo; objeto controla canal a canal (inApp/email).
+ * Titular/admin ignoram isto (coroa não consulta cargo) — tratado no dispatch.
+ */
+export type NotificationCategoryPerm = boolean | { inApp?: boolean; email?: boolean }
+export type NotificationPermissions = Record<string, NotificationCategoryPerm>
+
+export const NOTIFICATION_PERM_KEY = 'notifications'
+
+/** Extrai o bloco `notifications` do JSON de permissões (ausente ⇒ vazio = tudo ligado). */
+export function parseNotificationPermissions(json: unknown): NotificationPermissions {
+  if (json && typeof json === 'object' && !Array.isArray(json)) {
+    const block = (json as Record<string, unknown>)[NOTIFICATION_PERM_KEY]
+    if (block && typeof block === 'object' && !Array.isArray(block)) {
+      return block as NotificationPermissions
+    }
+  }
+  return {}
+}
+
+/** Canal habilitado p/ a categoria? Opt-out: ausência ⇒ true. */
+export function notificationChannelEnabled(
+  perms: NotificationPermissions,
+  category: string,
+  channel: 'inApp' | 'email'
+): boolean {
+  const cat = perms[category]
+  if (cat === undefined) return true
+  if (typeof cat === 'boolean') return cat
+  return cat[channel] !== false
+}
+
+/**
  * Hierarquia LINEAR de cargos. Menor `level` = mais alto. Um ator pode atuar
  * sobre um cargo-alvo só se estiver estritamente acima dele.
  *

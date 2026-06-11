@@ -15,6 +15,9 @@ export {
   dashboardItemVisible,
   canActOnRoleLevel,
   DASHBOARD_PERM_KEY,
+  NOTIFICATION_PERM_KEY,
+  parseNotificationPermissions,
+  notificationChannelEnabled,
 } from './role-permissions'
 
 export type {
@@ -23,4 +26,6 @@ export type {
   RolePermissions as ClinicRolePermissions,
   DashboardSectionPerm,
   DashboardPermissions,
+  NotificationCategoryPerm,
+  NotificationPermissions,
 } from './role-permissions'

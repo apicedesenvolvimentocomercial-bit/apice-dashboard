@@ -2,6 +2,10 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getWhatsappProvider } from '@/server/integrations'
 import { DEFAULT_MESSAGE_TEMPLATES, renderTemplate } from '@/server/services/message-service'
+import {
+  dispatchNotification,
+  getRecipientsForClient,
+} from '@/server/services/notification-service'
 
 /**
  * Despacha a fila `OutboundMessage` (reforma da retenção + plano de correções 1.2).
@@ -52,6 +56,7 @@ export async function runMessagesJob(now: Date = new Date(), batchSize = 200) {
     select: {
       id: true,
       clientId: true,
+      organizationId: true,
       channel: true,
       templateKey: true,
       payload: true,
@@ -81,7 +86,12 @@ export async function runMessagesJob(now: Date = new Date(), batchSize = 200) {
   }
 
   // Falha transitória → re-fila com backoff; esgotou → FAILED terminal.
-  async function handleFailure(id: string, attempt: number, errorMsg: string) {
+  async function handleFailure(
+    msg: { id: string; clientId: string; organizationId: string; templateKey: string },
+    attempt: number,
+    errorMsg: string
+  ) {
+    const { id } = msg
     if (attempt >= MAX_ATTEMPTS) {
       await prisma.outboundMessage.update({
         where: { id },
@@ -89,6 +99,28 @@ export async function runMessagesJob(now: Date = new Date(), batchSize = 200) {
       })
       failed++
       logger.warn('Messages job: mensagem FAILED terminal', { id, attempt, error: errorMsg })
+      // Titular fica sabendo que a régua deixou de alcançar alguém (best-effort).
+      // Dedupe 20h por link ⇒ no máximo 1 aviso/dia mesmo com várias falhas.
+      try {
+        const targets = await getRecipientsForClient(msg.organizationId, msg.clientId)
+        if (targets.length > 0) {
+          await dispatchNotification(targets, {
+            type: 'SYSTEM',
+            title: 'Mensagem automática falhou',
+            message:
+              `Uma mensagem da régua (template "${msg.templateKey}") esgotou as tentativas ` +
+              'de envio. Verifique a integração de WhatsApp e considere contatar o paciente à mão.',
+            link: '/configuracoes',
+            metadata: { outboundMessageId: id, templateKey: msg.templateKey },
+            dedupeWindowHours: 20,
+          })
+        }
+      } catch (notifyErr) {
+        logger.warn('Messages job: aviso de FAILED não enviado', {
+          id,
+          error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+        })
+      }
     } else {
       await prisma.outboundMessage.update({
         where: { id },
@@ -145,7 +177,7 @@ export async function runMessagesJob(now: Date = new Date(), batchSize = 200) {
         variables: { ...vars, body },
       })
       if (res.status === 'failed') {
-        await handleFailure(msg.id, attempt, 'provider recusou o envio')
+        await handleFailure(msg, attempt, 'provider recusou o envio')
       } else {
         await prisma.outboundMessage.update({
           where: { id: msg.id },
@@ -160,7 +192,7 @@ export async function runMessagesJob(now: Date = new Date(), batchSize = 200) {
         sent++
       }
     } catch (err) {
-      await handleFailure(msg.id, attempt, err instanceof Error ? err.message : String(err))
+      await handleFailure(msg, attempt, err instanceof Error ? err.message : String(err))
     }
   }
 

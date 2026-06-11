@@ -16,7 +16,7 @@ import {
 import { createDefaultPipelineStages } from '@/server/services/client-service'
 import { assertCan } from '@/server/auth/assert-can'
 import { getTenantContext } from '@/server/tenant/context'
-import { ConflictError, NotFoundError, fail, ok, runAction } from '@/types/errors'
+import { ConflictError, ForbiddenError, NotFoundError, fail, ok, runAction } from '@/types/errors'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 
 function slugify(name: string) {
@@ -228,6 +228,19 @@ export async function removeClinicUserAction(formData: z.infer<typeof removeClin
       select: { id: true, email: true },
     })
     if (!target) throw new NotFoundError('Usuário')
+
+    // Titular (Client.ownerId) não pode ser removido por terceiros — invariante
+    // do ledger de cargos (espelha staff-actions). Exige transferir a
+    // titularidade primeiro. Auditoria 2026-06-10, Crítico 2.
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, organizationId: ctx.organizationId },
+      select: { ownerId: true },
+    })
+    if (client?.ownerId === userId) {
+      throw new ForbiddenError(
+        'Este usuário é o titular da clínica. Transfira a titularidade antes de removê-lo.'
+      )
+    }
 
     await prisma.$transaction([
       prisma.user.update({

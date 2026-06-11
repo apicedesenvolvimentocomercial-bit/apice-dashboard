@@ -114,4 +114,7 @@ Gate de atribuição (`assignRole`):
 
 ## Pendências ainda abertas
 
-- **Migration aplicada pelo usuário em prod** (`prisma migrate deploy`).
+- Nenhuma. ~~Migration aplicada pelo usuário em prod~~ — **RESOLVIDA por mecanismo:**
+  migrations agora aplicam automaticamente no build da Vercel
+  (`scripts/migrate-if-prod.mjs`, só `VERCEL_ENV=production`) — ver CLAUDE.md
+  "Ambiente & comandos".

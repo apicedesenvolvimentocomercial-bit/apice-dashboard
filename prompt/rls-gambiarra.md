@@ -182,5 +182,7 @@ e reads):
 `domain:'ADMIN'`), audit; e superfícies por-usuário (calendário pessoal da agência,
 notificações) — isoladas por `userId`, não por `clientId`.
 
-**Pendente:** `clinic-schedule`/`settings` já são seguros (belt presente / owner-gated / alvo
-é o próprio `Client` validado), mas ainda não entram escopo (defesa-em-profundidade opcional).
+~~**Pendente:** `clinic-schedule`/`settings` ainda não entram escopo~~ — **FECHADO
+(2026-06-10):** `enterClientScope(clientId)` adicionado após `assertClientAccess` nas 4
+actions de `clinic-schedule-actions.ts` e em `updateClinicSettingsAction`. Cobertura de
+escopo agora é total nos entrypoints de clínica.

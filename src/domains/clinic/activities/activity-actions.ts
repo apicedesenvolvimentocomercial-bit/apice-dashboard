@@ -549,6 +549,7 @@ async function notifyClinicAssignee(
       [{ userId: user.id, email: user.email, name: user.name, clientId: ctx.clientId }],
       {
         type: 'SYSTEM',
+        category: 'activities',
         title: `Nova atividade: ${activity.title}`,
         message: when
           ? `Você foi designado para "${activity.title}". Vencimento: ${when}.`

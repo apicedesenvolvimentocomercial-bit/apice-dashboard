@@ -1,3 +1,4 @@
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { headers } from 'next/headers'
@@ -29,6 +30,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <CookieConsent />
           <DismissibleToaster />
         </ThemeProvider>
+        {/* Speed Insights (Web Vitals reais → dashboard da Vercel). O script é
+            injetado por código já confiável (cadeia do nonce) → strict-dynamic
+            permite; beacon vai p/ /_vercel/speed-insights/* (same-origin →
+            connect-src 'self' cobre). Só ativa em produção na Vercel. */}
+        <SpeedInsights />
       </body>
     </html>
   )

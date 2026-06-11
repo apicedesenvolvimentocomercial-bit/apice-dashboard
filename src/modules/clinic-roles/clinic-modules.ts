@@ -55,4 +55,7 @@ export const CLINIC_MODULES: ClinicModuleDef[] = [
   },
   { key: 'insights', label: 'Insights', description: 'Recomendações automáticas' },
   { key: 'procedures', label: 'Procedimentos', description: 'Catálogo de procedimentos' },
+  // A aba lista só os datasets cujo módulo de ORIGEM o cargo lê (crm, financial…);
+  // este access controla apenas se a aba aparece.
+  { key: 'reports', label: 'Exportações', description: 'Download de dados (CSV/Excel/PDF)' },
 ]

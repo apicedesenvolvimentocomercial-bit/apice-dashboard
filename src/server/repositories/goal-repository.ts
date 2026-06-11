@@ -83,7 +83,9 @@ export async function softDeleteGoal(ctx: TenantContext, goalId: string, clientI
  * Sem `assigneeUserId`, mede o total da clínica (metas CLINIC ou SHARED).
  */
 export async function getCurrentGoalValue(
-  ctx: TenantContext,
+  // Só `organizationId` é usado — jobs (sem sessão) também chamam, passando
+  // o organizationId da própria meta.
+  ctx: Pick<TenantContext, 'organizationId'>,
   clientId: string,
   goal: { metric: string; startDate: Date; endDate: Date },
   assigneeUserId?: string | null

@@ -7,6 +7,7 @@ import { ok, fail } from '@/types/errors'
 import type { Result } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import {
   updateClinicSchedule,
   addClinicHoliday,
@@ -34,6 +35,7 @@ function revalidate(clientId: string) {
 export async function updateClinicScheduleAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: RLS ativa p/ esta clínica (rls-gambiarra)
   await assertCan(ctx, 'appointments', 'write')
 
   const parsed = scheduleSchema.safeParse(formData)
@@ -50,6 +52,7 @@ export async function updateClinicScheduleAction(clientId: string, formData: unk
 export async function addHolidayAction(clientId: string, formData: unknown) {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: RLS ativa p/ esta clínica (rls-gambiarra)
   await assertCan(ctx, 'appointments', 'write')
 
   const parsed = holidaySchema.safeParse(formData)
@@ -66,6 +69,7 @@ export async function addHolidaysBulkAction(
 ): Promise<Result<{ added: number }>> {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: RLS ativa p/ esta clínica (rls-gambiarra)
   await assertCan(ctx, 'appointments', 'write')
 
   const valid = holidays
@@ -91,6 +95,7 @@ export async function removeHolidayAction(
 ): Promise<Result<null>> {
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId) // suspenders: RLS ativa p/ esta clínica (rls-gambiarra)
   await assertCan(ctx, 'appointments', 'write')
 
   await removeClinicHoliday(clientId, holidayId)

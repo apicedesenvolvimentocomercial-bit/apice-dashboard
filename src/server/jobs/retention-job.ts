@@ -15,6 +15,10 @@ import {
   resolveTemplate,
   RETENTION_TEMPLATE_KEYS,
 } from '@/server/services/message-service'
+import {
+  dispatchNotification,
+  getRecipientsForModule,
+} from '@/server/services/notification-service'
 
 /**
  * Cron de retenção — CICLO DE VIDA DO PACIENTE (reforma — retencao-reforma-progresso.md).
@@ -166,6 +170,8 @@ export type RetentionClientResult = {
   moved: number
   queued: number
   tasked: number
+  /** Pacientes que ENTRARAM em Reativação/Salvamento nesta execução (avisados). */
+  riskNotified: number
 }
 
 /** Processa a régua de retenção de UMA clínica (queries em lote — D1). */
@@ -186,6 +192,7 @@ export async function runRetentionForClient(
     moved: 0,
     queued: 0,
     tasked: 0,
+    riskNotified: 0,
   }
 
   await ensureNativePipelines(client.id, client.organizationId)
@@ -363,6 +370,10 @@ export async function runRetentionForClient(
     ).map((m) => m.dedupeKey!)
   )
 
+  // Pacientes que ENTRARAM em risco nesta execução (Reativação/Salvamento) —
+  // viram UM aviso agregado por clínica no fim (não 1 notificação por paciente).
+  const riskEntries: { name: string; bucket: RetentionStageKey }[] = []
+
   for (const plan of plans) {
     const { card, patientId, lastVisit, lastVisitAt, returnWindowDays, bucket } = plan
 
@@ -379,6 +390,10 @@ export async function runRetentionForClient(
     if (targetStageId && targetStageId !== card.stageId) {
       await prisma.lead.update({ where: { id: card.id }, data: { stageId: targetStageId } })
       result.moved++
+      // Transição PARA bucket de risco = paciente acabou de "vencer" a janela.
+      if (bucket === 'REACTIVATION' || bucket === 'WINBACK') {
+        riskEntries.push({ name: card.name, bucket })
+      }
     }
 
     // Toque do bucket (idempotente por dedupeKey ancorado na última visita — 1 por
@@ -417,6 +432,42 @@ export async function runRetentionForClient(
     }
   }
 
+  // CLIENT_INACTIVE (tipo existia no enum sem disparo): UM aviso agregado por
+  // clínica p/ titular + cargo com `patients:read`. Best-effort — falha não
+  // derruba a régua. Dedupe 20h cobre re-execução manual no mesmo dia (a
+  // transição de bucket em si já é idempotente: o card só "entra" 1 vez).
+  if (riskEntries.length > 0) {
+    try {
+      const targets = await getRecipientsForModule(client.organizationId, client.id, 'patients')
+      if (targets.length > 0) {
+        const names = riskEntries
+          .slice(0, 5)
+          .map((e) => e.name)
+          .join(', ')
+        const rest = riskEntries.length - 5
+        await dispatchNotification(targets, {
+          type: 'CLIENT_INACTIVE',
+          title:
+            riskEntries.length === 1
+              ? '1 paciente precisa de reativação'
+              : `${riskEntries.length} pacientes precisam de reativação`,
+          message:
+            `Fora da janela de retorno: ${names}${rest > 0 ? ` e mais ${rest}` : ''}. ` +
+            'A régua de retenção já preparou o toque de cada um.',
+          link: '/patients',
+          metadata: { count: riskEntries.length },
+          dedupeWindowHours: 20,
+        })
+        result.riskNotified = riskEntries.length
+      }
+    } catch (err) {
+      logger.warn('Retention risk notification failed', {
+        clientId: client.id,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
   return result
 }
 
@@ -451,6 +502,7 @@ export async function runRetentionJob() {
     moved: 0,
     queued: 0,
     tasked: 0,
+    riskNotified: 0,
     errors: 0,
   }
 
@@ -462,6 +514,7 @@ export async function runRetentionJob() {
       totals.moved += r.moved
       totals.queued += r.queued
       totals.tasked += r.tasked
+      totals.riskNotified += r.riskNotified
     } catch (err) {
       // Isolamento por clínica (D1): registra e segue — uma clínica corrompida
       // não pode parar a régua das demais.

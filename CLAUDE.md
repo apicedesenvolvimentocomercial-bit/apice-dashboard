@@ -194,6 +194,13 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   `organizationId` — a org tem várias clínicas); transação interativa usa **`scopedTransaction`**
   (`@/server/tenant/scoped-transaction`), nunca `prisma.$transaction` cru. Detalhe + exceções
   admin/por-usuário: seção RLS.
+- **Export de dados (aba Exportações da clínica + `/api/export/[clientId]/[resource]`)**:
+  datasets centralizados em `src/server/services/export-service.ts` (9 recursos; cada um
+  declara o MÓDULO de origem — a rota faz `assertCan(module,'read')` e a page
+  `/exportacoes` esconde o card sem ele; aba gateada pelo módulo `reports`). Formatos:
+  CSV (BOM UTF-8) e XLSX (`exceljs`, valores como literais — sem vetor de fórmula);
+  PDF executivo = rota `/api/reports/[clientId]/pdf` (exige `financial:read`). Dataset
+  novo → adicione em `EXPORT_RESOURCES` (service) e o card/rota saem de graça.
 - **Export CSV**: neutralize formula injection — célula iniciada por `= + - @ \t \r` ganha
   prefixo `'` antes de escapar aspas (ver `escapeCsv` em `api/export/[clientId]/[resource]`).
   Vale também p/ qualquer CSV gerado no client.
@@ -267,6 +274,23 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   da faixa. **Novo caminho de baixa/forma de pagamento que gere parcelas → passe `credit` p/
   `buildReceivables`/`buildAppointmentRevenueData`**, senão a antecipação não é aplicada. A taxa
   vira despesa financeira na DRE sem código extra.
+- **Notificações (targeting por cargo + preferências).** Todo aviso passa por
+  `dispatchNotification` (`notification-service.ts`) — ponto ÚNICO de enforcement: deriva a
+  `category` do tipo (ou do override `category` no payload) e filtra destinatários/canais pela
+  chave reservada **`notifications`** do JSON do cargo (`role-permissions.ts`:
+  `parseNotificationPermissions`/`notificationChannelEnabled`; default OPT-OUT = ausência liga
+  tudo; canais `inApp`/`email`; titular ignora o cargo). Destinatário por ABA →
+  **`getRecipientsForModule(orgId, clientId, module)`** (titular + cargo com `module:read`);
+  `getRecipientsForClient` (só donos) fica p/ avisos "do dono" (ex.: fila FAILED). Notificação
+  nova: defina `category` (insights/goals/activities/patients/crm/financial/system — catálogo
+  em `modules/clinic-roles/notification-catalog.ts`, UI no `role-dialog`). Crons (Inngest):
+  `crm-notifications` 08:15 SP (lead comercial parado 7d+ → assignee; sem dono → crm:read),
+  `goal-notifications` 08:30 (GOAL_AT_RISK = progresso >15 p.p. atrás do tempo decorrido,
+  ≥25% do período; GOAL_ACHIEVED 1× por período — escopo USER/ROLE/CLINIC espelha a meta),
+  `financial-notifications` 08:45 (Receivable PENDENTE vencida → financial:read, agregado).
+  CLIENT_INACTIVE sai do cron de retenção (entrada em Reativação/Salvamento, 1 aviso agregado
+  por clínica); desfecho na agenda (faltou/cancelou) avisa assignee+titular
+  (`cancelAppointmentSync`); FAILED terminal da fila avisa o titular (`messages-job`).
 - **Datas**: fuso da app = `America/Sao_Paulo`; use os helpers de `src/lib/date.ts`
   (`spDate`, `parseLocalDate`), não `new Date(string)` cru.
 - **Auditoria**: mutations relevantes chamam `createAuditLog(ctx, {...})` (best-effort,

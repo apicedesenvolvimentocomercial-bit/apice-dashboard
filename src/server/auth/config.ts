@@ -122,14 +122,27 @@ export const authConfig = {
       if (token.id && Date.now() - last > TEN_MIN) {
         const fresh = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { organizationId: true, role: true, clientId: true, clinicRoleId: true },
+          select: {
+            organizationId: true,
+            role: true,
+            clientId: true,
+            clinicRoleId: true,
+            isActive: true,
+            deletedAt: true,
+          },
         })
-        if (fresh) {
-          token.organizationId = fresh.organizationId
-          token.role = fresh.role
-          token.clientId = fresh.clientId
-          token.clinicRoleId = fresh.clinicRoleId
+        // Usuário sumiu, desativado ou soft-deletado → MATA a sessão (return
+        // null destrói o token). Sem isso, o cookie JWT de alguém removido
+        // seguia válido até o maxAge — auditoria 2026-06-10, Crítico 1. A
+        // camada de dados já corta antes (getTenantContext relê o DB por
+        // request); aqui derruba também páginas/middleware.
+        if (!fresh || !fresh.isActive || fresh.deletedAt) {
+          return null
         }
+        token.organizationId = fresh.organizationId
+        token.role = fresh.role
+        token.clientId = fresh.clientId
+        token.clinicRoleId = fresh.clinicRoleId
         token.syncedAt = Date.now()
       }
       return token

@@ -81,8 +81,9 @@ Ver `seguranca-pendencias.md` (detalhe). Os 2 bloqueadores foram resolvidos:
 
 ## 8. Otimização pendente (medir antes de fazer)
 
-- **Índice das atividades (PERF-001·B):** os crons `findDue/OverdueActivities`
-  varrem a tabela filtrando só `status`+`dueDate` (ambos domínios). Os crons já
-  logam `durationMs`. Se a medição em prod justificar, criar índice
-  `[status, dueDate]` (ou `[domain, status, dueDate]`) + paginação por clínica.
-  Não é bloqueador; decisão por dado, não por suposição.
+- ~~**Índice das atividades (PERF-001·B)**~~ — **FEITO (2026-06-11), decisão por
+  dado:** `EXPLAIN ANALYZE` em prod mostrou Seq Scan de **3.01s** na query de
+  atrasadas (a de 24h já usava o índice de `dueDate`, 0.05s). Migration
+  `20260611000000_activity_status_duedate_index` cria `[status, dueDate]`
+  (status primeiro: `IN` de 2 valores + range). Aplica em prod no próximo build
+  da Vercel. Paginação não foi necessária — o gargalo era só o scan.

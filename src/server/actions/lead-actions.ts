@@ -23,7 +23,7 @@ import {
   softDeleteLead,
 } from '@/server/repositories/lead-repository'
 import { resolveOwnerScope } from '@/server/auth/owner-scope'
-import { winLead, loseLead, addInteraction } from '@/server/services/lead-service'
+import { loseLead, addInteraction } from '@/server/services/lead-service'
 import {
   scheduleLeadAppointment,
   attendLeadWithPatientData,
@@ -558,17 +558,9 @@ export async function reorderLeadAction(leadId: string, clientId: string, positi
   return ok(null)
 }
 
-export async function winLeadAction(leadId: string, wonStageId: string, clientId: string) {
-  const ctx = await getTenantContext()
-  await assertClientAccess(ctx, clientId)
-  enterClientScope(clientId)
-  await assertCan(ctx, 'crm', 'write')
-
-  const patient = await winLead(ctx, clientId, leadId, wonStageId)
-  if (!patient) return fail(new NotFoundError('Lead'))
-  revalidate(clientId)
-  return ok(patient)
-}
+// winLeadAction REMOVIDO (2026-06-10): o atalho "Ganhou" do drawer foi extinto
+// por decisão (burlava o fluxo Compareceu→Fechado — ver CLAUDE.md, invariantes
+// de pipeline); a action ficou órfã. Fechar card = moveLeadWithEffect.
 
 export async function loseLeadAction(
   leadId: string,

@@ -22,6 +22,12 @@ export const RETENTION_TEMPLATE_KEYS = {
   WINBACK: 'retention.winback',
 } as const
 
+/** Lembrete de agendamento (P0.1 — auditoria-produto). Vars: nome, procedimento,
+ *  clinica, data, hora. */
+export const APPOINTMENT_TEMPLATE_KEYS = {
+  REMINDER: 'appointment.reminder',
+} as const
+
 // Templates default (pt-BR, tom de WhatsApp). Semeados por clínica em
 // `ensureDefaultMessageTemplates` (editáveis depois). O `messages-job` cai neles
 // quando a clínica não tem template próprio ativo.
@@ -41,6 +47,10 @@ export const DEFAULT_MESSAGE_TEMPLATES: Record<string, { title: string; body: st
   [RETENTION_TEMPLATE_KEYS.WINBACK]: {
     title: 'Sentimos sua falta',
     body: 'Oi {{nome}}, tudo bem? Faz um tempinho que não te vemos na {{clinica}}. Preparamos algo especial para te receber de volta. Vamos remarcar? 💛',
+  },
+  [APPOINTMENT_TEMPLATE_KEYS.REMINDER]: {
+    title: 'Lembrete de agendamento',
+    body: 'Oi {{nome}}! Lembrete do seu {{procedimento}} amanhã, {{data}} às {{hora}}, na {{clinica}}. Podemos confirmar sua presença? Se precisar remarcar, é só responder aqui. 💜',
   },
 }
 

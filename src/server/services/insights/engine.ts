@@ -5,7 +5,7 @@ import { prisma as defaultPrisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import {
   dispatchNotification,
-  getRecipientsForClient,
+  getRecipientsForModule,
 } from '@/server/services/notification-service'
 
 import { ALL_RULES } from './rules'
@@ -99,16 +99,17 @@ export async function runInsightsForClinic(
         result.created++
 
         if (notify) {
-          // Notifica owners da clínica + admins quando insight novo nasce.
-          // Falha aqui não derruba o engine — só loga.
+          // Notifica titular + staff com `insights:read` quando insight novo
+          // nasce. Falha aqui não derruba o engine — só loga. Link = rota da
+          // CLÍNICA (todos os destinatários são usuários de clínica).
           try {
-            const recipients = await getRecipientsForClient(organizationId, clientId)
+            const recipients = await getRecipientsForModule(organizationId, clientId, 'insights')
             if (recipients.length > 0) {
               await dispatchNotification(recipients, {
                 type: 'INSIGHT_GENERATED',
                 title: `Novo insight: ${candidate.title}`,
                 message: candidate.diagnosis,
-                link: `/clients/${clientId}/insights`,
+                link: '/insights',
                 metadata: { insightId: created.id, ruleKey: candidate.ruleKey },
                 dedupeWindowHours: 20,
               })

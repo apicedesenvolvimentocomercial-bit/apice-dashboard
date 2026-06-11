@@ -9,6 +9,32 @@
 
 ## Concluído
 
+### #3 — Auditoria do sistema de usuários (2026-06-10) ✅ — 2 críticos achados e CORRIGIDOS
+
+Auditoria completa de enforcement (actions/queries/pages/rotas), conformidade com
+os ledgers de cargos e ciclo de vida de usuário. Enforcement: limpo (105+ actions
+com `assertCan`, 12/12 pages de clínica gateadas, admin gateado por aba OU query).
+Dois furos reais no CICLO DE VIDA, ambos corrigidos no mesmo dia:
+
+- **Crítico 1 — usuário removido/desativado mantinha acesso até o cookie expirar.**
+  Estratégia JWT: apagar `Session` do banco não revoga nada, e nem o re-sync de
+  10min nem `getTenantContext` checavam `isActive`/`deletedAt` (repro real do
+  usuário: email já removido seguia acessando o painel da consultoria). **Fix
+  (duas camadas):** `getTenantContext` agora lê o usuário FRESCO do DB por request
+  (`cache()` do React deduplica) e lança `UnauthorizedError` se inativo/deletado —
+  os claims de autorização (role/clientId/clinicRoleId) saem do DB, o JWT só
+  identifica o `userId`; e o re-sync do token (`config.ts`) retorna `null`
+  (destrói a sessão) quando o usuário sumiu/desativou. Bônus: a janela de 10min
+  p/ mudança de role/cargo morreu junto na camada de dados.
+- **Crítico 2 — titular da clínica removível por `staff:write`.**
+  `removeClinicUserAction` não comparava o alvo com `Client.ownerId` (o espelho
+  da agência em `staff-actions.ts` tinha a guarda; o da clínica não). **Fix:**
+  `ForbiddenError` se o alvo é o titular — exige transferir a titularidade antes.
+
+Limitação conhecida que PERMANECE (aceita): páginas renderizadas (RSC) fora da
+camada de dados podem ver claims de até 10min atrás no token — mas toda leitura/
+mutação de dado passa por `getTenantContext`/`can()`, que agora são frescos.
+
 ### #1 — Rate-limiting (login + webhook) (2026-06-01) ✅ — opção (a) Postgres
 
 Throttle persistido no Postgres, **sem infra nova** (decisão: opção a — a stack é
