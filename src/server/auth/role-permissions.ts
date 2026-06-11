@@ -151,6 +151,70 @@ export function notificationChannelEnabled(
 }
 
 /**
+ * ANTI-ESCALAÇÃO (princípio do subconjunto): um gestor de cargos NÃO pode
+ * conceder a um cargo nenhuma capacidade que ele próprio não tenha — senão
+ * quem tem `canManageRoles` se auto-promove via cargo-fantoche (ex.: sem
+ * `staff:write` não pode criar cargo que convida pessoas).
+ *
+ * Compara o JSON CONCEDIDO contra o do ATOR e retorna as violações
+ * ("module:action" / "dashboard:section[.item]"). Vazio = ok. Regras:
+ * - Módulo/ação: flag true no concedido exige o mesmo true no ator (via
+ *   roleCan — module com access:false nega tudo).
+ * - Dashboard (visibilidade É exposição de dado): seção ligada exige seção do
+ *   ator ligada; item que o ator tem DESLIGADO precisa estar desligado também
+ *   no concedido (ausente = visível).
+ * - `notifications` fica de fora: é preferência de aviso, não capacidade (o
+ *   dispatch já filtra destinatário por module:read).
+ * O TITULAR não passa por aqui (coroa concede qualquer coisa).
+ */
+const SUBSET_ACTIONS: RolePermAction[] = ['read', 'write', 'delete', 'assignToOthers', 'viewAll']
+
+export function findPermissionEscalations(
+  granted: RolePermissions,
+  actor: RolePermissions
+): string[] {
+  const violations: string[] = []
+
+  for (const [key, value] of Object.entries(granted)) {
+    if (key === NOTIFICATION_PERM_KEY) continue
+
+    if (key === DASHBOARD_PERM_KEY) {
+      const grantedDash = (value ?? {}) as unknown as DashboardPermissions
+      const actorDash = (actor[DASHBOARD_PERM_KEY] ?? {}) as unknown as DashboardPermissions
+      for (const [section, sec] of Object.entries(grantedDash)) {
+        if (sec?.access !== true) continue
+        if (!dashboardSectionVisible(actorDash, section)) {
+          violations.push(`dashboard:${section}`)
+          continue
+        }
+        // Itens que o ator tem desligados não podem nascer ligados no cargo.
+        const actorItems = actorDash[section]?.items ?? {}
+        for (const [item, on] of Object.entries(actorItems)) {
+          if (on === false && sec.items?.[item] !== false) {
+            violations.push(`dashboard:${section}.${item}`)
+          }
+        }
+      }
+      continue
+    }
+
+    const mod = value as RoleModulePerm | undefined
+    if (!mod || mod.access !== true) continue
+    if (!roleHasTabAccess(actor, key)) {
+      violations.push(`${key}:access`)
+      continue
+    }
+    for (const action of SUBSET_ACTIONS) {
+      if (mod[action] === true && !roleCan(actor, key, action)) {
+        violations.push(`${key}:${action}`)
+      }
+    }
+  }
+
+  return violations
+}
+
+/**
  * Hierarquia LINEAR de cargos. Menor `level` = mais alto. Um ator pode atuar
  * sobre um cargo-alvo só se estiver estritamente acima dele.
  *

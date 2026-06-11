@@ -6,7 +6,12 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getClinicContext, type ClinicContext } from '@/server/auth/clinic-context'
 import type { ClinicRolePermissions } from '@/server/auth/clinic-permissions'
-import { canActOnRoleLevel } from '@/server/auth/role-permissions'
+import {
+  canActOnRoleLevel,
+  findPermissionEscalations,
+  parseRolePermissions,
+  type RolePermissions,
+} from '@/server/auth/role-permissions'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 import {
   assignClinicRole,
@@ -42,6 +47,32 @@ async function assertLevelBelow(ctx: ClinicContext, targetLevel: number): Promis
   const actorLevel = await resolveClinicActorLevel(ctx)
   if (!canActOnRoleLevel(actorLevel, targetLevel)) {
     throw new ForbiddenError('Não é possível gerenciar um cargo no seu nível ou acima')
+  }
+}
+
+/**
+ * ANTI-ESCALAÇÃO: cargo só concede o que o AUTOR tem (subconjunto). Titular
+ * concede qualquer coisa; gestor com cargo é comparado ao próprio JSON — sem
+ * isto, quem tem canManageRoles se auto-promoveria criando um cargo-fantoche
+ * com permissões que não possui (ex.: staff:write = convidar pessoas).
+ */
+async function assertNoEscalation(
+  ctx: ClinicContext,
+  granted: ClinicRolePermissions | undefined
+): Promise<void> {
+  if (!granted || ctx.isOwner) return
+  const actorRole = ctx.clinicRoleId
+    ? await prisma.clinicRole.findUnique({
+        where: { id: ctx.clinicRoleId },
+        select: { permissions: true },
+      })
+    : null
+  const actorPerms = parseRolePermissions(actorRole?.permissions ?? {})
+  const violations = findPermissionEscalations(granted as RolePermissions, actorPerms)
+  if (violations.length > 0) {
+    throw new ForbiddenError(
+      `Você não pode conceder permissões que você mesmo não tem: ${violations.join(', ')}`
+    )
   }
 }
 
@@ -95,6 +126,8 @@ export async function createClinicRoleAction(input: z.infer<typeof createRoleSch
 
     // Não pode criar cargo no próprio nível ou acima.
     await assertLevelBelow(ctx, parsed.data.level)
+    // Nem conceder o que não tem (anti-escalação — subconjunto).
+    await assertNoEscalation(ctx, parsed.data.permissions as ClinicRolePermissions)
 
     // Nome e nível únicos por clínica.
     const existing = await prisma.clinicRole.findFirst({
@@ -154,6 +187,8 @@ export async function updateClinicRoleAction(input: z.infer<typeof updateRoleSch
     // Ator precisa estar acima do cargo atual E (se mudar de nível) do novo.
     await assertLevelBelow(ctx, current.level)
     if (data.level !== undefined) await assertLevelBelow(ctx, data.level)
+    // Nem conceder o que não tem (anti-escalação — subconjunto).
+    await assertNoEscalation(ctx, data.permissions as ClinicRolePermissions | undefined)
 
     // Renomear/renivelar p/ valor já usado por outro cargo da clínica = conflito.
     if (data.name || data.level !== undefined) {

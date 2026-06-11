@@ -75,6 +75,13 @@ function fromPermissions(perms: ClinicRolePermissions): Record<string, ModuleSta
 export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: Props) {
   const [name, setName] = useState(initial?.name ?? '')
   const [canManageRoles, setCanManageRoles] = useState(initial?.canManageRoles ?? false)
+  // Capacidade SEM aba: convidar pessoas p/ a clínica. Vive na chave `staff`
+  // do JSON (o convite exige staff:write via can()); não entra no catálogo de
+  // abas — é este checkbox dedicado.
+  const [canInvite, setCanInvite] = useState(() => {
+    const staff = initial?.permissions?.staff
+    return !!staff && staff.access !== false && staff.write === true
+  })
   const [level, setLevel] = useState<number>(initial?.level ?? minLevel)
   const [modules, setModules] = useState<Record<string, ModuleState>>(() =>
     initial ? fromPermissions(initial.permissions) : blankState()
@@ -153,6 +160,8 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
       const s = modules[m.key]
       permissions[m.key] = s.access ? { ...s, access: true } : { access: false }
     }
+    // Capacidade de convite (chave `staff`, sem aba na sidebar).
+    permissions.staff = canInvite ? { access: true, read: true, write: true } : { access: false }
     // Visibilidade do dashboard vive sob a chave reservada `dashboard`. O cast é
     // necessário porque o tipo do mapa de abas não cobre este shape distinto.
     ;(permissions as Record<string, unknown>)[DASHBOARD_PERM_KEY] = dashboard
@@ -229,6 +238,16 @@ export function RoleDialog({ open, onOpenChange, initial, onSaved, minLevel }: P
               onChange={() => setCanManageRoles((v) => !v)}
             />
             <span>Pode criar cargos e atribuir pessoas</span>
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={canInvite}
+              onChange={() => setCanInvite((v) => !v)}
+            />
+            <span>Pode convidar pessoas para a clínica (acesso por email)</span>
           </label>
 
           <div className="space-y-2">
