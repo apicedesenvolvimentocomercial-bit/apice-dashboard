@@ -13,7 +13,6 @@ import {
 import {
   createNotifications,
   hasRecentNotification,
-  type NotificationRow,
 } from '@/server/repositories/notification-repository'
 
 /**
@@ -277,20 +276,5 @@ export async function getRecipientsForModule(
     .map((u) => ({ userId: u.id, email: u.email, name: u.name, clientId }))
 }
 
-export function summarizeUnread(rows: NotificationRow[]): {
-  total: number
-  critical: number
-} {
-  let critical = 0
-  for (const r of rows) {
-    if (r.readAt) continue
-    if (
-      r.type === 'INSIGHT_GENERATED' ||
-      r.type === 'ACTIVITY_OVERDUE' ||
-      r.type === 'GOAL_AT_RISK'
-    ) {
-      critical++
-    }
-  }
-  return { total: rows.filter((r) => !r.readAt).length, critical }
-}
+// summarizeUnread REMOVIDO (2026-06-10): helper sem nenhum importador — o sino
+// usa countUnreadNotifications/countUnreadClinicNotifications direto.

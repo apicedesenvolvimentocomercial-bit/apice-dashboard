@@ -47,7 +47,11 @@ transversal.
 1. **Cron `findDueActivities`/`findOverdueActivities` varre a tabela inteira** filtrando só `status`+`dueDate` (ambos domínios). Não regrediu, mas escala mal. Recomendado: índice `[status, dueDate]` (ou `[domain, status, dueDate]`) + paginação; medir antes/depois. Não feito aqui (precisa migration + medição em prod).
 2. ~~**Migration `activity_domain` p/ prod**~~ — **RESOLVIDO** (aplicada em prod, confirmado 2026-05-22).
 3. **Runtime nunca testado** localmente — `.env` aponta p/ produção (Accelerate/Vercel), sem dev DB. Toda verificação foi `tsc`/`eslint`/`vitest` (mock). Recomendado um smoke test manual pós-deploy nas telas da clínica.
-4. **Rename `(client)` → `(clinic)` + namespacing definitivo de rota** (hoje slugs PT `/atividades`,`/notificacoes`,`/configuracoes`): decisão = **fase isolada própria pós-7** (cosmético, alto churn). Pendente.
+4. ~~**Rename `(client)` → `(clinic)` + namespacing definitivo de rota**~~ — **FECHADO
+   (2026-06-10):** o rename de pasta JÁ FOI FEITO (route group é `(clinic)` desde a Fase 11).
+   A unificação de slugs (mix PT `/atividades` × EN `/patients`) fica **aceita como está**
+   por decisão: é cosmética, quebraria bookmarks/links e o slug não vaza p/ usuário final
+   além da URL. Não reabrir sem motivo de produto.
 5. **Feature flag `CLINIC_FEATURES_ENABLED`**: não adotada — release por fase validada (§6). Decidir se quer rollout gradual.
 6. **Page `(client)` legadas** (overview/insights/goals/crm/financial/patients/appointments/procedures) ainda usam actions/queries compartilhadas com `assertClientAccess` (admin acessa qualquer clínica da org). Fora do escopo desta reforma (que isolou atividades/calendário/notificações/settings/layout); avaliar num próximo ciclo se "divisão total" deve alcançá-las.
 

@@ -177,7 +177,14 @@ dashboard usa `goalsProgress` (dashboard-queries.ts ~357). Progresso calculado e
 
 ### Não feito (escopo deliberado)
 
-- Atividades pessoais (D11 adiou). Dashboard `goalsProgress` (dashboard-queries.ts ~357) ainda agrega todas as metas da clínica — não expande por escopo; aceitável (visão geral). Editar meta não expõe escopo no dialog de edição (só criação).
+- ~~Atividades pessoais (D11 adiou)~~ — **FECHADO COMO OBSOLETO (2026-06-10, decisão do
+  usuário):** o design atual do produto orienta as atividades 100% ao CLIENTE/paciente
+  (atividade de clínica exige leadId/patientId), não a "minhas tarefas pessoais" — o
+  conceito de atividade pessoal não existe mais no produto. `viewAll`/`assignToOthers`
+  no cargo cobrem a visibilidade. Não reabrir sem redesenho de produto.
+- Dashboard `goalsProgress` (dashboard-queries.ts ~357) agrega todas as metas da clínica —
+  não expande por escopo; aceitável (visão geral). Editar meta não expõe escopo no dialog
+  de edição (só criação).
 
 ### Log de progresso
 

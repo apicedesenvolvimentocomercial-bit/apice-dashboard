@@ -2,6 +2,7 @@ import { cron, eventType } from 'inngest'
 import { z } from 'zod'
 
 import { logger } from '@/lib/logger'
+import { runAppointmentRemindersJob } from '@/server/jobs/appointment-reminders-job'
 import { runCrmNotificationsJob } from '@/server/jobs/crm-notifications-job'
 import { runFinancialNotificationsJob } from '@/server/jobs/financial-notifications-job'
 import { runGoalNotificationsJob } from '@/server/jobs/goals-notifications-job'
@@ -81,6 +82,12 @@ export const financialNotifications = inngest.createFunction(
   async () => runFinancialNotificationsJob()
 )
 
+/** Lembrete de agendamento p/ AMANHÃ (fila/tarefa, provider-agnostic) — 09:00 SP. */
+export const appointmentReminders = inngest.createFunction(
+  { id: 'appointment-reminders', triggers: [cron(`${TZ} 0 9 * * *`)] },
+  async () => runAppointmentRemindersJob()
+)
+
 /** Scan diário da retenção: emite 1 evento por clínica (fan-out). */
 export const retentionScan = inngest.createFunction(
   { id: 'retention-scan', triggers: [cron(`${TZ} 0 7 * * *`)] },
@@ -128,6 +135,7 @@ export const functions = [
   goalNotifications,
   crmNotifications,
   financialNotifications,
+  appointmentReminders,
   retentionScan,
   retentionClinic,
   messagesDispatch,

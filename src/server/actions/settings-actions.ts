@@ -14,6 +14,7 @@ import { updateOrganization } from '@/server/repositories/organization-repositor
 import { updateClient } from '@/server/repositories/client-repository'
 import { updateUserProfile } from '@/server/repositories/user-repository'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
+import { enterClientScope } from '@/server/tenant/client-scope'
 import { ConflictError, fail, ForbiddenError, ok, runAction } from '@/types/errors'
 
 const updateOrgSchema = z.object({
@@ -120,6 +121,7 @@ export async function updateClinicSettingsAction(
 
     const { clientId, email, cnae, ...rest } = parsed.data
     await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId) // suspenders: RLS ativa p/ esta clínica (rls-gambiarra)
     await assertCan(ctx, 'settings', 'write')
 
     // Dados sensíveis da clínica (nome, email, cidade, telefone, estado) só o
