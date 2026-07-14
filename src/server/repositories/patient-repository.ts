@@ -47,6 +47,33 @@ export async function listPatients(
   })
 }
 
+/**
+ * Busca rápida do topbar (redesign): até 6 pacientes por nome (insensitive)
+ * OU telefone (substring como digitada). Query vazia = recentes (última
+ * visita primeiro, nulls por último). Payload mínimo p/ o popover.
+ */
+export async function quickSearchPatients(ctx: TenantContext, clientId: string, query: string) {
+  return prisma.patient.findMany({
+    where: {
+      organizationId: ctx.organizationId,
+      clientId,
+      deletedAt: null,
+      ...(query && {
+        OR: [{ name: { contains: query, mode: 'insensitive' } }, { phone: { contains: query } }],
+      }),
+    },
+    orderBy: [{ lastVisitAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+    take: 6,
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      lastVisitAt: true,
+      fromScheduledLead: true,
+    },
+  })
+}
+
 export async function findPatientById(ctx: TenantContext, clientId: string, patientId: string) {
   return prisma.patient.findFirst({
     where: {

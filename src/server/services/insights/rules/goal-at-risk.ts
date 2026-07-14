@@ -101,7 +101,12 @@ export const goalAtRiskRule: InsightRule = {
       estimatedImpact: null,
       suggestion:
         'Concentre esforços comerciais nesta meta — reative leads, acelere agendamentos e reforce upsell.',
-      metadata: { goalId: worst.goal.id, progress: worst.progress, daysLeft },
+      metadata: {
+        goalId: worst.goal.id,
+        progress: worst.progress,
+        daysLeft,
+        metric: { value: `${(worst.progress * 100).toFixed(0)}%`, label: 'da meta atingido' },
+      },
     }
   },
 }

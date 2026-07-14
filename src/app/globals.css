@@ -27,12 +27,27 @@
     --muted-foreground: 25 15% 38%;
     --accent: 38 18% 90%;
     --accent-foreground: 25 47% 18%;
-    --destructive: 0 72.22% 50.59%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 100%;
     --border: 38 20% 85%;
     --input: 38 20% 85%;
     --ring: 42 65% 52%;
-    --radius: 0.5rem;
+    /* Linhas finas de hora/dia DENTRO das grades da Agenda (agenda-handoff
+       §0.1) — mais sutil que --border, distinto de --muted no light. */
+    --grid: 38 16% 88%;
+    /* Status semânticos (redesign — design.md §1): sempre usados como PAR
+       texto+fundo (ok/ok-bg, warn/warn-bg, info-t/info-bg). */
+    --ok: 142 55% 30%;
+    --ok-bg: 142 50% 91%;
+    --warn: 32 80% 32%;
+    --warn-bg: 38 88% 90%;
+    --info-t: 217 65% 40%;
+    --info-bg: 214 90% 93%;
+    /* Sombra tingida (azul-grafite no light, preto no dark) — nunca preto puro
+       no tema claro. Elevações multiplicam o alpha (×3.5 popover, ×4 overlay). */
+    --shadow: 220 28% 22%;
+    --shadow-a: 0.07;
+    --radius: 0.75rem;
   }
 
   .dark {
@@ -55,11 +70,21 @@
     --muted-foreground: 38 15% 65%;
     --accent: 220 9% 16%;
     --accent-foreground: 38 33% 96%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 63% 50%;
+    --destructive-foreground: 0 0% 100%;
     --border: 220 9% 18%;
     --input: 220 9% 18%;
     --ring: 42 65% 58%;
+    /* No dark o --grid coincide com --muted (agenda-handoff §0.1). */
+    --grid: 220 9% 16%;
+    --ok: 142 58% 64%;
+    --ok-bg: 142 45% 15%;
+    --warn: 38 85% 66%;
+    --warn-bg: 36 55% 15%;
+    --info-t: 214 85% 72%;
+    --info-bg: 217 50% 17%;
+    --shadow: 0 0% 0%;
+    --shadow-a: 0.4;
   }
 }
 
@@ -192,6 +217,16 @@
   color: hsl(var(--primary-text));
 }
 
+/* Hover de card no DARK sem dourado (feedback 2026-07-07: chamativo demais).
+   Vale p/ todo `hover:border-primary/50` (cards do dashboard redesign): no
+   escuro o hover vira a PRÓPRIA cor da borda com um tico a mais de claridade
+   (--border dark = 220 9% 18% → 22%; manter em sincronia se o token mudar).
+   Override fora de @layer, mesmo padrão do .text-primary acima; no light o
+   dourado permanece. */
+.dark .hover\:border-primary\/50:hover {
+  border-color: hsl(220 9% 22%);
+}
+
 .fc .fc-scrollgrid {
   @apply overflow-hidden rounded-lg;
 }
@@ -223,4 +258,644 @@
 
 .fc .fc-popover-close {
   @apply text-muted-foreground transition-colors hover:text-foreground;
+}
+
+/* ===== Redesign Senno (design.md / dashboard-handoff.md) ===== */
+
+/* Skeleton: shimmer no lugar de spinner (design.md §5 — estados). */
+@keyframes sennoShimmer {
+  0% {
+    background-position: -180% 0;
+  }
+  100% {
+    background-position: 180% 0;
+  }
+}
+.senno-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--accent)) 37%,
+    hsl(var(--muted)) 63%
+  );
+  background-size: 220% 100%;
+  animation: sennoShimmer 1.5s ease-in-out infinite;
+}
+
+/* Sino de notificações: shake amortecido ao clicar (handoff §3.3/§14). */
+@keyframes senno-bell-ring {
+  0% {
+    transform: rotate(0);
+  }
+  15% {
+    transform: rotate(11deg);
+  }
+  30% {
+    transform: rotate(-9deg);
+  }
+  45% {
+    transform: rotate(6deg);
+  }
+  60% {
+    transform: rotate(-4deg);
+  }
+  75% {
+    transform: rotate(2deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+.senno-bell-ring {
+  animation: senno-bell-ring 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  transform-origin: top center;
+}
+
+/* Toggle de tema: sol no claro / lua no escuro, swap com rotação+fade
+   (handoff §3.2). Dirigido pela classe `.dark` no <html> — CSS puro, sem
+   estado no React (zero flash de hidratação). */
+.senno-theme-ico {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 17px;
+  height: 17px;
+  margin: -8.5px 0 0 -8.5px;
+  display: inline-flex;
+  transition:
+    transform 0.5s cubic-bezier(0.34, 1.3, 0.5, 1),
+    opacity 0.35s ease;
+}
+.senno-theme-sun {
+  transform: rotate(0deg) scale(1);
+  opacity: 1;
+}
+.senno-theme-moon {
+  transform: rotate(-90deg) scale(0.35);
+  opacity: 0;
+}
+.dark .senno-theme-sun {
+  transform: rotate(90deg) scale(0.35);
+  opacity: 0;
+}
+.dark .senno-theme-moon {
+  transform: rotate(0deg) scale(1);
+  opacity: 1;
+}
+
+/* Date pickers nativos casam com o tema (Exportações-handoff §4.2): o popup
+   do input[type=date] abre claro no light e escuro no dark. */
+input[type='date'] {
+  color-scheme: light;
+}
+.dark input[type='date'] {
+  color-scheme: dark;
+}
+
+/* ---- Atividades (atividades-handoff.md) ---- */
+
+/* Banner de atrasada: halo pulsante no tile do ícone (§6/§10). */
+@keyframes senno-overdue-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 6px hsl(var(--destructive) / 0);
+  }
+}
+.senno-overdue-ico {
+  animation: senno-overdue-pulse 2s ease-out infinite;
+}
+
+/* Concluir atividade (§8): o check "pula", a linha desliza p/ a direita e a
+   altura colapsa — delays escalonados (check → slide → collapse). */
+@keyframes senno-check-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.28);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.senno-act-row {
+  overflow: hidden;
+  max-height: 180px;
+  transition:
+    transform 0.42s cubic-bezier(0.4, 0, 0.2, 1) 0.26s,
+    opacity 0.42s ease 0.26s,
+    max-height 0.32s ease 0.55s,
+    padding 0.32s ease 0.55s,
+    background-color 0.2s ease;
+}
+.senno-act-leaving {
+  transform: translateX(115%);
+  opacity: 0;
+  max-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+/* Check sobre fill verde: branco literal por spec (glifo sobre cor de status,
+   não chrome — passa nos dois temas). */
+.senno-act-leaving .senno-check {
+  border-color: hsl(var(--ok)) !important;
+  background: hsl(var(--ok)) !important;
+  color: hsl(0 0% 100%) !important;
+  animation: senno-check-pop 0.4s ease;
+}
+
+/* Filtro de pastas (§4): chip selecionado sempre visível; os demais deslizam
+   p/ fora à direita no hover/focus do container inteiro (hitbox = container). */
+.senno-pastas {
+  display: inline-flex;
+  align-items: center;
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: 99px;
+  padding: 4px;
+}
+.senno-pastas-rest {
+  flex: none;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-width 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease 0.02s;
+}
+.senno-pastas:hover .senno-pastas-rest,
+.senno-pastas:focus-within .senno-pastas-rest {
+  max-width: 760px;
+  opacity: 1;
+}
+.senno-pastas-rest-inner {
+  width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+}
+.senno-pastas-trigger {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 99px;
+  padding: 7px 13px;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+/* O gatilho "Pastas" MANTÉM o fundo claro (bg-card) no hover — trocar p/
+   accent o fazia sumir dentro do trilho muted (feedback do usuário). O hover
+   sinaliza só pela borda + chevron que anda. */
+.senno-pastas:hover .senno-pastas-trigger,
+.senno-pastas-trigger:hover {
+  border-color: hsl(var(--input));
+}
+.senno-pastas-chev {
+  transition: transform 0.3s ease;
+}
+.senno-pastas:hover .senno-pastas-chev {
+  transform: translateX(2px);
+}
+
+/* ---- Agenda (agenda-handoff.md) ---- */
+
+/* Skin Senno para o FullCalendar da Agenda. O ENGINE continua o FullCalendar
+   (clamp de expediente, lead excluído, efeitos de pipeline — não regredir);
+   aqui entra só a pele do protótipo: linhas internas em --grid, cor reservada
+   a HOJE (tinta dourada 0.06) e FECHADO (hachura), eventos num único
+   tratamento dourado calmo. Tudo escopado em .senno-agenda para não afetar os
+   calendários do admin, que seguem o estilo .fc global acima. */
+.senno-agenda .fc {
+  --fc-border-color: hsl(var(--grid));
+  --fc-today-bg-color: hsl(var(--primary) / 0.06);
+  --fc-non-business-color: transparent;
+  --fc-page-bg-color: transparent;
+  --fc-event-border-color: transparent;
+  font-size: 12.5px;
+}
+/* A moldura externa (border 13px radius) é do card wrapper — sem borda dupla. */
+.senno-agenda .fc .fc-scrollgrid {
+  border: 0;
+  border-radius: 0;
+}
+.senno-agenda .fc .fc-scrollgrid table {
+  border-left-style: hidden;
+  border-right-style: hidden;
+  border-top-style: hidden;
+}
+/* Linha que separa o cabeçalho de dias do corpo usa --border (mais forte que
+   as linhas internas --grid), como no protótipo (§6.1). */
+.senno-agenda .fc .fc-scrollgrid-section-header > td,
+.senno-agenda .fc .fc-col-header-cell {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Cabeçalho de dias (Semana/Mês): 12px/600; hoje em primary-text. */
+.senno-agenda .fc .fc-col-header-cell {
+  padding: 9px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.senno-agenda .fc .fc-col-header-cell-cushion {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+}
+.senno-agenda .fc .fc-col-header-cell.fc-day-today {
+  background: hsl(var(--primary) / 0.06);
+  color: hsl(var(--primary-text));
+}
+/* Mês: cabeçalho dom./seg./… em muted (§7.1). */
+.senno-agenda .fc .fc-dayGridMonth-view .fc-col-header-cell {
+  color: hsl(var(--muted-foreground));
+}
+/* Dia fechado (fora do expediente): hachura diagonal no cabeçalho e na coluna
+   (§6.1); a hachura das células vem dos background events .fc-bg-closed. */
+.senno-agenda .fc .fc-col-header-cell.senno-closed-head {
+  background: repeating-linear-gradient(
+    45deg,
+    hsl(var(--muted-foreground) / 0.1) 0 6px,
+    hsl(var(--muted) / 0.5) 6px 12px
+  );
+}
+.senno-agenda .senno-closed-badge {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+/* Cabeçalho da visão Dia (§5.1): conteúdo à esquerda, baseline. */
+.senno-agenda .fc .fc-timeGridDay-view .fc-col-header-cell {
+  text-align: left;
+}
+.senno-agenda .fc .fc-timeGridDay-view .fc-col-header-cell-cushion {
+  display: block;
+  width: 100%;
+}
+.senno-agenda .senno-day-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 1px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.senno-agenda .senno-day-head-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+/* Gutter de horas: 11px tabular muted à direita (§5.2). Slot de 30min = 33px
+   → hora cheia 66px (mantém o snap de 30min do seletor de horário). */
+.senno-agenda .fc .fc-timegrid-slot {
+  height: 33px;
+}
+.senno-agenda .fc .fc-timegrid-slot-minor {
+  border-top: 0;
+}
+.senno-agenda .fc .fc-timegrid-slot-label {
+  vertical-align: top;
+}
+.senno-agenda .fc .fc-timegrid-slot-label-cushion {
+  padding: 3px 8px 0;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+.senno-agenda .fc .fc-timegrid-axis-cushion {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Hachura de dia fechado / tinta de feriado (background events). */
+.senno-agenda .fc .fc-bg-event.fc-bg-closed {
+  background: repeating-linear-gradient(
+    45deg,
+    hsl(var(--muted-foreground) / 0.1) 0 6px,
+    hsl(var(--muted) / 0.5) 6px 12px
+  );
+}
+.senno-agenda .fc .fc-bg-event.fc-bg-holiday {
+  background-color: hsl(var(--primary) / 0.12);
+}
+
+/* ---- Evento (timeGrid Dia/Semana): tratamento dourado calmo (§5.3/§6.3) ---- */
+.senno-agenda .fc .fc-timegrid-event {
+  border-radius: 7px;
+  background:
+    linear-gradient(hsl(var(--primary) / 0.14), hsl(var(--primary) / 0.14)), hsl(var(--card));
+  border: 1px solid hsl(var(--primary) / 0.28);
+  box-shadow: 0 1px 3px hsl(var(--shadow) / calc(var(--shadow-a) * 2));
+  padding: 5px 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.senno-agenda .fc .fc-timegrid-event:hover {
+  background:
+    linear-gradient(hsl(var(--primary) / 0.2), hsl(var(--primary) / 0.2)), hsl(var(--card));
+  border-color: hsl(var(--primary) / 0.5);
+}
+.senno-agenda .fc .fc-timegrid-event .fc-event-main {
+  padding: 0;
+  min-width: 0;
+  color: hsl(var(--foreground));
+}
+/* O FC reserva 2.5% à DIREITA da coluna de eventos por padrão (área de clique)
+   — descentralizava o card (feedback 2026-07-09). Zera; o respiro simétrico
+   fica nos insets abaixo. */
+.senno-agenda .fc .fc-timegrid-col-events {
+  margin: 0;
+}
+/* Semana: colunas estreitas → respiro de 3px (§6.3). */
+.senno-agenda .fc .fc-timegrid-event-harness > .fc-timegrid-event {
+  inset: 0 3px 1px 3px;
+}
+/* Dia: coluna única → radius 8 (§5.3). O protótipo pedia 8/16, mas o card
+   fica CENTRADO (8/8) por decisão do produto (2026-07-09). */
+.senno-agenda .fc-timeGridDay-view .fc-timegrid-event-harness > .fc-timegrid-event {
+  inset: 0 8px 1px 8px;
+  border-radius: 8px;
+  padding: 7px 12px;
+}
+/* Conteúdo do evento (eventContent custom). */
+.senno-agenda .senno-ev-time {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: hsl(var(--primary-text));
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.senno-agenda .senno-ev-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.senno-agenda .senno-ev-proc {
+  font-size: 10.5px;
+  line-height: 1.2;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Visão Dia usa a escala maior do protótipo (§5.3). */
+.senno-agenda .fc-timeGridDay-view .senno-ev-time {
+  font-size: 12px;
+}
+.senno-agenda .fc-timeGridDay-view .senno-ev-name {
+  font-size: clamp(13px, 0.14vw + 11.2px, 14.3px);
+}
+.senno-agenda .fc-timeGridDay-view .senno-ev-proc {
+  font-size: 11.5px;
+}
+.senno-agenda .senno-ev-dur {
+  font-size: 11px;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  margin-left: 6px;
+}
+/* Compacto (Dia, <45min): uma linha só — horário + nome (§5.3). */
+.senno-agenda .senno-ev-compact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.senno-agenda .senno-ev-compact .senno-ev-time {
+  font-size: 11.5px;
+  flex: none;
+}
+.senno-agenda .senno-ev-compact .senno-ev-name {
+  font-size: 12px;
+}
+.senno-agenda .fc .fc-timegrid-event.senno-ev-is-compact {
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+}
+.senno-agenda .fc .fc-timegrid-event.senno-ev-is-compact .fc-event-main {
+  flex: 1;
+}
+
+/* Mini (Semana, <55min — §6.4): colapsa na altura real e expande p/ 66px
+   fixos (1h) no hover, revelando a linha de procedimento, acima dos vizinhos. */
+.senno-agenda .fc .fc-timegrid-event.senno-appt-mini {
+  padding: 3px 8px;
+  transition:
+    height 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.15s,
+    border-color 0.15s;
+}
+.senno-agenda .senno-appt-mini .senno-ev-proc {
+  display: none;
+}
+.senno-agenda .fc-timegrid-event-harness:hover {
+  z-index: 60 !important;
+}
+.senno-agenda .fc .fc-timegrid-event.senno-appt-mini:hover {
+  top: 0;
+  bottom: auto;
+  height: 66px;
+  padding: 5px 8px;
+  box-shadow: 0 10px 22px -8px hsl(var(--shadow) / calc(var(--shadow-a) * 5));
+}
+.senno-agenda .senno-appt-mini:hover .senno-ev-proc {
+  display: block;
+}
+
+/* Status terminal-negativo (Cancelado/Faltou): apagado + nome riscado — a cor
+   segue reservada a HOJE/FECHADO, o estado sinaliza por opacidade. */
+.senno-agenda .fc .senno-ev-muted {
+  opacity: 0.55;
+}
+.senno-agenda .senno-ev-muted .senno-ev-name {
+  text-decoration: line-through;
+}
+
+/* ---- Mês (dayGrid): número em pill, chips dourados (§7.2) ---- */
+.senno-agenda .fc .fc-daygrid-day-frame {
+  min-height: 96px;
+  padding: 3px 4px;
+}
+.senno-agenda .fc .fc-daygrid-day-top {
+  margin-bottom: 2px;
+}
+.senno-agenda .fc .fc-daygrid-day-number {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 99px;
+  padding: 0;
+  margin: 3px 3px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  font-variant-numeric: tabular-nums;
+}
+.senno-agenda .fc .fc-day-today .fc-daygrid-day-number {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.senno-agenda .fc .fc-day-other .fc-daygrid-day-number {
+  color: hsl(var(--muted-foreground) / 0.5);
+}
+/* Dias fora do mês nunca recebem chips (§7.2) — os agendamentos continuam
+   acessíveis navegando ao mês vizinho. */
+.senno-agenda .fc .fc-day-other .fc-daygrid-day-events {
+  display: none;
+}
+/* Chip de agendamento no mês: fundo dourado 0.14, sem borda (§7.2). */
+.senno-agenda .fc .fc-daygrid-event {
+  border: 0;
+  border-radius: 6px;
+  background: hsl(var(--primary) / 0.14);
+  padding: 2px 7px;
+  margin: 1px 2px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.senno-agenda .fc .fc-daygrid-event:hover {
+  background: hsl(var(--primary) / 0.24);
+}
+.senno-agenda .fc .fc-daygrid-event .fc-event-main {
+  color: hsl(var(--foreground));
+}
+.senno-agenda .senno-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.senno-agenda .senno-chip-time {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: hsl(var(--primary-text));
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.senno-agenda .senno-chip-title {
+  font-size: 10.5px;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.senno-agenda .fc .fc-daygrid-more-link {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: hsl(var(--primary-text));
+  padding: 0 4px;
+}
+
+/* Linha do "agora" tokenizada. */
+.senno-agenda .fc .fc-timegrid-now-indicator-line {
+  border-color: hsl(var(--destructive));
+}
+
+/* ---- Notificações (Notificações-handoff.md) ---- */
+
+/* Dispensar a linha (§9/§11): desliza p/ a direita e colapsa a altura —
+   mesma técnica do Atividades (classe + transitionend). max-height maior que
+   o `senno-act-row` porque a linha tem descrição completa + botão de ação. */
+.senno-notif-row {
+  overflow: hidden;
+  /* Folga generosa: a descrição não trunca (@db.Text). O colapso de altura só
+     roda DEPOIS que a linha já deslizou p/ fora (delay .55s) e está invisível,
+     então um teto alto não penaliza a animação — só evita clipar msg longa. */
+  max-height: 400px;
+  transition:
+    transform 0.42s cubic-bezier(0.4, 0, 0.2, 1) 0.26s,
+    opacity 0.42s ease 0.26s,
+    max-height 0.32s ease 0.55s,
+    padding 0.32s ease 0.55s,
+    background-color 0.2s ease;
+}
+.senno-notif-leaving {
+  transform: translateX(115%);
+  opacity: 0;
+  max-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+/* Feedback instantâneo do botão "dispensar" durante a saída (§9): vermelho
+   sólido com glifo branco (glifo sobre cor de status — vale nos dois temas). */
+.senno-notif-leaving .senno-dismiss {
+  border-color: hsl(var(--destructive)) !important;
+  background: hsl(var(--destructive)) !important;
+  color: hsl(0 0% 100%) !important;
+}
+.senno-agenda .fc .fc-timegrid-now-indicator-arrow {
+  border-color: hsl(var(--destructive));
+}
+
+/* Ponto colorido do evento pessoal (Calendário): preserva a cor escolhida
+   pelo usuário como etiqueta, sem quebrar o tratamento dourado único. */
+.senno-agenda .senno-ev-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  flex: none;
+}
+
+/* Affordância de "clique p/ criar" (feedback 2026-07-09) — SÓ no calendário
+   de AGENDAMENTOS (classe extra `senno-agenda-selectable`; o pessoal não tem
+   seleção de slot). O fantasma de slot (bloco de 30min posicionado por JS no
+   mousemove) marca o horário sob o mouse; Mês ganha hover na célula. */
+.senno-agenda-selectable .fc .fc-timegrid-col-frame,
+.senno-agenda-selectable .fc .fc-timegrid-slot-lane {
+  cursor: pointer;
+}
+.senno-slot-ghost {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  height: 33px;
+  border-radius: 7px;
+  background: hsl(var(--primary) / 0.12);
+  border: 1px dashed hsl(var(--primary) / 0.45);
+  pointer-events: none;
+  z-index: 5;
+}
+.senno-agenda-selectable .fc-timeGridDay-view .senno-slot-ghost {
+  left: 8px;
+  right: 8px;
+  border-radius: 8px;
+}
+.senno-agenda-selectable .fc .fc-daygrid-day-frame {
+  cursor: pointer;
+}
+.senno-agenda-selectable .fc .fc-daygrid-day:hover {
+  background-color: hsl(var(--accent) / 0.6);
 }

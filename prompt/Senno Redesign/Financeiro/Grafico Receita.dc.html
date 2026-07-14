@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div class="senno" data-theme="{{ theme }}" style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:20px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); position:relative;">
+
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px 14px; flex-wrap:wrap;">
+    <div style="min-width:0;">
+      <h2 style="margin:0; font-size:15px; font-weight:600; display:flex; align-items:center; gap:7px; white-space:nowrap;">Receita {{ revModeLabel }} × Custos<sc-if value="{{ showHelp }}" hint-placeholder-val=""><span title="Comparativo mês a mês de receita e custos lançados." style="width:15px; height:15px; display:inline-flex; color:hsl(var(--muted-foreground)); cursor:help;" dangerouslySetInnerHTML="{{ icoHelp }}"></span></sc-if></h2>
+      <sc-if value="{{ hasSubtitle }}" hint-placeholder-val=""><p style="margin:3px 0 0; font-size:12.5px; color:hsl(var(--muted-foreground));">{{ subtitle }}</p></sc-if>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; flex:none; position:relative;">
+      <div style="position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:1fr; padding:3px; border-radius:9px; background:hsl(var(--muted)); border:1px solid hsl(var(--border));">
+        <div style="{{ revPill }}"></div>
+        <sc-for list="{{ revTabs }}" as="r" hint-placeholder-count="2">
+          <button onClick="{{ r.onClick }}" style="{{ r.style }}">{{ r.label }}</button>
+        </sc-for>
+      </div>
+      <button onClick="{{ togglePopup }}" style="{{ periodBtnStyle }}" style-hover="border-color:hsl(var(--primary)/0.5);">
+        <span style="width:14px;height:14px;display:inline-flex;color:hsl(var(--primary-text));" dangerouslySetInnerHTML="{{ icoCal }}"></span>
+        {{ periodLabel }}
+        <span style="width:13px;height:13px;display:inline-flex;color:hsl(var(--muted-foreground));" dangerouslySetInnerHTML="{{ icoChevDown }}"></span>
+      </button>
+      <sc-if value="{{ popup }}" hint-placeholder-val="">
+        <div onClick="{{ closePopup }}" style="position:fixed; inset:0; z-index:30;"></div>
+        <div style="position:absolute; top:38px; right:0; z-index:31; width:194px; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:11px; box-shadow:0 10px 28px hsl(var(--shadow)/0.20); padding:7px;">
+          <div style="font-size:10px; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; color:hsl(var(--muted-foreground)); padding:5px 8px 7px;">Amostragem por período</div>
+          <sc-for list="{{ periodOptions }}" as="o" hint-placeholder-count="4">
+            <button onClick="{{ o.onClick }}" style="{{ o.style }}" style-hover="background:hsl(var(--accent));">
+              <span>{{ o.label }}</span>
+              <sc-if value="{{ o.active }}" hint-placeholder-val=""><span style="width:15px;height:15px;display:inline-flex;color:hsl(var(--primary-text));" dangerouslySetInnerHTML="{{ icoCheck }}"></span></sc-if>
+            </button>
+          </sc-for>
+          <div style="height:1px; background:hsl(var(--border)); margin:6px 4px;"></div>
+          <div style="{{ customRowStyle }}">
+            <span style="font-size:13px; color:hsl(var(--foreground)); flex:1;">Personalizado</span>
+            <input type="number" min="1" max="{{ maxCustom }}" value="{{ customN }}" onInput="{{ onCustom }}" style="width:52px; height:28px; border:1px solid hsl(var(--input)); border-radius:7px; background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:12.5px; font-family:inherit; text-align:center; font-variant-numeric:tabular-nums;" />
+            <span style="font-size:12px; color:hsl(var(--muted-foreground));">m</span>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <div style="margin-top:18px; display:flex; gap:10px; align-items:stretch;">
+    <div style="display:flex; flex-direction:column; justify-content:space-between; height:{{ plotH }}; padding-top:{{ gutterPx }}; box-sizing:border-box; width:46px; text-align:right; font-size:10px; font-variant-numeric:tabular-nums; color:hsl(var(--muted-foreground)); flex:none;">
+      <sc-for list="{{ yTicks }}" as="t" hint-placeholder-count="5"><span>{{ t }}</span></sc-for>
+    </div>
+
+    <button onClick="{{ goPrev }}" style="{{ prevStyle }}" style-hover="border-color:hsl(var(--primary)/0.5);"><span style="width:16px;height:16px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevL }}"></span></button>
+
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+      <div style="position:relative; height:{{ plotH }}; border-bottom:1px solid hsl(var(--border)); overflow:hidden;">
+        <div style="position:absolute; left:0; right:0; bottom:{{ glTop }}; border-top:1px dashed hsl(var(--border));"></div>
+        <div style="position:absolute; left:0; right:0; bottom:{{ gl75 }}; border-top:1px dashed hsl(var(--border));"></div>
+        <div style="position:absolute; left:0; right:0; bottom:{{ gl50 }}; border-top:1px dashed hsl(var(--border));"></div>
+        <div style="position:absolute; left:0; right:0; bottom:{{ gl25 }}; border-top:1px dashed hsl(var(--border));"></div>
+        <div style="{{ rowStyle }}">
+          <sc-for list="{{ bars }}" as="m" hint-placeholder-count="8">
+            <div style="{{ slotBarStyle }}">
+              <div style="flex:1; min-width:0; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:3px;">
+                <span style="font-size:9px; font-weight:600; color:hsl(var(--primary-text)); white-space:nowrap; font-variant-numeric:tabular-nums; line-height:1;">{{ m.recVal }}</span>
+                <div title="{{ m.recTitle }}" style="width:100%; height:{{ m.recH }}; border-radius:{{ m.recRadius }}; background:hsl(var(--primary));"></div>
+              </div>
+              <div style="flex:1; min-width:0; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:3px;">
+                <span style="font-size:9px; font-weight:600; color:hsl(var(--destructive)); white-space:nowrap; font-variant-numeric:tabular-nums; line-height:1;">{{ m.custVal }}</span>
+                <div title="{{ m.custTitle }}" style="width:100%; height:{{ m.custH }}; border-radius:{{ m.custRadius }}; background:hsl(var(--destructive)/0.85);"></div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="overflow:hidden;">
+        <div style="{{ rowLabelStyle }}">
+          <sc-for list="{{ bars }}" as="m" hint-placeholder-count="8">
+            <div style="{{ slotLabelStyle }}"><span style="display:block; text-align:center; font-size:10.5px; color:{{ m.labelColor }}; white-space:nowrap;">{{ m.label }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <button onClick="{{ goNext }}" style="{{ nextStyle }}" style-hover="border-color:hsl(var(--primary)/0.5);"><span style="width:16px;height:16px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevR }}"></span></button>
+  </div>
+
+  <div style="display:flex; align-items:center; justify-content:center; gap:22px; margin-top:14px; font-size:11.5px; color:hsl(var(--muted-foreground));">
+    <span style="display:inline-flex; align-items:center; gap:7px;"><span style="width:11px; height:11px; border-radius:3px; background:hsl(var(--primary));"></span>Receita {{ revModeLabel }}</span>
+    <span style="display:inline-flex; align-items:center; gap:7px;"><span style="width:11px; height:11px; border-radius:3px; background:hsl(var(--destructive)/0.85);"></span>Custos</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:760,&quot;height&quot;:460},&quot;months&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{label:string,gerada:number,recebida:number,custos:number}[]&quot;},&quot;windowCount&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:8,&quot;min&quot;:3,&quot;max&quot;:24,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Gráfico&quot;},&quot;defaultPeriod&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:12,&quot;min&quot;:1,&quot;max&quot;:24,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Gráfico&quot;},&quot;step&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:1,&quot;max&quot;:6,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Gráfico&quot;},&quot;scaleMax&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:200,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Gráfico&quot;},&quot;unit&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;mil&quot;,&quot;brl&quot;],&quot;default&quot;:&quot;mil&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Gráfico&quot;},&quot;subtitle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Últimos 12 meses · em milhares de R$&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Gráfico&quot;},&quot;showHelp&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Gráfico&quot;},&quot;colGap&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:16,&quot;min&quot;:4,&quot;max&quot;:40,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Gráfico&quot;},&quot;plotHeight&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:180,&quot;min&quot;:120,&quot;max&quot;:280,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Gráfico&quot;}}">
+class Component extends DCLogic {
+  state = { revMode:'gerada', period:null, customN:null, offset:null, popup:false };
+
+  ico(p){ return {__html:'<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'}; }
+  segPill(idx, n, o){ o=o||{}; return 'position:absolute; top:3px; left:3px; bottom:3px; width:calc((100% - 6px)/'+n+'); transform:translateX('+(idx*100)+'%); background:'+(o.bg||'hsl(var(--primary))')+'; border-radius:'+(o.r||7)+'px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); transition:transform .34s cubic-bezier(.34,1.1,.5,1); pointer-events:none; z-index:0;'; }
+  segBtn(on, o){ o=o||{}; return 'position:relative; z-index:1; border:none; cursor:pointer; font-family:inherit; font-size:'+(o.fs||'12px')+'; font-weight:600; padding:'+(o.pad||'6px 12px')+'; border-radius:'+(o.r||7)+'px; background:transparent; white-space:nowrap; transition:color .25s ease; color:'+(on?(o.on||'hsl(var(--primary-foreground))'):(o.off||'hsl(var(--muted-foreground))'))+';'; }
+  fmtBRL(n){ return 'R$ ' + Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+  renderVals(){
+    const I = (p)=>this.ico(p);
+    const icoHelp     = I('<circle cx="12" cy="12" r="10"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7M12 17h.01"/>');
+    const icoCal      = I('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoChevDown = I('<path d="M6 9l6 6 6-6"/>');
+    const icoChevL    = I('<path d="M15 18l-6-6 6-6"/>');
+    const icoChevR    = I('<path d="M9 18l6-6-6-6"/>');
+    const icoCheck    = I('<path d="M20 6 9 17l-5-5"/>');
+
+    // ---- props ----
+    const data    = (this.props.months || []).map(m=>({ label:m.label, gerada:+m.gerada, recebida:+m.recebida, custos:+m.custos }));
+    const totalAvail = data.length;
+    const win     = Math.max(1, Number(this.props.windowCount) || 8);
+    const step    = Math.max(1, Number(this.props.step) || 2);
+    const scaleMax= Number(this.props.scaleMax) || 200;
+    const unit    = this.props.unit || 'mil';
+    const plotPxNum = (Number(this.props.plotHeight) || 180);
+    const plotH   = plotPxNum + 'px';
+    const gutter  = 22;                                   // headroom no topo p/ os rótulos
+    const barsAreaPx = Math.max(40, plotPxNum - gutter);  // altura útil das barras
+    const gl = (f)=> (barsAreaPx * f).toFixed(0) + 'px';
+    const showHelp= !!this.props.showHelp;
+    const defPer  = Number(this.props.defaultPeriod) || 12;
+
+    // ---- período (quantos meses entram no gráfico) ----
+    const periodVal = this.state.period == null ? defPer : this.state.period;
+    let total;
+    if (periodVal === 'custom') {
+      const c = parseInt(this.state.customN, 10);
+      total = Math.min(Math.max(isNaN(c) ? defPer : c, 1), totalAvail);
+    } else {
+      total = Math.min(periodVal, totalAvail);
+    }
+    total = Math.max(1, total);
+    const shown = data.slice(totalAvail - total); // meses mais recentes
+
+    // ---- geometria (100% CSS, container FIXO, sem medição → sem laço) ----
+    // A largura da coluna é uma fração do PRÓPRIO container via calc(): a janela de
+    // `visible` colunas sempre preenche o container, independentemente de quantos meses
+    // existem. Ampliar os meses só aumenta o que dá para navegar (translateX), nunca
+    // altera o tamanho do gráfico nem das colunas.
+    const G        = Math.max(2, Number(this.props.colGap) || 16); // espaço branco entre meses
+    const innerGap = 3;                                            // receita ↔ custos no mesmo mês
+
+    const visible   = Math.min(win, total);                        // colunas visíveis no container
+    const maxOffset = Math.max(0, total - visible);                // quanto dá para navegar
+    // offset null = mostrar os mais recentes (borda direita)
+    const offset = this.state.offset == null ? maxOffset : Math.min(Math.max(this.state.offset, 0), maxOffset);
+
+    const canPrev = offset > 0;
+    const canNext = offset < maxOffset;
+    const goPrev = ()=>{ if(offset>0) this.setState({ offset: offset - Math.min(step, offset) }); };
+    const goNext = ()=>{ if(offset<maxOffset) this.setState({ offset: offset + Math.min(step, maxOffset - offset) }); };
+
+    // width: cada coluna = (container − gaps) / visible  → preenche exatamente o container.
+    // translateX: −offset colunas; algebricamente = −offset·(100%+G)/visible (100% = largura do container).
+    // largura da coluna FIXA a partir de 6 meses: com menos de 6 visíveis, dividimos
+    // o container por 6 mesmo assim e centralizamos as colunas, evitando coluna gigante
+    // (1 mês) e espaço vazio à direita.
+    const d = Math.max(visible, 6);
+    const gapsPx = (G * (d - 1)).toFixed(0);
+    const colWCalc = 'calc((100% - ' + gapsPx + 'px) / ' + d + ')';
+    const txCalc   = offset === 0 ? '0px' : 'calc(' + (-offset) + ' * (100% + ' + G + 'px) / ' + d + ')';
+
+    const slotFlex = 'flex:none; min-width:0; width:' + colWCalc + ';';
+    // centraliza só quando as colunas NÃO preenchem a janela (amostragem < d);
+    // quando preenchem ou excedem, alinha à esquerda para o translateX de navegação
+    // funcionar e a janela ficar sempre completa.
+    const justify = total < d ? 'center' : 'flex-start';
+    const flowStyle = 'display:flex; align-items:flex-end; gap:'+G+'px; justify-content:'+justify+'; width:100%; transform:translateX('+txCalc+'); transition:transform 460ms cubic-bezier(0.22,1,0.36,1); will-change:transform;';
+    const rowStyle      = flowStyle + ' position:absolute; left:0; right:0; bottom:0; height:'+barsAreaPx+'px;';
+    const rowLabelStyle = flowStyle + ' margin-top:8px;';
+    const slotBarStyle   = slotFlex + ' height:100%; display:flex; align-items:flex-end; justify-content:center; gap:'+innerGap+'px;';
+    const slotLabelStyle = slotFlex + ' overflow:hidden;';
+
+    // ---- barras ----
+    const revMode = this.state.revMode;
+    const revModeLabel = revMode === 'recebida' ? 'recebida' : 'gerada';
+    const bars = shown.map(m=>{
+      const rev = revMode === 'recebida' ? m.recebida : m.gerada;
+      const recTaller = rev >= m.custos;
+      const tip = (v)=> unit === 'mil' ? ('R$ ' + v + ' mil') : this.fmtBRL(v);
+      const compact = (v)=> Number(v).toLocaleString('pt-BR',{notation:'compact', maximumFractionDigits:1});
+      return {
+        label: m.label,
+        labelColor: 'hsl(var(--muted-foreground))',
+        recVal: compact(rev),
+        custVal: compact(m.custos),
+        recH:  (Math.min(rev / scaleMax, 1) * 100).toFixed(2) + '%',
+        custH: (Math.min(m.custos / scaleMax, 1) * 100).toFixed(2) + '%',
+        recRadius:  recTaller ? '4px 4px 0 0' : '4px 0 0 0',
+        custRadius: recTaller ? '0 4px 0 0' : '4px 4px 0 0',
+        recTitle:  'Receita ' + revModeLabel + ' · ' + m.label + ': ' + tip(rev),
+        custTitle: 'Custos · ' + m.label + ': ' + tip(m.custos),
+      };
+    });
+
+    // ---- eixo Y (fixo, fora do recorte) ----
+    const yTicks = [1, 0.75, 0.5, 0.25, 0].map(f => 'R$ ' + Math.round(scaleMax * f));
+
+    // ---- toggle Gerada / Recebida ----
+    const seg = (on)=> 'border:none; cursor:pointer; font-size:12px; font-weight:600; padding:6px 12px; border-radius:7px; font-family:inherit; white-space:nowrap; transition:background .15s, color .15s; background:'+(on?'hsl(var(--primary))':'transparent')+'; color:'+(on?'hsl(var(--primary-foreground))':'hsl(var(--muted-foreground))')+';';
+    const revDefs = [['gerada','Gerada'],['recebida','Recebida']];
+    const revTabs = revDefs.map(([k,label])=>({
+      label, style: this.segBtn(revMode===k), onClick:()=>this.setState({ revMode:k }),
+    }));
+    const revPill = this.segPill(revDefs.findIndex(d=>d[0]===revMode), revDefs.length);
+
+    // ---- botão + popup de período ----
+    const periodBtnStyle = 'display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 11px; border-radius:8px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); font-size:12.5px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap; transition:border-color .15s;';
+    const periodLabel = total + (total === 1 ? ' mês' : ' meses');
+    const optStyle = (on)=> 'display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; text-align:left; border:none; background:transparent; cursor:pointer; font-family:inherit; font-size:13px; font-weight:'+(on?'600':'500')+'; padding:8px 9px; border-radius:7px; color:'+(on?'hsl(var(--primary-text))':'hsl(var(--foreground))')+';';
+    const periodOptions = [1,3,6,12].map(n=>({
+      label: n + (n===1 ? ' mês' : ' meses'),
+      active: periodVal === n,
+      style: optStyle(periodVal === n),
+      onClick: ()=> this.setState({ period:n, offset:null, popup:false }),
+    }));
+    const customActive = periodVal === 'custom';
+    const customRowStyle = 'display:flex; align-items:center; gap:8px; padding:6px 9px 4px; border-radius:7px;' + (customActive ? ' background:hsl(var(--accent));' : '');
+    const customN = this.state.customN == null ? '' : this.state.customN;
+    const onCustom = (e)=>{ const v = e.target.value; this.setState({ period:'custom', customN:v, offset:null }); };
+
+    // ---- setas ----
+    const arrow = (enabled)=> 'align-self:center; flex:none; width:30px; height:30px; border-radius:50%; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:'+(enabled?'pointer':'default')+'; opacity:'+(enabled?'1':'0.32')+'; pointer-events:'+(enabled?'auto':'none')+'; transition:border-color .15s, opacity .15s;';
+
+    return {
+      theme: this.props.theme || 'light',
+      icoHelp, icoCal, icoChevDown, icoChevL, icoChevR, icoCheck,
+      showHelp, subtitle: this.props.subtitle || '', hasSubtitle: !!(this.props.subtitle && String(this.props.subtitle).trim()),
+      revModeLabel, revTabs, revPill,
+      periodBtnStyle, periodLabel,
+      popup: this.state.popup,
+      togglePopup: ()=> this.setState(s=>({ popup: !s.popup })),
+      closePopup: ()=> this.setState({ popup:false }),
+      periodOptions, customRowStyle, customN, onCustom, maxCustom: totalAvail,
+      yTicks, plotH, rowStyle, rowLabelStyle, slotBarStyle, slotLabelStyle, bars,
+      gutterPx: gutter + 'px', glTop: gl(1), gl75: gl(0.75), gl50: gl(0.5), gl25: gl(0.25),
+      prevStyle: arrow(canPrev), nextStyle: arrow(canNext), goPrev, goNext,
+    };
+  }
+}
+</script>
+</body>
+</html>

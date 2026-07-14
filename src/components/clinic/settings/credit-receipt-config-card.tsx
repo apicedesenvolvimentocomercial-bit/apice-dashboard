@@ -4,12 +4,30 @@ import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import type { CreditFeeTier } from '@/lib/credit-fee'
+import { cn } from '@/lib/utils'
 import { updateCreditReceiptConfigAction } from '@/server/actions/settings-actions'
+
+import {
+  SETTINGS_BTN_GHOST,
+  SETTINGS_BTN_PRIMARY,
+  SETTINGS_INPUT,
+  SETTINGS_LABEL,
+  SettingsSectionCard,
+  SettingsSelect,
+} from './section-card'
+
+/**
+ * Seção Pagamento no crédito — redesign Senno (Configurações-handoff §10).
+ * Select de forma de recebimento (44px) + texto de ajuda por modo + bloco
+ * condicional de taxa separado por borda TRACEJADA, só no modo antecipação.
+ *
+ * Desvios documentados vs. protótipo:
+ * - A taxa é POR FAIXA de parcelas (modelo real `creditFeeTiers`), não um
+ *   campo único "% a.m." — o editor de faixas vive no bloco tracejado.
+ * - Texto de ajuda da antecipação reflete o comportamento real: a taxa vira
+ *   despesa financeira em Custos (não é descontada da receita).
+ */
 
 type Mode = 'INSTALLMENTS' | 'UPFRONT_FEE'
 // Faixas como string no input (permite edição livre); convertidas ao salvar.
@@ -22,6 +40,13 @@ type Props = {
 
 function toDraft(t: CreditFeeTier): TierDraft {
   return { min: String(t.min), max: String(t.max), pct: String(t.pct) }
+}
+
+const MODE_HELP: Record<Mode, string> = {
+  INSTALLMENTS:
+    'As parcelas entram no financeiro na data em que a adquirente repassa cada uma, acompanhando o pagamento do cliente.',
+  UPFRONT_FEE:
+    'As vendas no crédito entram no financeiro como recebidas à vista; a taxa de antecipação vira uma despesa financeira em Custos.',
 }
 
 export function CreditReceiptConfigCard({ initialMode, initialTiers }: Props) {
@@ -74,98 +99,120 @@ export function CreditReceiptConfigCard({ initialMode, initialTiers }: Props) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Recebimento no cartão de crédito</CardTitle>
-        <CardDescription>
-          Define como as vendas no crédito entram no financeiro, conforme seu contrato com a
-          adquirente (maquininha).
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-1">
-          <Label>Modelo do contrato</Label>
-          <select
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as Mode)}
-          >
-            <option value="INSTALLMENTS">Recebo parcelado (conforme o cliente paga)</option>
-            <option value="UPFRONT_FEE">Recebo à vista com taxa de antecipação</option>
-          </select>
-          <p className="text-xs text-muted-foreground">
-            {mode === 'INSTALLMENTS'
-              ? 'As parcelas entram em “Contas a receber”, uma por mês.'
-              : 'A venda no crédito entra como recebida à vista; a taxa de antecipação vira uma despesa financeira em “Custos”.'}
-          </p>
-        </div>
+    <SettingsSectionCard
+      title="Pagamento no crédito"
+      description="Define como as vendas no crédito entram no financeiro, conforme seu contrato com a adquirente (maquininha)."
+    >
+      {/* Forma de recebimento (§10.1) */}
+      <div className="max-w-[540px]">
+        <label htmlFor="credit-mode" className={SETTINGS_LABEL}>
+          Forma de recebimento
+        </label>
+        <SettingsSelect
+          id="credit-mode"
+          className="h-11"
+          value={mode}
+          onChange={(e) => setMode(e.target.value as Mode)}
+        >
+          <option value="INSTALLMENTS">Recebo conforme o cliente paga</option>
+          <option value="UPFRONT_FEE">Recebo à vista, com taxa de antecipação</option>
+        </SettingsSelect>
+        <p className="m-0 mt-2.5 text-[12.5px] leading-[1.55] text-muted-foreground">
+          {MODE_HELP[mode]}
+        </p>
+      </div>
 
-        {mode === 'UPFRONT_FEE' && (
-          <div className="space-y-2 rounded-md border bg-muted/30 p-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Taxa por faixa de parcelas</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addTier}>
-                <Plus className="mr-1 h-3.5 w-3.5" />
-                Faixa
-              </Button>
-            </div>
-            <div className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2 text-xs text-muted-foreground">
+      {/* Bloco condicional de taxa — borda tracejada (§10.2) */}
+      {mode === 'UPFRONT_FEE' && (
+        <div className="mt-5 border-t border-dashed border-border pt-5">
+          <div className="flex items-center justify-between gap-3">
+            <span className={cn(SETTINGS_LABEL, 'mb-0')}>
+              Taxa de antecipação por faixa de parcelas
+            </span>
+            <button type="button" className={SETTINGS_BTN_GHOST} onClick={addTier}>
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Faixa
+            </button>
+          </div>
+
+          <div className="mt-3 max-w-[540px] space-y-2">
+            <div className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2 text-xs font-semibold text-muted-foreground">
               <span>Parcela de</span>
               <span>até</span>
               <span>Taxa (%)</span>
-              <span className="sr-only">Remover</span>
+              <span className="w-[34px]" aria-hidden="true" />
             </div>
             {tiers.map((t, i) => (
               <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2">
-                <Input
+                <input
                   type="number"
                   min="1"
                   inputMode="numeric"
                   value={t.min}
                   onChange={(e) => updateTier(i, 'min', e.target.value)}
                   placeholder="1"
+                  aria-label="Parcela inicial"
+                  className={cn(SETTINGS_INPUT, 'tabular-nums')}
                 />
-                <Input
+                <input
                   type="number"
                   min="1"
                   inputMode="numeric"
                   value={t.max}
                   onChange={(e) => updateTier(i, 'max', e.target.value)}
                   placeholder="6"
+                  aria-label="Parcela final"
+                  className={cn(SETTINGS_INPUT, 'tabular-nums')}
                 />
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  inputMode="decimal"
-                  value={t.pct}
-                  onChange={(e) => updateTier(i, 'pct', e.target.value)}
-                  placeholder="4,5"
-                />
-                <Button
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={t.pct}
+                    onChange={(e) => updateTier(i, 'pct', e.target.value)}
+                    placeholder="4,5"
+                    aria-label="Taxa da faixa (%)"
+                    className={cn(SETTINGS_INPUT, 'pr-[30px] tabular-nums')}
+                  />
+                  <span
+                    className="pointer-events-none absolute right-[11px] top-1/2 -translate-y-1/2 text-[13px] font-semibold text-muted-foreground"
+                    aria-hidden="true"
+                  >
+                    %
+                  </span>
+                </div>
+                <button
                   type="button"
-                  variant="ghost"
-                  size="icon"
                   onClick={() => removeTier(i)}
                   aria-label="Remover faixa"
-                  className="text-muted-foreground hover:text-destructive"
+                  className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  <Trash2 className="h-[15px] w-[15px]" aria-hidden="true" />
+                </button>
               </div>
             ))}
-            <p className="text-xs text-muted-foreground">
+            <p className="m-0 text-xs leading-[1.55] text-muted-foreground">
               Ex.: 1 a 1 → 2%, 2 a 6 → 4,5%, 7 a 12 → 6,8%. A taxa é aplicada sobre o valor da
               venda; fora de qualquer faixa, taxa 0%.
             </p>
           </div>
-        )}
+        </div>
+      )}
 
-        <Button type="button" onClick={onSave} disabled={isPending}>
-          {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {/* Rodapé de ação (§10.3) */}
+      <div className="mt-[22px] flex justify-end border-t border-border pt-5">
+        <button
+          type="button"
+          className={SETTINGS_BTN_PRIMARY}
+          onClick={onSave}
+          disabled={isPending}
+        >
+          {isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           Salvar
-        </Button>
-      </CardContent>
-    </Card>
+        </button>
+      </div>
+    </SettingsSectionCard>
   )
 }

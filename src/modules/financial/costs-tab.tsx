@@ -2,13 +2,12 @@
 
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Download, Edit2, Plus, RefreshCw, Repeat, Trash2 } from 'lucide-react'
+import { Download, Edit2, Plus, RefreshCw, Repeat, Trash2, Wallet } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { deleteCostAction } from '@/server/actions/cost-actions'
 import { useCsvExport } from '@/hooks/use-csv-export'
 import { CreateCostDialog } from './create-cost-dialog'
@@ -20,25 +19,20 @@ import {
 } from './types'
 import type { CostRow } from './types'
 
-const TYPE_COLORS: Record<string, string> = {
-  FIXED: 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200',
-  VARIABLE: 'bg-muted text-muted-foreground',
-  MARKETING: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-200',
-  PAYROLL: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200',
-  TAX_REVENUE: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200',
-  TAX_PROFIT: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200',
-  COMMISSION: 'bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-200',
-  COMMERCIAL: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200',
-  ADMINISTRATIVE: 'bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-200',
-  FINANCIAL_EXPENSE: 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200',
-  OTHER: 'bg-muted text-muted-foreground',
-}
-
 type Props = {
   costs: CostRow[]
   clientId: string
 }
 
+// Mesmo grid no cabeçalho e nas linhas p/ alinhar as colunas (handoff §9.2).
+const GRID =
+  'grid grid-cols-[108px_110px_minmax(0,1.1fr)_minmax(0,1.6fr)_130px_110px_76px] items-center gap-3.5'
+
+/**
+ * Aba Custos — redesign Senno (Financeiro-handoff §9): contador à esquerda,
+ * Exportar CSV + "Novo custo" à direita; tabela num card com pill de tipo em
+ * muted, valor em `destructive` e ações Editar/Excluir por linha.
+ */
 export function CostsTab({ costs, clientId }: Props) {
   const router = useRouter()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -66,117 +60,137 @@ export function CostsTab({ costs, clientId }: Props) {
   }
 
   return (
-    <>
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-4">
+      {/* ---- Header da aba (handoff §9.1) ---- */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <p className="text-[13px] font-medium">
           {costs.length} {costs.length === 1 ? 'custo' : 'custos'}
         </p>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
+        <div className="flex flex-wrap items-center gap-[9px]">
+          <button
+            type="button"
             disabled={exportLoading || costs.length === 0}
             onClick={() => exportCsv({ clientId, resource: 'costs' })}
+            className="inline-flex h-[38px] items-center gap-2 rounded-[9px] border border-border bg-card px-3.5 text-[13px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Download className="mr-1.5 h-3.5 w-3.5" />
+            <Download className="h-4 w-4" aria-hidden="true" />
             Exportar CSV
-          </Button>
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex h-[38px] items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
             Novo custo
-          </Button>
+          </button>
         </div>
       </div>
 
+      {/* ---- Tabela (handoff §9.2) ou vazio composto ---- */}
       {costs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-          <p className="text-sm font-medium text-muted-foreground">Nenhum custo registrado</p>
-          <Button size="sm" className="mt-4" onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
+        <div className="flex flex-col items-center gap-[11px] rounded-[13px] border border-dashed border-border bg-card px-6 py-[46px] text-center">
+          <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-muted text-muted-foreground">
+            <Wallet className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="text-sm font-semibold">Nenhum custo registrado</div>
+          <p className="-mt-1 max-w-[420px] text-[12.5px] text-muted-foreground">
+            Lance custos fixos e variáveis para acompanhar o resultado do mês e alimentar a DRE.
+          </p>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="mt-1.5 inline-flex h-9 items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105"
+          >
+            <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
             Adicionar custo
-          </Button>
+          </button>
         </div>
       ) : (
-        <div className="rounded-lg border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40">
-                <th className="px-4 py-2.5 text-left font-medium">Data</th>
-                <th className="px-4 py-2.5 text-left font-medium">Tipo</th>
-                <th className="px-4 py-2.5 text-left font-medium">Categoria</th>
-                <th className="px-4 py-2.5 text-left font-medium">Descrição</th>
-                <th className="px-4 py-2.5 text-left font-medium">Recorrente</th>
-                <th className="px-4 py-2.5 text-right font-medium">Valor</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody>
-              {costs.map((c) => (
-                <tr key={c.id} className="border-b last:border-0 hover:bg-muted/20">
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    {format(new Date(c.date), 'dd/MM/yyyy', { locale: ptBR })}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span
-                      className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${TYPE_COLORS[c.type] ?? ''}`}
-                    >
-                      {COST_TYPE_LABELS[c.type] ?? c.type}
+        <div className="overflow-x-auto rounded-[13px] border border-border bg-card shadow-card">
+          <div className="min-w-[860px]">
+            <div
+              className={cn(
+                GRID,
+                'border-b border-border bg-muted/40 px-[18px] py-[11px] text-[11.5px] font-semibold uppercase tracking-[0.02em] text-muted-foreground'
+              )}
+            >
+              <div>Data</div>
+              <div>Tipo</div>
+              <div>Categoria</div>
+              <div>Descrição</div>
+              <div>Recorrente</div>
+              <div className="text-right">Valor</div>
+              <div />
+            </div>
+
+            {costs.map((c) => (
+              <div
+                key={c.id}
+                className={cn(
+                  GRID,
+                  'border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50'
+                )}
+              >
+                <div className="text-[12.5px] tabular-nums">
+                  {format(new Date(c.date), 'dd/MM/yyyy', { locale: ptBR })}
+                </div>
+                <div>
+                  <span className="inline-flex whitespace-nowrap rounded-full bg-muted px-2.5 py-[3px] text-[11px] font-semibold leading-none text-foreground">
+                    {COST_TYPE_LABELS[c.type] ?? c.type}
+                  </span>
+                </div>
+                <div className="truncate text-[12.5px]">{c.category ?? '—'}</div>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {isAutoGeneratedRecurring(c.description) && (
+                    <Repeat className="h-3 w-3 flex-none text-primary-text" aria-hidden="true" />
+                  )}
+                  <span className="truncate text-[12.5px] text-foreground">
+                    {stripRecurringMarker(c.description) || '—'}
+                  </span>
+                </div>
+                <div className="text-[12.5px] text-muted-foreground">
+                  {c.isRecurring ? (
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border px-2.5 py-[3px] text-[11px] font-semibold leading-none text-foreground">
+                      <RefreshCw className="h-2.5 w-2.5" aria-hidden="true" />
+                      Template — dia {c.recurringDay ?? '?'}
                     </span>
-                  </td>
-                  <td className="px-4 py-2.5">{c.category ?? '—'}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      {isAutoGeneratedRecurring(c.description) && (
-                        <Repeat className="h-3 w-3 shrink-0 text-blue-500" />
-                      )}
-                      <span>{stripRecurringMarker(c.description) || '—'}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {c.isRecurring ? (
-                      <Badge variant="outline" className="gap-1 text-xs">
-                        <RefreshCw className="h-2.5 w-2.5" />
-                        Template — dia {c.recurringDay ?? '?'}
-                      </Badge>
-                    ) : isAutoGeneratedRecurring(c.description) ? (
-                      <Badge variant="secondary" className="gap-1 text-xs">
-                        <Repeat className="h-2.5 w-2.5" />
-                        Auto
-                      </Badge>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-medium text-red-700">
-                    {formatCurrency(c.amount)}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                        onClick={() => openEdit(c)}
-                        aria-label="Editar custo"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        disabled={deleting === c.id}
-                        onClick={() => handleDelete(c.id)}
-                        aria-label="Remover custo"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ) : isAutoGeneratedRecurring(c.description) ? (
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-muted px-2.5 py-[3px] text-[11px] font-semibold leading-none text-foreground">
+                      <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
+                      Auto
+                    </span>
+                  ) : (
+                    '—'
+                  )}
+                </div>
+                <div className="text-right text-[13px] font-semibold tabular-nums text-destructive">
+                  {formatCurrency(c.amount)}
+                </div>
+                <div className="flex justify-end gap-1.5">
+                  <button
+                    type="button"
+                    title="Editar"
+                    aria-label="Editar custo"
+                    onClick={() => openEdit(c)}
+                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Excluir"
+                    aria-label="Remover custo"
+                    disabled={deleting === c.id}
+                    onClick={() => handleDelete(c.id)}
+                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/[0.12] hover:text-destructive disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -187,6 +201,6 @@ export function CostsTab({ costs, clientId }: Props) {
         onOpenChange={setDialogOpen}
         onSaved={() => router.refresh()}
       />
-    </>
+    </div>
   )
 }

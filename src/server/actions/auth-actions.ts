@@ -2,12 +2,21 @@
 
 import { hash } from 'bcryptjs'
 import { createHash, randomBytes } from 'crypto'
+import { headers } from 'next/headers'
 import { z } from 'zod'
 
 import { env } from '@/lib/env'
+import { getIpFromHeaders } from '@/lib/request-ip'
 import { sendEmail } from '@/lib/resend'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
+import { auth } from '@/server/auth'
+import {
+  isResetAttemptLocked,
+  isResetRequestLocked,
+  recordResetRequest,
+  recordResetTokenFailure,
+} from '@/server/security/reset-throttle'
 import { fail, ok } from '@/types/errors'
 
 const acceptInviteSchema = z.object({
@@ -107,6 +116,39 @@ export async function acceptInviteAction(input: z.infer<typeof acceptInviteSchem
   return ok({ email: user.email })
 }
 
+/**
+ * Invalida server-side TODAS as sessões do usuário atual antes do logout do
+ * cookie. JWT é stateless: apagar o cookie só derruba ESTE navegador — uma cópia
+ * do token roubada seguiria válida até o maxAge. Incrementar `sessionVersion`
+ * torna qualquer token já emitido inválido na hora (getTenantContext e o re-sync
+ * do jwt callback comparam o version). O cliente ainda chama `signOut()` p/ limpar
+ * o cookie local e redirecionar. Best-effort: se o bump falhar, o logout do cookie
+ * acontece mesmo assim.
+ *
+ * Efeito colateral intencional: "Sair" desconecta o usuário de TODOS os
+ * dispositivos (revogação global). Logout por-dispositivo exigiria denylist de
+ * jti (não implementado).
+ */
+export async function logoutAction() {
+  const session = await auth()
+  const userId = session?.user?.id
+  if (!userId) return ok(null)
+
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { sessionVersion: { increment: 1 } },
+    })
+    logger.info('Sessions invalidated on logout', { userId })
+  } catch (err) {
+    logger.warn('Falha ao invalidar sessões no logout', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+  return ok(null)
+}
+
 function hashToken(raw: string): string {
   return createHash('sha256').update(raw).digest('hex')
 }
@@ -119,8 +161,20 @@ export async function forgotPasswordAction(input: z.infer<typeof forgotPasswordS
   const parsed = forgotPasswordSchema.safeParse(input)
   if (!parsed.success) return fail(parsed.error.message)
 
+  const email = parsed.data.email
+
+  // Rate-limit: por CONTA (anti email-bombing) + por IP (anti flood/enumeração),
+  // ANTES do lookup/envio. Resposta constante (`ok(null)`) mesmo bloqueado →
+  // não revela se o email existe nem que houve throttle.
+  const ip = getIpFromHeaders(await headers())
+  if (await isResetRequestLocked(email, ip)) {
+    logger.warn('Recuperação de senha bloqueada por rate-limit', { ip })
+    return ok(null)
+  }
+  await recordResetRequest(email, ip)
+
   const user = await prisma.user.findUnique({
-    where: { email: parsed.data.email, deletedAt: null, isActive: true },
+    where: { email, deletedAt: null, isActive: true },
     select: { id: true, email: true, name: true },
   })
 
@@ -164,6 +218,13 @@ export async function resetPasswordAction(input: z.infer<typeof resetPasswordSch
   const parsed = resetPasswordSchema.safeParse(input)
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Dados inválidos')
 
+  // Rate-limit por IP das tentativas de token — trava força-bruta de token.
+  const ip = getIpFromHeaders(await headers())
+  if (await isResetAttemptLocked(ip)) {
+    logger.warn('Reset de senha bloqueado por rate-limit', { ip })
+    return fail('Muitas tentativas. Tente novamente mais tarde.')
+  }
+
   const tokenHash = hashToken(parsed.data.token)
 
   const record = await prisma.passwordResetToken.findUnique({
@@ -171,9 +232,18 @@ export async function resetPasswordAction(input: z.infer<typeof resetPasswordSch
     select: { id: true, userId: true, expiresAt: true, usedAt: true },
   })
 
-  if (!record) return fail('Token inválido')
-  if (record.usedAt) return fail('Token já utilizado')
-  if (record.expiresAt < new Date()) return fail('Token expirado')
+  if (!record) {
+    await recordResetTokenFailure(ip)
+    return fail('Token inválido')
+  }
+  if (record.usedAt) {
+    await recordResetTokenFailure(ip)
+    return fail('Token já utilizado')
+  }
+  if (record.expiresAt < new Date()) {
+    await recordResetTokenFailure(ip)
+    return fail('Token expirado')
+  }
 
   const passwordHash = await hash(parsed.data.password, 12)
 
@@ -182,7 +252,9 @@ export async function resetPasswordAction(input: z.infer<typeof resetPasswordSch
   await prisma.$transaction([
     prisma.user.update({
       where: { id: record.userId },
-      data: { passwordHash },
+      // Bump de sessionVersion: um reset de senha (fluxo de recuperação, conta
+      // possivelmente comprometida) invalida TODAS as sessões existentes na hora.
+      data: { passwordHash, sessionVersion: { increment: 1 } },
     }),
     prisma.passwordResetToken.update({
       where: { id: record.id },

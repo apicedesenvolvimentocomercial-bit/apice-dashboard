@@ -53,7 +53,12 @@ export const lowMarginRule: InsightRule = {
       estimatedImpact: revenue * (MARGIN_WARNING_THRESHOLD - margin),
       suggestion:
         'Audite custos por categoria, reprecifique procedimentos com margem baixa e renegocie contratos fixos.',
-      metadata: { margin, revenue, cost },
+      metadata: {
+        margin,
+        revenue,
+        cost,
+        metric: { value: `${(margin * 100).toFixed(1)}%`, label: 'de margem líquida' },
+      },
     }
   },
 }

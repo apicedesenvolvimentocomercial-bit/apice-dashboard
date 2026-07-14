@@ -975,6 +975,106 @@ export async function getTopCostCategories(
     .slice(0, limit)
 }
 
+/**
+ * Top compradores: pacientes ranqueados por receita acumulada (todas as vendas
+ * não-canceladas). `count` = nº de lançamentos (atendimentos faturados).
+ */
+export async function getTopBuyers(
+  ctx: TenantContext,
+  clientId: string,
+  options?: { from?: Date; to?: Date; limit?: number }
+) {
+  const limit = options?.limit ?? 10
+  const grouped = await prisma.revenue.groupBy({
+    by: ['patientId'],
+    where: {
+      organizationId: ctx.organizationId,
+      clientId,
+      deletedAt: null,
+      status: { not: 'CANCELADA' },
+      patientId: { not: null },
+      ...(options?.from || options?.to
+        ? {
+            date: {
+              ...(options?.from ? { gte: options.from } : {}),
+              ...(options?.to ? { lte: options.to } : {}),
+            },
+          }
+        : {}),
+    },
+    _sum: { amount: true },
+    _count: { _all: true },
+    orderBy: { _sum: { amount: 'desc' } },
+    take: limit,
+  })
+
+  const ids = grouped.map((g) => g.patientId).filter((id): id is string => Boolean(id))
+  if (ids.length === 0) return []
+  const patients = await prisma.patient.findMany({
+    where: { id: { in: ids }, clientId },
+    select: { id: true, name: true },
+  })
+  const map = new Map(patients.map((p) => [p.id, p.name]))
+  return grouped
+    .filter((g) => g.patientId && map.has(g.patientId))
+    .map((g) => ({
+      patientId: g.patientId as string,
+      name: map.get(g.patientId as string) ?? 'Paciente',
+      total: Number(g._sum.amount ?? 0),
+      count: g._count._all,
+    }))
+}
+
+/**
+ * Top vendedores: usuários ranqueados pelas receitas que LANÇARAM
+ * (`Revenue.createdById`). Baixas automáticas sem autor ficam de fora.
+ */
+export async function getTopSellers(
+  ctx: TenantContext,
+  clientId: string,
+  options?: { from?: Date; to?: Date; limit?: number }
+) {
+  const limit = options?.limit ?? 10
+  const grouped = await prisma.revenue.groupBy({
+    by: ['createdById'],
+    where: {
+      organizationId: ctx.organizationId,
+      clientId,
+      deletedAt: null,
+      status: { not: 'CANCELADA' },
+      createdById: { not: null },
+      ...(options?.from || options?.to
+        ? {
+            date: {
+              ...(options?.from ? { gte: options.from } : {}),
+              ...(options?.to ? { lte: options.to } : {}),
+            },
+          }
+        : {}),
+    },
+    _sum: { amount: true },
+    _count: { _all: true },
+    orderBy: { _sum: { amount: 'desc' } },
+    take: limit,
+  })
+
+  const ids = grouped.map((g) => g.createdById).filter((id): id is string => Boolean(id))
+  if (ids.length === 0) return []
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true },
+  })
+  const map = new Map(users.map((u) => [u.id, u.name]))
+  return grouped
+    .filter((g) => g.createdById && map.has(g.createdById))
+    .map((g) => ({
+      userId: g.createdById as string,
+      name: map.get(g.createdById as string) ?? 'Usuário',
+      total: Number(g._sum.amount ?? 0),
+      count: g._count._all,
+    }))
+}
+
 export async function getFinancialSummary(ctx: TenantContext, clientId: string) {
   const now = new Date()
   const [yStr, mStr] = monthKey(now).split('-')
@@ -993,51 +1093,76 @@ export async function getFinancialSummary(ctx: TenantContext, clientId: string) 
   }
   const recvTenant = { organizationId: ctx.organizationId, clientId }
 
-  const [curRevenues, curCosts, prevRevenues, prevCosts, cashReceived, receivableOpen, overdue] =
-    await Promise.all([
-      prisma.revenue.aggregate({
-        where: { ...revTenant, date: { gte: startOfMonth } },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      prisma.cost.aggregate({
-        where: {
-          organizationId: ctx.organizationId,
-          clientId,
-          deletedAt: null,
-          date: { gte: startOfMonth },
-        },
-        _sum: { amount: true },
-      }),
-      prisma.revenue.aggregate({
-        where: { ...revTenant, date: { gte: startOfLastMonth, lte: endOfLastMonth } },
-        _sum: { amount: true },
-      }),
-      prisma.cost.aggregate({
-        where: {
-          organizationId: ctx.organizationId,
-          clientId,
-          deletedAt: null,
-          date: { gte: startOfLastMonth, lte: endOfLastMonth },
-        },
-        _sum: { amount: true },
-      }),
-      // Bloco de CAIXA: recebido no mês (parcelas pagas por paidAt).
-      prisma.receivable.aggregate({
-        where: { ...recvTenant, status: 'PAGO', paidAt: { gte: startOfMonth } },
-        _sum: { amount: true },
-      }),
-      // A receber (parcelas pendentes, total em aberto).
-      prisma.receivable.aggregate({
-        where: { ...recvTenant, status: 'PENDENTE' },
-        _sum: { amount: true },
-      }),
-      // Vencido (pendentes com vencimento no passado).
-      prisma.receivable.aggregate({
-        where: { ...recvTenant, status: 'PENDENTE', dueDate: { lt: now } },
-        _sum: { amount: true },
-      }),
-    ])
+  const in30Days = new Date(now.getTime() + 30 * 86_400_000)
+
+  const [
+    curRevenues,
+    curCosts,
+    prevRevenues,
+    prevCosts,
+    cashReceived,
+    prevCashReceived,
+    receivableOpen,
+    overdue,
+    dueIn30Days,
+  ] = await Promise.all([
+    prisma.revenue.aggregate({
+      where: { ...revTenant, date: { gte: startOfMonth } },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.cost.aggregate({
+      where: {
+        organizationId: ctx.organizationId,
+        clientId,
+        deletedAt: null,
+        date: { gte: startOfMonth },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.revenue.aggregate({
+      where: { ...revTenant, date: { gte: startOfLastMonth, lte: endOfLastMonth } },
+      _sum: { amount: true },
+    }),
+    prisma.cost.aggregate({
+      where: {
+        organizationId: ctx.organizationId,
+        clientId,
+        deletedAt: null,
+        date: { gte: startOfLastMonth, lte: endOfLastMonth },
+      },
+      _sum: { amount: true },
+    }),
+    // Bloco de CAIXA: recebido no mês (parcelas pagas por paidAt).
+    prisma.receivable.aggregate({
+      where: { ...recvTenant, status: 'PAGO', paidAt: { gte: startOfMonth } },
+      _sum: { amount: true },
+    }),
+    // Recebido no mês ANTERIOR (delta MoM do KPI "Recebido no mês").
+    prisma.receivable.aggregate({
+      where: {
+        ...recvTenant,
+        status: 'PAGO',
+        paidAt: { gte: startOfLastMonth, lte: endOfLastMonth },
+      },
+      _sum: { amount: true },
+    }),
+    // A receber (parcelas pendentes, total em aberto).
+    prisma.receivable.aggregate({
+      where: { ...recvTenant, status: 'PENDENTE' },
+      _sum: { amount: true },
+    }),
+    // Vencido (pendentes com vencimento no passado).
+    prisma.receivable.aggregate({
+      where: { ...recvTenant, status: 'PENDENTE', dueDate: { lt: now } },
+      _sum: { amount: true },
+    }),
+    // A vencer nos próximos 30 dias (entrada projetada de caixa).
+    prisma.receivable.aggregate({
+      where: { ...recvTenant, status: 'PENDENTE', dueDate: { gte: now, lte: in30Days } },
+      _sum: { amount: true },
+    }),
+  ])
 
   const curRev = Number(curRevenues._sum.amount ?? 0)
   const curCost = Number(curCosts._sum.amount ?? 0)
@@ -1059,11 +1184,14 @@ export async function getFinancialSummary(ctx: TenantContext, clientId: string) 
     },
     previous: { revenue: prevRev, costs: prevCost, profit: prevProfit, margin: prevMargin },
     // Bloco de CAIXA (competência convive com liquidez — ledger dre-progresso.md):
-    // recebido no mês, total a receber e o que está vencido.
+    // recebido no mês (+ mês anterior p/ delta), total a receber, vencido e a
+    // entrada projetada = recebido no mês + parcelas a vencer nos próximos 30d.
     cash: {
       received: Number(cashReceived._sum.amount ?? 0),
+      prevReceived: Number(prevCashReceived._sum.amount ?? 0),
       receivable: Number(receivableOpen._sum.amount ?? 0),
       overdue: Number(overdue._sum.amount ?? 0),
+      projected30d: Number(cashReceived._sum.amount ?? 0) + Number(dueIn30Days._sum.amount ?? 0),
     },
   }
 }

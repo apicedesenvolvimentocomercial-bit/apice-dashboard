@@ -56,7 +56,12 @@ export const highNoShowRule: InsightRule = {
       estimatedImpact: avgTicket > 0 ? noShow * avgTicket : null,
       suggestion:
         'Ative confirmação automática via WhatsApp 24h antes do agendamento e exija sinal/cadastro de cartão para reservar horário.',
-      metadata: { rate, noShowCount: noShow, total },
+      metadata: {
+        rate,
+        noShowCount: noShow,
+        total,
+        metric: { value: `${(rate * 100).toFixed(0)}%`, label: 'de faltas em 30 dias' },
+      },
     }
   },
 }

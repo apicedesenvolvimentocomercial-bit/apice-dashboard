@@ -35,7 +35,10 @@ export const noLeads7dRule: InsightRule = {
       estimatedImpact: null,
       suggestion:
         'Verifique se as campanhas pagas estão ativas, formulários funcionando e canais orgânicos rodando.',
-      metadata: { since: from.toISOString() },
+      metadata: {
+        since: from.toISOString(),
+        metric: { value: '0', label: 'leads em 7 dias' },
+      },
     }
   },
 }

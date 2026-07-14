@@ -13,5 +13,5 @@ export default async function ClinicNotificationsRoute() {
     unread: 0,
   }))
 
-  return <ClinicNotificationsPage notifications={rows} unreadCount={unread} />
+  return <ClinicNotificationsPage notifications={rows} unreadCount={unread} nowMs={Date.now()} />
 }

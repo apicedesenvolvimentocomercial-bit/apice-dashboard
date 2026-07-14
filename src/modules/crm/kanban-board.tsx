@@ -12,12 +12,10 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import type { PipelineCategory, PipelineKind, StageNativeKey } from '@prisma/client'
-import { Pencil } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
 import type { ClinicSchedule } from '@/modules/appointments/types'
 import { isPositionExhausted, positionBetween } from '@/lib/dnd-position'
 import {
@@ -49,7 +47,6 @@ import { KanbanColumn } from './kanban-column'
 import { LeadCard } from './lead-card'
 import { RescheduleLeadDialog } from './reschedule-lead-dialog'
 import { ScheduleLeadDialog, type ProcedureOption } from './schedule-lead-dialog'
-import { StageEditorDialog } from './stage-editor-dialog'
 import type { KanbanLead, KanbanStage, PipelineMoveTarget } from './types'
 
 type Props = {
@@ -60,7 +57,6 @@ type Props = {
   pipelineKind: PipelineKind
   /** Categoria semântica (LEAD/PATIENT/OTHER) — rege o fluxo de mover entre funis. */
   pipelineCategory: PipelineCategory
-  pipelineName: string
   /** Todos os funis da clínica (leve) p/ o dialog "Mover para funil". */
   allPipelines: PipelineMoveTarget[]
   /** Procedimentos da clínica p/ o dialog de Agendado (2a). */
@@ -80,7 +76,6 @@ export function KanbanBoard({
   pipelineId,
   pipelineKind,
   pipelineCategory,
-  pipelineName,
   allPipelines,
   procedures,
   schedule,
@@ -91,9 +86,11 @@ export function KanbanBoard({
   const [stages, setStages] = useState<KanbanStage[]>(initialStages)
   const [activeLead, setActiveLead] = useState<KanbanLead | null>(null)
   const [drawerLeadId, setDrawerLeadId] = useState<string | null>(null)
+  // Card unificado: no funil de RETENÇÃO o card é a face de um Paciente → o clique
+  // abre o card de PACIENTE (mesmo da aba Pacientes / busca), não o de lead.
+  const [drawerPatientId, setDrawerPatientId] = useState<string | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createStageId, setCreateStageId] = useState<string>('')
-  const [stageEditorOpen, setStageEditorOpen] = useState(false)
   // Move para Agendado pendente de confirmação (dialog bloqueante 2a). Guarda o
   // snapshot p/ reverter o card se o usuário cancelar.
   const [pendingSchedule, setPendingSchedule] = useState<{
@@ -538,18 +535,6 @@ export function KanbanBoard({
 
   return (
     <>
-      <div className="flex shrink-0 justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setStageEditorOpen(true)}
-          aria-label="Editar etapas do funil"
-        >
-          <Pencil className="mr-2 h-4 w-4" />
-          Editar etapas
-        </Button>
-      </div>
-
       <DndContext
         id="kanban-dnd"
         sensors={sensors}
@@ -560,10 +545,10 @@ export function KanbanBoard({
         {/* `items-start`: as colunas têm altura FLUIDA (do tamanho do conteúdo),
             não esticam até o rodapé. O board ocupa a altura restante (min-h-0
             flex-1) e rola na horizontal; se uma coluna passar da altura visível,
-            o board rola na vertical. */}
-        <div className="flex min-h-0 flex-1 items-start gap-4 overflow-x-auto pb-2">
+            o board rola na vertical (handoff §7.1 — único elemento rolável). */}
+        <div className="flex min-h-0 flex-1 items-start gap-3.5 overflow-auto px-0.5 pb-3 pt-1">
           {stages.length === 0 ? (
-            <div className="flex w-full items-center justify-center rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
+            <div className="flex w-full items-center justify-center rounded-[11px] border-[1.5px] border-dashed border-border bg-card/35 p-12 text-center text-sm text-muted-foreground">
               Nenhuma etapa configurada. Use “Editar etapas” para criar o funil.
             </div>
           ) : (
@@ -572,7 +557,15 @@ export function KanbanBoard({
                 key={stage.id}
                 stage={stage}
                 onAddLead={() => openCreateDialog(stage.id)}
-                onLeadClick={(leadId) => setDrawerLeadId(leadId)}
+                onLeadClick={(leadId) => {
+                  // Retenção com paciente ligado → card unificado de paciente.
+                  const clicked = stage.leads.find((l) => l.id === leadId)
+                  if (pipelineKind === 'RETENTION' && clicked?.patient?.id) {
+                    setDrawerPatientId(clicked.patient.id)
+                  } else {
+                    setDrawerLeadId(leadId)
+                  }
+                }}
                 highlightLeadId={highlightLeadId}
                 onLoadMore={() => loadMore(stage.id)}
                 loadingMore={loadingMoreStageId === stage.id}
@@ -593,6 +586,7 @@ export function KanbanBoard({
           onOpenChange={setCreateDialogOpen}
           clientId={clientId}
           defaultStageId={createStageId}
+          stageName={stages.find((s) => s.id === createStageId)?.name}
           onCreated={handleLeadCreated}
         />
       ) : (
@@ -605,17 +599,6 @@ export function KanbanBoard({
           onCreated={handleLeadCreated}
         />
       )}
-
-      <StageEditorDialog
-        open={stageEditorOpen}
-        onOpenChange={setStageEditorOpen}
-        clientId={clientId}
-        pipelineId={pipelineId}
-        pipelineKind={pipelineKind}
-        pipelineCategory={pipelineCategory}
-        pipelineName={pipelineName}
-        stages={stages}
-      />
 
       <ScheduleLeadDialog
         open={pendingSchedule !== null}
@@ -781,22 +764,27 @@ export function KanbanBoard({
       </AlertDialog>
 
       <ClientCard
-        open={drawerLeadId !== null}
+        open={drawerLeadId !== null || drawerPatientId !== null}
         clientId={clientId}
         subject={
-          drawerLeadId
-            ? {
-                type: 'lead',
-                id: drawerLeadId,
-                stages,
-                pipelineKind,
-                pipelineId,
-                pipelineCategory,
-                pipelines: allPipelines,
-              }
-            : null
+          drawerPatientId
+            ? { type: 'patient', id: drawerPatientId }
+            : drawerLeadId
+              ? {
+                  type: 'lead',
+                  id: drawerLeadId,
+                  stages,
+                  pipelineKind,
+                  pipelineId,
+                  pipelineCategory,
+                  pipelines: allPipelines,
+                }
+              : null
         }
-        onClose={() => setDrawerLeadId(null)}
+        onClose={() => {
+          setDrawerLeadId(null)
+          setDrawerPatientId(null)
+        }}
         onChanged={handleLeadUpdated}
       />
     </>

@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  .senno{
+    --background:38 14% 97%; --foreground:220 9% 12%;
+    --card:0 0% 100%; --card-foreground:220 9% 12%; --popover:0 0% 100%;
+    --primary:42 53% 42%; --primary-foreground:225 11% 7%; --primary-text:42 53% 33%;
+    --secondary:38 18% 90%; --secondary-foreground:25 47% 18%;
+    --muted:38 18% 90%; --muted-foreground:25 15% 38%;
+    --accent:38 18% 90%; --accent-foreground:25 47% 18%;
+    --destructive:0 72% 48%; --destructive-bg:0 80% 96%;
+    --border:38 20% 85%; --input:38 20% 85%; --ring:42 65% 52%;
+    --ok:142 55% 30%; --ok-bg:142 50% 91%;
+    --warn:32 80% 32%; --warn-bg:38 88% 90%;
+    --shadow:220 28% 22%; --shadow-a:0.07;
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .senno[data-theme="dark"]{
+    --background:225 11% 7%; --foreground:38 33% 96%;
+    --card:220 9% 11%; --card-foreground:38 33% 96%; --popover:220 9% 11%;
+    --primary:42 65% 58%; --primary-foreground:225 11% 7%; --primary-text:42 65% 58%;
+    --secondary:220 9% 16%; --secondary-foreground:38 33% 96%;
+    --muted:220 9% 16%; --muted-foreground:38 15% 65%;
+    --accent:220 9% 16%; --accent-foreground:38 33% 96%;
+    --destructive:0 63% 50%; --destructive-bg:0 45% 14%;
+    --border:220 9% 18%; --input:220 9% 18%; --ring:42 65% 58%;
+    --ok:142 58% 64%; --ok-bg:142 45% 15%;
+    --warn:38 85% 66%; --warn-bg:36 55% 15%;
+    --shadow:0 0% 0%; --shadow-a:0.4;
+  }
+  /* topbar search: collapses to icon, expands right-to-left on hover; 0s grace before collapsing */
+  .senno-search{ position:relative; width:38px; height:38px; flex:none; }
+  .senno-search-box{ position:absolute; top:0; right:0; height:38px; width:38px; display:flex; align-items:center; gap:8px; padding:0 11px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--muted-foreground)); font-size:12.5px; overflow:hidden; white-space:nowrap; cursor:pointer; transition:width .34s cubic-bezier(.4,0,.2,1), background .22s ease, border-color .22s ease, box-shadow .22s ease; transition-delay:0s; }
+  .senno-search:hover .senno-search-box, .senno-search-box:focus-within{ width:240px; background:hsl(var(--background)); border-color:hsl(var(--input)); cursor:text; transition-delay:0s; }
+  .senno-search-box:focus-within{ border-color:hsl(var(--ring)); box-shadow:0 0 0 3px hsl(var(--ring)/0.18); }
+  /* theme toggle: sun/moon swap with rotate + fade */
+  .senno-theme-btn{ position:relative; overflow:hidden; }
+  .senno-theme-ico{ position:absolute; top:50%; left:50%; width:17px; height:17px; margin:-8.5px 0 0 -8.5px; display:inline-flex; transition:transform .5s cubic-bezier(.34,1.3,.5,1), opacity .35s ease; }
+  .senno-theme-sun{ transform:rotate(0deg) scale(1); opacity:1; }
+  .senno-theme-moon{ transform:rotate(-90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-sun{ transform:rotate(90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-moon{ transform:rotate(0deg) scale(1); opacity:1; }
+  /* notification bell: small resonating shake on click */
+  @keyframes senno-bell-ring{ 0%{transform:rotate(0);} 15%{transform:rotate(11deg);} 30%{transform:rotate(-9deg);} 45%{transform:rotate(6deg);} 60%{transform:rotate(-4deg);} 75%{transform:rotate(2deg);} 100%{transform:rotate(0);} }
+  .senno-bell-ico{ transform-origin:top center; }
+  .senno-bell-ring-a{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+  .senno-bell-ring-b{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+  @keyframes senno-overdue-pulse{ 0%,100%{ box-shadow:0 0 0 0 hsl(var(--destructive)/0.5); } 70%{ box-shadow:0 0 0 6px hsl(var(--destructive)/0); } }
+  .senno-overdue-ico{ animation:senno-overdue-pulse 2s ease-out infinite; }
+  /* concluir atividade: hover verde + pop do check + linha desliza para fora pela direita */
+  .senno-act-row{ overflow:hidden; max-height:180px; transition:transform .42s cubic-bezier(.4,0,.2,1) .26s, opacity .42s ease .26s, max-height .32s ease .55s, padding .32s ease .55s; }
+  .senno-act-leaving{ transform:translateX(115%); opacity:0; max-height:0 !important; padding-top:0 !important; padding-bottom:0 !important; }
+  .senno-check{ transition:background .2s ease, border-color .2s ease, color .2s ease, transform .25s ease; }
+  .senno-check-on{ cursor:pointer; }
+  .senno-check-on:hover{ border-color:hsl(var(--ok)) !important; color:hsl(var(--ok)) !important; background:hsl(var(--ok)/0.12) !important; }
+  @keyframes senno-check-pop{ 0%{transform:scale(1);} 35%{transform:scale(1.28);} 70%{transform:scale(.9);} 100%{transform:scale(1);} }
+  .senno-act-leaving .senno-check{ background:hsl(var(--ok)) !important; border-color:hsl(var(--ok)) !important; color:#fff !important; animation:senno-check-pop .4s ease; }
+  /* pastas: pasta selecionada \u00e0 esquerda; demais surgem \u00e0 direita no hover (hitbox grande = todo o container) */
+  .senno-pastas-trigger{ transition:background .2s ease, border-color .2s ease, color .2s ease; }
+  .senno-pastas-trigger:hover{ background:hsl(var(--accent)); border-color:hsl(var(--input)); }
+  .senno-pastas-rest{ flex:none; max-width:0; opacity:0; overflow:hidden; transition:max-width .42s cubic-bezier(.4,0,.2,1), opacity .3s ease .02s; }
+  .senno-pastas-rest-inner{ width:max-content; display:flex; align-items:center; gap:8px; padding-left:8px; }
+  .senno-pastas:hover .senno-pastas-rest, .senno-pastas:focus-within .senno-pastas-rest{ max-width:760px; opacity:1; }
+  .senno-pastas:hover .senno-pastas-chev, .senno-pastas:focus-within .senno-pastas-chev{ transform:translateX(2px); }
+  .senno-pastas:hover .senno-pastas-trigger, .senno-pastas:focus-within .senno-pastas-trigger{ background:hsl(var(--accent)); border-color:hsl(var(--input)); }
+
+  /* responsive: stack multi-column grids on tablet/portrait */
+  @media (max-width:1024px){ .senno-2col{ grid-template-columns:1fr !important; } .senno-3col{ grid-template-columns:1fr 1fr !important; } }
+  @media (max-width:660px){ .senno-3col{ grid-template-columns:1fr !important; } }
+</style>
+</helmet>
+
+<div class="senno" data-theme="{{ theme }}" data-font="inter" style="background:hsl(var(--background)); color:hsl(var(--foreground)); height:100vh; box-sizing:border-box; overflow:hidden; line-height:1.45;">
+
+  <div data-screen-label="Atividades" style="width:100%; height:100%; min-height:0; display:flex; overflow:hidden; background:hsl(var(--background));">
+
+    <!-- SIDEBAR -->
+    <aside style="width:236px; flex:none; background:hsl(var(--card)); border-right:1px solid hsl(var(--border)); display:flex; flex-direction:column; padding:18px 14px;">
+      <div style="display:flex; align-items:center; gap:10px; padding:6px 8px 18px;">
+        <div style="width:34px; height:34px; border-radius:9px; background:hsl(var(--primary)); display:flex; align-items:center; justify-content:center; flex:none;">
+          <span style="color:hsl(var(--primary-foreground)); font-weight:700; font-size:17px;">B</span>
+        </div>
+        <div style="min-width:0;">
+          <div style="font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Clínica Bellavie</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Plano Premium</div>
+        </div>
+      </div>
+      <nav style="display:flex; flex-direction:column; gap:2px;">
+        <sc-for list="{{ navMain }}" as="item" hint-placeholder-count="12">
+          <a href="#" onClick="{{ item.onClick }}" style="display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:8px; font-size:13.5px; font-weight:{{ item.weight }}; text-decoration:none; color:{{ item.color }}; background:{{ item.bg }};" style-hover="background:hsl(var(--accent));">
+            <span style="width:18px; height:18px; display:inline-flex; flex:none; color:{{ item.iconColor }};" dangerouslySetInnerHTML="{{ item.icon }}"></span>
+            <span style="flex:1; white-space:nowrap;">{{ item.label }}</span>
+          </a>
+        </sc-for>
+      </nav>
+      <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; background:hsl(var(--muted));">
+        <div style="width:32px; height:32px; border-radius:99px; background:hsl(var(--primary)/0.2); display:flex; align-items:center; justify-content:center; flex:none; color:hsl(var(--primary-text)); font-weight:600; font-size:12.5px;">HC</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Dra. Helena Costa</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Proprietária</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div style="flex:1; min-width:0; min-height:0; display:flex; flex-direction:column;">
+
+      <!-- TOPBAR -->
+      <header style="flex:none; display:flex; align-items:center; gap:16px; padding:14px 24px; border-bottom:1px solid hsl(var(--border)); background:hsl(var(--card));">
+        <div style="flex:1; min-width:0;">
+          <h1 style="margin:0; font-size:clamp(22px, 0.5vw + 18px, 27px); font-weight:600; letter-spacing:-0.01em;">Atividades</h1>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <div class="senno-search">
+            <div class="senno-search-box">
+              <span style="width:15px;height:15px;display:inline-flex;flex:none;" dangerouslySetInnerHTML="{{ icoSearch }}"></span>
+              <input type="text" placeholder="Buscar paciente…" style="flex:1; min-width:0; border:none; outline:none; background:transparent; font-family:inherit; font-size:12.5px; color:hsl(var(--foreground));" />
+            </div>
+          </div>
+          <button onClick="{{ toggleTheme }}" title="{{ themeTitle }}" class="senno-theme-btn" style="width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+            <span class="senno-theme-ico senno-theme-sun" dangerouslySetInnerHTML="{{ icoSun }}"></span>
+            <span class="senno-theme-ico senno-theme-moon" dangerouslySetInnerHTML="{{ icoMoon }}"></span>
+          </button>
+          <div class="senno-notif" style="position:relative;">
+            <button onClick="{{ toggleNotif }}" title="Notificações" style="position:relative; width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+              <span class="senno-bell-ico {{ bellClass }}" onAnimationEnd="{{ bellAnimEnd }}" style="width:17px;height:17px;display:inline-flex; transform-origin:top center;" dangerouslySetInnerHTML="{{ icoBell }}"></span>
+              <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}">
+                <span style="position:absolute; top:7px; right:8px; width:7px; height:7px; border-radius:99px; background:hsl(var(--destructive)); border:1.5px solid hsl(var(--card));"></span>
+              </sc-if>
+            </button>
+            <sc-if value="{{ notifOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closeNotif }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:46px; right:0; width:362px; background:hsl(var(--popover)); border:1px solid hsl(var(--border)); border-radius:12px; box-shadow:0 16px 40px -12px hsl(var(--shadow)/calc(var(--shadow-a) * 3.5)); z-index:50; overflow:hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px 10px;">
+                  <span style="display:flex; align-items:center; gap:8px; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--foreground));">Notificações<sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px; font-weight:600; padding:1px 7px; border-radius:99px; background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text)); font-variant-numeric:tabular-nums;">{{ unreadCount }}</span></sc-if></span>
+                  <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><button onClick="{{ markAllRead }}" style="border:none; background:transparent; font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); cursor:pointer; padding:2px 4px; font-family:inherit;" style-hover="text-decoration:underline;">Marcar todas como lidas</button></sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; padding:0 6px 6px; max-height:344px; overflow-y:auto;">
+                  <sc-for list="{{ notifItems }}" as="n" hint-placeholder-count="4">
+                    <button onClick="{{ n.onClick }}" style="display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left; padding:10px 8px; border:none; background:{{ n.rowBg }}; border-radius:8px; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+                      <span style="width:32px; height:32px; border-radius:99px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ n.iconBg }}; color:{{ n.iconColor }};"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ n.icon }}"></span></span>
+                      <span style="flex:1; min-width:0;">
+                        <span style="display:block; font-size:12.5px; font-weight:{{ n.titleWeight }}; color:hsl(var(--foreground));">{{ n.title }}</span>
+                        <span style="display:block; font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ n.sub }}</span>
+                      </span>
+                      <span style="flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+                        <span style="font-size:10.5px; color:hsl(var(--muted-foreground)); white-space:nowrap;">{{ n.time }}</span>
+                        <sc-if value="{{ n.unread }}" hint-placeholder-val=""><span style="width:7px; height:7px; border-radius:99px; background:hsl(var(--primary)); flex:none;"></span></sc-if>
+                      </span>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:center; padding:9px 14px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                  <a href="#" style="font-size:12px; font-weight:600; color:hsl(var(--primary-text)); text-decoration:none;">Ver todas as notificações</a>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <button onClick="{{ onNewLead }}" style="height:38px; padding:0 15px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+            <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>
+            Novo lead
+          </button>
+        </div>
+      </header>
+
+      <!-- BODY -->
+      <div style="flex:1; min-height:0; overflow-y:auto; padding:18px 24px; display:flex; flex-direction:column; gap:16px;">
+
+        <!-- PASTAS / CARGOS -->
+        <div class="senno-pastas" style="align-self:flex-start; margin-bottom:8px; display:inline-flex; align-items:center; background:hsl(var(--muted)); border:1px solid hsl(var(--border)); border-radius:99px; padding:4px;">
+          <!-- pasta selecionada (default = você), sempre vis\u00edvel em dourado -->
+          <button onClick="{{ roleSelected.onClick }}" style="{{ roleSelected.style }}">
+            <span style="width:7px; height:7px; border-radius:99px; background:{{ roleSelected.dot }}; flex:none;"></span>{{ roleSelected.label }}
+          </button>
+
+          <!-- demais pastas: surgem \u00e0 direita da selecionada no hover -->
+          <div class="senno-pastas-rest">
+            <div class="senno-pastas-rest-inner">
+              <sc-for list="{{ roleRest }}" as="r" hint-placeholder-count="5">
+                <button onClick="{{ r.onClick }}" style="{{ r.style }}">
+                  <span style="width:7px; height:7px; border-radius:99px; background:{{ r.dot }}; flex:none;"></span>{{ r.label }}
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- gatilho Pastas: empurrado para a direita quando expande -->
+          <button class="senno-pastas-trigger" style="margin-left:8px; display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-family:inherit; font-size:12.5px; font-weight:500; color:hsl(var(--foreground)); background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:99px; padding:7px 13px;">
+            <span style="width:15px;height:15px;display:inline-flex; color:hsl(var(--primary-text));" dangerouslySetInnerHTML="{{ icoFolder }}"></span>
+            <span>Pastas</span>
+            <span class="senno-pastas-chev" style="width:13px;height:13px;display:inline-flex; color:hsl(var(--muted-foreground)); transition:transform .3s ease;" dangerouslySetInnerHTML="{{ icoChevRight }}"></span>
+          </button>
+        </div>
+
+        <!-- TABS + NOVA ATIVIDADE -->
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+          <div ref="{{ setTabBar }}" style="position:relative; display:flex; align-items:center; gap:4px; border-bottom:1px solid hsl(var(--border));">
+            <div style="position:absolute; left:0; bottom:-1px; height:2px; border-radius:2px; background:hsl(var(--primary)); width:{{ indWidth }}; transform:translateX({{ indLeft }}); opacity:{{ indOpacity }}; transition:transform .32s cubic-bezier(.34,1.1,.5,1), width .32s cubic-bezier(.34,1.1,.5,1), opacity .2s ease; pointer-events:none;"></div>
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+              <button onClick="{{ t.onClick }}" data-tab-active="{{ t.active }}" style="{{ t.style }}">
+                {{ t.label }}
+                <span style="font-size:10.5px; font-weight:600; font-variant-numeric:tabular-nums; min-width:18px; text-align:center; padding:1px 6px; border-radius:99px; background:{{ t.badgeBg }}; color:{{ t.badgeColor }};">{{ t.count }}</span>
+              </button>
+            </sc-for>
+          </div>
+          <button style="flex:none; height:36px; padding:0 14px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+            <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>
+            Nova atividade
+          </button>
+        </div>
+
+        <!-- OVERDUE BANNER -->
+        <sc-if value="{{ showOverdue }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; align-items:center; gap:24px; padding:9px 12px 9px 18px; border-radius:11px; background:hsl(var(--destructive)/0.09); border:1px solid hsl(var(--destructive)/0.3); box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+            <span class="senno-overdue-ico" style="width:28px; height:28px; border-radius:8px; flex:none; display:flex; align-items:center; justify-content:center; transform:translateX(5px); background:hsl(var(--destructive)); color:hsl(var(--destructive-foreground, 0 0% 100%));">
+              <span style="width:15px;height:15px;display:inline-flex; color:#fff; transform:translateY(-1.5px);" dangerouslySetInnerHTML="{{ icoAlert }}"></span>
+            </span>
+            <div style="flex:1; min-width:0; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
+              <span style="font-size:12.5px; font-weight:700; color:hsl(var(--destructive));">1 atividade atrasada</span>
+              <span style="font-size:11.5px; color:hsl(var(--destructive)/0.8);">Precisa de atenção para não impactar o atendimento.</span>
+            </div>
+            <button onClick="{{ goOverdue }}" style="flex:none; height:28px; padding:0 12px; border-radius:7px; border:none; background:hsl(var(--destructive)); color:#fff; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;" style-hover="filter:brightness(1.08);">Ver atrasadas</button>
+          </div>
+        </sc-if>
+
+        <!-- ACTIVITY LIST -->
+        <sc-if value="{{ hasItems }}" hint-placeholder-val="{{ true }}">
+          <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+            <sc-for list="{{ items }}" as="a" hint-placeholder-count="4">
+              <div class="senno-act-row {{ a.rowClass }}" style="display:flex; align-items:center; gap:14px; padding:14px 18px; border-top:1px solid hsl(var(--border));" style-hover="background:hsl(var(--accent)/0.5);">
+                <span style="width:38px; height:38px; border-radius:10px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ a.tintBg }}; color:{{ a.tintColor }};">
+                  <span style="width:18px;height:18px;display:inline-flex;" dangerouslySetInnerHTML="{{ a.icon }}"></span>
+                </span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13.5px; font-weight:600; color:{{ a.titleColor }}; text-decoration:{{ a.titleDeco }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.title }}</div>
+                  <div style="font-size:12px; color:hsl(var(--muted-foreground)); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.type }} · {{ a.patient }}</div>
+                </div>
+                <span style="font-size:12px; font-weight:500; color:{{ a.whenColor }}; flex:none; white-space:nowrap;">{{ a.when }}</span>
+                <sc-if value="{{ a.prioHigh }}" hint-placeholder-val="">
+                  <span style="font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:99px; background:hsl(var(--warn-bg)); color:hsl(var(--warn)); flex:none;">Alta</span>
+                </sc-if>
+                <span class="senno-check {{ a.checkOn }}" onClick="{{ a.onComplete }}" style="width:24px; height:24px; border-radius:99px; flex:none; display:flex; align-items:center; justify-content:center; border:1.5px solid {{ a.checkBorder }}; background:{{ a.checkBg }}; color:{{ a.checkColor }};">
+                  <span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoCheck }}"></span>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <!-- EMPTY STATE -->
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="">
+          <div style="background:hsl(var(--card)); border:1px dashed hsl(var(--border)); border-radius:13px; padding:46px 24px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:11px;">
+            <span style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:hsl(var(--muted)); color:hsl(var(--muted-foreground));">
+              <span style="width:20px;height:20px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoCheckSquare }}"></span>
+            </span>
+            <div style="font-size:14px; font-weight:600;">Nenhuma atividade neste filtro</div>
+            <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:-4px; max-width:320px;">Quando houver tarefas, reuniões ou ligações aqui, elas aparecem nesta lista.</div>
+            <button onClick="{{ goAll }}" style="margin-top:6px; height:36px; padding:0 16px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer;" style-hover="background:hsl(var(--accent));">Ver todas</button>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;}}">
+class Component extends DCLogic {
+  state = { theme: this.props.defaultTheme || 'light', notifOpen:false, notifs:[{id:1,type:'lead',title:'Novo lead',sub:'Mariana Alves · Instagram',time:'agora',read:false},{id:2,type:'money',title:'Pagamento confirmado',sub:'R$ 1.200 · Botox · Camila Souza',time:'8 min',read:false},{id:3,type:'agenda',title:'Agendamento confirmado',sub:'Patrícia Lima · amanhã às 14h',time:'40 min',read:false},{id:4,type:'alert',title:'Tarefa atrasada',sub:'Retornar ligação · Rafael Dias',time:'1 h',read:true},{id:5,type:'agenda',title:'Novo agendamento online',sub:'Beatriz Ramos · Limpeza de pele',time:'3 h',read:true}], role: 0, tab: 'hoje', completing:{}, removed:{} };
+
+  complete(key){
+    if(this.state.completing[key]) return;
+    this.setState(s=>({completing:{...s.completing,[key]:true}}));
+    setTimeout(()=>this.setState(s=>{ const c={...s.completing}; delete c[key]; return {completing:c, removed:{...s.removed,[key]:true}}; }),850);
+  }
+
+  ico(p){ return {__html:'<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'}; }
+
+  setTabBar = (el)=>{ this._tabBar = el; };
+  componentDidMount(){ this._measureTabs(); if(typeof document!=='undefined'&&document.fonts&&document.fonts.ready){ document.fonts.ready.then(()=>this._measureTabs()); } }
+  componentDidUpdate(){ this._measureTabs(); }
+  _measureTabs(){ const bar=this._tabBar; if(!bar) return; const act=bar.querySelector('[data-tab-active="1"]'); if(!act) return; const left=act.offsetLeft, width=act.offsetWidth; if(left!==this.state.indLeft||width!==this.state.indWidth){ this.setState({indLeft:left, indWidth:width}); } }
+
+  _notif(){
+    const ic=(p)=>this.ico(p);
+    const icoSun=ic('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon=ic('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+    const icoBell=ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoUsers=ic('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney=ic('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoCal=ic('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoAlert=ic('<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>');
+    const tint={lead:{bg:'hsl(var(--primary)/0.16)',color:'hsl(var(--primary-text))'},money:{bg:'hsl(var(--ok-bg))',color:'hsl(var(--ok))'},agenda:{bg:'hsl(var(--accent))',color:'hsl(var(--muted-foreground))'},alert:{bg:'hsl(var(--destructive)/0.14)',color:'hsl(var(--destructive))'}};
+    const icoBy={lead:icoUsers,money:icoMoney,agenda:icoCal,alert:icoAlert};
+    const notifItems=this.state.notifs.map(n=>{const t=tint[n.type]||tint.agenda; return {...n, icon:icoBy[n.type]||icoBell, iconBg:t.bg, iconColor:t.color, unread:!n.read, titleWeight:n.read?500:600, rowBg:n.read?'transparent':'hsl(var(--primary)/0.05)', onClick:()=>this.setState(s=>({notifs:s.notifs.map(x=>x.id===n.id?{...x,read:true}:x)}))};});
+    const unreadCount=this.state.notifs.filter(n=>!n.read).length;
+    return { icoSun, icoMoon, notifOpen:this.state.notifOpen, hasUnread:unreadCount>0, unreadCount, notifItems,
+      bellClass:(this.state.bellRing?'senno-bell-ring-a':''), bellAnimEnd:()=>this.setState({bellRing:false}), toggleNotif:()=>this.setState(s=>({bellRing:true, notifOpen:!s.notifOpen})), closeNotif:()=>this.setState({notifOpen:false}),
+      markAllRead:()=>this.setState(s=>({notifs:s.notifs.map(x=>({...x,read:true}))})) };
+  }
+
+  renderVals(){
+    const I=(p)=>this.ico(p);
+    const icoGrid    = I('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>');
+    const icoActivity= I('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>');
+    const icoCalendar= I('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoFunnel  = I('<path d="M3 4h18l-7 8v6l-4 2v-8z"/>');
+    const icoUsers   = I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney   = I('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoTarget  = I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>');
+    const icoBulb    = I('<path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/>');
+    const icoSyringe = I('<rect x="3" y="3" width="7" height="7" rx="1.5"/><path d="M14 7h6M14 12h6M14 17h6M5 14v6M3 17h4"/>');
+    const icoDownload= I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>');
+    const icoBell    = I('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoSettings= I('<path d="M22.00 12.00 L21.24 15.83 L18.28 14.60 L16.81 16.81 L19.07 19.07 L15.83 21.24 L14.60 18.28 L12.00 18.80 L12.00 22.00 L8.17 21.24 L9.40 18.28 L7.19 16.81 L4.93 19.07 L2.76 15.83 L5.72 14.60 L5.20 12.00 L2.00 12.00 L2.76 8.17 L5.72 9.40 L7.19 7.19 L4.93 4.93 L8.17 2.76 L9.40 5.72 L12.00 5.20 L12.00 2.00 L15.83 2.76 L14.60 5.72 L16.81 7.19 L19.07 4.93 L21.24 8.17 L18.28 9.40 L18.80 12.00 Z"/><circle cx="12" cy="12" r="3"/>');
+    const icoPlus    = I('<path d="M12 5v14M5 12h14"/>');
+    const icoSearch  = I('<circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/>');
+    const icoFolder  = I('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>');
+    const icoChevDown= I('<path d="m6 9 6 6 6-6"/>');
+    const icoChevRight= I('<path d="m9 18 6-6-6-6"/>');
+    const icoAlert   = I('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>');
+    const icoCheck   = I('<path d="M20 6 9 17l-5-5"/>');
+    const icoCheckSq = I('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
+    const icoPhone   = I('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.7 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.74a2 2 0 0 1 2.11-.45c.74.34 1.53.57 2.34.7A2 2 0 0 1 22 16.92z"/>');
+    const icoMessage = I('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>');
+    const icoMail    = I('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/>');
+    const icoNote    = I('<path d="M4 4a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v10l-6 6H5a1 1 0 0 1-1-1z"/><path d="M20 14h-5a1 1 0 0 0-1 1v5"/>');
+    const icoCustom  = I('<path d="M12 2 9.6 8.6 3 9.2l5 4.3L6.5 20 12 16.3 17.5 20 16 13.5l5-4.3-6.6-.6z"/>');
+    const icoSun     = I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon    = I('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+
+    const P='hsl(var(--primary-text))', M='hsl(var(--muted-foreground))';
+    const navMain = [
+      {label:'Dashboard',icon:icoGrid}, {label:'Atividades',icon:icoActivity, active:true},
+      {label:'Agenda',icon:icoCalendar}, {label:'Funil',icon:icoFunnel},
+      {label:'Pacientes',icon:icoUsers}, {label:'Financeiro',icon:icoMoney},
+      {label:'Metas',icon:icoTarget}, {label:'Insights',icon:icoBulb},
+      {label:'Procedimentos',icon:icoSyringe}, {label:'Exportações',icon:icoDownload},
+      {label:'Notificações',icon:icoBell}, {label:'Configurações',icon:icoSettings},
+    ].map(n=>({ ...n, weight:n.active?600:500, color:n.active?P:M, iconColor:n.active?P:M, bg:n.active?'hsl(var(--accent))':'transparent', onClick:(e)=>{ if(e&&e.preventDefault)e.preventDefault(); if(this.props.onNavigate)this.props.onNavigate(n.label); } }));
+
+    // ---- Pastas / cargos ----
+    const roleDefs = [
+      {label:'LuCorreia Estética (você)', dot:'hsl(var(--primary))'},
+      {label:'Atendente (teste)',  dot:'hsl(217 80% 58%)'},
+      {label:'Financeiro (teste)', dot:'hsl(142 58% 44%)'},
+      {label:'Gerente (teste)',    dot:'hsl(262 52% 58%)'},
+      {label:'Sem cargo (teste)',  dot:'hsl(var(--muted-foreground))'},
+      {label:'Todos',              dot:'hsl(var(--muted-foreground))'},
+    ];
+    const roleChips = roleDefs.map((r,i)=>{
+      const on = this.state.role===i;
+      const style = 'display:inline-flex; align-items:center; gap:7px; flex:none; cursor:pointer; font-family:inherit; white-space:nowrap; font-size:12.5px; font-weight:'+(on?600:500)+'; padding:6px 13px; border-radius:99px; border:1px solid transparent; background:'+(on?'hsl(var(--primary))':'transparent')+'; color:'+(on?'hsl(var(--primary-foreground))':'hsl(var(--foreground))')+';';
+      return { label:r.label, dot: on?'hsl(var(--primary-foreground))':r.dot, style, onClick:(e)=>{ this.setState({role:i}); if(e&&e.currentTarget&&e.currentTarget.blur)e.currentTarget.blur(); } };
+    });
+    const roleSelected = roleChips[this.state.role] || roleChips[0];
+    const roleRest = roleChips.filter((_,i)=>i!==this.state.role);
+
+    // ---- Activities ----
+    const TYPE = {
+      'Tarefa':   {icon:icoCheckSq, bg:'hsl(var(--primary)/0.14)', color:P},
+      'Reunião':  {icon:icoUsers,   bg:'hsl(262 52% 58% / 0.16)', color:'hsl(262 48% 56%)'},
+      'Ligação':  {icon:icoPhone,   bg:'hsl(217 80% 58% / 0.16)', color:'hsl(217 75% 50%)'},
+      'E-mail':   {icon:icoMail,    bg:'hsl(190 70% 45% / 0.18)', color:'hsl(190 68% 36%)'},
+      'Nota':     {icon:icoNote,    bg:'hsl(38 85% 50% / 0.18)',  color:'hsl(32 80% 40%)'},
+      'Mensagem': {icon:icoMessage, bg:'hsl(142 58% 44% / 0.16)', color:'hsl(142 52% 38%)'},
+      '_default': {icon:icoCustom,  bg:'hsl(var(--muted))',       color:'hsl(var(--muted-foreground))'},
+    };
+    const open = [
+      {bucket:'atrasadas', type:'Ligação',  title:'Ligar para Patrícia Nunes',          patient:'Retorno de avaliação', when:'Venceu ontem', who:'HC', prio:'alta',   overdue:true},
+      {bucket:'hoje', type:'Tarefa',   title:'Confirmar agendamento de Bruno Almeida', patient:'Botox — full face',   when:'Hoje · 14:00', who:'AT', prio:'normal'},
+      {bucket:'hoje', type:'Reunião',  title:'Reunião de equipe semanal',              patient:'Sala 2 · toda equipe',when:'Hoje · 17:00', who:'HC', prio:'normal'},
+      {bucket:'hoje', type:'Mensagem', title:'Enviar orçamento para Rafael Souza',     patient:'Lead via Instagram',  when:'Hoje · 18:30', who:'FN', prio:'alta'},
+      {bucket:'hoje', type:'Nota',     title:'Anotar preferências de Mariana Costa',   patient:'Ficha clínica',       when:'Hoje · 12:00', who:'HC', prio:'normal'},
+      {bucket:'semana', type:'E-mail', title:'Enviar pós-venda para Beatriz Lima',     patient:'Botox',               when:'Qua · 13:00', who:'FN', prio:'normal'},
+      {bucket:'semana', type:'Aniversário', title:'Parabenizar aniversariantes',       patient:'5 pacientes',         when:'Dom · 09:00', who:'AT', prio:'normal'},
+      {bucket:'semana', type:'Tarefa',  title:'Follow-up pós-procedimento',            patient:'Mariana Costa',       when:'Qui · 10:00', who:'AT', prio:'normal'},
+      {bucket:'semana', type:'Ligação', title:'Ligar para lead Anderson Pereira',      patient:'Avaliação',           when:'Sex · 11:00', who:'AT', prio:'normal'},
+      {bucket:'semana', type:'Reunião', title:'Revisar metas do mês',                  patient:'Gerência',            when:'Sex · 16:00', who:'GR', prio:'normal'},
+      {bucket:'semana', type:'Tarefa',  title:'Cobrança de Camila Ribeiro',            patient:'Microagulhamento',    when:'Sáb · 09:00', who:'FN', prio:'normal'},
+    ];
+    const done = [
+      {type:'Ligação',  title:'Confirmação de retorno — Beatriz Lima',  patient:'Botox',           when:'Ontem · 15:20', who:'AT'},
+      {type:'Tarefa',   title:'Cadastro de novo paciente',             patient:'Marcos Vinícius', when:'Ontem · 11:05', who:'FN'},
+      {type:'Mensagem', title:'Lembrete de consulta enviado',          patient:'Helena Martins',  when:'Seg · 09:40', who:'AT'},
+      {type:'Reunião',  title:'Briefing de campanha Meta Ads',         patient:'Marketing',       when:'Seg · 14:00', who:'GR'},
+      {type:'Ligação',  title:'Pesquisa de satisfação',                patient:'Carla Mendes',    when:'Sex · 16:30', who:'AT'},
+      {type:'Tarefa',   title:'Fechamento financeiro semanal',         patient:'Financeiro',      when:'Sex · 18:00', who:'FN'},
+    ];
+
+    const rem = this.state.removed || {};
+    const live = open.filter(a=>!rem[a.title]);
+    const liveAll = open;
+    const counts = {
+      hoje: live.filter(a=>a.bucket==='hoje').length,
+      semana: live.filter(a=>a.bucket==='semana').length,
+      atrasadas: live.filter(a=>a.bucket==='atrasadas').length,
+      todas: live.length,
+      feitas: 10,
+    };
+    const tabDefs = [['hoje','Hoje'],['semana','Esta semana'],['atrasadas','Atrasadas'],['todas','Todas'],['feitas','Feitas']];
+    const tabs = tabDefs.map(([k,label])=>{
+      const on = this.state.tab===k;
+      const isOver = k==='atrasadas' && counts.atrasadas>0;
+      return {
+        label, count:counts[k],
+        style:'position:relative; display:inline-flex; align-items:center; gap:7px; border:none; background:transparent; cursor:pointer; font-size:13.5px; font-weight:600; padding:9px 12px; margin-bottom:-1px; color:'+(on?'hsl(var(--foreground))':'hsl(var(--muted-foreground))')+'; border-bottom:2px solid transparent;', active: on?'1':'',
+        badgeBg: isOver ? 'hsl(var(--destructive)/0.15)' : (on?'hsl(var(--primary)/0.16)':'hsl(var(--muted))'),
+        badgeColor: isOver ? 'hsl(var(--destructive))' : (on?P:'hsl(var(--muted-foreground))'),
+        onClick:()=>this.setState({tab:k}),
+      };
+    });
+
+    const tab = this.state.tab;
+    let raw;
+    if(tab==='feitas') raw = done.map(d=>({...d, done:true}));
+    else if(tab==='todas') raw = liveAll;
+    else raw = liveAll.filter(a=>a.bucket===tab);
+
+    const items = raw.map(a=>{
+      const t = TYPE[a.type] || TYPE['_default'];
+      return {
+        icon:t.icon, tintBg:t.bg, tintColor:t.color,
+        title:a.title, type:a.type, patient:a.patient, when:a.when, who:a.who,
+        assigneeName:a.who,
+        titleColor: a.done ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))',
+        titleDeco: a.done ? 'line-through' : 'none',
+        whenColor: a.overdue ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))',
+        prioHigh: a.prio==='alta' && !a.done,
+        rowClass: (this.state.completing[a.title] || rem[a.title]) ? 'senno-act-leaving' : '',
+        checkOn: a.done ? '' : 'senno-check-on',
+        onComplete: a.done ? undefined : ()=>this.complete(a.title),
+        checkBorder: a.done ? 'hsl(var(--ok))' : 'hsl(var(--border))',
+        checkBg: a.done ? 'hsl(var(--ok))' : 'transparent',
+        checkColor: a.done ? '#fff' : 'hsl(var(--muted-foreground)/0.4)',
+      };
+    });
+
+    return {
+      theme:this.props.theme ?? this.state.theme,
+      ...this._notif(), indLeft:(this.state.indLeft||0)+'px', indWidth:(this.state.indWidth||0)+'px', indOpacity:this.state.indWidth?1:0, setTabBar:this.setTabBar, navMain, roleChips, roleSelected, roleRest, tabs, items,
+      hasItems: items.length>0, isEmpty: items.length===0,
+      showOverdue: counts.atrasadas>0 && tab!=='atrasadas' && tab!=='feitas',
+      goOverdue:()=>this.setState({tab:'atrasadas'}),
+      goAll:()=>this.setState({tab:'todas'}),
+      icoBell, icoPlus, icoSearch, icoFolder, icoChevDown, icoChevRight, icoAlert, icoCheck, icoCheckSquare:icoCheckSq,
+      themeIcon:(this.props.theme??this.state.theme)==='dark'?icoMoon:icoSun,
+      themeTitle:(this.props.theme??this.state.theme)==='dark'?'Modo escuro':'Modo claro',
+      toggleTheme:()=> this.props.onToggleTheme ? this.props.onToggleTheme() : this.setState(s=>({theme:s.theme==='dark'?'light':'dark'})),
+    };
+  }
+}
+</script>
+</body>
+</html>

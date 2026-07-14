@@ -30,6 +30,8 @@ export default async function ClientFinancialPage() {
       revenueSeries={revenueSeries}
       topProcedures={overview.topProcedures}
       topCostCategories={overview.topCostCategories}
+      topBuyers={overview.topBuyers}
+      topSellers={overview.topSellers}
       revenues={revenues}
       costs={costs}
       proceduresForSelect={proceduresForSelect}

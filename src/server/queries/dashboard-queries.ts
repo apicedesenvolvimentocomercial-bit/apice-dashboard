@@ -277,8 +277,19 @@ export type ClinicDashboardData = {
     id: string
     title: string
     severity: string
+    category: string
+    status: string
     suggestion: string
     diagnosis: string
+  }[]
+  /** Próximos 5 agendamentos (agora em diante, SCHEDULED/CONFIRMED) — card
+   *  "Próximos agendamentos" do redesign do dashboard. */
+  upcomingAppointments: {
+    id: string
+    scheduledAt: Date
+    status: string
+    patientName: string
+    procedureName: string
   }[]
   goalsProgress: {
     id: string
@@ -330,6 +341,7 @@ export const getClinicDashboard = cache(
       proceduresAgg,
       leadsBySource,
       insightsOpen,
+      upcomingRows,
       goals,
     ] = await Promise.all([
       computeClinicKpis(ctx, clientId, range, leadTarget ? { leadTarget } : undefined),
@@ -391,10 +403,12 @@ export const getClinicDashboard = cache(
         _count: { _all: true },
       }),
       prisma.insight.findMany({
+        // "Ativos" = aberto/reconhecido/EM PROGRESSO — iniciar ação não pode
+        // sumir o insight do dashboard; a linha do card mostra o status.
         where: {
           organizationId: ctx.organizationId,
           clientId,
-          status: { in: ['OPEN', 'ACKNOWLEDGED'] },
+          status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] },
         },
         orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
         take: 6,
@@ -402,8 +416,31 @@ export const getClinicDashboard = cache(
           id: true,
           title: true,
           severity: true,
+          category: true,
+          status: true,
           suggestion: true,
           diagnosis: true,
+        },
+      }),
+      // Próximos agendamentos (redesign): 5 seguintes a partir de agora, ainda
+      // sem desfecho (SCHEDULED/CONFIRMED). Independe do filtro de período — a
+      // lista é "o que vem aí", não um agregado do range.
+      prisma.appointment.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          clientId,
+          deletedAt: null,
+          scheduledAt: { gte: new Date() },
+          status: { in: ['SCHEDULED', 'CONFIRMED'] },
+        },
+        orderBy: { scheduledAt: 'asc' },
+        take: 5,
+        select: {
+          id: true,
+          scheduledAt: true,
+          status: true,
+          patient: { select: { name: true } },
+          procedure: { select: { name: true } },
         },
       }),
       prisma.goal.findMany({
@@ -486,6 +523,13 @@ export const getClinicDashboard = cache(
       revenueByProcedure,
       leadsBySource: leadsBySource.map((g) => ({ source: g.source, count: g._count._all })),
       insightsOpen,
+      upcomingAppointments: upcomingRows.map((a) => ({
+        id: a.id,
+        scheduledAt: a.scheduledAt,
+        status: a.status,
+        patientName: a.patient.name,
+        procedureName: a.procedure.name,
+      })),
       goalsProgress,
     }
   }

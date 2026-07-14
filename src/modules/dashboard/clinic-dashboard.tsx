@@ -1,15 +1,32 @@
-import { FunnelBars } from '@/components/charts/funnel-bars'
-import { HorizontalBarChart } from '@/components/charts/horizontal-bar-chart'
-import { SharePieChart } from '@/components/charts/share-pie-chart'
-import { KpiCard } from '@/components/dashboard/kpi-card'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatCurrency, formatPercent } from '@/lib/utils'
-import { metricLabel } from '@/shared/goal-labels'
-import type { ClinicDashboardData } from '@/server/queries/dashboard-queries'
+import {
+  Banknote,
+  BarChart3,
+  Calendar,
+  Clock,
+  Filter,
+  Heart,
+  Receipt,
+  Tag,
+  Target,
+  TrendingUp,
+  UserCheck,
+  UserX,
+  Wallet,
+  Zap,
+} from 'lucide-react'
 
+import { ConversionFunnelCard } from '@/components/clinic/dashboard/conversion-funnel-card'
+import { formatBRL0 } from '@/components/clinic/dashboard/format'
+import { GoalsCard } from '@/components/clinic/dashboard/goals-card'
+import { InsightsCard } from '@/components/clinic/dashboard/insights-card'
+import { LeadSourcesDonut } from '@/components/clinic/dashboard/lead-sources-donut'
+import { ProceduresBarsCard } from '@/components/clinic/dashboard/procedures-bars-card'
+import { RevenueCostChart } from '@/components/clinic/dashboard/revenue-cost-chart'
+import { SennoKpiCard } from '@/components/clinic/dashboard/senno-kpi-card'
+import { UpcomingAppointmentsCard } from '@/components/clinic/dashboard/upcoming-appointments-card'
+import { formatPercent } from '@/lib/utils'
 import type { DashboardVisibility } from '@/server/auth/dashboard-visibility'
-
-import { RevenueChartsCard } from './revenue-charts-card'
+import type { ClinicDashboardData } from '@/server/queries/dashboard-queries'
 
 const LEAD_SOURCE_LABEL: Record<string, string> = {
   META_ADS: 'Meta Ads',
@@ -17,24 +34,25 @@ const LEAD_SOURCE_LABEL: Record<string, string> = {
   ORGANIC: 'Orgânico',
   REFERRAL: 'Indicação',
   WHATSAPP: 'WhatsApp',
-  WALK_IN: 'Walk-in',
+  WALK_IN: 'Presencial',
   OTHER: 'Outros',
 }
 
-const SEVERITY_TONE: Record<string, string> = {
-  CRITICAL: 'border-rose-300 bg-rose-50/60 dark:border-rose-900 dark:bg-rose-950/40',
-  WARNING: 'border-amber-300 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/40',
-  INFO: 'border-sky-300 bg-sky-50/60 dark:border-sky-900 dark:bg-sky-950/40',
-}
-
 /**
- * Delta relativo vs período anterior comparável. `null` (sem seta) quando não
+ * Delta relativo vs período anterior comparável. `null` (sem pill) quando não
  * dá para comparar com honestidade: valor ausente ou base anterior ≤ 0 (inclui
  * lucro anterior negativo — variação % sobre base negativa é enganosa).
  */
 function rel(curr: number | null | undefined, prev: number | null | undefined): number | null {
   if (curr == null || prev == null || prev <= 0) return null
   return (curr - prev) / prev
+}
+
+function healthLabel(score: number): string {
+  if (score <= 40) return 'crítico'
+  if (score <= 60) return 'atenção'
+  if (score <= 80) return 'bom'
+  return 'excelente'
 }
 
 type Props = {
@@ -45,14 +63,16 @@ type Props = {
 }
 
 /**
- * LAYOUT EM UNIDADES (decisão estética 2026-06-11): a página tem 4 "espaços"
- * por linha; cada widget vale um nº de unidades — KPI = 1, funil = 1,5,
- * gráficos de receita = 2,5. Como há meios-valores, o grid real é de 8 colunas
- * (1 unidade = 2 colunas): KPI `col-span-2`, funil `col-span-3`, gráficos
- * `col-span-5`. A altura também é em unidades (linhas de 5.5rem) e a grade de
- * widgets usa `grid-auto-flow: row dense` — qualquer item escondido pela
- * visibilidade por cargo tem seu vão tapado pelo navegador automaticamente,
- * sem JS de medição. Ver bloco "Grade única de widgets" abaixo.
+ * Dashboard da clínica — REDESIGN Senno (prompt/Senno Redesign/Dashboard).
+ * Estrutura do corpo (handoff §1): setores de KPI (Financeiro · Comercial ·
+ * Operação) → [gráfico Receita×Custos | Metas] → [donut Origem | Receita por
+ * procedimento] → [Próximos agendamentos | Funil | Insights]. A barra de
+ * período vive na page (acima deste componente).
+ *
+ * Deltas com pill só nos 4 KPIs definidos no redesign (faturamento, lucro,
+ * custos, ticket médio); custos sobem = ruim (pill vermelha com seta p/ cima).
+ * Cada widget some conforme o mapa de visibilidade por cargo; a linha
+ * re-flui (o irmão vira largura cheia) em vez de deixar buraco.
  */
 export function ClinicDashboard({ data, visibility }: Props) {
   const {
@@ -64,6 +84,7 @@ export function ClinicDashboard({ data, visibility }: Props) {
     revenueByProcedure,
     leadsBySource,
     insightsOpen,
+    upcomingAppointments,
     goalsProgress,
   } = data
 
@@ -79,71 +100,261 @@ export function ClinicDashboard({ data, visibility }: Props) {
     return s.items[item] !== false
   }
 
-  // Card de No-show absorve Comparecimento e Receita perdida como linhas
-  // secundárias (são o mesmo assunto: desfecho dos agendamentos). Se o cargo
-  // esconder o No-show mas mostrar um dos dois, eles voltam como card próprio.
   const showNoShow = vis('commercialKpis', 'noShow')
   const showAttendance = vis('commercialKpis', 'attendance')
   const showLostRevenue = vis('financialKpis', 'lostRevenue')
 
-  // "Tempo até 1º contato" só aparece com dado real: hoje nada escreve
-  // `firstContactAt` (o write falso do webhook foi removido); o card volta
-  // sozinho quando a integração WhatsApp instrumentar o campo (spec no ledger
-  // retencao-reforma-progresso.md).
+  // "Tempo até 1º contato" só aparece com dado real (nada escreve
+  // `firstContactAt` hoje; volta sozinho quando a integração instrumentar).
   const showTimeToFirstContact =
     vis('commercialKpis', 'timeToFirstContact') && kpis.commercial.avgTimeToFirstContactMin != null
 
-  // Todos os cards no MESMO tamanho (1 unidade cada); a hierarquia vem da
-  // ORDEM — os 4 números-resumo (faturamento, lucro, conversão, health)
-  // abrem a grade.
-  const kpiCards: React.ReactNode[] = []
+  // Sub da Conversão usa a meta ativa de conversão quando existe.
+  const conversionGoal = goalsProgress.find((g) => g.metric === 'CONVERSION_RATE')
+  const conversionSub = conversionGoal
+    ? `meta ${Math.round(conversionGoal.targetValue * 100)}%`
+    : 'sobre leads do período'
+
+  // ---- Setor Financeiro ----
+  const financeiro: React.ReactNode[] = []
   if (vis('financialKpis', 'revenue')) {
-    kpiCards.push(
-      <KpiCard
+    financeiro.push(
+      <SennoKpiCard
         key="revenue"
+        icon={Banknote}
         label="Faturamento"
-        value={formatCurrency(kpis.financial.totalRevenue)}
+        value={formatBRL0(kpis.financial.totalRevenue)}
         delta={data.kpis.revenueGrowthMoM}
+        sub="vs. período anterior"
       />
     )
   }
   if (vis('financialKpis', 'netProfit')) {
-    kpiCards.push(
-      <KpiCard
+    financeiro.push(
+      <SennoKpiCard
         key="netProfit"
+        icon={TrendingUp}
         label="Lucro líquido"
-        value={formatCurrency(kpis.financial.netProfit)}
+        value={formatBRL0(kpis.financial.netProfit)}
         delta={rel(kpis.financial.netProfit, prev.financial.netProfit)}
-        tone={kpis.financial.netProfit < 0 ? 'critical' : 'default'}
+        sub="líquido no período"
+      />
+    )
+  }
+  if (vis('financialKpis', 'costs')) {
+    financeiro.push(
+      <SennoKpiCard
+        key="costs"
+        icon={Wallet}
+        label="Custos"
+        value={formatBRL0(kpis.financial.totalCosts)}
+        delta={rel(kpis.financial.totalCosts, prev.financial.totalCosts)}
+        invertDelta
+        sub="no período"
+      />
+    )
+  }
+  if (vis('financialKpis', 'netMargin')) {
+    financeiro.push(
+      <SennoKpiCard
+        key="netMargin"
+        icon={BarChart3}
+        label="Margem líquida"
+        value={formatPercent(kpis.financial.netMargin)}
+        sub="sobre o faturamento"
+      />
+    )
+  }
+  if (!showNoShow && showLostRevenue) {
+    financeiro.push(
+      <SennoKpiCard
+        key="lostRevenue"
+        icon={Receipt}
+        label="Receita perdida"
+        value={formatBRL0(kpis.financial.estimatedLostRevenue)}
+        sub="agendamentos em no-show"
+        info={<p>Soma do preço dos procedimentos em no-show.</p>}
+      />
+    )
+  }
+
+  // ---- Setor Comercial · aquisição ----
+  const comercial: React.ReactNode[] = []
+  if (vis('commercialKpis', 'leads')) {
+    comercial.push(
+      <SennoKpiCard
+        key="leads"
+        icon={Filter}
+        label="Leads totais"
+        value={String(kpis.commercial.leadsCount)}
+        sub="no período"
       />
     )
   }
   if (vis('commercialKpis', 'conversion')) {
-    kpiCards.push(
-      <KpiCard
+    comercial.push(
+      <SennoKpiCard
         key="conversion"
+        icon={Target}
         label="Conversão"
         value={formatPercent(kpis.commercial.conversionRate)}
-        delta={rel(kpis.commercial.conversionRate, prev.commercial.conversionRate)}
-        tone={(kpis.commercial.conversionRate ?? 1) < 0.1 ? 'warning' : 'default'}
+        sub={conversionSub}
+      />
+    )
+  }
+  if (vis('financialKpis', 'cac')) {
+    comercial.push(
+      <SennoKpiCard
+        key="cac"
+        icon={Tag}
+        label="CAC"
+        value={formatBRL0(kpis.financial.cac)}
+        sub="custo por novo paciente"
+        info={
+          <>
+            <p className="font-medium text-foreground">CAC — Custo de Aquisição de Cliente</p>
+            <p className="mt-1">
+              Quanto custou, em média, conquistar cada novo paciente no período. Calculado como{' '}
+              <span className="font-medium">
+                custo total de marketing ÷ novos pacientes cadastrados
+              </span>
+              . Pacientes provisórios de agendamento (que nunca compareceram) não contam.
+            </p>
+            <p className="mt-1">
+              Compare com o ticket médio: se o CAC for maior que o ticket, a clínica está gastando
+              mais para atrair do que recebe por atendimento.
+            </p>
+          </>
+        }
+      />
+    )
+  }
+  if (vis('financialKpis', 'roi')) {
+    comercial.push(
+      <SennoKpiCard
+        key="roi"
+        icon={Zap}
+        label="ROI marketing"
+        value={kpis.financial.roi != null ? `${(kpis.financial.roi * 100).toFixed(0)}%` : '—'}
+        sub="retorno sobre investimento"
+        info={
+          <>
+            <p className="font-medium text-foreground">ROI de marketing</p>
+            <p className="mt-1">
+              Retorno sobre o investimento em marketing. Calculado como{' '}
+              <span className="font-medium">
+                (receita atribuída a marketing − custo de marketing) ÷ custo de marketing
+              </span>
+              .
+            </p>
+            <p className="mt-1">
+              100% significa que cada R$ 1 investido trouxe R$ 1 de lucro além do investimento.
+              Valores negativos indicam que o marketing custou mais do que gerou.
+            </p>
+          </>
+        }
+      />
+    )
+  }
+  if (showTimeToFirstContact) {
+    comercial.push(
+      <SennoKpiCard
+        key="timeToFirstContact"
+        icon={Clock}
+        label="Tempo até 1º contato"
+        value={`${kpis.commercial.avgTimeToFirstContactMin} min`}
+        sub="média no período"
+      />
+    )
+  }
+
+  // ---- Setor Operação · atendimento ----
+  const operacao: React.ReactNode[] = []
+  if (vis('commercialKpis', 'appointments')) {
+    operacao.push(
+      <SennoKpiCard
+        key="appointments"
+        icon={Calendar}
+        label="Agendamentos"
+        value={String(kpis.commercial.appointmentsCount)}
+        sub="no período"
+      />
+    )
+  }
+  if (showNoShow) {
+    operacao.push(
+      <SennoKpiCard
+        key="noShow"
+        icon={UserX}
+        label="No-show"
+        value={formatPercent(kpis.commercial.noShowRate)}
+        info={
+          <>
+            <p className="font-medium text-foreground">Taxa de no-show</p>
+            <p className="mt-1">
+              Percentual de agendamentos em que o paciente não compareceu sem avisar. Calculado como{' '}
+              <span className="font-medium">no-shows ÷ (atendidos + no-shows)</span>.
+            </p>
+            <p className="mt-1">
+              Apenas desfechos conhecidos entram no cálculo — agendamentos futuros, cancelamentos
+              comunicados e remarcações não diluem a taxa. Acima de 25% a clínica deve agir
+              (lembrete por WhatsApp, exigir sinal etc.).
+            </p>
+            <p className="mt-1">
+              <span className="font-medium">Receita perdida</span> = soma do preço dos procedimentos
+              agendados nos no-shows do período.
+            </p>
+          </>
+        }
+      >
+        {showLostRevenue && (
+          <p className="text-[11.5px] text-muted-foreground">
+            Receita perdida: {formatBRL0(kpis.financial.estimatedLostRevenue)}
+          </p>
+        )}
+      </SennoKpiCard>
+    )
+  } else if (showAttendance) {
+    operacao.push(
+      <SennoKpiCard
+        key="attendance"
+        icon={UserCheck}
+        label="Comparecimento"
+        value={formatPercent(kpis.commercial.attendanceRate)}
+        sub="dos desfechos conhecidos"
+      />
+    )
+  }
+  if (vis('financialKpis', 'averageTicket')) {
+    operacao.push(
+      <SennoKpiCard
+        key="averageTicket"
+        icon={Receipt}
+        label="Ticket médio"
+        value={formatBRL0(kpis.financial.averageTicket)}
+        delta={rel(kpis.financial.averageTicket, prev.financial.averageTicket)}
+        sub="por paciente"
+        info={
+          <>
+            <p className="font-medium text-foreground">Ticket médio</p>
+            <p className="mt-1">
+              Valor médio por receita lançada no período. Calculado como{' '}
+              <span className="font-medium">receita total ÷ número de receitas</span>. Quanto mais
+              alto, mais a clínica fatura por atendimento.
+            </p>
+          </>
+        }
       />
     )
   }
   if (vis('financialKpis', 'healthScore')) {
-    kpiCards.push(
-      <KpiCard
+    operacao.push(
+      <SennoKpiCard
         key="healthScore"
+        icon={Heart}
         label="Health Score"
         value={kpis.healthScore != null ? String(kpis.healthScore) : '—'}
-        tone={
-          kpis.healthScore == null
-            ? 'default'
-            : kpis.healthScore <= 40
-              ? 'critical'
-              : kpis.healthScore <= 60
-                ? 'warning'
-                : 'good'
-        }
+        sub={kpis.healthScore != null ? `de 100 · ${healthLabel(kpis.healthScore)}` : 'sem dados'}
         info={
           <>
             <p className="font-medium text-foreground">Health Score (0–100)</p>
@@ -178,384 +389,140 @@ export function ClinicDashboard({ data, visibility }: Props) {
               </li>
             </ul>
             <p className="mt-2">
-              Faixas: <span className="font-medium text-rose-600">0–40 crítico</span>
+              Faixas: <span className="font-medium text-destructive">0–40 crítico</span>
               {' · '}
-              <span className="font-medium text-amber-600">41–60 atenção</span>
+              <span className="font-medium text-warn">41–60 atenção</span>
               {' · '}
               <span className="font-medium">61–80 bom</span>
               {' · '}
-              <span className="font-medium text-emerald-600">81–100 excelente</span>.
+              <span className="font-medium text-ok">81–100 excelente</span>.
             </p>
           </>
         }
-      />
-    )
-  }
-  if (vis('commercialKpis', 'leads')) {
-    kpiCards.push(
-      <KpiCard
-        key="leads"
-        label="Leads totais"
-        value={String(kpis.commercial.leadsCount)}
-        delta={rel(kpis.commercial.leadsCount, prev.commercial.leadsCount)}
-      />
-    )
-  }
-  if (vis('commercialKpis', 'appointments')) {
-    kpiCards.push(
-      <KpiCard
-        key="appointments"
-        label="Agendamentos"
-        value={String(kpis.commercial.appointmentsCount)}
-        delta={rel(kpis.commercial.appointmentsCount, prev.commercial.appointmentsCount)}
-      />
-    )
-  }
-  if (showNoShow) {
-    kpiCards.push(
-      <KpiCard
-        key="noShow"
-        label="No-show"
-        value={formatPercent(kpis.commercial.noShowRate)}
-        delta={rel(kpis.commercial.noShowRate, prev.commercial.noShowRate)}
-        invertDelta
-        tone={(kpis.commercial.noShowRate ?? 0) > 0.25 ? 'critical' : 'default'}
-        info={
-          <>
-            <p className="font-medium text-foreground">Taxa de no-show</p>
-            <p className="mt-1">
-              Percentual de agendamentos em que o paciente não compareceu sem avisar. Calculado como{' '}
-              <span className="font-medium">no-shows ÷ (atendidos + no-shows)</span>.
-            </p>
-            <p className="mt-1">
-              Apenas desfechos conhecidos entram no cálculo — agendamentos futuros, cancelamentos
-              comunicados e remarcações não diluem a taxa. Acima de 25% a clínica deve agir
-              (lembrete por WhatsApp, exigir sinal etc.).
-            </p>
-            <p className="mt-1">
-              <span className="font-medium">Receita perdida</span> = soma do preço dos procedimentos
-              agendados nos no-shows do período.
-            </p>
-          </>
-        }
-      >
-        {(showAttendance || showLostRevenue) && (
-          <div className="space-y-0.5 text-xs text-muted-foreground">
-            {showAttendance && (
-              <p>Comparecimento: {formatPercent(kpis.commercial.attendanceRate)}</p>
-            )}
-            {showLostRevenue && (
-              <p>Receita perdida: {formatCurrency(kpis.financial.estimatedLostRevenue)}</p>
-            )}
-          </div>
-        )}
-      </KpiCard>
-    )
-  } else {
-    if (showAttendance) {
-      kpiCards.push(
-        <KpiCard
-          key="attendance"
-          label="Comparecimento"
-          value={formatPercent(kpis.commercial.attendanceRate)}
-          delta={rel(kpis.commercial.attendanceRate, prev.commercial.attendanceRate)}
-        />
-      )
-    }
-    if (showLostRevenue) {
-      kpiCards.push(
-        <KpiCard
-          key="lostRevenue"
-          label="Receita perdida"
-          value={formatCurrency(kpis.financial.estimatedLostRevenue)}
-          info={<p>Soma do preço dos procedimentos em no-show.</p>}
-        />
-      )
-    }
-  }
-  if (vis('financialKpis', 'averageTicket')) {
-    kpiCards.push(
-      <KpiCard
-        key="averageTicket"
-        label="Ticket médio"
-        value={formatCurrency(kpis.financial.averageTicket)}
-        delta={rel(kpis.financial.averageTicket, prev.financial.averageTicket)}
-        info={
-          <>
-            <p className="font-medium text-foreground">Ticket médio</p>
-            <p className="mt-1">
-              Valor médio por receita lançada no período. Calculado como{' '}
-              <span className="font-medium">receita total ÷ número de receitas</span>. Quanto mais
-              alto, mais a clínica fatura por atendimento.
-            </p>
-          </>
-        }
-      />
-    )
-  }
-  if (vis('financialKpis', 'costs')) {
-    kpiCards.push(
-      <KpiCard
-        key="costs"
-        label="Custos"
-        value={formatCurrency(kpis.financial.totalCosts)}
-        delta={rel(kpis.financial.totalCosts, prev.financial.totalCosts)}
-        invertDelta
-      />
-    )
-  }
-  if (vis('financialKpis', 'netMargin')) {
-    kpiCards.push(
-      <KpiCard
-        key="netMargin"
-        label="Margem líquida"
-        value={formatPercent(kpis.financial.netMargin)}
-        delta={rel(kpis.financial.netMargin, prev.financial.netMargin)}
-        tone={(kpis.financial.netMargin ?? 1) < 0.2 ? 'warning' : 'default'}
-      />
-    )
-  }
-  if (vis('financialKpis', 'roi')) {
-    kpiCards.push(
-      <KpiCard
-        key="roi"
-        label="ROI marketing"
-        value={kpis.financial.roi != null ? `${(kpis.financial.roi * 100).toFixed(0)}%` : '—'}
-        info={
-          <>
-            <p className="font-medium text-foreground">ROI de marketing</p>
-            <p className="mt-1">
-              Retorno sobre o investimento em marketing. Calculado como{' '}
-              <span className="font-medium">
-                (receita atribuída a marketing − custo de marketing) ÷ custo de marketing
-              </span>
-              .
-            </p>
-            <p className="mt-1">
-              100% significa que cada R$ 1 investido trouxe R$ 1 de lucro além do investimento.
-              Valores negativos indicam que o marketing custou mais do que gerou.
-            </p>
-          </>
-        }
-      />
-    )
-  }
-  if (vis('financialKpis', 'cac')) {
-    kpiCards.push(
-      <KpiCard
-        key="cac"
-        label="CAC"
-        value={formatCurrency(kpis.financial.cac)}
-        delta={rel(kpis.financial.cac, prev.financial.cac)}
-        invertDelta
-        info={
-          <>
-            <p className="font-medium text-foreground">CAC — Custo de Aquisição de Cliente</p>
-            <p className="mt-1">
-              Quanto custou, em média, conquistar cada novo paciente no período. Calculado como{' '}
-              <span className="font-medium">
-                custo total de marketing ÷ novos pacientes cadastrados
-              </span>
-              . Pacientes provisórios de agendamento (que nunca compareceram) não contam.
-            </p>
-            <p className="mt-1">
-              Compare com o ticket médio: se o CAC for maior que o ticket, a clínica está gastando
-              mais para atrair do que recebe por atendimento.
-            </p>
-          </>
-        }
-      />
-    )
-  }
-  if (showTimeToFirstContact) {
-    kpiCards.push(
-      <KpiCard
-        key="timeToFirstContact"
-        label="Tempo até 1º contato"
-        value={`${kpis.commercial.avgTimeToFirstContactMin} min`}
-        delta={rel(
-          kpis.commercial.avgTimeToFirstContactMin,
-          prev.commercial.avgTimeToFirstContactMin
-        )}
-        invertDelta
       />
     )
   }
 
+  const sectors = [
+    { name: 'Financeiro', cards: financeiro },
+    { name: 'Comercial · aquisição', cards: comercial },
+    { name: 'Operação · atendimento', cards: operacao },
+  ].filter((s) => s.cards.length > 0)
+
+  // ---- Linhas de widgets ----
   const showRevGenerated = vis('revenueCharts', 'revenueGenerated')
   const showRevReceived = vis('revenueCharts', 'revenueReceived')
-  const showFunnel = vis('revenueCharts', 'funnel')
+  const showChart = showRevGenerated || showRevReceived
+  const showGoals = vis('tracking', 'goals')
   const showLeadsSource = vis('distributions', 'leadsBySource')
   const showRevByProcedure = vis('distributions', 'revenueByProcedure')
+  const showUpcoming = vis('tracking', 'upcomingAppointments')
+  const showFunnel = vis('revenueCharts', 'funnel')
   const showInsights = vis('tracking', 'insights')
-  const showGoals = vis('tracking', 'goals')
 
-  // ---- Grade única de widgets (encaixe automático, sem buracos) ----
-  // Largura em UNIDADES (8 colunas; 1 un. = 2 col): gráficos/procedimentos/
-  // metas = 2,5 un. (`col-span-5`); funil/origem/insights = 1,5 un.
-  // (`col-span-3`). Altura em LINHAS de 5.5rem (`auto-rows`): cards de gráfico
-  // = 4 linhas fixas; LISTAS (metas/insights) ganham span CALCULADO pela
-  // contagem de itens — o card cresce em linhas em vez de rolar (server
-  // component: a contagem é conhecida no render). `grid-flow-row-dense` faz o
-  // navegador recuar widgets para tapar o vão de qualquer item escondido pelo
-  // cargo. No mobile (< lg) tudo empilha com altura natural (spans lg-only).
-  const ROW_PX = 88 // 5.5rem
-  const GAP_PX = 12 // gap-3
-  /** Linhas de grade necessárias p/ `px` de conteúdo (mín. 2). */
-  const rowsForPx = (px: number) => Math.max(2, Math.ceil((px + GAP_PX) / (ROW_PX + GAP_PX)))
+  const generatedMonths = revenueByMonth.map((m) => ({
+    label: m.month,
+    revenue: m.revenue,
+    costs: m.costs,
+  }))
+  // "Recebida" no dashboard = caixa REALIZADO (meses passados + atual). A
+  // projeção futura continua na aba Financeiro, que reusa a mesma série.
+  const receivedMonths = receivedByMonth.slice(0, receivedCenterIndex + 1).map((m) => ({
+    label: m.month,
+    revenue: m.revenue,
+    costs: m.costs,
+  }))
 
-  // Estimativa generosa por item (folga vira respiro no fim do card; os textos
-  // dos insights são limitados com line-clamp p/ a altura ficar previsível).
-  const goalsRows = rowsForPx(96 + goalsProgress.length * 76)
-  const insightsRows = rowsForPx(96 + Math.max(insightsOpen.length, 1) * 120)
-
-  // Span vertical dinâmico via var CSS (classe estática = JIT-safe).
-  const dynamicRowSpan = 'lg:[grid-row:span_var(--rows)]'
-
-  const widgets: React.ReactNode[] = []
-  if (showRevGenerated || showRevReceived) {
-    widgets.push(
-      <div key="revenueCharts" className="lg:col-span-5 lg:row-span-4">
-        <RevenueChartsCard
-          generated={revenueByMonth}
-          received={receivedByMonth}
-          receivedCenterIndex={receivedCenterIndex}
-          showGenerated={showRevGenerated}
-          showReceived={showRevReceived}
-        />
-      </div>
+  const row1: React.ReactNode[] = []
+  if (showChart) {
+    row1.push(
+      <RevenueCostChart
+        key="chart"
+        generated={generatedMonths}
+        received={receivedMonths}
+        showGenerated={showRevGenerated}
+        showReceived={showRevReceived}
+      />
     )
   }
-  if (showFunnel) {
-    widgets.push(
-      <Card key="funnel" className="lg:col-span-3 lg:row-span-4">
-        <CardHeader>
-          <CardTitle className="text-base">Funil de conversão</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Leads criados no período, por etapa atual. Fechado conta pela data de fechamento.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <FunnelBars data={funnel} />
-        </CardContent>
-      </Card>
-    )
-  }
+  if (showGoals) row1.push(<GoalsCard key="goals" goals={goalsProgress} />)
+
+  const row2: React.ReactNode[] = []
   if (showLeadsSource) {
-    widgets.push(
-      <Card key="leadsSource" className="lg:col-span-3 lg:row-span-4">
-        <CardHeader>
-          <CardTitle className="text-base">Origem dos leads</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SharePieChart
-            data={leadsBySource.map((s) => ({
-              name: LEAD_SOURCE_LABEL[s.source] ?? s.source,
-              value: s.count,
-            }))}
-            valueFormat="count"
-            unitLabel="leads"
-          />
-        </CardContent>
-      </Card>
+    row2.push(
+      <LeadSourcesDonut
+        key="leadsSource"
+        items={leadsBySource.map((s) => ({
+          label: LEAD_SOURCE_LABEL[s.source] ?? s.source,
+          count: s.count,
+        }))}
+      />
     )
   }
   if (showRevByProcedure) {
-    widgets.push(
-      <Card key="revenueByProcedure" className="lg:col-span-5 lg:row-span-4">
-        <CardHeader>
-          <CardTitle className="text-base">Receita por procedimento</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <HorizontalBarChart
-            data={revenueByProcedure.map((p) => ({ label: p.name, value: p.total }))}
-          />
-        </CardContent>
-      </Card>
+    row2.push(
+      <ProceduresBarsCard
+        key="revenueByProcedure"
+        items={revenueByProcedure.map((p) => ({ name: p.name, total: p.total }))}
+      />
     )
   }
-  if (showGoals) {
-    widgets.push(
-      <Card
-        key="goals"
-        className={`lg:col-span-5 ${dynamicRowSpan}`}
-        style={{ '--rows': goalsRows } as React.CSSProperties}
-      >
-        <CardHeader>
-          <CardTitle className="text-base">Progresso de metas</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {goalsProgress.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma meta ativa.</p>
-          ) : (
-            goalsProgress.map((g) => (
-              <div key={g.id}>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{metricLabel(g.metric)}</span>
-                  <span className="text-muted-foreground">{g.progressPct.toFixed(0)}%</span>
-                </div>
-                <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full bg-primary transition-all"
-                    style={{ width: `${Math.min(100, g.progressPct)}%` }}
-                  />
-                </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {g.currentValue.toLocaleString('pt-BR')} de{' '}
-                  {g.targetValue.toLocaleString('pt-BR')} · termina{' '}
-                  {new Intl.DateTimeFormat('pt-BR').format(g.endDate)}
-                </p>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-    )
+
+  const row3: React.ReactNode[] = []
+  if (showUpcoming) {
+    row3.push(<UpcomingAppointmentsCard key="upcoming" items={upcomingAppointments} />)
   }
-  if (showInsights) {
-    widgets.push(
-      <Card
-        key="insights"
-        className={`lg:col-span-3 ${dynamicRowSpan}`}
-        style={{ '--rows': insightsRows } as React.CSSProperties}
-      >
-        <CardHeader>
-          <CardTitle className="text-base">Insights ativos</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {insightsOpen.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum insight aberto.</p>
-          ) : (
-            insightsOpen.map((i) => (
-              <div
-                key={i.id}
-                className={`rounded-md border p-3 text-sm ${SEVERITY_TONE[i.severity] ?? ''}`}
-              >
-                <p className="font-medium leading-tight">{i.title}</p>
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{i.diagnosis}</p>
-                <p className="mt-1 line-clamp-2 text-xs">
-                  <span className="font-medium">Sugestão:</span> {i.suggestion}
-                </p>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-    )
-  }
+  if (showFunnel) row3.push(<ConversionFunnelCard key="funnel" stages={funnel} />)
+  if (showInsights) row3.push(<InsightsCard key="insights" insights={insightsOpen} />)
 
   return (
-    <div className="space-y-4">
-      {kpiCards.length > 0 && (
-        // KPIs: 1 unidade cada, mesmo tamanho — 4 por linha no desktop,
-        // degradando para 3/2/1 em telas menores. Grid fluido nunca abre
-        // buraco: esconder card só encurta a última linha.
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{kpiCards}</div>
+    <div className="flex flex-col gap-[18px]">
+      {sectors.map((sec) => (
+        <div key={sec.name}>
+          <div className="mb-2.5 ml-0.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
+            {sec.name}
+          </div>
+          <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(228px,1fr))]">
+            {sec.cards}
+          </div>
+        </div>
+      ))}
+
+      {row1.length > 0 && (
+        <div
+          className={
+            row1.length === 2
+              ? 'grid grid-cols-1 gap-[18px] lg:grid-cols-[1.7fr_1fr]'
+              : 'grid grid-cols-1 gap-[18px]'
+          }
+        >
+          {row1}
+        </div>
       )}
 
-      {widgets.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 lg:grid-flow-row-dense lg:auto-rows-[5.5rem] lg:grid-cols-8">
-          {widgets}
+      {row2.length > 0 && (
+        <div
+          className={
+            row2.length === 2
+              ? 'grid grid-cols-1 items-stretch gap-[18px] lg:grid-cols-[0.8fr_1.85fr]'
+              : 'grid grid-cols-1 gap-[18px]'
+          }
+        >
+          {row2}
+        </div>
+      )}
+
+      {row3.length > 0 && (
+        <div
+          className={
+            row3.length === 3
+              ? 'grid grid-cols-1 items-start gap-[18px] sm:grid-cols-2 lg:grid-cols-[0.95fr_0.9fr_1.55fr]'
+              : row3.length === 2
+                ? 'grid grid-cols-1 items-start gap-[18px] sm:grid-cols-2'
+                : 'grid grid-cols-1 gap-[18px]'
+          }
+        >
+          {row3}
         </div>
       )}
     </div>

@@ -40,6 +40,8 @@ export default async function AdminClientFinancialPage({ params }: Props) {
       revenueSeries={revenueSeries}
       topProcedures={overview.topProcedures}
       topCostCategories={overview.topCostCategories}
+      topBuyers={overview.topBuyers}
+      topSellers={overview.topSellers}
       revenues={revenues}
       costs={costs}
       proceduresForSelect={proceduresForSelect}

@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { signOut } from '@/lib/auth-client'
 import { changePasswordAction } from '@/server/actions/settings-actions'
 
 const schema = z
@@ -46,8 +47,11 @@ export function ChangePasswordForm() {
       toast.error(result.error.message)
       return
     }
-    toast.success('Senha alterada com sucesso')
+    // A troca de senha invalidou TODAS as sessões (inclusive esta). Avisa e
+    // força novo login — sem isso o próximo request cairia num 401 seco.
     form.reset()
+    toast.success('Senha alterada. Faça login novamente para continuar.')
+    setTimeout(() => signOut({ callbackUrl: '/login' }), 1500)
   }
 
   return (

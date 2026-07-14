@@ -28,8 +28,9 @@ export type KanbanLead = {
    *  (retrocesso), não criar um novo. */
   appointmentId: string | null
   /** Paciente ligado (retenção). `nextReturnDueAt` = retorno esperado (reforma da
-   *  retenção). Null fora da retenção / sem paciente. */
-  patient: { nextReturnDueAt: Date | null } | null
+   *  retenção). Null fora da retenção / sem paciente. `id` abre o card unificado
+   *  de paciente ao clicar num card de retenção. */
+  patient: { id: string; nextReturnDueAt: Date | null } | null
 }
 
 export type KanbanStage = {

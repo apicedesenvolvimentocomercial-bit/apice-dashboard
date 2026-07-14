@@ -19,7 +19,10 @@ const loginSchema = z.object({
 
 export const authConfig = {
   adapter: PrismaAdapter(prisma),
-  session: { strategy: 'jwt' },
+  // JWT stateless. maxAge encurtado de 30d (default) p/ 7d: reduz a janela em que
+  // um token vazado sobrevive. `updateAge` rola o token a cada 24h de uso — usuário
+  // ativo nunca é deslogado; só quem some por 7 dias precisa reautenticar.
+  session: { strategy: 'jwt', maxAge: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24 },
   pages: {
     signIn: '/login',
     error: '/login',
@@ -60,6 +63,7 @@ export const authConfig = {
             organizationId: true,
             clientId: true,
             clinicRoleId: true,
+            sessionVersion: true,
             passwordHash: true,
             isActive: true,
           },
@@ -96,6 +100,7 @@ export const authConfig = {
           organizationId: user.organizationId,
           clientId: user.clientId,
           clinicRoleId: user.clinicRoleId,
+          sessionVersion: user.sessionVersion,
         }
       },
     }),
@@ -108,6 +113,7 @@ export const authConfig = {
         token.organizationId = (user as { organizationId: string | null }).organizationId
         token.clientId = (user as { clientId: string | null }).clientId
         token.clinicRoleId = (user as { clinicRoleId: string | null }).clinicRoleId
+        token.sessionVersion = (user as { sessionVersion: number }).sessionVersion
         token.syncedAt = Date.now()
         return token
       }
@@ -127,6 +133,7 @@ export const authConfig = {
             role: true,
             clientId: true,
             clinicRoleId: true,
+            sessionVersion: true,
             isActive: true,
             deletedAt: true,
           },
@@ -139,10 +146,18 @@ export const authConfig = {
         if (!fresh || !fresh.isActive || fresh.deletedAt) {
           return null
         }
+        // Revogação de JWT: o DB avançou o sessionVersion (logout/troca/reset de
+        // senha) → este token é de uma sessão que foi invalidada. Mata-o também
+        // aqui (páginas/middleware); getTenantContext já corta o acesso a dados
+        // no primeiro request. Coalesce p/ 0 tolera tokens pré-feature.
+        if ((token.sessionVersion ?? 0) !== fresh.sessionVersion) {
+          return null
+        }
         token.organizationId = fresh.organizationId
         token.role = fresh.role
         token.clientId = fresh.clientId
         token.clinicRoleId = fresh.clinicRoleId
+        token.sessionVersion = fresh.sessionVersion
         token.syncedAt = Date.now()
       }
       return token
@@ -154,6 +169,7 @@ export const authConfig = {
         session.user.organizationId = token.organizationId as string | null
         session.user.clientId = token.clientId as string | null
         session.user.clinicRoleId = token.clinicRoleId as string | null
+        session.user.sessionVersion = (token.sessionVersion as number | undefined) ?? 0
       }
       return session
     },

@@ -29,6 +29,7 @@ const getFreshUser = cache(async (userId: string) => {
       role: true,
       clientId: true,
       clinicRoleId: true,
+      sessionVersion: true,
       isActive: true,
       deletedAt: true,
     },
@@ -45,6 +46,15 @@ export async function getTenantContext(): Promise<TenantContext> {
   // perde acesso no request seguinte mesmo com JWT ainda válido.
   const fresh = await getFreshUser(session.user.id)
   if (!fresh || !fresh.isActive || fresh.deletedAt || !fresh.organizationId) {
+    throw new UnauthorizedError()
+  }
+
+  // Revogação de JWT (instantânea, por request). O token carrega o sessionVersion
+  // do login; se o DB avançou (logout/troca/reset de senha, ou "sair de todos os
+  // dispositivos"), este token é de uma sessão morta → nega o acesso a dados JÁ no
+  // próximo request, sem esperar o re-sync de 10 min nem o maxAge do cookie. O
+  // coalesce p/ 0 tolera tokens emitidos antes desta feature (claim ausente = 0).
+  if (fresh.sessionVersion !== (session.user.sessionVersion ?? 0)) {
     throw new UnauthorizedError()
   }
 

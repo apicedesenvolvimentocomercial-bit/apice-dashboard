@@ -77,10 +77,13 @@ export const DASHBOARD_SECTIONS: DashboardSectionDef[] = [
   {
     key: 'tracking',
     label: 'Acompanhamento',
-    description: 'Insights ativos e progresso de metas',
+    description: 'Insights ativos, metas e próximos agendamentos',
     items: [
       { key: 'insights', label: 'Insights ativos' },
       { key: 'goals', label: 'Progresso de metas' },
+      // Item novo (redesign): dentro de seção ligada, item ausente no JSON do
+      // cargo é VISÍVEL por padrão — cargos existentes ganham o card sem edição.
+      { key: 'upcomingAppointments', label: 'Próximos agendamentos' },
     ],
   },
 ]
