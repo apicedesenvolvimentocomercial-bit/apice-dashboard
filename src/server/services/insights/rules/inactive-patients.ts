@@ -50,7 +50,12 @@ export const inactivePatientsRule: InsightRule = {
       estimatedImpact: null,
       suggestion:
         'Crie programa de retorno com lembretes automáticos e ofertas para pacientes inativos há 90+ dias.',
-      metadata: { retention, base: activeBase, returned },
+      metadata: {
+        retention,
+        base: activeBase,
+        returned,
+        metric: { value: `${(retention * 100).toFixed(0)}%`, label: 'voltaram em 90 dias' },
+      },
     }
   },
 }

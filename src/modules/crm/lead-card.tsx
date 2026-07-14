@@ -7,7 +7,6 @@ import { ptBR } from 'date-fns/locale'
 import { CalendarClock, Phone } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
-import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { SOURCE_LABELS } from './types'
 import type { KanbanLead } from './types'
@@ -68,42 +67,43 @@ export function LeadCard({
         if (!isDragging) onClick()
       }}
       className={cn(
-        'select-none rounded-lg border bg-background p-3',
+        // Card de lead (handoff §7.3): bg-card, radius 11, sombra tingida;
+        // hover sobe a borda p/ dourado e a sombra p/ elevação maior.
+        'select-none rounded-[11px] border border-border bg-card px-3.5 py-[13px] shadow-card',
+        'transition-[border-color,box-shadow] duration-150 hover:border-primary/50 hover:shadow-[0_4px_14px_-4px_hsl(var(--shadow)/calc(var(--shadow-a)*2.5))]',
         dragDisabled ? 'cursor-pointer' : 'cursor-grab',
-        'transition-all hover:shadow-sm',
         isDragging && 'opacity-30',
-        isDragOverlay && 'rotate-1 cursor-grabbing opacity-100 shadow-xl',
-        highlight && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+        isDragOverlay && 'rotate-1 cursor-grabbing opacity-100 shadow-overlay',
+        highlight && 'ring-2 ring-ring ring-offset-2 ring-offset-background'
       )}
     >
-      <p className="truncate text-sm font-medium leading-tight">{lead.name}</p>
+      <p className="truncate text-[13.5px] font-semibold leading-tight">{lead.name}</p>
       {lead.procedureInterest && (
         <p className="mt-0.5 truncate text-xs text-muted-foreground">{lead.procedureInterest}</p>
       )}
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-xs">
+      <div className="mt-[11px] flex items-center justify-between gap-2">
+        <span className="shrink-0 truncate rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground">
           {SOURCE_LABELS[lead.source]}
-        </Badge>
-        <span className="truncate text-xs text-muted-foreground">
+        </span>
+        <span className="flex-none text-[11px] text-muted-foreground">
           {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true, locale: ptBR })}
         </span>
       </div>
       {lead.phone && (
-        <div className="mt-1.5 flex items-center gap-1">
-          <Phone className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">{lead.phone}</span>
+        <div className="mt-2.5 flex items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
+          <Phone className="h-[13px] w-[13px] shrink-0" aria-hidden="true" />
+          <span className="truncate">{lead.phone}</span>
         </div>
       )}
       {dueAt && (
         <div
           className={cn(
-            'mt-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs',
-            isOverdue
-              ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200'
-              : 'bg-muted text-muted-foreground'
+            'mt-2 flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs',
+            // Par texto+fundo semântico (design.md §1): atrasado = warn.
+            isOverdue ? 'bg-warn-bg text-warn' : 'bg-muted text-muted-foreground'
           )}
         >
-          <CalendarClock className="h-3 w-3 shrink-0" />
+          <CalendarClock className="h-3 w-3 shrink-0" aria-hidden="true" />
           <span className="truncate">
             {isOverdue ? 'Retorno atrasado ' : 'Retorno '}
             {formatDistanceToNow(dueAt, { addSuffix: true, locale: ptBR })}

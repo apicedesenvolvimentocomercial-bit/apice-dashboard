@@ -1,12 +1,12 @@
 'use client'
 
 import type { PipelineCategory, PipelineKind } from '@prisma/client'
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2, Pencil, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 import type { ClinicSchedule } from '@/modules/appointments/types'
 import { createPipelineAction } from '@/server/actions/pipeline-actions'
 
@@ -14,6 +14,7 @@ import { KanbanBoard } from './kanban-board'
 import { PipelineSearch } from './pipeline-search'
 import { RetentionHelp } from './retention-help'
 import type { ProcedureOption } from './schedule-lead-dialog'
+import { StageEditorDialog } from './stage-editor-dialog'
 import type { KanbanLead, KanbanStage } from './types'
 
 const MAX_PIPELINES = 6
@@ -35,14 +36,17 @@ type Props = {
 }
 
 /**
- * Abas dinâmicas de pipelines (≤6). Substitui as duas abas fixas NEW/EXISTING:
- * cada aba é uma `Pipeline` da clínica; a aba "+" cria uma nova pipeline CUSTOM.
- * Cada aba monta um KanbanBoard com seu `pipelineId`/`kind`.
+ * Abas dinâmicas de pipelines (≤6) — redesign Funil (handoff §6): switch
+ * dourado com pílula deslizante (mesmo primitivo da Agenda/PeriodBar), "+" de
+ * novo funil e ajuda à esquerda; "Editar etapas" (da pipeline ATIVA) à direita,
+ * dentro do conteúdo (design.md §4). Cada aba monta um KanbanBoard que fica
+ * MONTADO quando inativo (display:none) p/ preservar páginas já carregadas.
  */
 export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Props) {
   const router = useRouter()
   const [active, setActive] = useState<string>(pipelines[0]?.id ?? '')
   const [creating, setCreating] = useState(false)
+  const [stageEditorOpen, setStageEditorOpen] = useState(false)
   // Card destacado pela busca global (feat6) — limpa sozinho após alguns segundos.
   const [highlightLeadId, setHighlightLeadId] = useState<string | null>(null)
   // Card vindo da busca que pode estar ALÉM da página carregada da coluna (M1):
@@ -77,11 +81,11 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
   async function handleCreate() {
     if (creating) return
     if (pipelines.length >= MAX_PIPELINES) {
-      toast.error('Limite de 6 pipelines atingido')
+      toast.error('Limite de 6 funis atingido')
       return
     }
     setCreating(true)
-    const res = await createPipelineAction(clientId, 'Nova pipeline')
+    const res = await createPipelineAction(clientId, 'Novo funil')
     setCreating(false)
     if (!res.success) {
       toast.error(res.error.message)
@@ -91,53 +95,94 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
     router.refresh()
   }
 
+  const activeIdx = Math.max(
+    0,
+    pipelines.findIndex((p) => p.id === active)
+  )
+  const activePipeline = pipelines[activeIdx]
+
   return (
-    // Coluna flex de altura total: a lista de abas tem altura natural e o
-    // conteúdo ativo (min-h-0) toma o resto, dando à board uma altura fixa
-    // dentro da qual rolar horizontalmente.
-    <Tabs value={active} onValueChange={setActive} className="flex min-h-0 flex-1 flex-col gap-4">
+    // Coluna flex de altura total: busca + abas têm altura natural e o board
+    // ativo (min-h-0) toma o resto, dando à board uma altura fixa dentro da
+    // qual rolar horizontalmente (handoff §1: só o kanban rola).
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="shrink-0">
         <PipelineSearch clientId={clientId} onSelect={handleSearchSelect} />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5 self-start">
-        <TabsList>
-          {pipelines.map((p) => (
-            <TabsTrigger key={p.id} value={p.id}>
-              {p.name}
-            </TabsTrigger>
-          ))}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          {/* Switch dourado com pílula deslizante (handoff §6.1). */}
+          {pipelines.length > 0 && (
+            <div
+              className="relative grid auto-cols-fr grid-flow-col rounded-[10px] border border-border bg-muted p-[3px]"
+              role="tablist"
+              aria-label="Selecionar funil"
+            >
+              <div
+                className="pointer-events-none absolute bottom-[3px] left-[3px] top-[3px] z-0 rounded-lg bg-primary shadow-card transition-transform duration-340 ease-senno"
+                style={{
+                  width: `calc((100% - 6px) / ${pipelines.length})`,
+                  transform: `translateX(${activeIdx * 100}%)`,
+                }}
+                aria-hidden="true"
+              />
+              {pipelines.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active === p.id}
+                  onClick={() => setActive(p.id)}
+                  className={cn(
+                    'relative z-[1] max-w-[180px] truncate whitespace-nowrap rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors duration-250',
+                    active === p.id ? 'text-primary-foreground' : 'text-muted-foreground'
+                  )}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          )}
           {pipelines.length < MAX_PIPELINES && (
             <button
               type="button"
               onClick={handleCreate}
               disabled={creating}
-              aria-label="Nova pipeline"
-              className="ml-1 inline-flex h-7 items-center justify-center rounded-sm px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              title="Novo funil"
+              aria-label="Novo funil"
+              className="flex h-[30px] w-[30px] items-center justify-center rounded-[7px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               {creating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-[15px] w-[15px] animate-spin" />
               ) : (
-                <Plus className="h-4 w-4" />
+                <Plus className="h-[15px] w-[15px]" />
               )}
             </button>
           )}
-        </TabsList>
-        {pipelines.find((p) => p.id === active)?.kind === 'RETENTION' && <RetentionHelp />}
+          {activePipeline?.kind === 'RETENTION' && <RetentionHelp />}
+        </div>
+
+        {/* Botão de ação da página DENTRO do conteúdo (handoff §6.2). */}
+        {activePipeline && (
+          <button
+            type="button"
+            onClick={() => setStageEditorOpen(true)}
+            className="flex h-[38px] items-center gap-2 rounded-[9px] border border-input bg-card px-3.5 text-[13px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Pencil className="h-[15px] w-[15px] text-primary-text" aria-hidden="true" />
+            Editar etapas
+          </button>
+        )}
       </div>
 
       {pipelines.map((p) => (
-        <TabsContent
+        <div
           key={p.id}
-          value={p.id}
-          // Mesmas classes flex em toda aba: garante que cada board ocupe a
-          // mesma altura. `data-[state=inactive]:hidden` é OBRIGATÓRIO: o Radix
-          // esconde a aba inativa com o atributo `hidden` (UA: display:none), mas
-          // a classe `flex` (display:flex do autor) VENCE o `[hidden]` — então o
-          // painel inativo continua ocupando altura e empurra a aba ativa
-          // seguinte pro rodapé. O variante `data-[state=inactive]` tem
-          // especificidade maior que `.flex`, devolvendo o display:none real.
-          className="mt-0 flex min-h-0 flex-1 flex-col gap-4 data-[state=inactive]:hidden"
+          // Board inativo fica montado mas com display:none (classe condicional,
+          // não o atributo `hidden` — a classe `flex` venceria o [hidden] do UA)
+          // p/ preservar páginas carregadas/estado ao alternar de aba.
+          className={cn('min-h-0 flex-1 flex-col gap-4', active === p.id ? 'flex' : 'hidden')}
         >
           <KanbanBoard
             stages={p.stages}
@@ -145,7 +190,6 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
             pipelineId={p.id}
             pipelineKind={p.kind}
             pipelineCategory={p.category}
-            pipelineName={p.name}
             procedures={procedures}
             schedule={schedule}
             // Lista leve de todos os funis p/ o dialog "Mover para funil".
@@ -157,8 +201,22 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
             highlightLeadId={active === p.id ? highlightLeadId : null}
             ensureLead={ensureLead?.pipelineId === p.id ? ensureLead.lead : null}
           />
-        </TabsContent>
+        </div>
       ))}
-    </Tabs>
+
+      {/* Editor de etapas do funil ATIVO (o botão vive na linha das abas). */}
+      {activePipeline && (
+        <StageEditorDialog
+          open={stageEditorOpen}
+          onOpenChange={setStageEditorOpen}
+          clientId={clientId}
+          pipelineId={activePipeline.id}
+          pipelineKind={activePipeline.kind}
+          pipelineCategory={activePipeline.category}
+          pipelineName={activePipeline.name}
+          stages={activePipeline.stages}
+        />
+      )}
+    </div>
   )
 }

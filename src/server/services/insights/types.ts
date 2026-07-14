@@ -12,6 +12,13 @@ export type RuleInput = {
   prisma: PrismaLike
 }
 
+/**
+ * Métrica de destaque do card de insight (redesign): valor curto ("41%",
+ * "R$ 21k") + rótulo ("horários vagos"). Vive dentro de `metadata.metric` —
+ * a UI cai em `estimatedImpact` quando ausente (insights antigos no banco).
+ */
+export type InsightMetric = { value: string; label: string }
+
 export type InsightCandidate = {
   ruleKey: string
   category: InsightCategory
@@ -20,7 +27,7 @@ export type InsightCandidate = {
   diagnosis: string
   estimatedImpact?: number | null
   suggestion: string
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown> & { metric?: InsightMetric }
 }
 
 export type InsightRule = {

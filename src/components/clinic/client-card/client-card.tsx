@@ -1,11 +1,13 @@
 'use client'
 
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import type { PipelineCategory, PipelineKind } from '@prisma/client'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   ArrowRightLeft,
   Calendar,
+  CheckSquare,
   Download,
   FileText,
   Loader2,
@@ -16,21 +18,24 @@ import {
   ThumbsDown,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import React, { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { ClinicActivityCard } from '@/components/clinic/activities/clinic-activity-card'
 import { ClinicCreateActivityDialog } from '@/components/clinic/activities/clinic-create-activity-dialog'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Dialog, DialogOverlay, DialogPortal } from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -38,7 +43,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getCardActivitiesAction } from '@/domains/clinic/activities/activity-actions'
 import {
   createClinicNoteAction,
@@ -51,6 +55,7 @@ import {
   getDocumentDownloadUrlAction,
   uploadCardDocumentAction,
 } from '@/domains/clinic/documents/document-actions'
+import { cn, getInitials } from '@/lib/utils'
 import { STATUS_COLORS, STATUS_LABELS } from '@/modules/appointments/types'
 import {
   addInteractionAction,
@@ -59,7 +64,11 @@ import {
   loseLeadAction,
   reassignLeadAction,
 } from '@/server/actions/lead-actions'
-import { deletePatientAction, getPatientAction } from '@/server/actions/patient-actions'
+import {
+  deletePatientAction,
+  getPatientAction,
+  getPatientRetentionContextAction,
+} from '@/server/actions/patient-actions'
 import { MoveLeadPipelineDialog } from '@/modules/crm/move-lead-pipeline-dialog'
 import {
   INTERACTION_LABELS,
@@ -70,9 +79,10 @@ import {
 import type { ActivityView } from '@/components/shared/activities/types'
 
 /**
- * Card unificado do cliente (itens 5/6). Pop-up CENTRAL (não mais drawer
- * lateral), com abas. Adaptativo: representa um LEAD (card comercial) ou um
- * PACIENTE (retenção / aba pacientes), sempre com as MESMAS abas e ações. Aba
+ * Card unificado do cliente — redesign Funil (handoff §9–§13): DRAWER lateral
+ * direito de 520px com abas underline (Info · Atividades · Anotações ·
+ * Documentos). Adaptativo: representa um LEAD (card comercial) ou um PACIENTE
+ * (retenção / aba pacientes), sempre com as MESMAS abas e ações. Aba
  * Atividades reusa o backend de atividade orientada a cliente (item 1).
  */
 export type ClientCardSubject =
@@ -146,6 +156,82 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
+// Cor do dot da timeline por TIPO de interação (handoff §11.3 — paleta
+// literal de categoria, não tokens do tema; igual às cores de etapa §7.2).
+const INTERACTION_DOT: Record<string, string> = {
+  NOTE: 'hsl(32 80% 40%)',
+  CALL: 'hsl(217 75% 50%)',
+  WHATSAPP: 'hsl(142 52% 38%)',
+  EMAIL: 'hsl(190 68% 36%)',
+  MEETING: 'hsl(262 48% 56%)',
+  WON: 'hsl(142 52% 38%)',
+  LOST: 'hsl(0 72% 55%)',
+}
+
+/** Label overline de seção (handoff §10.3): 11px/600 uppercase. */
+function Overline({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+      {children}
+    </p>
+  )
+}
+
+/** Botão primário compacto (36px) — "Nova atividade" / "Enviar arquivo" (§11.1).
+ *  forwardRef + spread p/ funcionar como trigger `asChild` do Radix. */
+const SmallPrimaryButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>(function SmallPrimaryButton({ className, children, ...props }, ref) {
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={cn(
+        'flex h-9 items-center gap-[7px] rounded-[9px] bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+})
+
+/** Empty state composto (handoff §11.4/§12.3/§13.3). */
+function EmptyState({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: React.ElementType
+  title: string
+  text: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-border px-5 py-9 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-muted text-muted-foreground">
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </div>
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="-mt-1.5 text-[12.5px] text-muted-foreground">{text}</p>
+    </div>
+  )
+}
+
+/** Skeleton do corpo do drawer (design.md §5 — shimmer no lugar de spinner). */
+function DrawerSkeleton() {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="senno-shimmer h-4 w-2/3 rounded" />
+      <div className="senno-shimmer h-4 w-1/2 rounded" />
+      <div className="senno-shimmer h-24 w-full rounded-[10px]" />
+      <div className="senno-shimmer h-4 w-3/5 rounded" />
+      <div className="senno-shimmer h-16 w-full rounded-[10px]" />
+    </div>
+  )
+}
+
 type Props = {
   open: boolean
   clientId: string
@@ -154,11 +240,13 @@ type Props = {
   onChanged: () => void
 }
 
+type DrawerTab = 'info' | 'activities' | 'notes' | 'docs'
+
 export function ClientCard({ open, clientId, subject, onClose, onChanged }: Props) {
   const [lead, setLead] = useState<LeadDetail | null>(null)
   const [patient, setPatient] = useState<PatientDetail | null>(null)
   const [loading, setLoading] = useState(false)
-  const [tab, setTab] = useState('info')
+  const [tab, setTab] = useState<DrawerTab>('info')
 
   // Aba Atividades
   const [activities, setActivities] = useState<ActivityView[]>([])
@@ -217,6 +305,7 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
   const [docsLoading, setDocsLoading] = useState(false)
   const [docsConfigured, setDocsConfigured] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [docToDelete, setDocToDelete] = useState<CardDoc | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadDocuments = useCallback(() => {
@@ -262,10 +351,9 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
     })
   }
 
-  function removeDoc(id: string) {
-    if (!confirm('Excluir este documento?')) return
-    deleteCardDocumentAction(id).then((res) => {
-      if (res.success) setDocuments((prev) => prev.filter((d) => d.id !== id))
+  function removeDoc(doc: CardDoc) {
+    deleteCardDocumentAction(doc.id).then((res) => {
+      if (res.success) setDocuments((prev) => prev.filter((d) => d.id !== doc.id))
       else toast.error(res.error.message)
     })
   }
@@ -311,6 +399,13 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
     loadDocuments()
   }, [open, subject, clientId, loadActivities, loadNotes, loadDocuments])
 
+  const tabs: Array<{ value: DrawerTab; label: string; count: number | null }> = [
+    { value: 'info', label: 'Info', count: null },
+    { value: 'activities', label: 'Atividades', count: activities.length },
+    { value: 'notes', label: 'Anotações', count: notes.length },
+    { value: 'docs', label: 'Documentos', count: documents.length },
+  ]
+
   return (
     <Dialog
       open={open}
@@ -318,282 +413,486 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
         if (!v) onClose()
       }}
     >
-      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0">
-        <DialogHeader className="space-y-0 border-b border-border p-5">
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            {subjectName || 'Carregando...'}
-            {lead && (
-              <span
-                className="rounded px-1.5 py-0.5 text-xs font-medium"
-                style={{
-                  backgroundColor: lead.stage.color ? lead.stage.color + '20' : undefined,
-                  color: lead.stage.color ?? undefined,
-                }}
-              >
-                {lead.stage.name}
-              </span>
-            )}
-            {patient && (
-              <span className="text-sm font-normal text-muted-foreground">
-                {patient._count.appointments} agendamentos
-              </span>
-            )}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
+      <DialogPortal>
+        {/* Scrim do drawer (handoff §9.1). */}
+        <DialogOverlay className="bg-[hsl(220_24%_5%/0.5)]" />
+        <DialogPrimitive.Content
+          className={cn(
+            'fixed inset-y-0 right-0 z-50 flex h-full w-[520px] max-w-full flex-col border-l border-border bg-card text-card-foreground',
+            'shadow-[-28px_0_60px_-22px_hsl(var(--shadow)/calc(var(--shadow-a)*5))]',
+            'duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right'
+          )}
+        >
+          <DialogPrimitive.Description className="sr-only">
             Detalhes, atividades e ações do cliente.
-          </DialogDescription>
-        </DialogHeader>
+          </DialogPrimitive.Description>
 
-        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
-          <TabsList className="mx-5 mt-4 w-fit shrink-0">
-            <TabsTrigger value="info">Info</TabsTrigger>
-            <TabsTrigger value="activities">
-              Atividades{activities.length > 0 && ` (${activities.length})`}
-            </TabsTrigger>
-            <TabsTrigger value="notes">
-              Anotações{notes.length > 0 && ` (${notes.length})`}
-            </TabsTrigger>
-            <TabsTrigger value="docs">
-              Documentos{documents.length > 0 && ` (${documents.length})`}
-            </TabsTrigger>
-          </TabsList>
-
-          {/* INFO */}
-          <TabsContent
-            value="info"
-            className="mt-0 min-h-0 flex-1 space-y-5 overflow-y-auto p-5 data-[state=inactive]:hidden"
-          >
-            {loading && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          {/* Header (handoff §9.2): avatar + nome + pill de etapa + origem. */}
+          <div className="flex items-start gap-3 px-[22px] pt-5">
+            <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-primary/[0.16] text-[15px] font-semibold text-primary-text">
+              {subjectName ? getInitials(subjectName) : '…'}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <DialogPrimitive.Title asChild>
+                  <h2 className="min-w-0 truncate text-lg font-semibold tracking-[-0.01em]">
+                    {subjectName || 'Carregando…'}
+                  </h2>
+                </DialogPrimitive.Title>
+                {lead && (
+                  <span className="flex-none rounded-full bg-primary/[0.14] px-[9px] py-0.5 text-[11px] font-semibold text-primary-text">
+                    {lead.stage.name}
+                  </span>
+                )}
               </div>
-            )}
-            {!loading && lead && subject?.type === 'lead' && (
-              <LeadInfo
-                lead={lead}
-                clientId={clientId}
-                subject={subject}
-                members={members}
-                canReassign={canReassignLeads}
-                onChanged={onChanged}
-                onClose={onClose}
-                reloadLead={() =>
-                  getLeadAction(lead.id, clientId).then((r) => {
-                    if (r.success) setLead(r.data as LeadDetail)
-                  })
-                }
-              />
-            )}
-            {!loading && patient && subject?.type === 'patient' && (
-              <PatientInfo
-                patient={patient}
-                clientId={clientId}
-                onChanged={onChanged}
-                onClose={onClose}
-              />
-            )}
-          </TabsContent>
-
-          {/* ATIVIDADES */}
-          <TabsContent
-            value="activities"
-            className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto p-5 data-[state=inactive]:hidden"
-          >
-            {!activitiesEnabled && (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                As atividades estão disponíveis apenas no painel da clínica.
+              <p className="mt-[3px] text-[12.5px] text-muted-foreground">
+                {lead &&
+                  `Origem · ${SOURCE_LABELS[lead.source as keyof typeof SOURCE_LABELS] ?? lead.source}`}
+                {patient && (
+                  <span className="tabular-nums">
+                    {patient._count.appointments}{' '}
+                    {patient._count.appointments === 1 ? 'agendamento' : 'agendamentos'}
+                  </span>
+                )}
               </p>
-            )}
-            {activitiesEnabled && (
-              <div className="flex justify-end">
-                {subject && subjectName && (
-                  <ClinicCreateActivityDialog
+            </div>
+            <DialogPrimitive.Close
+              aria-label="Fechar"
+              className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="h-[17px] w-[17px]" />
+            </DialogPrimitive.Close>
+          </div>
+
+          {/* Abas underline — a linha corta no fim da última aba (§9.3). */}
+          <div className="px-[22px] pt-4">
+            <div className="inline-flex max-w-full items-center gap-0.5 border-b border-border">
+              {tabs.map((t) => {
+                const active = tab === t.value
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTab(t.value)}
+                    className={cn(
+                      '-mb-px inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-[9px] py-2 text-[13px] font-semibold transition-colors',
+                      active
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {t.label}
+                    {t.count !== null && t.count > 0 && (
+                      <span
+                        className={cn(
+                          'min-w-[17px] rounded-full px-1.5 py-px text-center text-[10.5px] font-semibold tabular-nums',
+                          active
+                            ? 'bg-primary/[0.16] text-primary-text'
+                            : 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Área de conteúdo (§9.4). */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-[22px] pb-6 pt-[18px] [scrollbar-gutter:stable]">
+            {tab === 'info' && (
+              <>
+                {loading && <DrawerSkeleton />}
+                {!loading && lead && subject?.type === 'lead' && (
+                  <LeadInfo
+                    lead={lead}
+                    clientId={clientId}
+                    subject={subject}
                     members={members}
-                    allowFanOut={canAssignOthers}
-                    activityCalendarSync={syncPref}
-                    presetTarget={{ type: subject.type, id: subject.id, name: subjectName }}
-                    onCreated={loadActivities}
-                    trigger={
-                      <Button size="sm">
-                        <Plus className="mr-1 h-4 w-4" /> Nova atividade
-                      </Button>
+                    canReassign={canReassignLeads}
+                    onChanged={onChanged}
+                    onClose={onClose}
+                    reloadLead={() =>
+                      getLeadAction(lead.id, clientId).then((r) => {
+                        if (r.success) setLead(r.data as LeadDetail)
+                      })
                     }
                   />
                 )}
-              </div>
-            )}
-            {activitiesEnabled && activitiesLoading && activities.length === 0 ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : activitiesEnabled && activities.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Nenhuma atividade para este {subject?.type === 'lead' ? 'lead' : 'paciente'} ainda.
-              </p>
-            ) : activitiesEnabled ? (
-              <div className="space-y-2">
-                {activities.map((a) => (
-                  <ClinicActivityCard key={a.id} activity={a} />
-                ))}
-              </div>
-            ) : null}
-          </TabsContent>
-
-          {/* ANOTAÇÕES */}
-          <TabsContent
-            value="notes"
-            className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto p-5 data-[state=inactive]:hidden"
-          >
-            <div className="space-y-2">
-              <textarea
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                placeholder="Escreva uma anotação sobre este cliente..."
-                rows={3}
-                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              <div className="flex justify-end">
-                <Button size="sm" onClick={addNote} disabled={savingNote || !newNote.trim()}>
-                  {savingNote ? (
-                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="mr-1 h-4 w-4" />
-                  )}
-                  Adicionar
-                </Button>
-              </div>
-            </div>
-
-            {notesLoading && notes.length === 0 ? (
-              <div className="flex justify-center py-6">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : notes.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Nenhuma anotação ainda.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {notes.map((n) => (
-                  <div
-                    key={n.id}
-                    className="group rounded-lg border border-border bg-muted/30 p-3 text-sm"
-                  >
-                    <p className="whitespace-pre-wrap">{n.content}</p>
-                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        {n.author?.name ?? 'Alguém'} ·{' '}
-                        {format(new Date(n.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeNote(n.id)}
-                        className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                        aria-label="Excluir anotação"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* DOCUMENTOS (item 6c) */}
-          <TabsContent
-            value="docs"
-            className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto p-5 data-[state=inactive]:hidden"
-          >
-            {!docsConfigured ? (
-              <div className="space-y-1 py-8 text-center text-sm text-muted-foreground">
-                <p>Armazenamento de documentos ainda não configurado.</p>
-                <p className="text-xs">
-                  Defina <code className="rounded bg-muted px-1">NEXT_PUBLIC_SUPABASE_URL</code> e{' '}
-                  <code className="rounded bg-muted px-1">SUPABASE_SERVICE_ROLE_KEY</code> e crie o
-                  bucket privado <code className="rounded bg-muted px-1">client-documents</code>.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    Arquivos em bucket privado · link temporário · máx. 25 MB
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={onUploadFile}
+                {!loading && patient && subject?.type === 'patient' && (
+                  <PatientInfo
+                    patient={patient}
+                    clientId={clientId}
+                    onChanged={onChanged}
+                    onClose={onClose}
                   />
-                  <Button
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
+                )}
+              </>
+            )}
+
+            {/* ATIVIDADES (§11) */}
+            {tab === 'activities' && (
+              <div className="flex flex-col gap-3">
+                {!activitiesEnabled && (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    As atividades estão disponíveis apenas no painel da clínica.
+                  </p>
+                )}
+                {activitiesEnabled && subject && subjectName && (
+                  <div className="flex justify-end">
+                    <ClinicCreateActivityDialog
+                      members={members}
+                      allowFanOut={canAssignOthers}
+                      activityCalendarSync={syncPref}
+                      presetTarget={{ type: subject.type, id: subject.id, name: subjectName }}
+                      onCreated={loadActivities}
+                      trigger={
+                        <SmallPrimaryButton>
+                          <Plus className="h-[15px] w-[15px]" aria-hidden="true" /> Nova atividade
+                        </SmallPrimaryButton>
+                      }
+                    />
+                  </div>
+                )}
+                {activitiesEnabled && activitiesLoading && activities.length === 0 ? (
+                  <DrawerSkeleton />
+                ) : activitiesEnabled && activities.length === 0 ? (
+                  <EmptyState
+                    icon={CheckSquare}
+                    title="Nenhuma atividade"
+                    text={`Crie uma atividade para acompanhar este ${subject?.type === 'lead' ? 'lead' : 'paciente'}.`}
+                  />
+                ) : activitiesEnabled ? (
+                  <div className="flex flex-col gap-2.5">
+                    {activities.map((a) => (
+                      <ClinicActivityCard key={a.id} activity={a} />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {/* ANOTAÇÕES (§12) */}
+            {tab === 'notes' && (
+              <div className="flex flex-col gap-3.5">
+                <div className="relative rounded-[10px] border border-input bg-background transition-shadow focus-within:border-ring focus-within:shadow-[0_0_0_3px_hsl(var(--ring)/0.18)]">
+                  <textarea
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    placeholder="Escreva uma anotação sobre este cliente…"
+                    rows={3}
+                    className="min-h-[82px] w-full resize-none rounded-[10px] border-0 bg-transparent py-[11px] pl-[13px] pr-[54px] text-[13.5px] leading-normal outline-none placeholder:text-muted-foreground"
+                  />
+                  <button
+                    type="button"
+                    onClick={addNote}
+                    disabled={savingNote || !newNote.trim()}
+                    aria-label="Adicionar anotação"
+                    className="absolute bottom-[9px] right-[9px] flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   >
-                    {uploading ? (
-                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    {savingNote ? (
+                      <Loader2 className="h-[15px] w-[15px] animate-spin" />
                     ) : (
-                      <Upload className="mr-1 h-4 w-4" />
+                      <Send className="h-[15px] w-[15px]" />
                     )}
-                    Enviar arquivo
-                  </Button>
+                  </button>
                 </div>
 
-                {docsLoading && documents.length === 0 ? (
-                  <div className="flex justify-center py-6">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : documents.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    Nenhum documento ainda.
-                  </p>
+                {notesLoading && notes.length === 0 ? (
+                  <DrawerSkeleton />
+                ) : notes.length === 0 ? (
+                  <EmptyState
+                    icon={FileText}
+                    title="Nenhuma anotação"
+                    text="Registre observações importantes sobre este cliente."
+                  />
                 ) : (
-                  <div className="space-y-2">
-                    {documents.map((d) => (
+                  <div className="flex flex-col gap-2.5">
+                    {notes.map((n) => (
                       <div
-                        key={d.id}
-                        className="flex items-center gap-3 rounded-lg border border-border p-3"
+                        key={n.id}
+                        className="group relative rounded-[11px] border border-border bg-card px-3.5 py-[13px] shadow-card transition-colors hover:border-primary/40"
                       >
-                        <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{d.fileName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatBytes(d.sizeBytes)} · {d.uploader?.name ?? 'Alguém'} ·{' '}
-                            {format(new Date(d.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
-                          </p>
-                        </div>
+                        <p className="whitespace-pre-wrap break-words pr-[26px] text-[13px] leading-relaxed">
+                          {n.content}
+                        </p>
+                        <p className="mt-2 text-[11.5px] tabular-nums text-muted-foreground">
+                          {n.author?.name ?? 'Alguém'} ·{' '}
+                          {format(new Date(n.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </p>
                         <button
                           type="button"
-                          onClick={() => downloadDoc(d.id)}
-                          aria-label={`Baixar ${d.fileName}`}
-                          className="shrink-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => removeNote(n.id)}
+                          aria-label="Excluir anotação"
+                          className="absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
                         >
-                          <Download className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeDoc(d.id)}
-                          aria-label={`Excluir ${d.fileName}`}
-                          className="shrink-0 text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-[15px] w-[15px]" />
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
-              </>
+              </div>
             )}
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
+
+            {/* DOCUMENTOS (§13) */}
+            {tab === 'docs' && (
+              <div className="flex flex-col gap-3.5">
+                {!docsConfigured ? (
+                  <div className="space-y-1 py-8 text-center text-sm text-muted-foreground">
+                    <p>Armazenamento de documentos ainda não configurado.</p>
+                    <p className="text-xs">
+                      Defina <code className="rounded bg-muted px-1">NEXT_PUBLIC_SUPABASE_URL</code>{' '}
+                      e <code className="rounded bg-muted px-1">SUPABASE_SERVICE_ROLE_KEY</code> e
+                      crie o bucket privado{' '}
+                      <code className="rounded bg-muted px-1">client-documents</code>.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">
+                        Bucket privado · link temporário · máx. 25 MB
+                      </p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={onUploadFile}
+                      />
+                      <SmallPrimaryButton
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                      >
+                        {uploading ? (
+                          <Loader2 className="h-[15px] w-[15px] animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Upload className="h-[15px] w-[15px]" aria-hidden="true" />
+                        )}
+                        Enviar arquivo
+                      </SmallPrimaryButton>
+                    </div>
+
+                    {docsLoading && documents.length === 0 ? (
+                      <DrawerSkeleton />
+                    ) : documents.length === 0 ? (
+                      <EmptyState
+                        icon={FileText}
+                        title="Nenhum documento"
+                        text="Envie exames, fichas e orçamentos deste cliente."
+                      />
+                    ) : (
+                      <div className="flex flex-col gap-2.5">
+                        {documents.map((d) => (
+                          <div
+                            key={d.id}
+                            className="group flex items-center gap-3 rounded-[11px] border border-border bg-card px-[13px] py-[11px] shadow-card transition-colors hover:border-primary/40"
+                          >
+                            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[9px] bg-muted text-primary-text">
+                              <FileText className="h-[17px] w-[17px]" aria-hidden="true" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[13px] font-semibold">{d.fileName}</p>
+                              <p className="mt-0.5 truncate text-[11.5px] tabular-nums text-muted-foreground">
+                                {formatBytes(d.sizeBytes)} · {d.uploader?.name ?? 'Alguém'} ·{' '}
+                                {format(new Date(d.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => downloadDoc(d.id)}
+                              aria-label={`Baixar ${d.fileName}`}
+                              className="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[7px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDocToDelete(d)}
+                              aria-label={`Excluir ${d.fileName}`}
+                              className="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+                            >
+                              <Trash2 className="h-[15px] w-[15px]" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+
+      {/* Confirmação de exclusão de documento (nunca confirm() nativo — §16). */}
+      <AlertDialog
+        open={docToDelete !== null}
+        onOpenChange={(o) => {
+          if (!o) setDocToDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir documento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {docToDelete
+                ? `"${docToDelete.fileName}" será excluído permanentemente.`
+                : 'O documento será excluído permanentemente.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (docToDelete) removeDoc(docToDelete)
+                setDocToDelete(null)
+              }}
+            >
+              Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Info de LEAD (porta o conteúdo do antigo LeadDrawer).
+// Registrar interação + Histórico (handoff §10.6/§10.7): composer + timeline
+// com dot colorido por tipo. COMPARTILHADO pelo card de LEAD e pelo card
+// UNIFICADO de PACIENTE — a interação grava sempre contra uma Lead (no paciente
+// é o card de RETENÇÃO dele). `onReload` re-busca a lista após registrar.
+// ---------------------------------------------------------------------------
+type Interaction = { id: string; type: string; content: string; createdAt: Date }
+
+function InteractionSection({
+  clientId,
+  leadId,
+  interactions,
+  onReload,
+}: {
+  clientId: string
+  leadId: string
+  interactions: Interaction[]
+  onReload: () => void
+}) {
+  const [isPending, startTransition] = useTransition()
+  const [interactionType, setInteractionType] = useState('NOTE')
+  const [interactionContent, setInteractionContent] = useState('')
+
+  function handleAddInteraction() {
+    if (!interactionContent.trim()) return
+    startTransition(async () => {
+      const r = await addInteractionAction(
+        leadId,
+        clientId,
+        interactionType,
+        interactionContent.trim()
+      )
+      if (!r.success) {
+        toast.error(r.error.message)
+        return
+      }
+      setInteractionContent('')
+      onReload()
+    })
+  }
+
+  return (
+    <>
+      {/* Composer "Registrar interação" (§10.6). */}
+      <div>
+        <div className="mb-2">
+          <Overline>Registrar interação</Overline>
+        </div>
+        <div className="relative rounded-[10px] border border-input bg-background transition-shadow focus-within:border-ring focus-within:shadow-[0_0_0_3px_hsl(var(--ring)/0.18)]">
+          <Select value={interactionType} onValueChange={setInteractionType}>
+            <SelectTrigger className="h-[38px] w-full rounded-none rounded-t-[10px] border-0 border-b border-border bg-muted/40 px-[13px] text-[13px] font-semibold transition-colors hover:bg-muted/70 focus:ring-0 focus:ring-offset-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="NOTE">Nota</SelectItem>
+              <SelectItem value="CALL">Ligação</SelectItem>
+              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+              <SelectItem value="EMAIL">E-mail</SelectItem>
+              <SelectItem value="MEETING">Reunião</SelectItem>
+            </SelectContent>
+          </Select>
+          <textarea
+            value={interactionContent}
+            onChange={(e) => setInteractionContent(e.target.value)}
+            placeholder="Descreva a interação…"
+            rows={3}
+            className="min-h-[76px] w-full resize-none rounded-b-[10px] border-0 bg-transparent py-[11px] pl-[13px] pr-[58px] text-[13.5px] leading-normal outline-none placeholder:text-muted-foreground"
+          />
+          <button
+            type="button"
+            onClick={handleAddInteraction}
+            disabled={!interactionContent.trim() || isPending}
+            aria-label="Registrar interação"
+            className="absolute bottom-[9px] right-[9px] flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            {isPending ? (
+              <Loader2 className="h-[15px] w-[15px] animate-spin" />
+            ) : (
+              <Send className="h-[15px] w-[15px]" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Histórico (§10.7): timeline com dot colorido por tipo. */}
+      <div>
+        <div className="mb-3">
+          <Overline>
+            Histórico · <span className="tabular-nums">{interactions.length}</span>
+          </Overline>
+        </div>
+        {interactions.length === 0 && (
+          <p className="text-[12.5px] text-muted-foreground">Nenhuma interação registrada.</p>
+        )}
+        <div className="flex flex-col">
+          {interactions.map((it, i) => (
+            <div key={it.id} className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <span
+                  className="mt-1 h-[9px] w-[9px] flex-none rounded-full"
+                  style={{
+                    backgroundColor: INTERACTION_DOT[it.type] ?? 'hsl(var(--muted-foreground))',
+                  }}
+                  aria-hidden="true"
+                />
+                {i < interactions.length - 1 && (
+                  <span className="mt-1 w-[1.5px] flex-1 bg-border" aria-hidden="true" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1 pb-[15px]">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[12.5px] font-semibold">
+                    {INTERACTION_LABELS[it.type] ?? it.type}
+                  </span>
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {format(new Date(it.createdAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                  </span>
+                </div>
+                <p className="mt-[3px] whitespace-pre-wrap break-words text-[12.5px] leading-normal text-muted-foreground">
+                  {it.content}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Info de LEAD (drawer → aba Info — handoff §10).
 // ---------------------------------------------------------------------------
 function LeadInfo({
   lead,
@@ -631,9 +930,9 @@ function LeadInfo({
   const [showLoseForm, setShowLoseForm] = useState(false)
   const [loseReason, setLoseReason] = useState('')
   const [moveOpen, setMoveOpen] = useState(false)
-  const [interactionType, setInteractionType] = useState('NOTE')
-  const [interactionContent, setInteractionContent] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // §10.3: lead de RETENÇÃO é "da casa" — Responsável/Perdeu/Remover somem.
   const isRetention = subject.pipelineKind === 'RETENTION'
   const lostStage = subject.stages.find((s) => s.isLost)
   const isTerminal = lead.stage.isWon || lead.stage.isLost
@@ -652,26 +951,7 @@ function LeadInfo({
     })
   }
 
-  function handleAddInteraction() {
-    if (!interactionContent.trim()) return
-    startTransition(async () => {
-      const r = await addInteractionAction(
-        lead.id,
-        clientId,
-        interactionType,
-        interactionContent.trim()
-      )
-      if (!r.success) {
-        toast.error(r.error.message)
-        return
-      }
-      setInteractionContent('')
-      reloadLead()
-    })
-  }
-
   function handleDelete() {
-    if (!confirm('Remover este lead? Esta ação não pode ser desfeita.')) return
     startTransition(async () => {
       await deleteLeadAction(lead.id, clientId)
       toast.success('Lead removido')
@@ -681,60 +961,68 @@ function LeadInfo({
   }
 
   return (
-    <>
-      <div className="space-y-2">
-        <Badge variant="secondary" className="text-xs">
-          {SOURCE_LABELS[lead.source as keyof typeof SOURCE_LABELS] ?? lead.source}
-        </Badge>
-        {lead.phone && (
-          <div className="flex items-center gap-2 text-sm">
-            <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>{lead.phone}</span>
-          </div>
-        )}
-        {lead.email && (
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>{lead.email}</span>
-          </div>
-        )}
-        {lead.procedureInterest && (
-          <p className="text-sm text-muted-foreground">Interesse: {lead.procedureInterest}</p>
-        )}
-        {lead.estimatedValue != null && (
-          <p className="text-sm text-muted-foreground">
-            Valor estimado:{' '}
-            <span className="font-medium text-foreground">
-              {lead.estimatedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </span>
-          </p>
-        )}
-        {lead.notes && <p className="text-sm italic text-muted-foreground">{lead.notes}</p>}
-      </div>
-
-      {/* Mover o card para outro funil. Lead→funil de Paciente converte (dados+motivo). */}
-      {subject.pipelines.length > 1 && (
-        <div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setMoveOpen(true)}
-            disabled={isPending}
-          >
-            <ArrowRightLeft className="mr-1.5 h-4 w-4" />
-            Mover para funil
-          </Button>
+    <div className="flex flex-col gap-[18px]">
+      {/* Contato (§10.1). */}
+      {(lead.phone || lead.email) && (
+        <div className="flex flex-col gap-[11px]">
+          {lead.phone && (
+            <a
+              href={`tel:${lead.phone.replace(/\D/g, '')}`}
+              className="flex items-center gap-2 text-[13.5px] tabular-nums text-foreground transition-colors hover:text-primary-text"
+            >
+              <Phone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              {lead.phone}
+            </a>
+          )}
+          {lead.email && (
+            <a
+              href={`mailto:${lead.email}`}
+              className="flex items-center gap-2 break-all text-[13.5px] text-foreground transition-colors hover:text-primary-text"
+            >
+              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              {lead.email}
+            </a>
+          )}
         </div>
       )}
 
-      {/* Item 4: reatribuir o lead a outro usuário (crm:assignToOthers). */}
-      {canReassign && members.length > 1 && (
-        <div className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Responsável
+      {/* Bloco de dados (§10.2). */}
+      <div className="flex flex-col gap-3 border-t border-border pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[12.5px] text-muted-foreground">Origem</span>
+          <span className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground">
+            {SOURCE_LABELS[lead.source as keyof typeof SOURCE_LABELS] ?? lead.source}
+          </span>
+        </div>
+        {lead.procedureInterest && (
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[12.5px] text-muted-foreground">Interesse</span>
+            <span className="text-right text-[13px] font-medium">{lead.procedureInterest}</span>
+          </div>
+        )}
+        {lead.estimatedValue != null && (
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[12.5px] text-muted-foreground">Valor estimado</span>
+            <span className="text-sm font-semibold tabular-nums">
+              {lead.estimatedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </span>
+          </div>
+        )}
+        {lead.notes && (
+          <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
+            {lead.notes}
           </p>
+        )}
+      </div>
+
+      {/* Responsável (§10.3) — item 4: crm:assignToOthers; some na retenção. */}
+      {!isRetention && canReassign && members.length > 1 && (
+        <div>
+          <div className="mb-2">
+            <Overline>Responsável</Overline>
+          </div>
           <Select value={lead.assignedToId ?? undefined} onValueChange={handleReassign}>
-            <SelectTrigger className="h-8 text-sm">
+            <SelectTrigger className="h-10 rounded-[10px] text-[13.5px]">
               <SelectValue placeholder="Sem responsável" />
             </SelectTrigger>
             <SelectContent>
@@ -748,116 +1036,113 @@ function LeadInfo({
         </div>
       )}
 
-      {!isTerminal && !isRetention && lostStage && (
-        <div className="space-y-3">
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-            onClick={() => setShowLoseForm(!showLoseForm)}
-            disabled={isPending}
-          >
-            <ThumbsDown className="mr-1.5 h-4 w-4" />
-            Perdeu
-          </Button>
-          {showLoseForm && (
-            <div className="space-y-2 rounded-lg border border-red-200 p-3">
-              <p className="text-xs font-medium text-red-600">Motivo da perda *</p>
-              <textarea
-                value={loseReason}
-                onChange={(e) => setLoseReason(e.target.value)}
-                placeholder="Ex: Preço, escolheu concorrente..."
-                rows={2}
-                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={handleLose}
-                disabled={!loseReason.trim() || isPending}
-              >
-                {isPending && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
-                Confirmar perda
-              </Button>
-            </div>
+      {/* Ações — Mover para funil / Perdeu (§10.4). */}
+      <div className="flex flex-col gap-[9px]">
+        <div className="flex gap-[9px]">
+          {subject.pipelines.length > 1 && (
+            <button
+              type="button"
+              onClick={() => setMoveOpen(true)}
+              disabled={isPending}
+              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-input bg-background px-3.5 text-[13.5px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            >
+              <ArrowRightLeft className="h-[15px] w-[15px] text-primary-text" aria-hidden="true" />
+              Mover para funil
+            </button>
+          )}
+          {!isTerminal && !isRetention && lostStage && (
+            <button
+              type="button"
+              onClick={() => setShowLoseForm(!showLoseForm)}
+              disabled={isPending}
+              className={cn(
+                'flex h-10 min-w-[112px] flex-none items-center justify-center gap-2 rounded-[10px] border px-[15px] text-[13.5px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
+                showLoseForm
+                  ? 'border-destructive bg-destructive text-destructive-foreground'
+                  : 'border-destructive/50 bg-transparent text-destructive hover:bg-destructive/10'
+              )}
+            >
+              <ThumbsDown className="h-[15px] w-[15px]" aria-hidden="true" />
+              Perdeu
+            </button>
           )}
         </div>
-      )}
 
-      {/* Registro rápido de interação (log do lead) */}
-      <div className="space-y-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Registrar interação
-        </p>
-        <textarea
-          value={interactionContent}
-          onChange={(e) => setInteractionContent(e.target.value)}
-          placeholder="Descreva a interação..."
-          rows={2}
-          className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
-        <div className="flex items-center gap-2">
-          <Select value={interactionType} onValueChange={setInteractionType}>
-            <SelectTrigger className="h-9 flex-1 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="NOTE">Nota</SelectItem>
-              <SelectItem value="CALL">Ligação</SelectItem>
-              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-              <SelectItem value="EMAIL">E-mail</SelectItem>
-              <SelectItem value="MEETING">Reunião</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            size="sm"
-            onClick={handleAddInteraction}
-            disabled={!interactionContent.trim() || isPending}
-            className="shrink-0"
-          >
-            {isPending ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="mr-1.5 h-4 w-4" />
-            )}
-            Registrar
-          </Button>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Histórico ({lead.interactions.length})
-        </p>
-        {lead.interactions.length === 0 && (
-          <p className="text-sm text-muted-foreground">Nenhuma interação registrada.</p>
-        )}
-        {lead.interactions.map((it) => (
-          <div key={it.id} className="border-l-2 border-border pl-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium">{INTERACTION_LABELS[it.type] ?? it.type}</span>
-              <span className="text-xs text-muted-foreground">
-                {format(new Date(it.createdAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
-              </span>
+        {showLoseForm && (
+          <div className="flex flex-col gap-[11px] rounded-xl border border-border bg-muted/40 p-[13px]">
+            <Overline>Motivo da perda</Overline>
+            <textarea
+              value={loseReason}
+              onChange={(e) => setLoseReason(e.target.value)}
+              placeholder="Ex: Preço, escolheu concorrente…"
+              rows={2}
+              className="w-full resize-none rounded-[10px] border border-input bg-background px-[13px] py-[9px] text-[13.5px] outline-none placeholder:text-muted-foreground focus:border-ring focus:shadow-[0_0_0_3px_hsl(var(--ring)/0.18)]"
+            />
+            <div className="flex justify-end gap-[9px]">
+              <button
+                type="button"
+                onClick={() => setShowLoseForm(false)}
+                className="h-[38px] rounded-[10px] border border-input bg-background px-3.5 text-[13px] font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleLose}
+                disabled={!loseReason.trim() || isPending}
+                className="flex h-[38px] items-center gap-2 rounded-[10px] bg-destructive px-3.5 text-[13px] font-semibold text-destructive-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              >
+                {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+                Confirmar perda
+              </button>
             </div>
-            <p className="text-sm text-muted-foreground">{it.content}</p>
           </div>
-        ))}
+        )}
       </div>
 
+      <InteractionSection
+        clientId={clientId}
+        leadId={lead.id}
+        interactions={lead.interactions}
+        onReload={reloadLead}
+      />
+
+      {/* Remover lead (§10.8) — some na retenção; confirm real (§16). */}
       {!isRetention && (
-        <div className="flex justify-end border-t border-border pt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDelete}
+        <div className="flex justify-end border-t border-border pt-3">
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
             disabled={isPending}
-            className="text-destructive hover:text-destructive"
+            className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             Remover lead
-          </Button>
+          </button>
         </div>
       )}
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover lead?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {lead.name} será removido do funil. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmDelete(false)
+                handleDelete()
+              }}
+            >
+              Sim, remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <MoveLeadPipelineDialog
         open={moveOpen}
@@ -874,12 +1159,22 @@ function LeadInfo({
           onChanged()
         }}
       />
-    </>
+    </div>
   )
 }
 
+// Contexto de RETENÇÃO do paciente p/ o card unificado (ver
+// `getPatientRetentionContextAction`): a Lead de retenção + funis de destino.
+type PatientRetention = {
+  leadId: string
+  pipelineId: string
+  pipelineCategory: PipelineCategory
+  pipelines: PipelineMoveTarget[]
+  interactions: Interaction[]
+}
+
 // ---------------------------------------------------------------------------
-// Info de PACIENTE (porta o conteúdo do antigo PatientDrawer).
+// Info de PACIENTE (drawer → aba Info; mesmo layout do lead onde couber).
 // ---------------------------------------------------------------------------
 function PatientInfo({
   patient,
@@ -893,9 +1188,25 @@ function PatientInfo({
   onClose: () => void
 }) {
   const [isPending, startTransition] = useTransition()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
+
+  // Card UNIFICADO: além do clínico, o card de paciente mostra a MESMA engajamento
+  // do funil (interações + "Mover para funil") do card de RETENÇÃO do paciente.
+  // Null = sem card de retenção ou sem acesso ao CRM → card fica só clínico.
+  const [retention, setRetention] = useState<PatientRetention | null>(null)
+
+  const loadRetention = useCallback(() => {
+    getPatientRetentionContextAction(clientId, patient.id).then((r) => {
+      if (r.success) setRetention(r.data as PatientRetention | null)
+    })
+  }, [clientId, patient.id])
+
+  useEffect(() => {
+    loadRetention()
+  }, [loadRetention])
 
   function handleDelete() {
-    if (!confirm('Remover este paciente? Os dados serão arquivados.')) return
     startTransition(async () => {
       await deletePatientAction(patient.id, clientId)
       toast.success('Paciente removido')
@@ -905,95 +1216,200 @@ function PatientInfo({
   }
 
   return (
-    <>
-      <div className="space-y-2">
-        {patient.phone && (
-          <div className="flex items-center gap-2 text-sm">
-            <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>{patient.phone}</span>
-          </div>
-        )}
-        {patient.email && (
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>{patient.email}</span>
-          </div>
-        )}
+    <div className="flex flex-col gap-[18px]">
+      {/* Contato. */}
+      {(patient.phone || patient.email) && (
+        <div className="flex flex-col gap-[11px]">
+          {patient.phone && (
+            <a
+              href={`tel:${patient.phone.replace(/\D/g, '')}`}
+              className="flex items-center gap-2 text-[13.5px] tabular-nums text-foreground transition-colors hover:text-primary-text"
+            >
+              <Phone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              {patient.phone}
+            </a>
+          )}
+          {patient.email && (
+            <a
+              href={`mailto:${patient.email}`}
+              className="flex items-center gap-2 break-all text-[13.5px] text-foreground transition-colors hover:text-primary-text"
+            >
+              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              {patient.email}
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Bloco de dados. */}
+      <div className="flex flex-col gap-3 border-t border-border pt-4">
         {patient.birthDate && (
-          <div className="flex items-center gap-2 text-sm">
-            <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>{format(new Date(patient.birthDate), 'dd/MM/yyyy', { locale: ptBR })}</span>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+              <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+              Nascimento
+            </span>
+            <span className="text-[13px] font-medium tabular-nums">
+              {format(new Date(patient.birthDate), 'dd/MM/yyyy', { locale: ptBR })}
+            </span>
           </div>
         )}
         {patient.firstVisitAt && (
-          <p className="text-sm text-muted-foreground">
-            Primeira visita:{' '}
-            <span className="font-medium text-foreground">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[12.5px] text-muted-foreground">Primeira visita</span>
+            <span className="text-[13px] font-medium tabular-nums">
               {format(new Date(patient.firstVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
             </span>
-          </p>
+          </div>
         )}
         {patient.lastVisitAt && (
-          <p className="text-sm text-muted-foreground">
-            Última visita:{' '}
-            <span className="font-medium text-foreground">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[12.5px] text-muted-foreground">Última visita</span>
+            <span className="text-[13px] font-medium tabular-nums">
               {format(new Date(patient.lastVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
             </span>
+          </div>
+        )}
+        {patient.notes && (
+          <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
+            {patient.notes}
           </p>
         )}
-        {patient.notes && <p className="text-sm italic text-muted-foreground">{patient.notes}</p>}
         {patient.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {patient.tags.map((t) => (
-              <Badge key={t} variant="secondary" className="text-xs">
+              <span
+                key={t}
+                className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground"
+              >
                 {t}
-              </Badge>
+              </span>
             ))}
           </div>
         )}
       </div>
 
-      <div className="space-y-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Histórico de agendamentos ({patient.appointments.length})
-        </p>
+      {/* Engajamento do funil (card unificado): "Mover para funil" + interações
+          do card de RETENÇÃO do paciente — o mesmo do card do funil. Só aparece
+          quando há card de retenção e o usuário lê CRM. */}
+      {retention && (
+        <>
+          {retention.pipelines.length > 1 && (
+            <button
+              type="button"
+              onClick={() => setMoveOpen(true)}
+              className="flex h-10 items-center justify-center gap-2 rounded-[10px] border border-input bg-background px-3.5 text-[13.5px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ArrowRightLeft className="h-[15px] w-[15px] text-primary-text" aria-hidden="true" />
+              Mover para funil
+            </button>
+          )}
+          <InteractionSection
+            clientId={clientId}
+            leadId={retention.leadId}
+            interactions={retention.interactions}
+            onReload={loadRetention}
+          />
+        </>
+      )}
+
+      {/* Histórico de agendamentos. */}
+      <div>
+        <div className="mb-3">
+          <Overline>
+            Histórico de agendamentos ·{' '}
+            <span className="tabular-nums">{patient.appointments.length}</span>
+          </Overline>
+        </div>
         {patient.appointments.length === 0 && (
-          <p className="text-sm text-muted-foreground">Nenhum agendamento registrado.</p>
+          <p className="text-[12.5px] text-muted-foreground">Nenhum agendamento registrado.</p>
         )}
-        {patient.appointments.map((apt) => (
-          <div key={apt.id} className="rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium">{apt.procedure.name}</p>
-              <span
-                className="rounded px-1.5 py-0.5 text-xs font-medium"
-                style={{
-                  backgroundColor: STATUS_COLORS[apt.status] + '20',
-                  color: STATUS_COLORS[apt.status],
-                }}
-              >
-                {STATUS_LABELS[apt.status] ?? apt.status}
-              </span>
+        <div className="flex flex-col gap-2.5">
+          {patient.appointments.map((apt) => (
+            <div
+              key={apt.id}
+              className="rounded-[11px] border border-border bg-card px-3.5 py-[13px] shadow-card transition-colors hover:border-primary/40"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-[13px] font-semibold">{apt.procedure.name}</p>
+                <span
+                  className="flex-none rounded-full px-[9px] py-0.5 text-[11px] font-semibold"
+                  style={{
+                    backgroundColor: STATUS_COLORS[apt.status] + '20',
+                    color: STATUS_COLORS[apt.status],
+                  }}
+                >
+                  {STATUS_LABELS[apt.status] ?? apt.status}
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11.5px] tabular-nums text-muted-foreground">
+                {format(new Date(apt.scheduledAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                {' · '}
+                {apt.durationMinutes} min
+              </p>
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {format(new Date(apt.scheduledAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-              {' · '}
-              {apt.durationMinutes} min
-            </p>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      <div className="flex justify-end border-t border-border pt-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDelete}
+      {/* Remover paciente — confirm real (§16). */}
+      <div className="flex justify-end border-t border-border pt-3">
+        <button
+          type="button"
+          onClick={() => setConfirmDelete(true)}
           disabled={isPending}
-          className="text-destructive hover:text-destructive"
+          className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           Remover paciente
-        </Button>
+        </button>
       </div>
-    </>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover paciente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {patient.name} será removido e os dados serão arquivados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmDelete(false)
+                handleDelete()
+              }}
+            >
+              Sim, remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {retention && (
+        <MoveLeadPipelineDialog
+          open={moveOpen}
+          onOpenChange={setMoveOpen}
+          clientId={clientId}
+          leadId={retention.leadId}
+          sourceCategory={retention.pipelineCategory}
+          currentPipelineId={retention.pipelineId}
+          pipelines={retention.pipelines}
+          patientDefaults={{
+            name: patient.name,
+            phone: patient.phone,
+            email: patient.email,
+            birthDate: patient.birthDate,
+            cpf: patient.cpf,
+          }}
+          onMoved={() => {
+            setMoveOpen(false)
+            onClose()
+            onChanged()
+          }}
+        />
+      )}
+    </div>
   )
 }

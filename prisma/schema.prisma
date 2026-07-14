@@ -66,6 +66,11 @@ model User {
   image         String?
   role          UserRole
   isActive      Boolean   @default(true)
+  // Revogação de JWT (stateless). O claim `sessionVersion` viaja no token; a
+  // autorização (getTenantContext) rejeita todo token cujo version != este. Bump
+  // no logout, na troca e no reset de senha derruba TODAS as sessões existentes
+  // na hora — o único jeito de "matar" um JWT já emitido sem esperar o maxAge.
+  sessionVersion Int      @default(0)
   lastLoginAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

@@ -9,6 +9,27 @@
 
 ## Concluído
 
+### #4 — Revogação de sessão JWT + hardening de sessão (2026-07-10) ✅
+
+Perguntas do dono (token no GET? sessão invalidada? logout revoga?) → auditoria +
+correção. Achado central: JWT é stateless, então logout só limpava o cookie do
+navegador; um token já emitido (roubado/copiado) seguia válido até o `maxAge` de
+30d. Confirmado OK antes do fix: o token NÃO trafega em URL/GET (cookie httpOnly,
+`sameSite=lax`, `secure` em prod), nenhum POST manda segredo por query param
+(webhook usa header `x-webhook-secret`, cron usa `Authorization`).
+
+**Fix — `User.sessionVersion` (revogação stateless):** o claim viaja no token;
+`getTenantContext` compara com o valor FRESCO do DB e nega o acesso a dados no
+PRÓXIMO request se divergir (o re-sync do jwt callback também mata token/página em
+≤10 min — mesmo modelo de duas camadas do #3). Incrementar o version invalida
+TODAS as sessões do usuário na hora. Ganchos: **logout** (`logoutAction` antes do
+`signOut` do cookie → "sair" é global/todos os dispositivos), **troca**
+(`changePasswordAction`, form força novo login) e **reset** de senha. `maxAge`
+reduzido 30d→7d (+`updateAge` 24h). Migration `20260710000000_user_session_version`.
+Cobertura em `context.test.ts` (version mismatch → UnauthorizedError). **Limitação
+aceita:** revogação por-dispositivo (logout só deste navegador, mantendo os outros)
+exigiria denylist de `jti` — não implementado; hoje o logout é global.
+
 ### #3 — Auditoria do sistema de usuários (2026-06-10) ✅ — 2 críticos achados e CORRIGIDOS
 
 Auditoria completa de enforcement (actions/queries/pages/rotas), conformidade com

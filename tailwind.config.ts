@@ -55,6 +55,21 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        // Redesign (design.md §1): dourado de TEXTO (AA) + status semânticos
+        // em par texto+fundo. Nunca usar gray-*/white/black em chrome.
+        'primary-text': 'hsl(var(--primary-text))',
+        // Linhas internas das grades da Agenda (agenda-handoff §0.1).
+        grid: 'hsl(var(--grid))',
+        ok: {
+          DEFAULT: 'hsl(var(--ok))',
+          bg: 'hsl(var(--ok-bg))',
+        },
+        warn: {
+          DEFAULT: 'hsl(var(--warn))',
+          bg: 'hsl(var(--warn-bg))',
+        },
+        'info-t': 'hsl(var(--info-t))',
+        'info-bg': 'hsl(var(--info-bg))',
         success: {
           DEFAULT: 'hsl(142, 71%, 45%)',
           foreground: 'hsl(0, 0%, 100%)',
@@ -76,6 +91,28 @@ const config: Config = {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      // Sombra tingida (design.md §1) — cards e popovers do redesign.
+      boxShadow: {
+        card: '0 1px 2px hsl(var(--shadow) / var(--shadow-a))',
+        pop: '0 16px 40px -12px hsl(var(--shadow) / calc(var(--shadow-a) * 3.5))',
+        overlay: '0 20px 44px -14px hsl(var(--shadow) / calc(var(--shadow-a) * 4))',
+      },
+      // Motion do redesign (design.md §7) — tokens nomeados. As formas
+      // arbitrárias `duration-[Xms]`/`ease-[cubic-bezier(…)]` disparam warning
+      // de ambiguidade no build (o plugin tailwindcss-animate também registra
+      // `duration-`/`ease-` p/ animation) — use estes nomes.
+      transitionDuration: {
+        '160': '160ms',
+        '250': '250ms',
+        '320': '320ms',
+        '340': '340ms',
+      },
+      transitionTimingFunction: {
+        // Overshoot leve: pílula segmentada, underline de aba, chevron.
+        senno: 'cubic-bezier(.34,1.1,.5,1)',
+        // In-out padrão: busca colapsável, altura expansível (grid-rows).
+        'senno-io': 'cubic-bezier(.4,0,.2,1)',
       },
       keyframes: {
         'accordion-down': {

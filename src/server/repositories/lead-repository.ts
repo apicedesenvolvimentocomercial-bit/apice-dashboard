@@ -28,7 +28,9 @@ const kanbanLeadSelect = {
   appointmentId: true,
   // Retorno esperado do paciente (reforma da retenção) — o card de retenção
   // mostra "retorno em {data}" / "atrasado há Nd". Null fora da retenção.
-  patient: { select: { nextReturnDueAt: true } },
+  // `id`: o card de retenção abre o card UNIFICADO de PACIENTE (mesmo da aba
+  // Pacientes / busca) — precisa do patientId no clique.
+  patient: { select: { id: true, nextReturnDueAt: true } },
 } as const
 
 /**
@@ -201,6 +203,87 @@ export async function findLeadById(ctx: TenantContext, clientId: string, leadId:
     include: {
       stage: { select: { id: true, name: true, color: true, isWon: true, isLost: true } },
       interactions: { orderBy: { createdAt: 'desc' } },
+    },
+  })
+}
+
+/**
+ * Card de RETENÇÃO do paciente — a MESMA `Lead` que aparece no funil de Retenção
+ * (1 por paciente), com as interações. Alimenta o card UNIFICADO de paciente
+ * (aba Pacientes / busca do topbar), que passa a mostrar a timeline de interações
+ * e o "Mover para funil" além dos dados clínicos, igual ao card do funil.
+ * `clientId` no where (belt) + escopo de RLS na action (suspenders).
+ */
+export async function findRetentionLeadForPatient(
+  ctx: TenantContext,
+  clientId: string,
+  patientId: string
+) {
+  return prisma.lead.findFirst({
+    where: {
+      clientId,
+      organizationId: ctx.organizationId,
+      patientId,
+      deletedAt: null,
+      stage: { pipeline: { kind: 'RETENTION' } },
+    },
+    select: {
+      id: true,
+      stage: { select: { pipelineId: true, pipeline: { select: { category: true } } } },
+      interactions: {
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, type: true, content: true, createdAt: true },
+      },
+    },
+  })
+}
+
+/**
+ * Card COMERCIAL (não-retenção) ativo ligado a um paciente — `Lead.patientId` é
+ * setado ao agendar (paciente provisório). Alimenta a busca do topbar: pessoa que
+ * ainda é lead abre o MESMO card do funil comercial, não o card de paciente.
+ * Traz as etapas do funil dono (sem cards — o drawer só precisa da estrutura).
+ */
+export async function findCommercialLeadForPatient(
+  ctx: TenantContext,
+  clientId: string,
+  patientId: string
+) {
+  return prisma.lead.findFirst({
+    where: {
+      clientId,
+      organizationId: ctx.organizationId,
+      patientId,
+      deletedAt: null,
+      stage: { pipeline: { kind: { not: 'RETENTION' } } },
+    },
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      id: true,
+      stage: {
+        select: {
+          pipeline: {
+            select: {
+              id: true,
+              kind: true,
+              category: true,
+              stages: {
+                orderBy: { order: 'asc' },
+                select: {
+                  id: true,
+                  name: true,
+                  color: true,
+                  isWon: true,
+                  isLost: true,
+                  isNative: true,
+                  nativeKey: true,
+                  order: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
   })
 }

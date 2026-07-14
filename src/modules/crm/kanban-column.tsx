@@ -36,21 +36,22 @@ export function KanbanColumn({
   const leadIds = stage.leads.map((l) => l.id)
 
   return (
-    <div className="flex w-72 shrink-0 flex-col">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <div
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: stage.color ?? '#6b7280' }}
-          />
-          <span className="text-sm font-medium">{stage.name}</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {/* Total REAL da coluna; com página parcial vira "carregados de total". */}
-            {stage.totalLeads > stage.leads.length
-              ? `${stage.leads.length} de ${stage.totalLeads}`
-              : stage.totalLeads}
-          </span>
-        </div>
+    <div className="flex w-[280px] flex-none flex-col gap-2.5">
+      {/* Cabeçalho da coluna (handoff §7.2): dot de categoria + nome + pill. */}
+      <div className="flex min-h-[30px] items-center gap-[9px] px-1 py-0.5">
+        <div
+          className="h-[9px] w-[9px] flex-none rounded-full"
+          style={{ backgroundColor: stage.color ?? 'hsl(var(--muted-foreground))' }}
+          aria-hidden="true"
+        />
+        <span className="truncate text-[13.5px] font-semibold">{stage.name}</span>
+        <span className="min-w-[20px] rounded-full bg-muted px-[7px] py-px text-center text-[11px] font-semibold tabular-nums text-muted-foreground">
+          {/* Total REAL da coluna; com página parcial vira "carregados de total". */}
+          {stage.totalLeads > stage.leads.length
+            ? `${stage.leads.length} de ${stage.totalLeads}`
+            : stage.totalLeads}
+        </span>
+        <span className="flex-1" />
         {/* Etapas nativas de desfecho/processo não aceitam card criado direto:
             só Lead (e etapas livres) ganham o "+". Agendado/Compareceu exigem
             o fluxo de drag (que dispara agenda/KPI). */}
@@ -60,18 +61,25 @@ export function KanbanColumn({
           stage.nativeKey !== 'ATTENDED' && (
             <button
               onClick={onAddLead}
-              className="text-muted-foreground transition-colors hover:text-foreground"
-              aria-label={`Adicionar lead em ${stage.name}`}
+              title="Adicionar"
+              aria-label={`Adicionar em ${stage.name}`}
+              className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-[7px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-[15px] w-[15px]" />
             </button>
           )}
       </div>
 
       <SortableContext items={leadIds} strategy={verticalListSortingStrategy}>
-        {/* Lista FLUIDA: altura do conteúdo (não estica). Se a coluna passar da
-            altura visível, o board (pai) rola na vertical. */}
-        <div ref={setNodeRef} className={cn('flex flex-col gap-2 rounded-lg bg-muted/30 p-2')}>
+        {/* Corpo da coluna — container fluido de cards (handoff §7.2): altura
+            do conteúdo (não estica). Se passar da altura visível, o board
+            (pai) rola na vertical. */}
+        <div
+          ref={setNodeRef}
+          className={cn(
+            'flex flex-col gap-2.5 rounded-[13px] border border-border bg-muted/[0.45] p-2.5'
+          )}
+        >
           {stage.leads.map((lead) => (
             <LeadCard
               key={lead.id}
@@ -82,8 +90,10 @@ export function KanbanColumn({
             />
           ))}
 
+          {/* Empty simples (handoff §7.4) — a ação de adicionar já está no
+              cabeçalho da coluna, sem redundância. */}
           {stage.leads.length === 0 && !isOver && (
-            <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
+            <div className="flex min-h-[148px] items-center justify-center rounded-[11px] border-[1.5px] border-dashed border-border bg-card/35 text-[12.5px] text-muted-foreground">
               Nenhum lead
             </div>
           )}
@@ -92,7 +102,7 @@ export function KanbanColumn({
             <button
               onClick={onLoadMore}
               disabled={loadingMore}
-              className="rounded-md border border-dashed py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              className="rounded-[9px] border border-dashed border-border py-1.5 text-xs font-medium tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             >
               {loadingMore
                 ? 'Carregando…'

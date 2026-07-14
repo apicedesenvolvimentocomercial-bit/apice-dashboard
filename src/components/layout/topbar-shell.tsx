@@ -4,6 +4,7 @@ import { ChevronDown, Crown, LogOut, Settings, User } from 'lucide-react'
 import Link from 'next/link'
 
 import { signOut } from '@/lib/auth-client'
+import { logoutAction } from '@/server/actions/auth-actions'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -132,7 +133,10 @@ export function TopbarShell({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              onClick={() => signOut({ callbackUrl: '/login' })}
+              onClick={async () => {
+                await logoutAction()
+                signOut({ callbackUrl: '/login' })
+              }}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Sair

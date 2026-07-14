@@ -62,7 +62,12 @@ export const highMarketingLowRoiRule: InsightRule = {
       estimatedImpact: marketing - revenue,
       suggestion:
         'Revise campanhas individualmente, pause as piores e teste novas criações/audiências antes de aumentar verba.',
-      metadata: { marketing, revenue, roi },
+      metadata: {
+        marketing,
+        revenue,
+        roi,
+        metric: { value: `${roi.toFixed(2)}×`, label: 'ROI em 30 dias' },
+      },
     }
   },
 }

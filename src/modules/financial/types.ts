@@ -8,9 +8,16 @@ export type { RevenueRow, CostRow, ProcedureWithStats, ProcedureForSelect }
 export type FinancialSummary = {
   current: { revenue: number; costs: number; profit: number; margin: number; count: number }
   previous: { revenue: number; costs: number; profit: number; margin: number }
-  // Bloco de CAIXA (liquidez) — derivado das parcelas: recebido no mês, total a
-  // receber e o que está vencido. Convive com a receita em competência (ledger DRE).
-  cash: { received: number; receivable: number; overdue: number }
+  // Bloco de CAIXA (liquidez) — derivado das parcelas: recebido no mês (+ mês
+  // anterior p/ delta), total a receber, vencido e a entrada projetada (recebido
+  // + a vencer em 30d). Convive com a receita em competência (ledger DRE).
+  cash: {
+    received: number
+    prevReceived: number
+    receivable: number
+    overdue: number
+    projected30d: number
+  }
 }
 
 export type ChartMonth = { month: string; revenue: number; costs: number }
@@ -26,6 +33,20 @@ export type TopCostCategory = {
   type: string
   category: string | null
   label: string
+  total: number
+  count: number
+}
+
+export type TopBuyer = {
+  patientId: string
+  name: string
+  total: number
+  count: number
+}
+
+export type TopSeller = {
+  userId: string
+  name: string
   total: number
   count: number
 }

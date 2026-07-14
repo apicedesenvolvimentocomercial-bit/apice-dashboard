@@ -2,18 +2,8 @@
 
 import { headers } from 'next/headers'
 
+import { getIpFromHeaders } from '@/lib/request-ip'
 import { getLoginLockSeconds } from '@/server/security/login-throttle'
-
-// IP a partir dos headers (server action não recebe Request). Mesma lógica de
-// getRequestIp, mas sobre os headers da action.
-function ipFromHeaders(h: Headers): string {
-  const xff = h.get('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first) return first
-  }
-  return h.get('x-real-ip')?.trim() || 'unknown'
-}
 
 /**
  * Segundos de cooldown ativos p/ esta conta+origem (0 = liberado). A UI do login
@@ -23,5 +13,5 @@ function ipFromHeaders(h: Headers): string {
 export async function getLoginCooldownAction(email: string): Promise<number> {
   if (!email) return 0
   const h = await headers()
-  return getLoginLockSeconds(email, ipFromHeaders(h))
+  return getLoginLockSeconds(email, getIpFromHeaders(h))
 }

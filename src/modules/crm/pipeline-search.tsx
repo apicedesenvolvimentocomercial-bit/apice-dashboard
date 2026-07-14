@@ -3,7 +3,7 @@
 import { Loader2, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { Input } from '@/components/ui/input'
+import { getInitials } from '@/lib/utils'
 import { searchLeadsAction } from '@/server/actions/lead-actions'
 
 import type { KanbanLead } from './types'
@@ -22,10 +22,10 @@ type Props = {
 }
 
 /**
- * feat6 — Busca global de leads/pacientes em TODAS as pipelines de uma vez.
- * SERVER-SIDE (M1 do plano de correções): o board agora é paginado por coluna,
- * então a busca em memória só veria a 1ª página. Debounce de 250ms; casa por
- * nome, telefone (dígitos) ou e-mail.
+ * feat6 — Busca global de leads/pacientes em TODOS os funis de uma vez
+ * (redesign: Funil-handoff §5). SERVER-SIDE (M1): o board é paginado por
+ * coluna, então a busca em memória só veria a 1ª página. Debounce de 250ms;
+ * casa por nome, telefone (dígitos) ou e-mail.
  */
 export function PipelineSearch({ clientId, onSelect }: Props) {
   const [query, setQuery] = useState('')
@@ -70,10 +70,11 @@ export function PipelineSearch({ clientId, onSelect }: Props) {
   }
 
   return (
-    <div className="relative w-full max-w-sm">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
+    <div className="relative w-[380px] max-w-full">
+      {/* Barra ampla do corpo (handoff §5): 40px, bg-card, foco com anel ring. */}
+      <div className="flex h-10 items-center gap-2 rounded-[10px] border border-input bg-card px-[13px] transition-shadow focus-within:border-ring focus-within:shadow-[0_0_0_3px_hsl(var(--ring)/0.18)]">
+        <Search className="h-4 w-4 flex-none text-muted-foreground" aria-hidden="true" />
+        <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => {
@@ -84,16 +85,16 @@ export function PipelineSearch({ clientId, onSelect }: Props) {
           onBlur={() => {
             blurTimer.current = setTimeout(() => setFocused(false), 150)
           }}
-          placeholder="Buscar em todas as pipelines (nome, telefone, e-mail)..."
-          className="pl-8 pr-8"
-          aria-label="Buscar leads em todas as pipelines"
+          placeholder="Buscar em todos os funis (nome, telefone, e-mail)…"
+          className="min-w-0 flex-1 border-0 bg-transparent text-[13.5px] text-foreground outline-none placeholder:text-muted-foreground"
+          aria-label="Buscar em todos os funis"
         />
         {query && (
           <button
             type="button"
             onClick={() => setQuery('')}
             aria-label="Limpar busca"
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className="flex-none text-muted-foreground transition-colors hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
@@ -101,13 +102,13 @@ export function PipelineSearch({ clientId, onSelect }: Props) {
       </div>
 
       {showDropdown && (
-        <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-md border bg-popover py-1 text-popover-foreground shadow-lg">
+        <div className="absolute z-50 mt-1.5 max-h-80 w-full overflow-y-auto rounded-[11px] border border-border bg-popover p-[5px] text-popover-foreground shadow-pop">
           {searching ? (
-            <p className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+            <p className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando…
             </p>
           ) : matches.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-muted-foreground">Nenhum resultado.</p>
+            <p className="px-3 py-2.5 text-[13px] text-muted-foreground">Nenhum resultado.</p>
           ) : (
             matches.map((m) => (
               <button
@@ -118,13 +119,20 @@ export function PipelineSearch({ clientId, onSelect }: Props) {
                   e.preventDefault()
                   pick(m)
                 }}
-                className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent"
               >
-                <span className="font-medium">{m.lead.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {m.pipelineName} › {m.stageName}
-                  {m.lead.phone ? ` · ${m.lead.phone}` : ''}
-                  {m.lead.email ? ` · ${m.lead.email}` : ''}
+                <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-primary/[0.16] text-[12.5px] font-semibold text-primary-text">
+                  {getInitials(m.lead.name)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13.5px] font-semibold text-foreground">
+                    {m.lead.name}
+                  </span>
+                  <span className="block truncate text-xs tabular-nums text-muted-foreground">
+                    {m.pipelineName} › {m.stageName}
+                    {m.lead.phone ? ` · ${m.lead.phone}` : ''}
+                    {m.lead.email ? ` · ${m.lead.email}` : ''}
+                  </span>
                 </span>
               </button>
             ))

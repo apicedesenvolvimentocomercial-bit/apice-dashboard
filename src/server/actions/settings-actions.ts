@@ -90,9 +90,12 @@ export async function changePasswordAction(input: z.infer<typeof changePasswordS
   if (!valid) return fail('Senha atual incorreta')
 
   const passwordHash = await hash(parsed.data.newPassword, 12)
+  // Bump de sessionVersion invalida TODAS as sessões existentes (inclusive a
+  // atual — o form redireciona p/ novo login). Trocar a senha deve derrubar
+  // qualquer token vazado na hora, não só mudar a credencial.
   await prisma.user.update({
     where: { id: ctx.userId },
-    data: { passwordHash },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
   })
   logger.info('Password changed', { userId: ctx.userId })
 

@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  .senno{
+    --background:38 14% 97%; --foreground:220 9% 12%;
+    --card:0 0% 100%; --card-foreground:220 9% 12%; --popover:0 0% 100%;
+    --primary:42 53% 42%; --primary-foreground:225 11% 7%; --primary-text:42 53% 33%;
+    --secondary:38 18% 90%; --secondary-foreground:25 47% 18%;
+    --muted:38 18% 90%; --muted-foreground:25 15% 38%;
+    --accent:38 18% 90%; --accent-foreground:25 47% 18%;
+    --destructive:0 72% 48%; --destructive-bg:0 80% 96%;
+    --border:38 20% 85%; --input:38 20% 85%; --ring:42 65% 52%;
+    --ok:142 55% 30%; --ok-bg:142 50% 91%;
+    --warn:32 80% 32%; --warn-bg:38 88% 90%;
+    --shadow:220 28% 22%; --shadow-a:0.07;
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .senno[data-theme="dark"]{
+    --background:225 11% 7%; --foreground:38 33% 96%;
+    --card:220 9% 11%; --card-foreground:38 33% 96%; --popover:220 9% 11%;
+    --primary:42 65% 58%; --primary-foreground:225 11% 7%; --primary-text:42 65% 58%;
+    --secondary:220 9% 16%; --secondary-foreground:38 33% 96%;
+    --muted:220 9% 16%; --muted-foreground:38 15% 65%;
+    --accent:220 9% 16%; --accent-foreground:38 33% 96%;
+    --destructive:0 63% 50%; --destructive-bg:0 45% 14%;
+    --border:220 9% 18%; --input:220 9% 18%; --ring:42 65% 58%;
+    --ok:142 58% 64%; --ok-bg:142 45% 15%;
+    --warn:38 85% 66%; --warn-bg:36 55% 15%;
+    --shadow:0 0% 0%; --shadow-a:0.4;
+  }
+  .senno-tip{position:relative; display:inline-flex;}
+  .senno-tip-bubble{
+    position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%) translateY(3px);
+    width:max-content; max-width:240px; padding:8px 11px; border-radius:8px;
+    background:hsl(var(--popover)); color:hsl(var(--foreground));
+    border:1px solid hsl(var(--border)); box-shadow:0 8px 24px -8px hsl(var(--shadow)/calc(var(--shadow-a) * 3));
+    font-size:12px; font-weight:500; line-height:1.4; text-transform:none; letter-spacing:normal;
+    white-space:normal; text-align:left; z-index:40;
+    opacity:0; pointer-events:none; transition:opacity .14s ease, transform .14s ease;
+  }
+  .senno-tip-bubble::after{
+    content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+    border:5px solid transparent; border-top-color:hsl(var(--border));
+  }
+  .senno-tip:hover .senno-tip-bubble{opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto;}
+  /* topbar search: collapses to icon, expands right-to-left on hover; 0s grace before collapsing */
+  .senno-search{ position:relative; width:38px; height:38px; flex:none; }
+  .senno-search-box{ position:absolute; top:0; right:0; height:38px; width:38px; display:flex; align-items:center; gap:8px; padding:0 11px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--muted-foreground)); font-size:12.5px; overflow:hidden; white-space:nowrap; cursor:pointer; transition:width .34s cubic-bezier(.4,0,.2,1), background .22s ease, border-color .22s ease, box-shadow .22s ease; transition-delay:0s; }
+  .senno-search:hover .senno-search-box, .senno-search-box:focus-within{ width:240px; background:hsl(var(--background)); border-color:hsl(var(--input)); cursor:text; transition-delay:0s; }
+  .senno-search-box:focus-within{ border-color:hsl(var(--ring)); box-shadow:0 0 0 3px hsl(var(--ring)/0.18); }
+  /* theme toggle: sun/moon swap with rotate + fade */
+  .senno-theme-btn{ position:relative; overflow:hidden; }
+  .senno-theme-ico{ position:absolute; top:50%; left:50%; width:17px; height:17px; margin:-8.5px 0 0 -8.5px; display:inline-flex; transition:transform .5s cubic-bezier(.34,1.3,.5,1), opacity .35s ease; }
+  .senno-theme-sun{ transform:rotate(0deg) scale(1); opacity:1; }
+  .senno-theme-moon{ transform:rotate(-90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-sun{ transform:rotate(90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-moon{ transform:rotate(0deg) scale(1); opacity:1; }
+  /* notification bell: small resonating shake on click */
+  @keyframes senno-bell-ring{ 0%{transform:rotate(0);} 15%{transform:rotate(11deg);} 30%{transform:rotate(-9deg);} 45%{transform:rotate(6deg);} 60%{transform:rotate(-4deg);} 75%{transform:rotate(2deg);} 100%{transform:rotate(0);} }
+  .senno-bell-ico{ transform-origin:top center; }
+  .senno-bell-ring-a{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+  .senno-bell-ring-b{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+
+  /* responsive: stack multi-column grids on tablet/portrait */
+  @media (max-width:1024px){ .senno-2col{ grid-template-columns:1fr !important; } .senno-3col{ grid-template-columns:1fr 1fr !important; } }
+  @media (max-width:660px){ .senno-3col{ grid-template-columns:1fr !important; } }
+</style>
+</helmet>
+
+<div class="senno" data-theme="{{ theme }}" data-font="inter" style="background:hsl(var(--background)); color:hsl(var(--foreground)); height:100vh; box-sizing:border-box; overflow:hidden; line-height:1.45;">
+
+  <div data-screen-label="Financeiro — {{ tabLabel }}" style="width:100%; height:100%; min-height:0; display:flex; overflow:hidden; background:hsl(var(--background));">
+
+    <!-- SIDEBAR -->
+    <aside style="width:236px; flex:none; background:hsl(var(--card)); border-right:1px solid hsl(var(--border)); display:flex; flex-direction:column; padding:18px 14px;">
+      <div style="display:flex; align-items:center; gap:10px; padding:6px 8px 18px;">
+        <div style="width:34px; height:34px; border-radius:9px; background:hsl(var(--primary)); display:flex; align-items:center; justify-content:center; flex:none;">
+          <span style="color:hsl(var(--primary-foreground)); font-weight:700; font-size:17px;">B</span>
+        </div>
+        <div style="min-width:0;">
+          <div style="font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Clínica Bellavie</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Plano Premium</div>
+        </div>
+      </div>
+      <nav style="display:flex; flex-direction:column; gap:2px;">
+        <sc-for list="{{ navMain }}" as="item" hint-placeholder-count="12">
+          <a href="#" onClick="{{ item.onClick }}" style="display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:8px; font-size:13.5px; font-weight:{{ item.weight }}; text-decoration:none; color:{{ item.color }}; background:{{ item.bg }};" style-hover="background:hsl(var(--accent));">
+            <span style="width:18px; height:18px; display:inline-flex; flex:none; color:{{ item.iconColor }};" dangerouslySetInnerHTML="{{ item.icon }}"></span>
+            <span style="flex:1; white-space:nowrap;">{{ item.label }}</span>
+          </a>
+        </sc-for>
+      </nav>
+      <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; background:hsl(var(--muted));">
+        <div style="width:32px; height:32px; border-radius:99px; background:hsl(var(--primary)/0.2); display:flex; align-items:center; justify-content:center; flex:none; color:hsl(var(--primary-text)); font-weight:600; font-size:12.5px;">HC</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Dra. Helena Costa</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Proprietária</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div style="flex:1; min-width:0; min-height:0; display:flex; flex-direction:column;">
+
+      <!-- TOPBAR -->
+      <header style="flex:none; display:flex; align-items:center; gap:16px; padding:14px 24px; border-bottom:1px solid hsl(var(--border)); background:hsl(var(--card));">
+        <div style="flex:1; min-width:0;">
+          <h1 style="margin:0; font-size:clamp(22px, 0.5vw + 18px, 27px); font-weight:600; letter-spacing:-0.01em;">Financeiro</h1>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <div class="senno-search">
+            <div class="senno-search-box">
+              <span style="width:15px;height:15px;display:inline-flex;flex:none;" dangerouslySetInnerHTML="{{ icoSearch }}"></span>
+              <input type="text" placeholder="Buscar paciente…" style="flex:1; min-width:0; border:none; outline:none; background:transparent; font-family:inherit; font-size:12.5px; color:hsl(var(--foreground));" />
+            </div>
+          </div>
+          <button onClick="{{ toggleTheme }}" title="{{ themeTitle }}" class="senno-theme-btn" style="width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+            <span class="senno-theme-ico senno-theme-sun" dangerouslySetInnerHTML="{{ icoSun }}"></span>
+            <span class="senno-theme-ico senno-theme-moon" dangerouslySetInnerHTML="{{ icoMoon }}"></span>
+          </button>
+          <div class="senno-notif" style="position:relative;">
+            <button onClick="{{ toggleNotif }}" title="Notificações" style="position:relative; width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+              <span class="senno-bell-ico {{ bellClass }}" onAnimationEnd="{{ bellAnimEnd }}" style="width:17px;height:17px;display:inline-flex; transform-origin:top center;" dangerouslySetInnerHTML="{{ icoBell }}"></span>
+              <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}">
+                <span style="position:absolute; top:7px; right:8px; width:7px; height:7px; border-radius:99px; background:hsl(var(--destructive)); border:1.5px solid hsl(var(--card));"></span>
+              </sc-if>
+            </button>
+            <sc-if value="{{ notifOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closeNotif }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:46px; right:0; width:362px; background:hsl(var(--popover)); border:1px solid hsl(var(--border)); border-radius:12px; box-shadow:0 16px 40px -12px hsl(var(--shadow)/calc(var(--shadow-a) * 3.5)); z-index:50; overflow:hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px 10px;">
+                  <span style="display:flex; align-items:center; gap:8px; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--foreground));">Notificações<sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px; font-weight:600; padding:1px 7px; border-radius:99px; background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text)); font-variant-numeric:tabular-nums;">{{ unreadCount }}</span></sc-if></span>
+                  <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><button onClick="{{ markAllRead }}" style="border:none; background:transparent; font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); cursor:pointer; padding:2px 4px; font-family:inherit;" style-hover="text-decoration:underline;">Marcar todas como lidas</button></sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; padding:0 6px 6px; max-height:344px; overflow-y:auto;">
+                  <sc-for list="{{ notifItems }}" as="n" hint-placeholder-count="4">
+                    <button onClick="{{ n.onClick }}" style="display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left; padding:10px 8px; border:none; background:{{ n.rowBg }}; border-radius:8px; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+                      <span style="width:32px; height:32px; border-radius:99px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ n.iconBg }}; color:{{ n.iconColor }};"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ n.icon }}"></span></span>
+                      <span style="flex:1; min-width:0;">
+                        <span style="display:block; font-size:12.5px; font-weight:{{ n.titleWeight }}; color:hsl(var(--foreground));">{{ n.title }}</span>
+                        <span style="display:block; font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ n.sub }}</span>
+                      </span>
+                      <span style="flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+                        <span style="font-size:10.5px; color:hsl(var(--muted-foreground)); white-space:nowrap;">{{ n.time }}</span>
+                        <sc-if value="{{ n.unread }}" hint-placeholder-val=""><span style="width:7px; height:7px; border-radius:99px; background:hsl(var(--primary)); flex:none;"></span></sc-if>
+                      </span>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:center; padding:9px 14px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                  <a href="#" style="font-size:12px; font-weight:600; color:hsl(var(--primary-text)); text-decoration:none;">Ver todas as notificações</a>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <button onClick="{{ onNewLead }}" style="height:38px; padding:0 15px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+            <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>
+            Novo lead
+          </button>
+        </div>
+      </header>
+
+      <!-- BODY -->
+      <div style="flex:1; min-height:0; overflow-y:auto; padding:18px 24px 28px; display:flex; flex-direction:column; gap:18px;">
+
+        <!-- TABS (underline) -->
+        <div ref="{{ setTabBar }}" style="position:relative; display:flex; align-items:center; gap:4px; align-self:flex-start; max-width:100%; border-bottom:1px solid hsl(var(--border));">
+          <div style="position:absolute; left:0; bottom:-1px; height:2px; border-radius:2px; background:hsl(var(--primary)); width:{{ indWidth }}; transform:translateX({{ indLeft }}); opacity:{{ indOpacity }}; transition:transform .32s cubic-bezier(.34,1.1,.5,1), width .32s cubic-bezier(.34,1.1,.5,1), opacity .2s ease; pointer-events:none;"></div>
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="6">
+            <button onClick="{{ t.onClick }}" data-tab-active="{{ t.active }}" style="{{ t.style }}">{{ t.label }}</button>
+          </sc-for>
+        </div>
+
+        <!-- ============ VISÃO GERAL ============ -->
+        <sc-if value="{{ isVisao }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column; gap:16px;">
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(228px,1fr)); gap:14px;">
+              <sc-for list="{{ kpisTop }}" as="k" hint-placeholder-count="4">
+                <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:16px 17px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));" style-hover="border-color:hsl(var(--primary)/0.5);">
+                  <div style="font-size:12.5px; color:hsl(var(--foreground)); font-weight:600;">{{ k.label }}</div>
+                  <div style="margin-top:11px; font-size:25px; font-weight:700; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; color:{{ k.color }};">{{ k.value }}</div>
+                  <sc-if value="{{ k.showDelta }}" hint-placeholder-val="">
+                    <div style="margin-top:7px; display:flex; align-items:center; gap:7px; font-size:12px;">
+                      <span style="display:inline-flex; align-items:center; gap:3px; font-weight:600; padding:1px 7px; border-radius:99px; font-variant-numeric:tabular-nums; background:{{ k.deltaBg }}; color:{{ k.deltaColor }};">
+                        <sc-if value="{{ k.showDeltaIcon }}" hint-placeholder-val="{{ true }}"><span style="width:12px; height:12px; display:inline-flex;" dangerouslySetInnerHTML="{{ k.deltaIcon }}"></span></sc-if>{{ k.deltaPct }}
+                      </span>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(228px,1fr)); gap:14px;">
+              <sc-for list="{{ kpisCash }}" as="k" hint-placeholder-count="4">
+                <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:16px 17px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));" style-hover="border-color:hsl(var(--primary)/0.5);">
+                  <div style="font-size:12.5px; color:hsl(var(--foreground)); font-weight:600;">{{ k.label }}</div>
+                  <div style="margin-top:11px; font-size:25px; font-weight:700; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; color:{{ k.color }};">{{ k.value }}</div>
+                  <sc-if value="{{ k.showDelta }}" hint-placeholder-val="">
+                    <div style="margin-top:7px; display:flex; align-items:center; gap:7px; font-size:12px;">
+                      <span style="display:inline-flex; align-items:center; gap:3px; font-weight:600; padding:1px 7px; border-radius:99px; font-variant-numeric:tabular-nums; background:{{ k.deltaBg }}; color:{{ k.deltaColor }};">
+                        <sc-if value="{{ k.showDeltaIcon }}" hint-placeholder-val="{{ true }}"><span style="width:12px; height:12px; display:inline-flex;" dangerouslySetInnerHTML="{{ k.deltaIcon }}"></span></sc-if>{{ k.deltaPct }}
+                      </span>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+
+            <!-- CHART -->
+            <div style="min-width:0;">
+              <dc-import name="Grafico Receita" theme="{{ theme }}" months="{{ gChartMonths }}" window-count="12" default-period="12" step="2" scale-max="200" unit="brl" bar-width="24" plot-height="220" show-help="true" hint-size="100%,420px"></dc-import>
+            </div>
+
+            <!-- TOP 5 -->
+            <div class="senno-2col" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;">
+              <div style="position:relative; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:18px 20px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                  <h2 style="margin:0; font-size:14px; font-weight:600;">Top procedimentos do mês</h2>
+                  <sc-if value="{{ procHasMore }}" hint-placeholder-val="{{ true }}">
+                  <button onClick="{{ onProcPop }}" style="display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 8px 0 11px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));">Ver todos<span style="display:inline-flex; align-items:center; height:18px; padding:0 6px; border-radius:99px; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;">+{{ procMore }}</span></button>
+                  </sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                  <sc-for list="{{ topProc }}" as="r" hint-placeholder-count="3">
+                    <div>
+                      <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                        <span style="width:22px; height:22px; flex:none; border-radius:6px; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:11.5px; font-weight:600; display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;">{{ r.rank }}</span>
+                        <span style="flex:1; min-width:0; font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.name }}</span>
+                        <span style="flex:none; font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ r.meta }}</span>
+                        <span style="flex:none; min-width:96px; text-align:right; font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ r.total }}</span>
+                      </div>
+                      <div style="height:6px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden; margin-left:34px;">
+                        <div style="height:100%; width:{{ r.w }}; border-radius:99px; background:hsl(var(--primary)/0.7);"></div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ procPopOpen }}" hint-placeholder-val="">
+                  <div onClick="{{ closePop }}" style="position:fixed; inset:0; z-index:40;"></div>
+                  <div style="position:absolute; top:0; left:0; right:0; z-index:50; background:hsl(var(--card)); border:1px solid hsl(var(--primary)/0.35); border-radius:13px; padding:18px 20px; box-shadow:0 20px 44px -14px hsl(var(--shadow)/calc(var(--shadow-a) * 4));">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                      <div style="display:flex; align-items:center; gap:9px;"><h2 style="margin:0; font-size:14px; font-weight:600;">Top procedimentos do mês</h2><span style="font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); background:hsl(var(--accent)); border:1px solid hsl(var(--border)); border-radius:99px; padding:2px 9px; font-variant-numeric:tabular-nums;">{{ procCount }}</span></div>
+                      <button onClick="{{ closePop }}" style="display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 10px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));"><span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevU }}"></span>Ver menos</button>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:15px; max-height:min(60vh, 560px); overflow-y:auto;">
+                      <sc-for list="{{ topProcFull }}" as="r" hint-placeholder-count="6">
+                        <div>
+                          <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                            <span style="width:22px; height:22px; flex:none; border-radius:6px; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:11.5px; font-weight:600; display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;">{{ r.rank }}</span>
+                            <span style="flex:1; min-width:0; font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.name }}</span>
+                            <span style="flex:none; font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ r.meta }}</span>
+                            <span style="flex:none; min-width:96px; text-align:right; font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ r.total }}</span>
+                          </div>
+                          <div style="height:6px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden; margin-left:34px;">
+                            <div style="height:100%; width:{{ r.w }}; border-radius:99px; background:hsl(var(--primary)/0.7);"></div>
+                          </div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+              <div style="position:relative; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:18px 20px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                  <h2 style="margin:0; font-size:14px; font-weight:600;">Top categorias de custo do mês</h2>
+                  <sc-if value="{{ custoHasMore }}" hint-placeholder-val="{{ true }}">
+                  <button onClick="{{ onCustoPop }}" style="display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 8px 0 11px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));">Ver todas<span style="display:inline-flex; align-items:center; height:18px; padding:0 6px; border-radius:99px; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;">+{{ custoMore }}</span></button>
+                  </sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                  <sc-for list="{{ topCusto }}" as="r" hint-placeholder-count="3">
+                    <div>
+                      <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                        <span style="width:22px; height:22px; flex:none; border-radius:6px; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:11.5px; font-weight:600; display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;">{{ r.rank }}</span>
+                        <span style="flex:1; min-width:0; font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.name }}</span>
+                        <span style="flex:none; font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ r.meta }}</span>
+                        <span style="flex:none; min-width:96px; text-align:right; font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ r.total }}</span>
+                      </div>
+                      <div style="height:6px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden; margin-left:34px;">
+                        <div style="height:100%; width:{{ r.w }}; border-radius:99px; background:hsl(var(--primary)/0.7);"></div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ custoPopOpen }}" hint-placeholder-val="">
+                  <div onClick="{{ closePop }}" style="position:fixed; inset:0; z-index:40;"></div>
+                  <div style="position:absolute; top:0; left:0; right:0; z-index:50; background:hsl(var(--card)); border:1px solid hsl(var(--primary)/0.35); border-radius:13px; padding:18px 20px; box-shadow:0 20px 44px -14px hsl(var(--shadow)/calc(var(--shadow-a) * 4));">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                      <div style="display:flex; align-items:center; gap:9px;"><h2 style="margin:0; font-size:14px; font-weight:600;">Top categorias de custo do mês</h2><span style="font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); background:hsl(var(--accent)); border:1px solid hsl(var(--border)); border-radius:99px; padding:2px 9px; font-variant-numeric:tabular-nums;">{{ custoCount }}</span></div>
+                      <button onClick="{{ closePop }}" style="display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 10px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));"><span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevU }}"></span>Ver menos</button>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:15px; max-height:min(60vh, 560px); overflow-y:auto;">
+                      <sc-for list="{{ topCustoFull }}" as="r" hint-placeholder-count="6">
+                        <div>
+                          <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                            <span style="width:22px; height:22px; flex:none; border-radius:6px; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:11.5px; font-weight:600; display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;">{{ r.rank }}</span>
+                            <span style="flex:1; min-width:0; font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.name }}</span>
+                            <span style="flex:none; font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ r.meta }}</span>
+                            <span style="flex:none; min-width:96px; text-align:right; font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ r.total }}</span>
+                          </div>
+                          <div style="height:6px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden; margin-left:34px;">
+                            <div style="height:100%; width:{{ r.w }}; border-radius:99px; background:hsl(var(--primary)/0.7);"></div>
+                          </div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+
+            <!-- TOP COMPRADORES / VENDEDORES -->
+            <div class="senno-2col" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;">
+              <div style="position:relative; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:18px 20px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                  <h2 style="margin:0; font-size:14px; font-weight:600;">Top compradores</h2>
+                  <sc-if value="{{ buyersHasMore }}" hint-placeholder-val="{{ true }}">
+                  <button onClick="{{ onBuyersPop }}" style="display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 8px 0 11px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));">Ver todos<span style="display:inline-flex; align-items:center; height:18px; padding:0 6px; border-radius:99px; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;">+{{ buyersMore }}</span></button>
+                  </sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                  <sc-for list="{{ topBuyers }}" as="b" hint-placeholder-count="3">
+                    <div>
+                      <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                        <span style="width:22px; height:22px; flex:none; border-radius:6px; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:11.5px; font-weight:600; display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;">{{ b.rank }}</span>
+                        <span style="flex:1; min-width:0; font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ b.name }}</span>
+                        <span style="flex:none; font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ b.meta }}</span>
+                        <span style="flex:none; min-width:96px; text-align:right; font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ b.total }}</span>
+                      </div>
+                      <div style="height:6px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden; margin-left:34px;">
+                        <div style="height:100%; width:{{ b.w }}; border-radius:99px; background:hsl(var(--primary));"></div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ buyersPopOpen }}" hint-placeholder-val="">
+                  <div onClick="{{ closePop }}" style="position:fixed; inset:0; z-index:40;"></div>
+                  <div style="position:absolute; top:0; left:0; right:0; z-index:50; background:hsl(var(--card)); border:1px solid hsl(var(--primary)/0.35); border-radius:13px; padding:18px 20px; box-shadow:0 20px 44px -14px hsl(var(--shadow)/calc(var(--shadow-a) * 4));">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                      <div style="display:flex; align-items:center; gap:9px;"><h2 style="margin:0; font-size:14px; font-weight:600;">Top compradores</h2><span style="font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); background:hsl(var(--accent)); border:1px solid hsl(var(--border)); border-radius:99px; padding:2px 9px; font-variant-numeric:tabular-nums;">{{ buyersCount }}</span></div>
+                      <button onClick="{{ closePop }}" style="display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 10px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));"><span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevU }}"></span>Ver menos</button>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:15px; max-height:min(60vh, 560px); overflow-y:auto;">
+                      <sc-for list="{{ topBuyersFull }}" as="b" hint-placeholder-count="10">
+                        <div>
+                          <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                            <span style="width:22px; height:22px; flex:none; border-radius:6px; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:11.5px; font-weight:600; display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;">{{ b.rank }}</span>
+                            <span style="flex:1; min-width:0; font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ b.name }}</span>
+                            <span style="flex:none; font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ b.meta }}</span>
+                            <span style="flex:none; min-width:96px; text-align:right; font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ b.total }}</span>
+                          </div>
+                          <div style="height:6px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden; margin-left:34px;">
+                            <div style="height:100%; width:{{ b.w }}; border-radius:99px; background:hsl(var(--primary));"></div>
+                          </div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+
+              <div style="position:relative; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:18px 20px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                  <h2 style="margin:0; font-size:14px; font-weight:600;">Top vendedores</h2>
+                  <sc-if value="{{ sellersHasMore }}" hint-placeholder-val="">
+                  <button onClick="{{ onSellersPop }}" style="display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 8px 0 11px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));">Ver todos<span style="display:inline-flex; align-items:center; height:18px; padding:0 6px; border-radius:99px; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;">+{{ sellersMore }}</span></button>
+                  </sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                  <sc-for list="{{ topSellers }}" as="s" hint-placeholder-count="3">
+                    <div>
+                      <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                        <span style="width:22px; height:22px; flex:none; border-radius:6px; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:11.5px; font-weight:600; display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;">{{ s.rank }}</span>
+                        <span style="flex:1; min-width:0; font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ s.name }}</span>
+                        <span style="flex:none; font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ s.meta }}</span>
+                        <span style="flex:none; min-width:104px; text-align:right; font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ s.total }}</span>
+                      </div>
+                      <div style="height:6px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden; margin-left:34px;">
+                        <div style="height:100%; width:{{ s.w }}; border-radius:99px; background:hsl(var(--primary)/0.7);"></div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ sellersPopOpen }}" hint-placeholder-val="">
+                  <div onClick="{{ closePop }}" style="position:fixed; inset:0; z-index:40;"></div>
+                  <div style="position:absolute; top:0; left:0; right:0; z-index:50; background:hsl(var(--card)); border:1px solid hsl(var(--primary)/0.35); border-radius:13px; padding:18px 20px; box-shadow:0 20px 44px -14px hsl(var(--shadow)/calc(var(--shadow-a) * 4));">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                      <div style="display:flex; align-items:center; gap:9px;"><h2 style="margin:0; font-size:14px; font-weight:600;">Top vendedores</h2><span style="font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); background:hsl(var(--accent)); border:1px solid hsl(var(--border)); border-radius:99px; padding:2px 9px; font-variant-numeric:tabular-nums;">{{ sellersCount }}</span></div>
+                      <button onClick="{{ closePop }}" style="display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 10px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));"><span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevU }}"></span>Ver menos</button>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:15px; max-height:min(60vh, 560px); overflow-y:auto;">
+                      <sc-for list="{{ topSellersFull }}" as="s" hint-placeholder-count="5">
+                        <div>
+                          <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                            <span style="width:22px; height:22px; flex:none; border-radius:6px; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:11.5px; font-weight:600; display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;">{{ s.rank }}</span>
+                            <span style="flex:1; min-width:0; font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ s.name }}</span>
+                            <span style="flex:none; font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ s.meta }}</span>
+                            <span style="flex:none; min-width:104px; text-align:right; font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ s.total }}</span>
+                          </div>
+                          <div style="height:6px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden; margin-left:34px;">
+                            <div style="height:100%; width:{{ s.w }}; border-radius:99px; background:hsl(var(--primary)/0.7);"></div>
+                          </div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ============ DRE ============ -->
+        <sc-if value="{{ isDre }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+              <div style="position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:1fr; padding:3px; border-radius:9px; background:hsl(var(--muted)); border:1px solid hsl(var(--border)); flex:none;">
+                <div style="{{ drePeriodPill }}"></div>
+                <sc-for list="{{ drePeriodTabs }}" as="p" hint-placeholder-count="3">
+                  <button onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.label }}</button>
+                </sc-for>
+              </div>
+              <button style="height:38px; padding:0 16px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px;" style-hover="background:hsl(var(--accent));">
+                <span style="width:16px;height:16px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoDownload }}"></span>
+                Exportar CSV
+              </button>
+            </div>
+
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+              <sc-for list="{{ dreRows }}" as="r" hint-placeholder-count="16">
+                <div style="{{ r.rowStyle }}">
+                  <span style="{{ r.labelStyle }}">{{ r.label }}</span>
+                  <span style="width:64px; flex:none; text-align:right; font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ r.pct }}</span>
+                  <span style="{{ r.valueStyle }}">{{ r.value }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ============ RECEITAS ============ -->
+        <sc-if value="{{ isReceitas }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px;">
+              <div>
+                <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500;">{{ recCountLabel }}</div>
+                <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:2px;">Soma: <span style="color:hsl(var(--ok)); font-weight:600;">{{ recSum }}</span></div>
+              </div>
+              <div style="display:flex; align-items:center; gap:9px;">
+                <div style="position:relative;">
+                <button onClick="{{ onToggleRecFilters }}" style="{{ recFilterBtnStyle }}" style-hover="background:hsl(var(--accent));">
+                  <span style="width:16px;height:16px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoSliders }}"></span>Filtros
+                </button>
+                <sc-if value="{{ recFiltersOpen }}" hint-placeholder-val="">
+                <div style="position:absolute; top:calc(100% + 8px); right:0; z-index:30; width:264px; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:14px; box-shadow:0 10px 28px hsl(var(--shadow)/calc(var(--shadow-a)*3)); display:flex; flex-direction:column; gap:12px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <div style="font-size:12.5px; font-weight:600;">Filtrar receitas</div>
+                    <button onClick="{{ onToggleRecFilters }}" title="Fechar" style="width:26px; height:26px; border-radius:7px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent)); color:hsl(var(--foreground));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoClose }}"></span></button>
+                  </div>
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                      <div style="font-size:12px; font-weight:600; margin-bottom:6px;">De</div>
+                      <input type="text" placeholder="DD/MM/AAAA" style="width:100%; height:36px; padding:0 10px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:12.5px; font-family:inherit;" style-focus="outline:none; border-color:hsl(var(--ring)); box-shadow:0 0 0 3px hsl(var(--ring)/0.18);" />
+                    </div>
+                    <div>
+                      <div style="font-size:12px; font-weight:600; margin-bottom:6px;">Até</div>
+                      <input type="text" placeholder="DD/MM/AAAA" style="width:100%; height:36px; padding:0 10px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:12.5px; font-family:inherit;" style-focus="outline:none; border-color:hsl(var(--ring)); box-shadow:0 0 0 3px hsl(var(--ring)/0.18);" />
+                    </div>
+                  </div>
+                  <sc-for list="{{ recFilters }}" as="f" hint-placeholder-count="3">
+                    <div>
+                      <div style="font-size:12px; font-weight:600; margin-bottom:6px;">{{ f.label }}</div>
+                      <div style="position:relative;">
+                        <select style="appearance:none; width:100%; height:36px; padding:0 34px 0 10px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:12.5px; font-family:inherit; cursor:pointer;">
+                          <option>Todos</option>
+                        </select>
+                        <span style="position:absolute; right:10px; top:50%; transform:translateY(-50%); width:14px; height:14px; display:inline-flex; pointer-events:none; color:hsl(var(--muted-foreground));" dangerouslySetInnerHTML="{{ icoChevD }}"></span>
+                      </div>
+                    </div>
+                  </sc-for>
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:2px;">
+                    <button style="height:34px; padding:0 12px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit;" style-hover="color:hsl(var(--foreground));">Limpar</button>
+                    <button onClick="{{ onToggleRecFilters }}" style="height:34px; padding:0 16px; border-radius:8px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit;" style-hover="filter:brightness(1.05);">Aplicar</button>
+                  </div>
+                </div>
+                </sc-if>
+                </div>
+                <button style="height:38px; padding:0 14px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px;" style-hover="background:hsl(var(--accent));">
+                  <span style="width:16px;height:16px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoFileUp }}"></span>Importar CSV
+                </button>
+                <button style="height:38px; padding:0 16px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+                  <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>Nova receita
+                </button>
+              </div>
+            </div>
+
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+              <div style="display:grid; grid-template-columns:108px minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1.6fr) 96px 120px 110px; align-items:center; gap:14px; padding:11px 18px; background:hsl(var(--muted)/0.4); border-bottom:1px solid hsl(var(--border)); font-size:11.5px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; color:hsl(var(--muted-foreground));">
+                <div>Data</div><div>Descrição</div><div>Paciente</div><div>Procedimento</div><div>Pagamento</div><div style="text-align:right;">Valor</div><div></div>
+              </div>
+              <sc-for list="{{ receitas }}" as="r" hint-placeholder-count="1">
+                <div style="display:grid; grid-template-columns:108px minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1.6fr) 96px 120px 110px; align-items:center; gap:14px; padding:13px 18px; border-top:1px solid hsl(var(--border));" style-hover="background:hsl(var(--accent)/0.5);">
+                  <div style="font-size:12.5px; font-variant-numeric:tabular-nums;">{{ r.date }}</div>
+                  <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.desc }}</div>
+                  <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.patient }}</div>
+                  <div style="font-size:12.5px; color:hsl(var(--foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.proc }}</div>
+                  <div><span style="display:inline-flex; font-size:11px; font-weight:600; padding:3px 10px; border-radius:99px; background:hsl(var(--muted)); color:hsl(var(--foreground));">{{ r.pay }}</span></div>
+                  <div style="text-align:right; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--ok)); font-variant-numeric:tabular-nums;">{{ r.value }}</div>
+                  <div style="display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+                    <button title="Editar" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent)); color:hsl(var(--foreground));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoEdit }}"></span></button>
+                    <button title="Estornar" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent)); color:hsl(var(--foreground));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoBan }}"></span></button>
+                    <button title="Excluir" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--destructive)/0.12); color:hsl(var(--destructive));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoTrash }}"></span></button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ============ CONTAS A RECEBER ============ -->
+        <sc-if value="{{ isContas }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(228px,1fr)); gap:14px;">
+              <sc-for list="{{ arSummary }}" as="s" hint-placeholder-count="4">
+                <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:15px 17px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+                  <div style="font-size:12px; color:hsl(var(--muted-foreground)); font-weight:500;">{{ s.label }}</div>
+                  <div style="margin-top:7px; font-size:20px; font-weight:700; letter-spacing:-0.01em; font-variant-numeric:tabular-nums; color:{{ s.color }};">{{ s.value }}</div>
+                  <div style="margin-top:2px; font-size:11.5px; color:hsl(var(--muted-foreground));">{{ s.count }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+              <div style="display:grid; grid-template-columns:minmax(0,1.8fr) minmax(0,1.3fr) 120px 150px 110px 110px; align-items:center; gap:14px; padding:11px 18px; background:hsl(var(--muted)/0.4); border-bottom:1px solid hsl(var(--border)); font-size:11.5px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; color:hsl(var(--muted-foreground));">
+                <div>Cliente / Descrição</div><div>Parcelas</div><div>Vencimento</div><div style="text-align:right;">Valor</div><div>Status</div><div style="text-align:right;">Ações</div>
+              </div>
+              <sc-for list="{{ contas }}" as="c" hint-placeholder-count="13">
+                <div>
+                  <div style="display:grid; grid-template-columns:minmax(0,1.8fr) minmax(0,1.3fr) 120px 150px 110px 110px; align-items:center; gap:14px; padding:13px 18px; border-top:1px solid hsl(var(--border));" style-hover="background:hsl(var(--accent)/0.4);">
+                    <div style="display:flex; align-items:center; gap:9px; min-width:0;">
+                      <sc-if value="{{ c.expandable }}" hint-placeholder-val="">
+                        <button onClick="{{ c.onToggle }}" title="Ver parcelas" style="width:22px; height:22px; flex:none; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:transform .15s; transform:{{ c.chevTransform }};"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevR }}"></span></button>
+                      </sc-if>
+                      <div style="min-width:0;">
+                        <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.client }}</div>
+                        <sc-if value="{{ c.hasDesc }}" hint-placeholder-val="">
+                          <div style="font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.desc }}</div>
+                        </sc-if>
+                      </div>
+                    </div>
+                    <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ c.parcelas }}</div>
+                    <div style="font-size:12.5px; font-variant-numeric:tabular-nums; color:hsl(var(--foreground));">{{ c.venc }}</div>
+                    <div style="text-align:right; font-variant-numeric:tabular-nums;">
+                      <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600;">{{ c.value }}</div>
+                      <sc-if value="{{ c.hasReceived }}" hint-placeholder-val="">
+                        <div style="font-size:11px; color:hsl(var(--muted-foreground));">{{ c.received }}</div>
+                      </sc-if>
+                    </div>
+                    <div><span style="{{ c.badgeStyle }}">{{ c.status }}</span></div>
+                    <div style="text-align:right;"><button onClick="{{ c.onAction }}" style="background:none; border:none; padding:0; cursor:pointer; font-size:12.5px; font-weight:600; font-family:inherit; color:{{ c.actionColor }};" style-hover="text-decoration:underline;">{{ c.action }}</button></div>
+                  </div>
+                  <sc-if value="{{ c.open }}" hint-placeholder-val="">
+                    <div style="background:hsl(var(--muted)/0.35); border-top:1px solid hsl(var(--border)); padding:6px 18px 12px 49px;">
+                      <sc-for list="{{ c.parcels }}" as="p" hint-placeholder-count="2">
+                        <div style="display:grid; grid-template-columns:minmax(0,1fr) 150px 150px 110px; align-items:center; gap:14px; padding:9px 0; border-bottom:1px dashed hsl(var(--border));">
+                          <div style="font-size:12.5px; color:hsl(var(--foreground));">{{ p.label }}</div>
+                          <div style="font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ p.venc }}</div>
+                          <div style="text-align:right; font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ p.value }}</div>
+                          <div><span style="{{ p.badgeStyle }}">{{ p.status }}</span></div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ============ CUSTOS ============ -->
+        <sc-if value="{{ isCustos }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+              <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500;">{{ custCountLabel }}</div>
+              <div style="display:flex; align-items:center; gap:9px;">
+                <button style="height:38px; padding:0 14px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px;" style-hover="background:hsl(var(--accent));">
+                  <span style="width:16px;height:16px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoDownload }}"></span>Exportar CSV
+                </button>
+                <button style="height:38px; padding:0 16px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+                  <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>Novo custo
+                </button>
+              </div>
+            </div>
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+              <div style="display:grid; grid-template-columns:108px 110px minmax(0,1.1fr) minmax(0,1.6fr) 120px 110px 76px; align-items:center; gap:14px; padding:11px 18px; background:hsl(var(--muted)/0.4); border-bottom:1px solid hsl(var(--border)); font-size:11.5px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; color:hsl(var(--muted-foreground));">
+                <div>Data</div><div>Tipo</div><div>Categoria</div><div>Descrição</div><div>Recorrente</div><div style="text-align:right;">Valor</div><div></div>
+              </div>
+              <sc-for list="{{ custos }}" as="c" hint-placeholder-count="1">
+                <div style="display:grid; grid-template-columns:108px 110px minmax(0,1.1fr) minmax(0,1.6fr) 120px 110px 76px; align-items:center; gap:14px; padding:13px 18px; border-top:1px solid hsl(var(--border));" style-hover="background:hsl(var(--accent)/0.5);">
+                  <div style="font-size:12.5px; font-variant-numeric:tabular-nums;">{{ c.date }}</div>
+                  <div><span style="display:inline-flex; font-size:11px; font-weight:600; padding:3px 10px; border-radius:99px; background:hsl(var(--muted)); color:hsl(var(--foreground));">{{ c.type }}</span></div>
+                  <div style="font-size:12.5px;">{{ c.cat }}</div>
+                  <div style="font-size:12.5px; color:hsl(var(--foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.desc }}</div>
+                  <div style="font-size:12.5px; color:hsl(var(--muted-foreground));">{{ c.rec }}</div>
+                  <div style="text-align:right; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--destructive)); font-variant-numeric:tabular-nums;">{{ c.value }}</div>
+                  <div style="display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+                    <button title="Editar" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent)); color:hsl(var(--foreground));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoEdit }}"></span></button>
+                    <button title="Excluir" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--destructive)/0.12); color:hsl(var(--destructive));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoTrash }}"></span></button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ============ ATIVOS ============ -->
+        <sc-if value="{{ isAtivos }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:28px;">
+            <div>
+              <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:14px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Ativos intangíveis</h2>
+                  <span class="senno-tip"><span style="width:15px; height:15px; display:inline-flex; color:hsl(var(--muted-foreground)); cursor:help; flex-shrink:0;" dangerouslySetInnerHTML="{{ icoHelp }}"></span><span class="senno-tip-bubble">Software, licenças e marcas — geram amortização na DRE.</span></span>
+                </div>
+                <button style="height:38px; padding:0 16px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+                  <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>Novo ativo
+                </button>
+              </div>
+              <sc-if value="{{ hasIntang }}" hint-placeholder-val="{{ true }}">
+                <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+                  <div style="display:grid; grid-template-columns:minmax(0,1.7fr) 110px 120px 100px 130px 130px 76px; align-items:center; gap:14px; padding:11px 18px; background:hsl(var(--muted)/0.4); border-bottom:1px solid hsl(var(--border)); font-size:11.5px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; color:hsl(var(--muted-foreground));">
+                    <div>Ativo</div><div>Tipo</div><div style="text-align:right;">Valor</div><div>Vida útil</div><div style="text-align:right;">Amort./mês</div><div style="text-align:right;">Acumulada</div><div></div>
+                  </div>
+                  <sc-for list="{{ ativosIntang }}" as="a" hint-placeholder-count="3">
+                    <div style="display:grid; grid-template-columns:minmax(0,1.7fr) 110px 120px 100px 130px 130px 76px; align-items:center; gap:14px; padding:13px 18px; border-top:1px solid hsl(var(--border));" style-hover="background:hsl(var(--accent)/0.5);">
+                      <div style="min-width:0;">
+                        <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.name }}</div>
+                        <div style="font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.sub }}</div>
+                      </div>
+                      <div><span style="display:inline-flex; font-size:11px; font-weight:600; padding:3px 10px; border-radius:99px; background:hsl(var(--muted)); color:hsl(var(--foreground));">{{ a.type }}</span></div>
+                      <div style="text-align:right; font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ a.value }}</div>
+                      <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ a.life }}</div>
+                      <div style="text-align:right; font-size:12.5px; color:hsl(var(--destructive)); font-weight:600; font-variant-numeric:tabular-nums;">{{ a.perMonth }}</div>
+                      <div style="text-align:right; font-size:12.5px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ a.accrued }}</div>
+                      <div style="display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+                        <button title="Editar" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent)); color:hsl(var(--foreground));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoEdit }}"></span></button>
+                        <button title="Excluir" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--destructive)/0.12); color:hsl(var(--destructive));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoTrash }}"></span></button>
+                      </div>
+                    </div>
+                  </sc-for>
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                    <span style="font-size:12.5px; color:hsl(var(--muted-foreground));">Amortização total no mês</span>
+                    <span style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:700; color:hsl(var(--destructive)); font-variant-numeric:tabular-nums;">{{ intangPerMonthTotal }}</span>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ noIntang }}" hint-placeholder-val="">
+                <div style="background:hsl(var(--card)); border:1px dashed hsl(var(--border)); border-radius:13px; padding:46px 24px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:11px;">
+                  <span style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:hsl(var(--muted)); color:hsl(var(--muted-foreground));">
+                    <span style="width:20px;height:20px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoBox }}"></span>
+                  </span>
+                  <div style="font-size:14px; font-weight:600;">Nenhum ativo intangível cadastrado</div>
+                  <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:-4px; max-width:420px;">Cadastre software, licenças ou marcas para a amortização entrar na DRE.</div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div>
+              <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:14px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Ativos tangíveis (comprados)</h2>
+                  <span class="senno-tip"><span style="width:15px; height:15px; display:inline-flex; color:hsl(var(--muted-foreground)); cursor:help; flex-shrink:0;" dangerouslySetInnerHTML="{{ icoHelp }}"></span><span class="senno-tip-bubble">Equipamentos e bens adquiridos — preço de compra e manutenção recorrente.</span></span>
+                </div>
+                <button style="height:38px; padding:0 16px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+                  <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>Novo ativo
+                </button>
+              </div>
+              <sc-if value="{{ hasTang }}" hint-placeholder-val="{{ true }}">
+                <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+                  <div style="display:grid; grid-template-columns:minmax(0,1.7fr) 116px 130px 116px 124px 116px 76px; align-items:center; gap:14px; padding:11px 18px; background:hsl(var(--muted)/0.4); border-bottom:1px solid hsl(var(--border)); font-size:11.5px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; color:hsl(var(--muted-foreground));">
+                    <div>Ativo</div><div>Comprado em</div><div style="text-align:right;">Preço de compra</div><div>Manutenção</div><div style="text-align:right;">Custo/manut.</div><div>Próxima</div><div></div>
+                  </div>
+                  <sc-for list="{{ ativosTang }}" as="a" hint-placeholder-count="3">
+                    <div style="display:grid; grid-template-columns:minmax(0,1.7fr) 116px 130px 116px 124px 116px 76px; align-items:center; gap:14px; padding:13px 18px; border-top:1px solid hsl(var(--border));" style-hover="background:hsl(var(--accent)/0.5);">
+                      <div style="min-width:0;">
+                        <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.name }}</div>
+                        <div style="font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.sub }}</div>
+                      </div>
+                      <div style="font-size:12.5px; color:hsl(var(--foreground)); font-variant-numeric:tabular-nums;">{{ a.purchased }}</div>
+                      <div style="text-align:right; font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums;">{{ a.price }}</div>
+                      <div><span style="display:inline-flex; font-size:11px; font-weight:600; padding:3px 10px; border-radius:99px; background:hsl(var(--muted)); color:hsl(var(--foreground));">{{ a.maint }}</span></div>
+                      <div style="text-align:right; font-size:12.5px; color:hsl(var(--destructive)); font-weight:600; font-variant-numeric:tabular-nums;">{{ a.maintCost }}</div>
+                      <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ a.next }}</div>
+                      <div style="display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+                        <button title="Editar" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent)); color:hsl(var(--foreground));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoEdit }}"></span></button>
+                        <button title="Excluir" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--destructive)/0.12); color:hsl(var(--destructive));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoTrash }}"></span></button>
+                      </div>
+                    </div>
+                  </sc-for>
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                    <span style="font-size:12.5px; color:hsl(var(--muted-foreground));">Manutenção recorrente prevista (equiv./mês)</span>
+                    <span style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:700; color:hsl(var(--destructive)); font-variant-numeric:tabular-nums;">{{ tangMaintMonthly }}</span>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ noTang }}" hint-placeholder-val="">
+                <div style="background:hsl(var(--card)); border:1px dashed hsl(var(--border)); border-radius:13px; padding:46px 24px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:11px;">
+                  <span style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:hsl(var(--muted)); color:hsl(var(--muted-foreground));">
+                    <span style="width:20px;height:20px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoBox }}"></span>
+                  </span>
+                  <div style="font-size:14px; font-weight:600;">Nenhum ativo tangível cadastrado</div>
+                  <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:-4px; max-width:420px;">Cadastre equipamentos e bens comprados com preço de compra e periodicidade de manutenção.</div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div>
+              <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:14px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Equipamentos alugados</h2>
+                  <span class="senno-tip"><span style="width:15px; height:15px; display:inline-flex; color:hsl(var(--muted-foreground)); cursor:help; flex-shrink:0;" dangerouslySetInnerHTML="{{ icoHelp }}"></span><span class="senno-tip-bubble">Aluguel mensal recorrente — entra na DRE como despesa fixa (sem depreciação).</span></span>
+                </div>
+                <button style="height:38px; padding:0 16px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+                  <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>Novo aluguel
+                </button>
+              </div>
+              <sc-if value="{{ hasEquip }}" hint-placeholder-val="{{ true }}">
+                <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+                  <div style="display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1.1fr) 110px 140px 110px 76px; align-items:center; gap:14px; padding:11px 18px; background:hsl(var(--muted)/0.4); border-bottom:1px solid hsl(var(--border)); font-size:11.5px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; color:hsl(var(--muted-foreground));">
+                    <div>Equipamento</div><div>Fornecedor</div><div>Início</div><div style="text-align:right;">Aluguel/mês</div><div>Status</div><div></div>
+                  </div>
+                  <sc-for list="{{ ativosEquip }}" as="e" hint-placeholder-count="2">
+                    <div style="display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1.1fr) 110px 140px 110px 76px; align-items:center; gap:14px; padding:13px 18px; border-top:1px solid hsl(var(--border));" style-hover="background:hsl(var(--accent)/0.5);">
+                      <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ e.name }}</div>
+                      <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ e.supplier }}</div>
+                      <div style="font-size:12.5px; color:hsl(var(--foreground)); font-variant-numeric:tabular-nums;">{{ e.start }}</div>
+                      <div style="text-align:right; font-size:12.5px; color:hsl(var(--destructive)); font-weight:600; font-variant-numeric:tabular-nums;">{{ e.rent }}</div>
+                      <div><span style="display:inline-flex; font-size:11px; font-weight:600; padding:4px 11px; border-radius:99px; background:hsl(var(--ok-bg)); color:hsl(var(--ok));">{{ e.status }}</span></div>
+                      <div style="display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+                        <button title="Editar" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent)); color:hsl(var(--foreground));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoEdit }}"></span></button>
+                        <button title="Excluir" style="width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:hsl(var(--muted-foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--destructive)/0.12); color:hsl(var(--destructive));"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoTrash }}"></span></button>
+                      </div>
+                    </div>
+                  </sc-for>
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                    <span style="font-size:12.5px; color:hsl(var(--muted-foreground));">Despesa fixa de aluguel no mês</span>
+                    <span style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:700; color:hsl(var(--destructive)); font-variant-numeric:tabular-nums;">{{ equipRentTotal }}</span>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ noEquip }}" hint-placeholder-val="">
+                <div style="background:hsl(var(--card)); border:1px dashed hsl(var(--border)); border-radius:13px; padding:46px 24px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:11px;">
+                  <span style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:hsl(var(--muted)); color:hsl(var(--muted-foreground));">
+                    <span style="width:20px;height:20px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoMonitor }}"></span>
+                  </span>
+                  <div style="font-size:14px; font-weight:600;">Nenhum equipamento alugado</div>
+                  <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:-4px; max-width:420px;">Cadastre o primeiro aluguel para vê-lo somar como despesa fixa.</div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1080},&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;},&quot;defaultTab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;visao&quot;,&quot;dre&quot;,&quot;receitas&quot;,&quot;contas&quot;,&quot;custos&quot;,&quot;ativos&quot;],&quot;default&quot;:&quot;visao&quot;,&quot;tsType&quot;:&quot;'visao' | 'dre' | 'receitas' | 'contas' | 'custos' | 'ativos'&quot;},&quot;ativosState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;filled&quot;,&quot;empty&quot;],&quot;default&quot;:&quot;filled&quot;,&quot;tsType&quot;:&quot;'filled' | 'empty'&quot;,&quot;section&quot;:&quot;Conteúdo&quot;}}">
+class Component extends DCLogic {
+  state = {
+    theme: this.props.defaultTheme || 'light', notifOpen:false, notifs:[{id:1,type:'lead',title:'Novo lead',sub:'Mariana Alves · Instagram',time:'agora',read:false},{id:2,type:'money',title:'Pagamento confirmado',sub:'R$ 1.200 · Botox · Camila Souza',time:'8 min',read:false},{id:3,type:'agenda',title:'Agendamento confirmado',sub:'Patrícia Lima · amanhã às 14h',time:'40 min',read:false},{id:4,type:'alert',title:'Tarefa atrasada',sub:'Retornar ligação · Rafael Dias',time:'1 h',read:true},{id:5,type:'agenda',title:'Novo agendamento online',sub:'Beatriz Ramos · Limpeza de pele',time:'3 h',read:true}],
+    tab: this.props.defaultTab || 'visao',
+    revMode: 'gerada',
+    drePeriod: 'mes',
+    openRows: {},
+    pop: null,
+    recFiltersOpen: false,
+  };
+
+  ico(p){ return {__html:'<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'}; }
+
+  segPill(idx, n, o){ o=o||{}; return 'position:absolute; top:3px; left:3px; bottom:3px; width:calc((100% - 6px)/'+n+'); transform:translateX('+(idx*100)+'%); background:'+(o.bg||'hsl(var(--primary))')+'; border-radius:'+(o.r||7)+'px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); transition:transform .34s cubic-bezier(.34,1.1,.5,1); pointer-events:none; z-index:0;'; }
+  segBtn(on, o){ o=o||{}; return 'position:relative; z-index:1; border:none; cursor:pointer; font-family:inherit; font-size:'+(o.fs||'12.5px')+'; font-weight:600; padding:'+(o.pad||'6px 14px')+'; border-radius:'+(o.r||7)+'px; background:transparent; white-space:nowrap; transition:color .25s ease; color:'+(on?(o.on||'hsl(var(--primary-foreground))'):(o.off||'hsl(var(--muted-foreground))'))+';'; }
+
+  setTabBar = (el)=>{ this._tabBar = el; };
+  componentDidMount(){ this._measureTabs(); if(typeof document!=='undefined'&&document.fonts&&document.fonts.ready){ document.fonts.ready.then(()=>this._measureTabs()); } }
+  componentDidUpdate(){ this._measureTabs(); }
+  _measureTabs(){ const bar=this._tabBar; if(!bar) return; const act=bar.querySelector('[data-tab-active="1"]'); if(!act) return; const left=act.offsetLeft, width=act.offsetWidth; if(left!==this.state.indLeft||width!==this.state.indWidth){ this.setState({indLeft:left, indWidth:width}); } }
+
+  _notif(){
+    const ic=(p)=>this.ico(p);
+    const icoSun=ic('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon=ic('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+    const icoBell=ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoUsers=ic('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney=ic('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoCal=ic('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoAlert=ic('<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>');
+    const tint={lead:{bg:'hsl(var(--primary)/0.16)',color:'hsl(var(--primary-text))'},money:{bg:'hsl(var(--ok-bg))',color:'hsl(var(--ok))'},agenda:{bg:'hsl(var(--accent))',color:'hsl(var(--muted-foreground))'},alert:{bg:'hsl(var(--destructive)/0.14)',color:'hsl(var(--destructive))'}};
+    const icoBy={lead:icoUsers,money:icoMoney,agenda:icoCal,alert:icoAlert};
+    const notifItems=this.state.notifs.map(n=>{const t=tint[n.type]||tint.agenda; return {...n, icon:icoBy[n.type]||icoBell, iconBg:t.bg, iconColor:t.color, unread:!n.read, titleWeight:n.read?500:600, rowBg:n.read?'transparent':'hsl(var(--primary)/0.05)', onClick:()=>this.setState(s=>({notifs:s.notifs.map(x=>x.id===n.id?{...x,read:true}:x)}))};});
+    const unreadCount=this.state.notifs.filter(n=>!n.read).length;
+    return { icoSun, icoMoon, notifOpen:this.state.notifOpen, hasUnread:unreadCount>0, unreadCount, notifItems,
+      bellClass:(this.state.bellRing?'senno-bell-ring-a':''), bellAnimEnd:()=>this.setState({bellRing:false}), toggleNotif:()=>this.setState(s=>({bellRing:true, notifOpen:!s.notifOpen})), closeNotif:()=>this.setState({notifOpen:false}),
+      markAllRead:()=>this.setState(s=>({notifs:s.notifs.map(x=>({...x,read:true}))})) };
+  }
+  fmt(n){ return 'R$ ' + Math.abs(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  fmtSigned(n){ return (n<0?'-':'') + this.fmt(n); }
+
+  renderVals(){
+    const I=(p)=>this.ico(p);
+    const icoGrid    = I('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>');
+    const icoActivity= I('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>');
+    const icoCalendar= I('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoFunnel  = I('<path d="M3 4h18l-7 8v6l-4 2v-8z"/>');
+    const icoUsers   = I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney   = I('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoTarget  = I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>');
+    const icoBulb    = I('<path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/>');
+    const icoSyringe = I('<rect x="3" y="3" width="7" height="7" rx="1.5"/><path d="M14 7h6M14 12h6M14 17h6M5 14v6M3 17h4"/>');
+    const icoDownload= I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>');
+    const icoBell    = I('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoSettings= I('<path d="M22.00 12.00 L21.24 15.83 L18.28 14.60 L16.81 16.81 L19.07 19.07 L15.83 21.24 L14.60 18.28 L12.00 18.80 L12.00 22.00 L8.17 21.24 L9.40 18.28 L7.19 16.81 L4.93 19.07 L2.76 15.83 L5.72 14.60 L5.20 12.00 L2.00 12.00 L2.76 8.17 L5.72 9.40 L7.19 7.19 L4.93 4.93 L8.17 2.76 L9.40 5.72 L12.00 5.20 L12.00 2.00 L15.83 2.76 L14.60 5.72 L16.81 7.19 L19.07 4.93 L21.24 8.17 L18.28 9.40 L18.80 12.00 Z"/><circle cx="12" cy="12" r="3"/>');
+    const icoSearch  = I('<circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/>');
+    const icoPlus    = I('<path d="M12 5v14M5 12h14"/>');
+    const icoChevR   = I('<path d="m9 18 6-6-6-6"/>');
+    const icoChevU   = I('<path d="m18 15-6-6-6 6"/>');
+    const icoChevD   = I('<path d="m6 9 6 6 6-6"/>');
+    const icoSun     = I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon    = I('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+    const icoHelp    = I('<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.4 2.4 0 0 1 4.5 1.1c0 1.5-2.1 2-2.1 3"/><path d="M12 17h.01"/>');
+    const icoFile    = I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13l2 2 4-4"/>');
+    const icoFileUp  = I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-5M9.5 15l2.5-2.5L14.5 15"/>');
+    const icoSliders = I('<path d="M4 6h8M16 6h4M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>');
+    const icoClose   = I('<path d="M18 6 6 18M6 6l12 12"/>');
+    const icoEdit    = I('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>');
+    const icoBan     = I('<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>');
+    const icoTrash   = I('<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>');
+    const icoBox     = I('<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>');
+    const icoMonitor = I('<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>');
+    const icoUp      = I('<path d="M7 17 17 7M9 7h8v8"/>');
+    const icoDown    = I('<path d="M7 7 17 17M17 9v8H9"/>');
+
+    const P='hsl(var(--primary-text))', M='hsl(var(--muted-foreground))', OK='hsl(var(--ok))', F='hsl(var(--foreground))';
+
+    const navMain = [
+      {label:'Dashboard',icon:icoGrid}, {label:'Atividades',icon:icoActivity},
+      {label:'Agenda',icon:icoCalendar}, {label:'Funil',icon:icoFunnel},
+      {label:'Pacientes',icon:icoUsers}, {label:'Financeiro',icon:icoMoney, active:true},
+      {label:'Metas',icon:icoTarget}, {label:'Insights',icon:icoBulb},
+      {label:'Procedimentos',icon:icoSyringe}, {label:'Exportações',icon:icoDownload},
+      {label:'Notificações',icon:icoBell}, {label:'Configurações',icon:icoSettings},
+    ].map(n=>({ ...n, weight:n.active?600:500, color:n.active?P:M, iconColor:n.active?P:M, bg:n.active?'hsl(var(--accent))':'transparent', onClick:(e)=>{ if(e&&e.preventDefault)e.preventDefault(); if(this.props.onNavigate)this.props.onNavigate(n.label); } }));
+
+    // ---- tabs ----
+    const tab = this.state.tab;
+    const tabDefs = [['visao','Visão Geral'],['dre','DRE'],['receitas','Receitas'],['contas','Contas a Receber'],['custos','Custos'],['ativos','Ativos']];
+    const seg = (on)=>'position:relative; border:none; background:transparent; cursor:pointer; font-size:13.5px; font-weight:600; padding:9px 12px; margin-bottom:-1px; white-space:nowrap; font-family:inherit; color:'+(on?'hsl(var(--foreground))':'hsl(var(--muted-foreground))')+'; border-bottom:2px solid transparent;';
+    const tabs = tabDefs.map(([k,label])=>({ label, style:seg(tab===k), active:(tab===k)?'1':'', onClick:()=>this.setState({tab:k}) }));
+    const tabLabel = (tabDefs.find(t=>t[0]===tab)||['','Visão Geral'])[1];
+
+    // ---- chart ----
+    const revMode = this.state.revMode;
+    const revLegend = revMode==='recebida' ? 'recebida' : 'gerada';
+    const segSwitch = (on)=>'border:none; cursor:pointer; font-size:12.5px; font-weight:600; padding:6px 14px; border-radius:7px; font-family:inherit; background:'+(on?'hsl(var(--primary))':'transparent')+'; color:'+(on?'hsl(var(--primary-foreground))':'hsl(var(--muted-foreground))')+';';
+    const revTabs = [['gerada','Gerada'],['recebida','Recebida']].map(([k,label])=>({ label, style:segSwitch(revMode===k), onClick:()=>this.setState({revMode:k}) }));
+
+    const monthsRaw = [
+      ['jan/2025',82,78,3],['fev/2025',88,83,3],['mar/2025',90,85,3],
+      ['abr/2025',100,94,3],['mai/2025',94,89,3],['jun/2025',102,97,3],
+      ['jul/2025', 96, 90,3],['ago/2025',110,104,3],['set/2025',104,100,3],['out/2025',128,120,4],
+      ['nov/2025',142,138,4],['dez/2025',120,116,4],['jan/2026',150,144,4],['fev/2026',168,160,5],
+      ['mar/2026',158,150,4],['abr/2026',176,170,5],['mai/2026',178,172,6],['jun/2026',200,200,5],
+    ];
+    const scale=200;
+    const chartMonths = monthsRaw.map(([label,g,r,c])=>{
+      const rev = revMode==='recebida' ? r : g;
+      return {
+        label,
+        recH: (Math.min(rev/scale,1)*100).toFixed(2)+'%',
+        custH:(Math.min(c/scale,1)*100).toFixed(2)+'%',
+        recTitle:'Receita '+revLegend+' · '+label+': '+this.fmt(rev),
+        custTitle:'Custos · '+label+': '+this.fmt(c),
+      };
+    });
+    const gChartMonths = monthsRaw.map(([label,g,r,c])=>({ label, gerada:g, recebida:r, custos:c }));
+
+    // ---- KPIs overview (variação vs mês anterior) ----
+    // Variação só nos KPIs de fluxo monetário (Receita, Custos, Lucro, Recebido).
+    // Razões (Margem, Inadimplência) e a projeção (Saldo) não ganham delta — comparação MoM ali é ruído.
+    const cur = monthsRaw[monthsRaw.length-1], prev = monthsRaw[monthsRaw.length-2];
+    const curProfit=cur[1]-cur[3], prevProfit=prev[1]-prev[3];
+    const cardDelta = (pctStr, dir, goodWhenUp)=>{
+      const good = dir==='flat' ? null : (goodWhenUp ? dir==='up' : dir==='down');
+      return {
+        showDelta:true, deltaPct:pctStr, showDeltaIcon:dir!=='flat',
+        deltaIcon: dir==='down' ? icoDown : icoUp,
+        deltaColor: good===null ? M : good ? 'hsl(var(--ok))' : 'hsl(var(--destructive))',
+        deltaBg:    good===null ? 'hsl(var(--muted))' : good ? 'hsl(var(--ok-bg))' : 'hsl(var(--destructive)/0.12)',
+      };
+    };
+    const dPc = (c,p,goodUp)=>{ if(!p) return cardDelta('novo','up',goodUp); const x=(c-p)/p*100; return cardDelta((x>0?'+':'')+x.toFixed(1).replace('.',',')+'%', x>0.05?'up':x<-0.05?'down':'flat', goodUp); };
+
+    const kpisTop = [
+      {label:'Receita do mês (competência)', value:this.fmt(200), color:F,  ...dPc(cur[1],prev[1],true)},
+      {label:'Custos do mês',                value:this.fmt(5),   color:F,  ...dPc(cur[3],prev[3],false)},
+      {label:'Lucro líquido',                value:this.fmt(195), color:OK, ...dPc(curProfit,prevProfit,true)},
+      {label:'Margem líquida',               value:'97,5%',       color:OK},
+    ];
+    const kpisCash = [
+      {label:'Recebido no mês (caixa)',   value:this.fmt(200), color:OK, ...dPc(cur[2],prev[2],true)},
+      {label:'Saldo projetado (30 dias)', value:this.fmt(372), color:F},
+      {label:'Vencido',                   value:this.fmt(0),   color:F},
+      {label:'Taxa de inadimplência',     value:'0,0%',        color:OK},
+    ];
+
+    const TOP_VIS = 5;
+    const pop = this.state.pop;
+    const openPop = (id)=>this.setState(s=>({pop: s.pop===id ? null : id}));
+    const closePop = ()=>this.setState({pop:null});
+
+    const topProcRaw = [
+      ['Drenagem linfática - PO', 9, 1980],
+      ['Limpeza de pele profunda', 14, 1820],
+      ['Toxina botulínica', 6, 9600],
+      ['Preenchimento labial', 5, 7250],
+      ['Peeling de diamante', 11, 1540],
+      ['Microagulhamento', 7, 2380],
+    ];
+    const procMax = Math.max(...topProcRaw.map(p=>p[2]));
+    const topProcFull = topProcRaw.map((p,i)=>({ rank:i+1, name:p[0], meta:p[1]+'×', total:this.fmt(p[2]), w:(p[2]/procMax*100).toFixed(1)+'%' }));
+    const topProc = topProcFull.slice(0, TOP_VIS);
+    const procCount = topProcFull.length;
+    const procMore = Math.max(0, topProcFull.length - TOP_VIS);
+
+    const topCustoRaw = [
+      ['Produtos e insumos', 'Variável', 4120],
+      ['Folha / comissões', 'Fixo', 3850],
+      ['Aluguel', 'Fixo', 2600],
+      ['Marketing', 'Variável', 1480],
+      ['Energia e água', 'Fixo', 720],
+      ['Manutenção de equipamentos', 'Variável', 540],
+    ];
+    const custoMax = Math.max(...topCustoRaw.map(c=>c[2]));
+    const topCustoFull = topCustoRaw.map((c,i)=>({ rank:i+1, name:c[0], meta:c[1], total:this.fmt(c[2]), w:(c[2]/custoMax*100).toFixed(1)+'%' }));
+    const topCusto = topCustoFull.slice(0, TOP_VIS);
+    const custoCount = topCustoFull.length;
+    const custoMore = Math.max(0, topCustoFull.length - TOP_VIS);
+
+    // ---- Top compradores & vendedores ----
+    const buyersRaw = [
+      ['Janaina Yeva',14,9860],['Patrícia Mendonça',12,8420],['Renata Albuquerque',11,7150],
+      ['Camila Furtado',9,6030],['Beatriz Nogueira',8,5480],['Larissa Sampaio',7,4260],
+      ['Vanessa Coêlho',6,3910],['Tatiane Bourbon',5,3140],['Aline Quintela',5,2620],
+      ['Fernanda Wachowski',4,2080],
+    ];
+    const buyMax = buyersRaw[0][2];
+    const topBuyersFull = buyersRaw.map((b,i)=>({ rank:i+1, name:b[0], meta:b[1]+' atend.', total:this.fmt(b[2]), w:(b[2]/buyMax*100).toFixed(1)+'%' }));
+    const topBuyers = topBuyersFull.slice(0, TOP_VIS);
+    const buyersCount = topBuyersFull.length;
+    const buyersMore = Math.max(0, topBuyersFull.length - TOP_VIS);
+
+    const sellersRaw = [
+      ['Dra. Helena Costa',38,28940],['Mariana Tavares',31,22100],['Júlia Bernardes',27,18760],
+      ['Carolina Penteado',22,14300],['Rafael Siqueira',16,9880],
+    ];
+    const sellMax = sellersRaw[0][2];
+    const topSellersFull = sellersRaw.map((s,i)=>({ rank:i+1, name:s[0], meta:s[1]+' vendas', total:this.fmt(s[2]), w:(s[2]/sellMax*100).toFixed(1)+'%' }));
+    const topSellers = topSellersFull.slice(0, TOP_VIS);
+    const sellersCount = topSellersFull.length;
+    const sellersMore = Math.max(0, topSellersFull.length - TOP_VIS);
+
+    // ---- DRE ----
+    const sectionRow = 'display:flex; align-items:center; gap:12px; padding:14px 18px; background:hsl(var(--muted)/0.45); border-top:1px solid hsl(var(--border));';
+    const subRow     = 'display:flex; align-items:center; gap:12px; padding:11px 18px 11px 30px; border-top:1px solid hsl(var(--border));';
+    const lblSec     = 'flex:1; font-size:13.5px; font-weight:600; color:hsl(var(--foreground));';
+    const lblSub     = 'flex:1; font-size:12.5px; color:hsl(var(--muted-foreground));';
+    const valSec     = 'width:150px; flex:none; text-align:right; font-size:13.5px; font-weight:600; color:hsl(var(--foreground)); font-variant-numeric:tabular-nums;';
+    const valSub     = 'width:150px; flex:none; text-align:right; font-size:12.5px; color:hsl(var(--foreground)); font-variant-numeric:tabular-nums;';
+    const dreDefs = [
+      {label:'Receita Bruta',                   value:this.fmtSigned(200),       sec:true},
+      {label:'Procedimentos',                   value:this.fmtSigned(200)},
+      {label:'(–) Deduções',                    value:this.fmtSigned(-26077.5)},
+      {label:'Inadimplência',                   value:this.fmtSigned(-26077.5)},
+      {label:'Receita Líquida',                 value:this.fmtSigned(-25877.5),  sec:true},
+      {label:'(–) Custo dos serviços (CSP)',    value:this.fmtSigned(-5)},
+      {label:'Custo de produtos/procedimentos', value:this.fmtSigned(-5)},
+      {label:'Lucro Bruto',                     value:this.fmtSigned(-25882.5),  sec:true, pct:'0,00%'},
+      {label:'(–) Despesas Operacionais',       value:this.fmtSigned(-0)},
+      {label:'EBITDA',                          value:this.fmtSigned(-25882.5),  sec:true, pct:'0,00%'},
+      {label:'(–) Depreciação e Amortização',   value:this.fmtSigned(-0)},
+      {label:'EBIT (resultado operacional)',    value:this.fmtSigned(-25882.5),  sec:true},
+      {label:'Resultado Financeiro',            value:this.fmtSigned(0)},
+      {label:'LAIR (lucro antes do IR)',        value:this.fmtSigned(-25882.5),  sec:true},
+      {label:'(–) IR / CSLL',                   value:this.fmtSigned(-0)},
+      {label:'Lucro Líquido',                   value:this.fmtSigned(-25882.5),  sec:true, pct:'0,00%'},
+    ];
+    const dreRows = dreDefs.map(r=>({
+      label:r.label, value:r.value, pct:r.pct||'',
+      rowStyle: r.sec?sectionRow:subRow,
+      labelStyle: r.sec?lblSec:lblSub,
+      valueStyle: r.sec?valSec:valSub,
+    }));
+    const drePeriodDefs = [['mes','Mês'],['trimestre','Trimestre'],['ano','Ano']];
+    const drePeriodTabs = drePeriodDefs.map(([k,label])=>({ label, style:this.segBtn(this.state.drePeriod===k), onClick:()=>this.setState({drePeriod:k}) }));
+    const drePeriodPill = this.segPill(drePeriodDefs.findIndex(d=>d[0]===this.state.drePeriod), drePeriodDefs.length);
+
+    // ---- Receitas ----
+    const receitasData = [
+      {date:'17/06/2026', desc:'—', patient:'Janaina Yeva', proc:'Drenagem linfatica - PO', pay:'Pix', value:200},
+    ];
+    const receitas = receitasData.map(r=>({ ...r, value:this.fmt(r.value) }));
+    const recSumN = receitasData.reduce((a,r)=>a+r.value,0);
+    const recCountLabel = receitasData.length+(receitasData.length===1?' receita':' receitas');
+    const recSum = this.fmt(recSumN);
+    const recFilters = [{label:'Pagamento'},{label:'Procedimento'},{label:'Paciente'}];
+
+    // ---- Custos ----
+    const custosData = [
+      {date:'17/06/2026', type:'Variável', cat:'Procedimento', desc:'Drenagem linfatica - PO', rec:'—', value:5},
+    ];
+    const custos = custosData.map(c=>({ ...c, value:this.fmt(c.value) }));
+    const custCountLabel = custosData.length+(custosData.length===1?' custo':' custos');
+
+    // ---- Contas a Receber ----
+    const badge = (kind)=>{
+      const base='display:inline-flex; align-items:center; font-size:11px; font-weight:600; line-height:1; padding:4px 11px; border-radius:99px; white-space:nowrap;';
+      if(kind==='perdido')   return base+' background:hsl(var(--destructive)/0.16); color:hsl(var(--destructive));';
+      if(kind==='encerrada') return base+' background:hsl(var(--muted)); color:hsl(var(--muted-foreground));';
+      if(kind==='aberto')    return base+' background:hsl(var(--warn-bg)); color:hsl(var(--warn));';
+      return base+' background:hsl(var(--muted)); color:hsl(var(--muted-foreground));';
+    };
+    const open = this.state.openRows;
+    const contasData = [
+      {id:'k1', client:'Klaus',             parcelas:'À vista', venc:'23/05/2026', value:1900,   status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'k2', client:'Klaus',             parcelas:'À vista', venc:'28/05/2026', value:500,    status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'l1', client:'Lead teste',        parcelas:'À vista', venc:'29/05/2026', value:1500,   status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'l2', client:'Terceiro Lead Teste',parcelas:'À vista',venc:'30/05/2026', value:1500,   status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'l3', client:'Segundo Lead Teste',parcelas:'À vista', venc:'30/05/2026', value:500,    status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'l4', client:'Quarto Lead Teste', parcelas:'À vista', venc:'30/05/2026', value:1500,   status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'l5', client:'Segundo Lead Teste',parcelas:'À vista', venc:'01/06/2026', value:500,    status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'l6', client:'Segundo Lead Teste',parcelas:'À vista', venc:'02/06/2026', value:2000,   status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'l7', client:'Quarto Lead Teste', parcelas:'À vista', venc:'02/06/2026', value:4037.5, status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'c1', client:'Cliente teste',     parcelas:'2x · 0/2 pagas', venc:'—',   value:2130, received:0, status:'Encerrada', kind:'encerrada', action:'ver parcelas', expandable:true,
+        parcels:[
+          {label:'Parcela 1 de 2', venc:'02/06/2026', value:1065, status:'Não paga', kind:'encerrada'},
+          {label:'Parcela 2 de 2', venc:'02/07/2026', value:1065, status:'Não paga', kind:'encerrada'},
+        ]},
+      {id:'l8', client:'Quinto Lead Teste', parcelas:'À vista', venc:'02/06/2026', value:4000,   status:'Perdido', kind:'perdido', action:'Reverter'},
+      {id:'c2', client:'Klaus',             parcelas:'5x · 0/5 pagas', venc:'—',   value:2000, received:0, status:'Encerrada', kind:'encerrada', action:'ver parcelas', expandable:true,
+        parcels:[
+          {label:'Parcela 1 de 5', venc:'02/06/2026', value:400, status:'Não paga', kind:'encerrada'},
+          {label:'Parcela 2 de 5', venc:'02/07/2026', value:400, status:'Não paga', kind:'encerrada'},
+          {label:'Parcela 3 de 5', venc:'02/08/2026', value:400, status:'Não paga', kind:'encerrada'},
+          {label:'Parcela 4 de 5', venc:'02/09/2026', value:400, status:'Não paga', kind:'encerrada'},
+          {label:'Parcela 5 de 5', venc:'02/10/2026', value:400, status:'Não paga', kind:'encerrada'},
+        ]},
+      {id:'l9', client:'Sexto Lead Teste',  parcelas:'À vista', venc:'08/06/2026', value:550,    status:'Perdido', kind:'perdido', action:'Reverter'},
+    ];
+    const contas = contasData.map(c=>({
+      id:c.id, client:c.client, desc:c.desc||'', hasDesc:!!c.desc,
+      parcelas:c.parcelas, venc:c.venc, value:this.fmt(c.value),
+      received: c.received!==undefined ? this.fmt(c.received)+' recebido' : '', hasReceived: c.received!==undefined,
+      status:c.status, badgeStyle:badge(c.kind), action:c.action,
+      actionColor: c.kind==='perdido' ? P : M,
+      expandable:!!c.expandable, open: !!open[c.id], chevTransform: open[c.id]?'rotate(90deg)':'rotate(0deg)',
+      onToggle:()=>this.setState(s=>({openRows:{...s.openRows,[c.id]:!s.openRows[c.id]}})),
+      onAction:()=>{ if(c.expandable) this.setState(s=>({openRows:{...s.openRows,[c.id]:!s.openRows[c.id]}})); },
+      parcels:(c.parcels||[]).map(p=>({ label:p.label, venc:p.venc, value:this.fmt(p.value), status:p.status, badgeStyle:badge(p.kind) })),
+    }));
+    const perdidoTotal = contasData.filter(c=>c.kind==='perdido').reduce((a,c)=>a+c.value,0);
+    const perdidoCount = contasData.filter(c=>c.kind==='perdido').length;
+    const encerradaTotal = contasData.filter(c=>c.kind==='encerrada').reduce((a,c)=>a+c.value,0);
+    const encerradaCount = contasData.filter(c=>c.kind==='encerrada').length;
+    const arSummary = [
+      {label:'Em aberto', value:this.fmt(0), count:'0 títulos', color:F},
+      {label:'Vencido',   value:this.fmt(0), count:'0 títulos', color:F},
+      {label:'Perdido',   value:this.fmt(perdidoTotal), count:perdidoCount+' títulos', color:'hsl(var(--destructive))'},
+      {label:'Encerradas',value:this.fmt(encerradaTotal), count:encerradaCount+' títulos', color:M},
+    ];
+
+    // ---- Ativos ----
+    const ativosFilled = (this.props.ativosState || 'filled') !== 'empty';
+    const intangData = [
+      {name:'Sistema de gestão (Senno)', sub:'Assinatura anual capitalizada', type:'Software', value:7200, lifeMonths:36, accrued:1800},
+      {name:'Licença Photoshop',         sub:'Pacote criativo — marketing',   type:'Licença',  value:2400, lifeMonths:24, accrued:900},
+      {name:'Marca registrada Bellavie', sub:'Registro INPI + honorários',     type:'Marca',    value:9000, lifeMonths:120, accrued:1500},
+    ];
+    const ativosIntang = intangData.map(a=>{
+      const per = a.value / a.lifeMonths;
+      return { name:a.name, sub:a.sub, type:a.type, value:this.fmt(a.value),
+        life:Math.round(a.lifeMonths/12)+(a.lifeMonths>=24?' anos':' ano'),
+        perMonth:'-'+this.fmt(per), accrued:this.fmt(a.accrued) };
+    });
+    const intangPerMonthTotal = '-'+this.fmt(intangData.reduce((s,a)=>s+a.value/a.lifeMonths,0));
+
+    const equipData = [
+      {name:'Laser CO2 fracionado', supplier:'MedRent Equipamentos', start:'01/03/2026', rent:1850, status:'Ativo'},
+      {name:'Cadeira de procedimentos elétrica', supplier:'EstéticaLoc', start:'15/04/2026', rent:640, status:'Ativo'},
+    ];
+    const ativosEquip = equipData.map(e=>({ name:e.name, supplier:e.supplier, start:e.start, rent:'-'+this.fmt(e.rent), status:e.status }));
+    const equipRentTotal = '-'+this.fmt(equipData.reduce((s,e)=>s+e.rent,0));
+
+    const periodMonths = {'Mensal':1,'Trimestral':3,'Semestral':6,'Anual':12};
+    const tangData = [
+      {name:'Aparelho de radiofrequência', sub:'Equipamento corporal — Sala 1', purchased:'12/01/2026', price:18500, maint:'Trimestral', maintCost:480, next:'12/07/2026'},
+      {name:'Maca elétrica 3 motores', sub:'Sala 2', purchased:'03/11/2025', price:6200, maint:'Anual', maintCost:350, next:'03/11/2026'},
+      {name:'Autoclave 21L', sub:'Esterilização', purchased:'20/02/2026', price:4300, maint:'Semestral', maintCost:260, next:'20/08/2026'},
+    ];
+    const ativosTang = tangData.map(a=>({ name:a.name, sub:a.sub, purchased:a.purchased, price:this.fmt(a.price), maint:a.maint, maintCost:'-'+this.fmt(a.maintCost), next:a.next }));
+    const tangMaintMonthly = '-'+this.fmt(tangData.reduce((s,a)=>s + a.maintCost/(periodMonths[a.maint]||12), 0));
+
+    return {
+      theme:this.props.theme ?? this.state.theme,
+      ...this._notif(), indLeft:(this.state.indLeft||0)+'px', indWidth:(this.state.indWidth||0)+'px', indOpacity:this.state.indWidth?1:0, setTabBar:this.setTabBar, navMain, tabs, tabLabel,
+      hasIntang:ativosFilled, noIntang:!ativosFilled, ativosIntang, intangPerMonthTotal,
+      hasEquip:ativosFilled, noEquip:!ativosFilled, ativosEquip, equipRentTotal,
+      hasTang:ativosFilled, noTang:!ativosFilled, ativosTang, tangMaintMonthly,
+      isVisao:tab==='visao', isDre:tab==='dre', isReceitas:tab==='receitas',
+      isContas:tab==='contas', isCustos:tab==='custos', isAtivos:tab==='ativos',
+      kpisTop, kpisCash,
+      revTabs, revLegend, chartMonths, gChartMonths,
+      topProc, topProcFull, procCount, procMore, procHasMore: procMore>0, procPopOpen: pop==='proc', onProcPop: ()=>openPop('proc'),
+      topCusto, topCustoFull, custoCount, custoMore, custoHasMore: custoMore>0, custoPopOpen: pop==='custo', onCustoPop: ()=>openPop('custo'),
+      topBuyers, topBuyersFull, buyersCount, buyersMore, buyersHasMore: buyersMore>0, buyersPopOpen: pop==='buyers', onBuyersPop: ()=>openPop('buyers'),
+      topSellers, topSellersFull, sellersCount, sellersMore, sellersHasMore: sellersMore>0, sellersPopOpen: pop==='sellers', onSellersPop: ()=>openPop('sellers'),
+      closePop,
+      dreRows, drePeriodTabs, drePeriodPill,
+      receitas, recCountLabel, recSum, recFilters,
+      recFiltersOpen:this.state.recFiltersOpen, icoSliders, icoClose,
+      onToggleRecFilters:()=>this.setState(s=>({recFiltersOpen:!s.recFiltersOpen})),
+      recFilterBtnStyle:'height:38px; padding:0 14px; border-radius:9px; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; '+(this.state.recFiltersOpen?'border:1px solid hsl(var(--ring)); background:hsl(var(--accent)); color:hsl(var(--primary-text));':'border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground));'),
+      custos, custCountLabel,
+      contas, arSummary,
+      icoSearch, icoBell, icoPlus, icoChevR, icoChevU, icoChevD, icoHelp, icoFile, icoFileUp,
+      icoEdit, icoBan, icoTrash, icoDownload, icoBox, icoMonitor,
+      themeIcon:(this.props.theme??this.state.theme)==='dark'?icoMoon:icoSun,
+      themeTitle:(this.props.theme??this.state.theme)==='dark'?'Modo escuro':'Modo claro',
+      toggleTheme:()=> this.props.onToggleTheme ? this.props.onToggleTheme() : this.setState(s=>({theme:s.theme==='dark'?'light':'dark'})),
+    };
+  }
+}
+</script>
+</body>
+</html>

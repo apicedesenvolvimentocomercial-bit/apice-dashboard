@@ -6,6 +6,7 @@ import {
   type DREInput,
   type DREOutput,
 } from '@/server/services/dre/calcular-dre'
+import { cn } from '@/lib/utils'
 
 export type DreRowData = {
   label: string
@@ -58,11 +59,15 @@ export function buildDreRows(i: DREInput, o: DREOutput): DreRowData[] {
   ]
 }
 
-/** Render puro da DRE (receita → lucro líquido). Reusado pela clínica e pelo admin. */
+/**
+ * Render da DRE em cascata — redesign Senno (Financeiro-handoff §6.2): linha de
+ * seção com fundo `muted/0.45` e 13.5px/600; subitem indentado 30px em muted;
+ * coluna de % (64px) só nos subtotais com margem. Reusado clínica + admin.
+ */
 export function DreReportTable({ input, output }: { input: DREInput; output: DREOutput }) {
   const rows = buildDreRows(input, output)
   return (
-    <div className="divide-y">
+    <div>
       {rows.map((row, idx) => (
         <DreRow key={idx} row={row} />
       ))}
@@ -71,33 +76,37 @@ export function DreReportTable({ input, output }: { input: DREInput; output: DRE
 }
 
 function DreRow({ row }: { row: DreRowData }) {
-  const isSubtotal = row.kind === 'subtotal' || row.kind === 'result'
-  const isResult = row.kind === 'result'
-  const isItem = row.kind === 'item' || row.kind === 'deduction'
+  const isSection = row.kind === 'subtotal' || row.kind === 'result'
   return (
     <div
-      className={[
-        'flex items-center justify-between gap-4 px-4 py-2.5',
-        isResult ? 'bg-primary/5' : '',
-        isSubtotal ? 'font-semibold' : '',
-        isItem ? 'pl-8 text-sm text-muted-foreground' : '',
-      ].join(' ')}
+      className={cn(
+        'flex items-center gap-3 border-t border-border first:border-t-0',
+        isSection ? 'bg-muted/45 px-[18px] py-3.5' : 'py-[11px] pl-[30px] pr-[18px]'
+      )}
     >
-      <span className={isResult ? 'text-base' : ''}>{row.label}</span>
-      <div className="flex items-center gap-3">
-        {row.margin != null && (
-          <span className="text-xs text-muted-foreground">{formatarPercentual(row.margin)}</span>
+      <span
+        className={cn(
+          'min-w-0 flex-1 truncate',
+          isSection
+            ? 'text-[13.5px] font-semibold text-foreground'
+            : 'text-[12.5px] text-muted-foreground'
         )}
-        <span
-          className={[
-            'tabular-nums',
-            isResult ? 'text-base font-bold' : '',
-            row.value < 0 ? 'text-muted-foreground' : '',
-          ].join(' ')}
-        >
-          {formatarBRL(row.value)}
-        </span>
-      </div>
+      >
+        {row.label}
+      </span>
+      <span className="w-16 flex-none text-right text-xs tabular-nums text-muted-foreground">
+        {row.margin != null ? formatarPercentual(row.margin) : ''}
+      </span>
+      <span
+        className={cn(
+          'w-[150px] flex-none text-right tabular-nums',
+          isSection
+            ? 'text-[13.5px] font-semibold text-foreground'
+            : 'text-[12.5px] text-foreground'
+        )}
+      >
+        {formatarBRL(row.value)}
+      </span>
     </div>
   )
 }

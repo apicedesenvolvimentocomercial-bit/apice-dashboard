@@ -9,7 +9,20 @@ import { runInsightsForClinic } from '@/server/services/insights/engine'
 export type InsightRow = Awaited<ReturnType<typeof listInsights>>[number]
 
 /**
- * Lista os insights RECALCULANDO antes (carregamento automático ao abrir a página).
+ * Janela do gate de frescor do recálculo automático. O marcador é o
+ * `max(updatedAt)` dos insights da clínica: qualquer escrita (engine OU ação
+ * de status como Reconhecer/Dispensar) o renova.
+ */
+const FRESHNESS_WINDOW_MS = 10 * 60 * 1000
+
+/**
+ * Lista os insights RECALCULANDO antes (carregamento automático ao abrir a página),
+ * atrás de um GATE DE FRESCOR: o engine só reroda se a última mexida nos insights
+ * da clínica tiver mais de 10 min. Sem o gate, cada ação de status pagava o engine
+ * inteiro de novo na revalidação (era o gargalo de latência das ações). O botão
+ * "Recalcular" (`recalculateInsightsAction`) chama o engine direto, SEM gate.
+ * Clínica sem nenhum insight roda sempre (não há marcador de última análise).
+ *
  * O recálculo é best-effort: uma regra que falhe não quebra a tela, e roda com
  * `notify:false` — só a ação explícita "Recalcular"/cron dispara notificação, para
  * que uma simples visita não gere alertas. Gate `insights:read` + escopo via
@@ -27,7 +40,16 @@ export async function listInsightsFresh(
   await assertClientAccess(ctx, clientId)
   enterClientScope(clientId)
   await assertCan(ctx, 'insights', 'read')
-  await runInsightsForClinic(ctx.organizationId, clientId, { notify: false }).catch(() => {})
+
+  const last = await prisma.insight.aggregate({
+    where: { organizationId: ctx.organizationId, clientId },
+    _max: { updatedAt: true },
+  })
+  const lastTouch = last._max.updatedAt
+  const isFresh = lastTouch != null && Date.now() - lastTouch.getTime() < FRESHNESS_WINDOW_MS
+  if (!isFresh) {
+    await runInsightsForClinic(ctx.organizationId, clientId, { notify: false }).catch(() => {})
+  }
   return listInsights(clientId, filters)
 }
 
@@ -49,6 +71,9 @@ export async function listInsights(
     diagnosis: string
     suggestion: string
     estimatedImpact: number | null
+    // JSON livre da regra; a UI extrai `metadata.metric` ({value,label}) p/ o
+    // destaque do card (redesign) com fallback em estimatedImpact.
+    metadata: unknown
     createdAt: Date
     updatedAt: Date
     acknowledgedAt: Date | null
