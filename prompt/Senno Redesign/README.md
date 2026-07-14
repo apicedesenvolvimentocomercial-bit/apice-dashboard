@@ -109,7 +109,25 @@ Cada `.dc.html` corresponde a uma rota/tela; todas compartilham o mesmo chrome (
   linha única); dismiss por classe CSS + `setTimeout` (mesma técnica do Atividades) em vez da Web
   Animations API do §11 (mesmo resultado visual); botão de ação só faz deep-link (marcar como lida
   é função do toggle); `now` vem do servidor via prop (carimbos/grupos determinísticos no SSR).
-- `Configuracoes.dc.html` — configurações.
+- **`Configurações/`** — ✅ CONCLUÍDO (handoff + implementado no produto, 2026-07-14). Coluna
+  centralizada 940px; busca de configuração + 10 chips de categoria (§4, filtro em tempo real
+  só dos chips, empty "Nenhuma configuração encontrada…", "Todas" empilha); shell de card de
+  seção único (§5) + 9 seções: Perfil (nome+e-mail+senha num card, rodapé único), Aparência
+  (segmented sem pílula ligado ao next-themes), Clínica, Pagamento no crédito (campo condicional
+  tracejado), Webhooks (Copiar com estado `ok` 1400ms), Régua de retenção (toggle §16.3, card
+  inativo a .66), Pessoas (banner tracejado com contagens reais), Cargos (dnd com feedback
+  opacity .5 + borda dourada) e Usuários (coroa `primary-text` + select 172px). Desvios
+  documentados: chips GATEADOS por cargo/coroa (só aparece seção que o viewer vê); seção
+  inativa fica `hidden` (preserva estado de form ao alternar chips); e-mail do Perfil é o
+  login e não é editável; senha preenchida derruba todas as sessões e força novo login (nome
+  salvo antes); Estado = 27 UFs (protótipo tinha 7); Regime sem MEI (enum real); CNAE =
+  combobox com busca; Pagamento usa taxa POR FAIXA de parcelas (`creditFeeTiers`) e ajuda
+  reflete o real (taxa vira despesa financeira); token de webhook NÃO fica visível em repouso
+  (só o hash é guardado — o cru aparece uma vez ao gerar/rotacionar); Retenção tem 2 modos
+  reais (Por tarefas/Automático — sem o "Manual sem ação" do protótipo), 4 modelos (sem
+  "Relembrar do agendamento", que é evento de agenda), toggle Ativa entra no "Salvar mensagem"
+  e a tabela "Últimas mensagens da fila" (funcionalidade existente) foi mantida num card;
+  "Tornar titular" mantido em Usuários (fora do protótipo).
 
 > Abra qualquer `.dc.html` num navegador para ver a tela renderizada e interagir com ela.
 > As telas sem subpasta ainda vivem na raiz do pacote; conforme cada handoff for produzido, ela ganha sua própria pasta no padrão acima.

@@ -3,25 +3,69 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { SearchableSelect } from '@/components/shared/searchable-select'
 import { CNAE_OPTIONS } from '@/lib/cnae-list'
 import { updateClinicSettingsAction } from '@/server/actions/settings-actions'
 
+import {
+  FieldError,
+  SETTINGS_BTN_PRIMARY,
+  SETTINGS_INPUT,
+  SETTINGS_LABEL,
+  SETTINGS_TEXTAREA,
+  SettingsSectionCard,
+  SettingsSelect,
+} from './section-card'
+
+/**
+ * Seção Clínica — redesign Senno (Configurações-handoff §9). Grid 2col: nome
+ * em largura cheia; e-mail/telefone/cidade/estado/regime/CNAE em 1 col;
+ * observações em largura cheia. Rodapé com "Salvar dados da clínica".
+ *
+ * Desvios documentados vs. protótipo:
+ * - Estado = select com as 27 UFs (o protótipo listava só 7 — sem razão p/
+ *   limitar) + "Não informar".
+ * - Regime tributário SEM a opção MEI — o enum real (`TaxRegime`) só tem
+ *   Simples/Presumido/Real e a DRE depende dele.
+ * - CNAE usa o combobox com busca já existente (lista oficial longa), não o
+ *   input de texto do protótipo.
+ */
+
 const NO_CNAE = '__none__'
+
+const UFS = [
+  'AC',
+  'AL',
+  'AP',
+  'AM',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MT',
+  'MS',
+  'MG',
+  'PA',
+  'PB',
+  'PR',
+  'PE',
+  'PI',
+  'RJ',
+  'RN',
+  'RS',
+  'RO',
+  'RR',
+  'SC',
+  'SP',
+  'SE',
+  'TO',
+] as const
 
 const schema = z.object({
   name: z.string().trim().min(2, 'Nome obrigatório'),
@@ -52,7 +96,12 @@ type Props = {
 
 export function ClinicSettingsForm({ clientId, initial }: Props) {
   const router = useRouter()
-  const form = useForm<Values>({
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { isSubmitting, errors },
+  } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: initial.name,
@@ -77,109 +126,91 @@ export function ClinicSettingsForm({ clientId, initial }: Props) {
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nome da clínica</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input type="email" placeholder="contato@clinica.com" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Telefone</FormLabel>
-                <FormControl>
-                  <Input placeholder="(11) 99999-9999" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="city"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Cidade</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="state"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Estado</FormLabel>
-                <FormControl>
-                  <Input maxLength={2} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <FormField
-          control={form.control}
-          name="taxRegime"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Regime tributário</FormLabel>
-              <FormControl>
-                <select
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  {...field}
-                >
-                  <option value="SIMPLES">Simples Nacional</option>
-                  <option value="PRESUMIDO">Lucro Presumido</option>
-                  <option value="REAL">Lucro Real</option>
-                </select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="cnae"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>CNAE</FormLabel>
-              <FormControl>
+    <SettingsSectionCard
+      title="Clínica"
+      description="Dados cadastrais usados em documentos, recibos e integrações fiscais."
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <div className="grid grid-cols-1 gap-x-[18px] gap-y-4 lg:grid-cols-2">
+          <div className="lg:col-span-2">
+            <label htmlFor="clinic-name" className={SETTINGS_LABEL}>
+              Nome da clínica
+            </label>
+            <input id="clinic-name" type="text" className={SETTINGS_INPUT} {...register('name')} />
+            <FieldError message={errors.name?.message} />
+          </div>
+
+          <div>
+            <label htmlFor="clinic-email" className={SETTINGS_LABEL}>
+              E-mail
+            </label>
+            <input
+              id="clinic-email"
+              type="email"
+              placeholder="contato@clinica.com"
+              className={SETTINGS_INPUT}
+              {...register('email')}
+            />
+            <FieldError message={errors.email?.message} />
+          </div>
+          <div>
+            <label htmlFor="clinic-phone" className={SETTINGS_LABEL}>
+              Telefone
+            </label>
+            <input
+              id="clinic-phone"
+              type="text"
+              placeholder="(11) 99999-9999"
+              className={SETTINGS_INPUT}
+              {...register('phone')}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="clinic-city" className={SETTINGS_LABEL}>
+              Cidade
+            </label>
+            <input id="clinic-city" type="text" className={SETTINGS_INPUT} {...register('city')} />
+          </div>
+          <div>
+            <label htmlFor="clinic-state" className={SETTINGS_LABEL}>
+              Estado
+            </label>
+            <SettingsSelect id="clinic-state" {...register('state')}>
+              <option value="">Não informar</option>
+              {UFS.map((uf) => (
+                <option key={uf} value={uf}>
+                  {uf}
+                </option>
+              ))}
+            </SettingsSelect>
+          </div>
+
+          <div>
+            <label htmlFor="clinic-tax-regime" className={SETTINGS_LABEL}>
+              Regime tributário
+            </label>
+            <SettingsSelect id="clinic-tax-regime" {...register('taxRegime')}>
+              <option value="SIMPLES">Simples Nacional</option>
+              <option value="PRESUMIDO">Lucro Presumido</option>
+              <option value="REAL">Lucro Real</option>
+            </SettingsSelect>
+          </div>
+          <div>
+            <label htmlFor="clinic-cnae" className={SETTINGS_LABEL}>
+              CNAE
+            </label>
+            <Controller
+              control={control}
+              name="cnae"
+              render={({ field }) => (
                 <SearchableSelect
+                  id="clinic-cnae"
                   value={field.value || NO_CNAE}
                   onChange={(v) => field.onChange(v === NO_CNAE ? '' : v)}
                   placeholder="Selecionar CNAE..."
                   emptyText="Nenhum CNAE encontrado"
+                  className="h-10 rounded-[9px] border-input bg-background text-[13.5px] tabular-nums"
                   options={[
                     { value: NO_CNAE, label: 'Não informar' },
                     ...CNAE_OPTIONS.map((c) => ({
@@ -188,33 +219,32 @@ export function ClinicSettingsForm({ clientId, initial }: Props) {
                     })),
                   ]}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Observações</FormLabel>
-              <FormControl>
-                <textarea
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="Notas internas..."
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Salvar
-        </Button>
+              )}
+            />
+          </div>
+
+          <div className="lg:col-span-2">
+            <label htmlFor="clinic-notes" className={SETTINGS_LABEL}>
+              Observações
+            </label>
+            <textarea
+              id="clinic-notes"
+              rows={3}
+              placeholder="Informações internas sobre a clínica…"
+              className={SETTINGS_TEXTAREA}
+              {...register('notes')}
+            />
+          </div>
+        </div>
+
+        {/* Rodapé de ação (§9.2) */}
+        <div className="mt-[22px] flex justify-end border-t border-border pt-5">
+          <button type="submit" className={SETTINGS_BTN_PRIMARY} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            Salvar dados da clínica
+          </button>
+        </div>
       </form>
-    </Form>
+    </SettingsSectionCard>
   )
 }

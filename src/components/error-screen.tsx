@@ -18,13 +18,7 @@ type Props = {
   message?: string
 }
 
-export function ErrorScreen({
-  error,
-  reset,
-  variant = 'panel',
-  title = 'Algo deu errado',
-  message = 'Ocorreu um erro inesperado. Tente novamente ou entre em contato com o suporte.',
-}: Props) {
+export function ErrorScreen({ error, reset, variant = 'panel', title = 'Algo deu errado' }: Props) {
   useEffect(() => {
     logger.error('UI error boundary', {
       message: error.message,
@@ -41,7 +35,7 @@ export function ErrorScreen({
   return (
     <div className={containerCls}>
       <h2 className="text-xl font-semibold">{title}</h2>
-      <p className="text-sm text-muted-foreground">{message}</p>
+      <p className="text-sm text-muted-foreground">{error.message}</p>
       {error.digest && (
         <p className="font-mono text-xs text-muted-foreground/70">ref: {error.digest}</p>
       )}

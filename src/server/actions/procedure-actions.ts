@@ -20,7 +20,7 @@ const procedureSchema = z.object({
     .number()
     .max(9_999_999_999.99, 'Preço muito alto')
     .nonnegative('Preço deve ser positivo'),
-  cost: z.number().max(9_999_999_999.99, 'Preço muito alto').nonnegative('Custo deve ser positivo'),
+  cost: z.number().max(9_999_999_999.99, 'Custo muito alto').nonnegative('Custo deve ser positivo'),
   // Tempo de procedimento de 6 horas max
   durationMinutes: z
     .number()

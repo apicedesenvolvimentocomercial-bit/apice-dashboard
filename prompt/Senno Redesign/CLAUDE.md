@@ -81,8 +81,25 @@ vazados), calPlus. **Lupa = busca; lâmpada = Insights/ideia.** Reaproveite — 
 
 ## Falta fazer (próximas telas, mesmo padrão)
 
-Procedimentos · Metas · Configurações.
+Procedimentos · Metas.
 Opcional na Agenda: ligar visões Dia/Lista e o filtro do topo.
+
+`Configurações` já construída (2026-07-14): coluna 940px; busca de configuração + chips de
+categoria (filtro só dos chips; "Todas" empilha; chips GATEADOS por cargo/coroa — chip só
+aparece se o viewer vê a seção); shell de card de seção + primitivos compartilhados em
+`components/clinic/settings/section-card.tsx`; shell da tela em `clinic-settings-shell.tsx`
+(seção inativa fica `hidden` p/ preservar estado de form). Seções: Perfil (nome+e-mail
+desabilitado+senha num card, rodapé único — senha derruba todas as sessões e força novo
+login, nome salvo antes), Aparência (segmented SEM pílula, next-themes), Clínica (27 UFs;
+regime sem MEI; CNAE combobox), Pagamento no crédito (taxa POR FAIXA `creditFeeTiers` no
+bloco tracejado), Webhooks (token só-hash: cru aparece 1× ao gerar; Copiar com estado `ok`
+1400ms um-por-vez), Régua de retenção (2 modos reais Por tarefas/Automático; 4 modelos;
+toggle §16.3 entra no "Salvar mensagem"; tabela da fila mantida), Pessoas (banner tracejado
+
+- contagens reais de membros/convites), Cargos (dnd-kit com feedback opacity .5 + borda
+  dourada; sem grip p/ cargo de sistema/acima do nível) e Usuários (coroa `primary-text`,
+  select 172px, "Tornar titular" mantido). `ClinicRolesManager` ganhou prop `only`
+  ('roles'|'users') p/ os dois chips.
 
 `Notificações` já construída (2026-07-14): o SINO da topbar já estava redesenhado
 (`topbar-notifications.tsx`, §3.3) — faltava o CORPO. Barra de abas de categoria com
