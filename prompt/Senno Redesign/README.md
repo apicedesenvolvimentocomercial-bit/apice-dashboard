@@ -94,7 +94,21 @@ Cada `.dc.html` corresponde a uma rota/tela; todas compartilham o mesmo chrome (
   fetch+blob com toast de sucesso e erro inline + "Tentar novamente"; micro-hint "Sem dados no
   período" ficou de fora (exigiria contagem por dataset). Cards filtrados por cargo (módulo de
   origem) + vazio composto.
-- `Notificações.dc.html` — central de notificações.
+- **`Notificações/`** — ✅ CONCLUÍDO (handoff + implementado no produto, 2026-07-14). O sino
+  da topbar (§3.3) já estava pronto (`topbar-notifications.tsx`); esta entrega fez o CORPO:
+  abas de categoria em underline medido + "Marcar todas como lidas" (§4); lista agrupada
+  Hoje/Esta semana/Anteriores num card por grupo com meta "N não lidas"/"Tudo lido" (§6/§7);
+  linha com tile por categoria (§8), título 500/600 + dot, descrição, botão de ação (deep-link)
+  e carimbo relativo; botão de alternância marcar-lida (check dourado) / dispensar (X, saída
+  animada slide+colapso) (§9); vazio composto por aba (§10). Desvios documentados: a categoria
+  NÃO é persistida no modelo — é derivada de `type`+`link` (crm=`/crm…`, financial=`/financial`);
+  as abas viraram **uma por categoria REAL** (Todas · Não lidas · Leads · Atividades · Financeiro
+  · Metas · Insights · Pacientes) — a "Agenda" do protótipo saiu (não há tipo de aviso de agenda),
+  entraram Metas/Insights/Pacientes e `sistema` aparece só em "Todas" (decisão de produto
+  2026-07-14); barra de abas rola no eixo X em vez de `flex-wrap` (preserva o indicador medido de
+  linha única); dismiss por classe CSS + `setTimeout` (mesma técnica do Atividades) em vez da Web
+  Animations API do §11 (mesmo resultado visual); botão de ação só faz deep-link (marcar como lida
+  é função do toggle); `now` vem do servidor via prop (carimbos/grupos determinísticos no SSR).
 - `Configuracoes.dc.html` — configurações.
 
 > Abra qualquer `.dc.html` num navegador para ver a tela renderizada e interagir com ela.

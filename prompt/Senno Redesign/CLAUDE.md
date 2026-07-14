@@ -84,6 +84,23 @@ vazados), calPlus. **Lupa = busca; lâmpada = Insights/ideia.** Reaproveite — 
 Procedimentos · Metas · Configurações.
 Opcional na Agenda: ligar visões Dia/Lista e o filtro do topo.
 
+`Notificações` já construída (2026-07-14): o SINO da topbar já estava redesenhado
+(`topbar-notifications.tsx`, §3.3) — faltava o CORPO. Barra de abas de categoria com
+indicador MEDIDO + "Marcar todas como lidas" (§4); lista agrupada Hoje/Esta semana/
+Anteriores num card por grupo (§6/§7); linha com tile por categoria, título 500/600 + dot,
+descrição, botão de ação (deep-link) e carimbo; botão de alternância marcar-lida (check
+dourado) / dispensar (X, saída animada slide+colapso — classe CSS `senno-notif-*` +
+setTimeout 850, padrão do Atividades); vazio composto por aba. Helper novo
+`notification-category.tsx` (deriva categoria de `type`+`link`; tints §8).
+Desvios: categoria NÃO é persistida no modelo `Notification` → derivada de `type`+`link`
+(crm=`/crm…`, financial=`/financial`); abas = uma por categoria REAL (Todas · Não lidas ·
+Leads · Atividades · Financeiro · Metas · Insights · Pacientes) — a "Agenda" do protótipo
+saiu (sem tipo de aviso real), entraram Metas/Insights/Pacientes, `sistema` só em "Todas"
+(decisão de produto 2026-07-14); barra de abas rola no X (não `flex-wrap`) p/ preservar o
+indicador de linha única; colapso dedicado de grupo vazio não implementado (a linha já
+colapsa e o grupo é omitido); botão de ação só faz deep-link (marcar lida é do toggle);
+`now` vem do servidor via prop (SSR determinístico nos carimbos/grupos).
+
 `Exportações` já construída (2026-07-13): barra de Período (De/Até + segmented de 4 presets
 com pílula oculta quando nada selecionado; campos e presets mutuamente exclusivos) + grade
 `auto-fit minmax(322px,1fr)` — card PDF (CTA ghost único) e 9 datasets com CSV/Excel ghost.

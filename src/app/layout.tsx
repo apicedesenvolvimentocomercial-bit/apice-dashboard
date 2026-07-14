@@ -2,7 +2,6 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { headers } from 'next/headers'
-import { CookieConsent } from '@/components/cookie-consent'
 import { DismissibleToaster } from '@/components/dismissible-toaster'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 
@@ -27,7 +26,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className={inter.className}>
         <ThemeProvider nonce={nonce}>
           {children}
-          <CookieConsent />
           <DismissibleToaster />
         </ThemeProvider>
         {/* Speed Insights (Web Vitals reais → dashboard da Vercel). O script é

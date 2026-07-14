@@ -823,6 +823,39 @@ input[type='date'] {
 .senno-agenda .fc .fc-timegrid-now-indicator-line {
   border-color: hsl(var(--destructive));
 }
+
+/* ---- Notificações (Notificações-handoff.md) ---- */
+
+/* Dispensar a linha (§9/§11): desliza p/ a direita e colapsa a altura —
+   mesma técnica do Atividades (classe + transitionend). max-height maior que
+   o `senno-act-row` porque a linha tem descrição completa + botão de ação. */
+.senno-notif-row {
+  overflow: hidden;
+  /* Folga generosa: a descrição não trunca (@db.Text). O colapso de altura só
+     roda DEPOIS que a linha já deslizou p/ fora (delay .55s) e está invisível,
+     então um teto alto não penaliza a animação — só evita clipar msg longa. */
+  max-height: 400px;
+  transition:
+    transform 0.42s cubic-bezier(0.4, 0, 0.2, 1) 0.26s,
+    opacity 0.42s ease 0.26s,
+    max-height 0.32s ease 0.55s,
+    padding 0.32s ease 0.55s,
+    background-color 0.2s ease;
+}
+.senno-notif-leaving {
+  transform: translateX(115%);
+  opacity: 0;
+  max-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+/* Feedback instantâneo do botão "dispensar" durante a saída (§9): vermelho
+   sólido com glifo branco (glifo sobre cor de status — vale nos dois temas). */
+.senno-notif-leaving .senno-dismiss {
+  border-color: hsl(var(--destructive)) !important;
+  background: hsl(var(--destructive)) !important;
+  color: hsl(0 0% 100%) !important;
+}
 .senno-agenda .fc .fc-timegrid-now-indicator-arrow {
   border-color: hsl(var(--destructive));
 }

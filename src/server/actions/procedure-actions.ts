@@ -16,11 +16,27 @@ import {
 const procedureSchema = z.object({
   name: z.string().min(2, 'Nome obrigatório'),
   description: z.string().optional(),
-  price: z.number().nonnegative('Preço deve ser positivo'),
-  cost: z.number().nonnegative('Custo deve ser positivo'),
-  durationMinutes: z.number().int().positive().optional(),
+  price: z
+    .number()
+    .max(9_999_999_999.99, 'Preço muito alto')
+    .nonnegative('Preço deve ser positivo'),
+  cost: z.number().max(9_999_999_999.99, 'Preço muito alto').nonnegative('Custo deve ser positivo'),
+  // Tempo de procedimento de 6 horas max
+  durationMinutes: z
+    .number()
+    .max(360, 'tempo de procedimento excede o limite')
+    .int()
+    .positive()
+    .optional(),
   // Janela de retorno / fim do efeito (reforma da retenção). null = procedimento único.
-  recurrenceDays: z.number().int().positive().nullable().optional(),
+  // max de um ano de recorrencia
+  recurrenceDays: z
+    .number()
+    .max(365, 'impossível inserir recorrencia de mais de um ano')
+    .int()
+    .positive()
+    .nullable()
+    .optional(),
   categoryId: z.string().optional(),
 })
 

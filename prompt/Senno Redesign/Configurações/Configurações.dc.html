@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  .senno{
+    --background:38 14% 97%; --foreground:220 9% 12%;
+    --card:0 0% 100%; --card-foreground:220 9% 12%; --popover:0 0% 100%;
+    --primary:42 53% 42%; --primary-foreground:225 11% 7%; --primary-text:42 53% 33%;
+    --secondary:38 18% 90%; --secondary-foreground:25 47% 18%;
+    --muted:38 18% 90%; --muted-foreground:25 15% 38%;
+    --accent:38 18% 90%; --accent-foreground:25 47% 18%;
+    --destructive:0 72% 48%; --destructive-bg:0 80% 96%;
+    --border:38 20% 85%; --input:38 20% 85%; --ring:42 65% 52%;
+    --ok:142 55% 30%; --ok-bg:142 50% 91%;
+    --warn:32 80% 32%; --warn-bg:38 88% 90%;
+    --shadow:220 28% 22%; --shadow-a:0.07;
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .senno[data-theme="dark"]{
+    --background:225 11% 7%; --foreground:38 33% 96%;
+    --card:220 9% 11%; --card-foreground:38 33% 96%; --popover:220 9% 11%;
+    --primary:42 65% 58%; --primary-foreground:225 11% 7%; --primary-text:42 65% 58%;
+    --secondary:220 9% 16%; --secondary-foreground:38 33% 96%;
+    --muted:220 9% 16%; --muted-foreground:38 15% 65%;
+    --accent:220 9% 16%; --accent-foreground:38 33% 96%;
+    --destructive:0 63% 50%; --destructive-bg:0 45% 14%;
+    --border:220 9% 18%; --input:220 9% 18%; --ring:42 65% 58%;
+    --ok:142 58% 64%; --ok-bg:142 45% 15%;
+    --warn:38 85% 66%; --warn-bg:36 55% 15%;
+    --shadow:0 0% 0%; --shadow-a:0.4;
+  }
+  .senno-search{ position:relative; width:38px; height:38px; flex:none; }
+  .senno-search-box{ position:absolute; top:0; right:0; height:38px; width:38px; display:flex; align-items:center; gap:8px; padding:0 11px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--muted-foreground)); font-size:12.5px; overflow:hidden; white-space:nowrap; cursor:pointer; transition:width .34s cubic-bezier(.4,0,.2,1), background .22s ease, border-color .22s ease, box-shadow .22s ease; transition-delay:0s; }
+  .senno-search:hover .senno-search-box, .senno-search-box:focus-within{ width:240px; background:hsl(var(--background)); border-color:hsl(var(--input)); cursor:text; transition-delay:0s; }
+  .senno-search-box:focus-within{ border-color:hsl(var(--ring)); box-shadow:0 0 0 3px hsl(var(--ring)/0.18); }
+  .senno-theme-btn{ position:relative; overflow:hidden; }
+  .senno-theme-ico{ position:absolute; top:50%; left:50%; width:17px; height:17px; margin:-8.5px 0 0 -8.5px; display:inline-flex; transition:transform .5s cubic-bezier(.34,1.3,.5,1), opacity .35s ease; }
+  .senno-theme-sun{ transform:rotate(0deg) scale(1); opacity:1; }
+  .senno-theme-moon{ transform:rotate(-90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-sun{ transform:rotate(90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-moon{ transform:rotate(0deg) scale(1); opacity:1; }
+  @keyframes senno-bell-ring{ 0%{transform:rotate(0);} 15%{transform:rotate(11deg);} 30%{transform:rotate(-9deg);} 45%{transform:rotate(6deg);} 60%{transform:rotate(-4deg);} 75%{transform:rotate(2deg);} 100%{transform:rotate(0);} }
+  .senno-bell-ico{ transform-origin:top center; }
+  .senno-bell-ring-a{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+  .senno-input:focus{ border-color:hsl(var(--ring)) !important; box-shadow:0 0 0 3px hsl(var(--ring)/0.18); }
+  .senno-input::placeholder{ color:hsl(var(--muted-foreground)); opacity:.7; }
+
+  /* responsive: stack multi-column grids on tablet/portrait */
+  @media (max-width:1024px){ .senno-2col{ grid-template-columns:1fr !important; } .senno-3col{ grid-template-columns:1fr 1fr !important; } }
+  @media (max-width:660px){ .senno-3col{ grid-template-columns:1fr !important; } }
+</style>
+</helmet>
+
+<div class="senno" data-theme="{{ theme }}" data-font="inter" style="background:hsl(var(--background)); color:hsl(var(--foreground)); height:100vh; box-sizing:border-box; overflow:hidden; line-height:1.45;">
+
+  <div data-screen-label="Configurações" style="width:100%; height:100%; min-height:0; display:flex; overflow:hidden; background:hsl(var(--background));">
+
+    <!-- SIDEBAR -->
+    <aside style="width:236px; flex:none; background:hsl(var(--card)); border-right:1px solid hsl(var(--border)); display:flex; flex-direction:column; padding:18px 14px;">
+      <div style="display:flex; align-items:center; gap:10px; padding:6px 8px 18px;">
+        <div style="width:34px; height:34px; border-radius:9px; background:hsl(var(--primary)); display:flex; align-items:center; justify-content:center; flex:none;">
+          <span style="color:hsl(var(--primary-foreground)); font-weight:700; font-size:17px;">B</span>
+        </div>
+        <div style="min-width:0;">
+          <div style="font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Clínica Bellavie</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Plano Premium</div>
+        </div>
+      </div>
+      <nav style="display:flex; flex-direction:column; gap:2px;">
+        <sc-for list="{{ navMain }}" as="item" hint-placeholder-count="12">
+          <a href="#" onClick="{{ item.onClick }}" style="display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:8px; font-size:13.5px; font-weight:{{ item.weight }}; text-decoration:none; color:{{ item.color }}; background:{{ item.bg }};" style-hover="background:hsl(var(--accent));">
+            <span style="width:18px; height:18px; display:inline-flex; flex:none; color:{{ item.iconColor }};" dangerouslySetInnerHTML="{{ item.icon }}"></span>
+            <span style="flex:1; white-space:nowrap;">{{ item.label }}</span>
+          </a>
+        </sc-for>
+      </nav>
+      <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; background:hsl(var(--muted));">
+        <div style="width:32px; height:32px; border-radius:99px; background:hsl(var(--primary)/0.2); display:flex; align-items:center; justify-content:center; flex:none; color:hsl(var(--primary-text)); font-weight:600; font-size:12.5px;">HC</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Dra. Helena Costa</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Proprietária</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div style="flex:1; min-width:0; min-height:0; display:flex; flex-direction:column;">
+
+      <!-- TOPBAR -->
+      <header style="flex:none; display:flex; align-items:center; gap:16px; padding:14px 24px; border-bottom:1px solid hsl(var(--border)); background:hsl(var(--card));">
+        <div style="flex:1; min-width:0;">
+          <h1 style="margin:0; font-size:clamp(22px, 0.5vw + 18px, 27px); font-weight:600; letter-spacing:-0.01em;">Configurações</h1>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <div class="senno-search">
+            <div class="senno-search-box">
+              <span style="width:15px;height:15px;display:inline-flex;flex:none;" dangerouslySetInnerHTML="{{ icoSearch }}"></span>
+              <input type="text" placeholder="Buscar paciente…" style="flex:1; min-width:0; border:none; outline:none; background:transparent; font-family:inherit; font-size:12.5px; color:hsl(var(--foreground));" />
+            </div>
+          </div>
+          <button onClick="{{ toggleTheme }}" title="{{ themeTitle }}" class="senno-theme-btn" style="width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+            <span class="senno-theme-ico senno-theme-sun" dangerouslySetInnerHTML="{{ icoSun }}"></span>
+            <span class="senno-theme-ico senno-theme-moon" dangerouslySetInnerHTML="{{ icoMoon }}"></span>
+          </button>
+          <div class="senno-notif" style="position:relative;">
+            <button onClick="{{ toggleNotif }}" title="Notificações" style="position:relative; width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+              <span class="senno-bell-ico {{ bellClass }}" onAnimationEnd="{{ bellAnimEnd }}" style="width:17px;height:17px;display:inline-flex; transform-origin:top center;" dangerouslySetInnerHTML="{{ icoBell }}"></span>
+              <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}">
+                <span style="position:absolute; top:7px; right:8px; width:7px; height:7px; border-radius:99px; background:hsl(var(--destructive)); border:1.5px solid hsl(var(--card));"></span>
+              </sc-if>
+            </button>
+            <sc-if value="{{ notifOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closeNotif }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:46px; right:0; width:362px; background:hsl(var(--popover)); border:1px solid hsl(var(--border)); border-radius:12px; box-shadow:0 16px 40px -12px hsl(var(--shadow)/calc(var(--shadow-a) * 3.5)); z-index:50; overflow:hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px 10px;">
+                  <span style="display:flex; align-items:center; gap:8px; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--foreground));">Notificações<sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px; font-weight:600; padding:1px 7px; border-radius:99px; background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text)); font-variant-numeric:tabular-nums;">{{ unreadCount }}</span></sc-if></span>
+                  <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><button onClick="{{ markAllRead }}" style="border:none; background:transparent; font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); cursor:pointer; padding:2px 4px; font-family:inherit;" style-hover="text-decoration:underline;">Marcar todas como lidas</button></sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; padding:0 6px 6px; max-height:344px; overflow-y:auto;">
+                  <sc-for list="{{ notifItems }}" as="n" hint-placeholder-count="4">
+                    <button onClick="{{ n.onClick }}" style="display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left; padding:10px 8px; border:none; background:{{ n.rowBg }}; border-radius:8px; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+                      <span style="width:32px; height:32px; border-radius:99px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ n.iconBg }}; color:{{ n.iconColor }};"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ n.icon }}"></span></span>
+                      <span style="flex:1; min-width:0;">
+                        <span style="display:block; font-size:12.5px; font-weight:{{ n.titleWeight }}; color:hsl(var(--foreground));">{{ n.title }}</span>
+                        <span style="display:block; font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ n.sub }}</span>
+                      </span>
+                      <span style="flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+                        <span style="font-size:10.5px; color:hsl(var(--muted-foreground)); white-space:nowrap;">{{ n.time }}</span>
+                        <sc-if value="{{ n.unread }}" hint-placeholder-val=""><span style="width:7px; height:7px; border-radius:99px; background:hsl(var(--primary)); flex:none;"></span></sc-if>
+                      </span>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:center; padding:9px 14px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                  <a href="#" style="font-size:12px; font-weight:600; color:hsl(var(--primary-text)); text-decoration:none;">Ver todas as notificações</a>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <button onClick="{{ onNewLead }}" style="height:38px; padding:0 15px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+            <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>
+            Novo lead
+          </button>
+        </div>
+      </header>
+
+      <!-- BODY -->
+      <div style="flex:1; min-height:0; overflow-y:auto; padding:22px 26px;">
+        <div style="max-width:940px; margin:0 auto; width:100%;">
+
+          <!-- SEARCH + CATEGORY NAV -->
+          <div style="margin-bottom:22px;">
+            <div style="position:relative; width:340px; max-width:100%;">
+              <span style="position:absolute; left:13px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:hsl(var(--muted-foreground)); display:inline-flex;" dangerouslySetInnerHTML="{{ icoSearch }}"></span>
+              <input class="senno-input" value="{{ searchQuery }}" onInput="{{ onSearch }}" placeholder="Buscar configuração…" style="width:100%; height:42px; padding:0 12px 0 37px; border-radius:10px; border:1px solid hsl(var(--input)); background:hsl(var(--card)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;">
+              <sc-for list="{{ chips }}" as="c" hint-placeholder-count="9">
+                <button onClick="{{ c.onClick }}" style="{{ c.style }}" style-hover="{{ c.hover }}">
+                  <span style="width:15px; height:15px; display:inline-flex; flex:none;" dangerouslySetInnerHTML="{{ c.icon }}"></span>
+                  <span>{{ c.label }}</span>
+                </button>
+              </sc-for>
+            </div>
+            <sc-if value="{{ noChips }}" hint-placeholder-val="">
+              <div style="margin-top:16px; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground));">Nenhuma configuração encontrada para “{{ searchQuery }}”.</div>
+            </sc-if>
+          </div>
+
+          <!-- ============ PERFIL ============ -->
+          <sc-if value="{{ isPerfil }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column; gap:14px; padding-bottom:10px;">
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:14px; padding:24px 26px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+              <div style="margin-bottom:20px;">
+                <h2 style="margin:0; font-size:16.5px; font-weight:600; letter-spacing:-0.01em;">Perfil</h2>
+                <p style="margin:5px 0 0; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); line-height:1.5;">Atualize seus dados de acesso e como seu nome aparece para a equipe.</p>
+              </div>
+              <div class="senno-2col" style="display:grid; grid-template-columns:1fr 1fr; gap:16px 18px;">
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Nome pessoal</label>
+                  <input class="senno-input" defaultValue="Helena Costa" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">E-mail para visualização</label>
+                  <input class="senno-input" type="email" defaultValue="helena@bellavie.com.br" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                </div>
+              </div>
+              <div style="margin-top:24px; padding-top:22px; border-top:1px solid hsl(var(--border));">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+                  <span style="width:16px; height:16px; display:inline-flex; color:hsl(var(--muted-foreground));" dangerouslySetInnerHTML="{{ icoLock }}"></span>
+                  <span style="font-size:13.5px; font-weight:600;">Alterar senha</span>
+                </div>
+                <div class="senno-3col" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px 18px;">
+                  <div>
+                    <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Senha atual</label>
+                    <input class="senno-input" type="password" placeholder="••••••••" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                  </div>
+                  <div>
+                    <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Nova senha</label>
+                    <input class="senno-input" type="password" placeholder="Mínimo 8 caracteres" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                  </div>
+                  <div>
+                    <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Confirmar nova senha</label>
+                    <input class="senno-input" type="password" placeholder="Repita a nova senha" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:24px; padding-top:20px; border-top:1px solid hsl(var(--border));">
+                <span style="font-size:12.5px; color:hsl(var(--muted-foreground));">Alterações de nome e senha são aplicadas imediatamente.</span>
+                <button style="height:40px; padding:0 18px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; flex:none;" style-hover="filter:brightness(1.05);">Salvar alterações</button>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ APARÊNCIA ============ -->
+          <sc-if value="{{ isAparencia }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:14px; padding-bottom:10px;">
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:14px; padding:24px 26px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+              <div style="margin-bottom:18px;">
+                <h2 style="margin:0; font-size:16.5px; font-weight:600; letter-spacing:-0.01em;">Aparência</h2>
+                <p style="margin:5px 0 0; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); line-height:1.5;">Escolha o tema da interface. “Sistema” acompanha as preferências do seu dispositivo.</p>
+              </div>
+              <div style="display:inline-flex; gap:6px; background:hsl(var(--muted)); border:1px solid hsl(var(--border)); border-radius:12px; padding:5px;">
+                <sc-for list="{{ appearanceOptions }}" as="o" hint-placeholder-count="3">
+                  <button onClick="{{ o.onClick }}" style="{{ o.style }}" style-hover="{{ o.hover }}">
+                    <span style="width:15px; height:15px; display:inline-flex; flex:none;" dangerouslySetInnerHTML="{{ o.icon }}"></span>
+                    <span>{{ o.label }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ CLÍNICA ============ -->
+          <sc-if value="{{ isClinica }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:14px; padding-bottom:10px;">
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:14px; padding:24px 26px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+              <div style="margin-bottom:20px;">
+                <h2 style="margin:0; font-size:16.5px; font-weight:600; letter-spacing:-0.01em;">Clínica</h2>
+                <p style="margin:5px 0 0; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); line-height:1.5;">Dados cadastrais usados em documentos, recibos e integrações fiscais.</p>
+              </div>
+              <div class="senno-2col" style="display:grid; grid-template-columns:1fr 1fr; gap:16px 18px;">
+                <div style="grid-column:1 / -1;">
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Nome da clínica</label>
+                  <input class="senno-input" defaultValue="Clínica Bellavie Estética" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">E-mail</label>
+                  <input class="senno-input" type="email" defaultValue="contato@bellavie.com.br" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Telefone</label>
+                  <input class="senno-input" defaultValue="(41) 99631-2088" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Cidade</label>
+                  <input class="senno-input" defaultValue="Curitiba" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Estado</label>
+                  <div style="position:relative;">
+                    <select defaultValue="PR" style="width:100%; height:40px; padding:0 34px 0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; -webkit-appearance:none; appearance:none; cursor:pointer;">
+                      <option value="PR">Paraná</option>
+                      <option value="SP">São Paulo</option>
+                      <option value="RJ">Rio de Janeiro</option>
+                      <option value="MG">Minas Gerais</option>
+                      <option value="RS">Rio Grande do Sul</option>
+                      <option value="SC">Santa Catarina</option>
+                      <option value="BA">Bahia</option>
+                    </select>
+                    <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:hsl(var(--muted-foreground)); pointer-events:none; display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevDown }}"></span>
+                  </div>
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Regime tributário</label>
+                  <div style="position:relative;">
+                    <select defaultValue="simples" style="width:100%; height:40px; padding:0 34px 0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; -webkit-appearance:none; appearance:none; cursor:pointer;">
+                      <option value="simples">Simples Nacional</option>
+                      <option value="presumido">Lucro Presumido</option>
+                      <option value="real">Lucro Real</option>
+                      <option value="mei">MEI</option>
+                    </select>
+                    <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:hsl(var(--muted-foreground)); pointer-events:none; display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevDown }}"></span>
+                  </div>
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">CNAE</label>
+                  <input class="senno-input" defaultValue="9602-5/02" style="width:100%; height:40px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; font-variant-numeric:tabular-nums; transition:border-color .15s, box-shadow .15s;" />
+                </div>
+                <div style="grid-column:1 / -1;">
+                  <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Observações</label>
+                  <textarea class="senno-input" rows="3" placeholder="Informações internas sobre a clínica…" style="width:100%; padding:10px 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; resize:vertical; line-height:1.5; transition:border-color .15s, box-shadow .15s;"></textarea>
+                </div>
+              </div>
+              <div style="display:flex; justify-content:flex-end; margin-top:22px; padding-top:20px; border-top:1px solid hsl(var(--border));">
+                <button style="height:40px; padding:0 18px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer;" style-hover="filter:brightness(1.05);">Salvar dados da clínica</button>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ PAGAMENTO NO CRÉDITO ============ -->
+          <sc-if value="{{ isPagamento }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:14px; padding-bottom:10px;">
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:14px; padding:24px 26px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+              <div style="margin-bottom:20px;">
+                <h2 style="margin:0; font-size:16.5px; font-weight:600; letter-spacing:-0.01em;">Pagamento no crédito</h2>
+                <p style="margin:5px 0 0; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); line-height:1.5;">Define como as vendas no crédito entram no financeiro, conforme seu contrato com a adquirente (maquininha).</p>
+              </div>
+              <div style="max-width:540px;">
+                <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Forma de recebimento</label>
+                <div style="position:relative;">
+                  <select value="{{ creditMode }}" onChange="{{ onCreditMode }}" style="width:100%; height:44px; padding:0 34px 0 13px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:13.5px; outline:none; -webkit-appearance:none; appearance:none; cursor:pointer;">
+                    <option value="repasse">Recebo conforme o cliente paga</option>
+                    <option value="antecipacao">Recebo à vista, com taxa de antecipação</option>
+                  </select>
+                  <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:hsl(var(--muted-foreground)); pointer-events:none; display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevDown }}"></span>
+                </div>
+                <p style="margin:10px 0 0; font-size:12.5px; color:hsl(var(--muted-foreground)); line-height:1.55;">{{ creditHelp }}</p>
+
+                <sc-if value="{{ showFee }}" hint-placeholder-val="">
+                  <div style="margin-top:20px; padding-top:20px; border-top:1px dashed hsl(var(--border)); max-width:260px;">
+                    <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:7px;">Taxa de antecipação (% a.m.)</label>
+                    <div style="position:relative;">
+                      <input class="senno-input" type="text" defaultValue="2,99" style="width:100%; height:40px; padding:0 34px 0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; font-variant-numeric:tabular-nums; transition:border-color .15s, box-shadow .15s;" />
+                      <span style="position:absolute; right:13px; top:50%; transform:translateY(-50%); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--muted-foreground)); pointer-events:none;">%</span>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+              <div style="display:flex; justify-content:flex-end; margin-top:22px; padding-top:20px; border-top:1px solid hsl(var(--border));">
+                <button style="height:40px; padding:0 18px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer;" style-hover="filter:brightness(1.05);">Salvar</button>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ WEBHOOKS ============ -->
+          <sc-if value="{{ isWebhooks }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:14px; padding-bottom:10px;">
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:14px; padding:24px 26px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+              <div style="margin-bottom:20px;">
+                <h2 style="margin:0; font-size:16.5px; font-weight:600; letter-spacing:-0.01em;">Webhooks</h2>
+                <p style="margin:5px 0 0; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); line-height:1.55;">Recebe leads das integrações (WhatsApp, Meta Ads, Google Ads). O token autentica a requisição e vincula o lead a esta clínica — envie-o no header <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; background:hsl(var(--muted)); padding:1.5px 6px; border-radius:5px; color:hsl(var(--foreground));">x-webhook-secret</code>.</p>
+              </div>
+
+              <!-- token -->
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:hsl(var(--background)); border:1px solid hsl(var(--border)); border-radius:11px; padding:14px 16px;">
+                <div style="min-width:0;">
+                  <div style="font-size:11.5px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:5px;">Token de autenticação</div>
+                  <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--foreground)); letter-spacing:0.02em;">{{ token }}</div>
+                </div>
+                <div style="display:flex; gap:8px; flex:none;">
+                  <button onClick="{{ rotateToken }}" style="height:36px; padding:0 13px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="background:hsl(var(--accent));">
+                    <span style="width:14px; height:14px; display:inline-flex; color:hsl(var(--primary-text));" dangerouslySetInnerHTML="{{ icoRefresh }}"></span>Rotacionar
+                  </button>
+                  <button onClick="{{ revokeToken }}" style="height:36px; padding:0 13px; border-radius:9px; border:1px solid hsl(var(--destructive)/0.5); background:transparent; color:hsl(var(--destructive)); font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="background:hsl(var(--destructive)/0.1);">
+                    <span style="width:14px; height:14px; display:inline-flex;" dangerouslySetInnerHTML="{{ icoTrash }}"></span>Revogar
+                  </button>
+                </div>
+              </div>
+
+              <!-- endpoints -->
+              <div style="margin-top:22px;">
+                <div style="font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:10px;">Endpoints</div>
+                <div style="display:flex; flex-direction:column; gap:9px;">
+                  <sc-for list="{{ endpoints }}" as="e" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:center; gap:14px; background:hsl(var(--background)); border:1px solid hsl(var(--border)); border-radius:11px; padding:12px 14px;">
+                      <span style="width:34px; height:34px; border-radius:9px; flex:none; display:flex; align-items:center; justify-content:center; background:hsl(var(--primary)/0.14); color:hsl(var(--primary-text));"><span style="width:16px; height:16px; display:inline-flex;" dangerouslySetInnerHTML="{{ e.icon }}"></span></span>
+                      <div style="min-width:0; flex:1;">
+                        <div style="display:flex; align-items:baseline; gap:8px;"><span style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600;">{{ e.name }}</span><span style="font-size:11.5px; color:hsl(var(--muted-foreground));">{{ e.desc }}</span></div>
+                        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">{{ e.url }}</div>
+                      </div>
+                      <button onClick="{{ e.onCopy }}" title="Copiar link" style="height:34px; padding:0 12px; border-radius:8px; border:1px solid {{ e.copyBorder }}; background:{{ e.copyBg }}; color:{{ e.copyColor }}; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; flex:none;" style-hover="filter:brightness(0.98);">
+                        <span style="width:14px; height:14px; display:inline-flex;" dangerouslySetInnerHTML="{{ e.copyIcon }}"></span>{{ e.copyLabel }}
+                      </button>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ RÉGUA DE RETENÇÃO ============ -->
+          <sc-if value="{{ isRetencao }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:14px; padding-bottom:10px;">
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:14px; padding:24px 26px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+              <div style="margin-bottom:18px;">
+                <h2 style="margin:0; font-size:16.5px; font-weight:600; letter-spacing:-0.01em;">Régua de retenção</h2>
+                <p style="margin:5px 0 0; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); line-height:1.5;">Mantém pacientes ativos com follow-ups no momento certo.</p>
+              </div>
+              <label style="display:block; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:9px;">Modo de operação</label>
+              <div style="display:inline-flex; gap:6px; background:hsl(var(--muted)); border:1px solid hsl(var(--border)); border-radius:12px; padding:5px;">
+                <sc-for list="{{ retentionOptions }}" as="o" hint-placeholder-count="3">
+                  <button onClick="{{ o.onClick }}" style="{{ o.style }}" style-hover="{{ o.hover }}">
+                    <span style="width:15px; height:15px; display:inline-flex; flex:none;" dangerouslySetInnerHTML="{{ o.icon }}"></span>
+                    <span>{{ o.label }}</span>
+                  </button>
+                </sc-for>
+              </div>
+              <p style="margin:11px 0 0; font-size:12.5px; color:hsl(var(--muted-foreground)); line-height:1.55;">{{ retentionHelp }}</p>
+            </div>
+
+            <sc-if value="{{ showMessages }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:2px;">
+              <span style="font-size:13.5px; font-weight:600;">Modelos de mensagem</span>
+              <span style="font-size:12px; color:hsl(var(--muted-foreground));">Usados nos modos “Por tarefas” e “Automático”.</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <sc-for list="{{ messages }}" as="m" hint-placeholder-count="5">
+                <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:18px 20px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); opacity:{{ m.cardOpacity }};">
+                  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px;">
+                    <div style="min-width:0;">
+                      <div style="font-size:13.5px; font-weight:600;">{{ m.label }}</div>
+                      <div style="font-size:12px; color:hsl(var(--muted-foreground)); margin-top:2px;">{{ m.hint }}</div>
+                    </div>
+                    <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; flex:none;">
+                      <span style="font-size:12px; font-weight:600; color:{{ m.stateColor }};">{{ m.stateLabel }}</span>
+                      <button onClick="{{ m.onToggle }}" role="switch" style="{{ m.trackStyle }}"><span style="{{ m.knobStyle }}"></span></button>
+                    </label>
+                  </div>
+                  <div style="display:grid; grid-template-columns:220px 1fr; gap:14px; margin-top:15px; align-items:start;">
+                    <div>
+                      <label style="display:block; font-size:11.5px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:6px;">Apelido</label>
+                      <input class="senno-input" defaultValue="{{ m.apelido }}" placeholder="ex: sentimos sua falta" style="width:100%; height:38px; padding:0 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; transition:border-color .15s, box-shadow .15s;" />
+                    </div>
+                    <div>
+                      <label style="display:block; font-size:11.5px; font-weight:600; color:hsl(var(--muted-foreground)); margin-bottom:6px;">Conteúdo da mensagem</label>
+                      <textarea class="senno-input" rows="2" placeholder="Escreva o conteúdo enviado ao paciente…" style="width:100%; padding:9px 12px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; resize:vertical; line-height:1.5; transition:border-color .15s, box-shadow .15s;"></textarea>
+                    </div>
+                  </div>
+                  <div style="display:flex; justify-content:flex-end; margin-top:13px;">
+                    <button style="height:34px; padding:0 15px; border-radius:8px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer;" style-hover="background:hsl(var(--accent));">Salvar mensagem</button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            </sc-if>
+          </div>
+          </sc-if>
+
+          <!-- ============ PESSOAS ============ -->
+          <sc-if value="{{ isPessoas }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:14px; padding-bottom:10px;">
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:14px; padding:24px 26px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+              <div style="margin-bottom:18px;">
+                <h2 style="margin:0; font-size:16.5px; font-weight:600; letter-spacing:-0.01em;">Pessoas</h2>
+                <p style="margin:5px 0 0; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); line-height:1.5;">Convide membros da equipe para acessar o Senno. Cada pessoa recebe um e-mail com o link de acesso e assume um cargo depois.</p>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:hsl(var(--background)); border:1px dashed hsl(var(--border)); border-radius:12px; padding:20px 22px;">
+                <div style="display:flex; align-items:center; gap:14px;">
+                  <span style="width:42px; height:42px; border-radius:11px; flex:none; display:flex; align-items:center; justify-content:center; background:hsl(var(--primary)/0.14); color:hsl(var(--primary-text));"><span style="width:20px; height:20px; display:inline-flex;" dangerouslySetInnerHTML="{{ icoUsers }}"></span></span>
+                  <div>
+                    <div style="font-size:13.5px; font-weight:600;">Convide sua equipe</div>
+                    <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:2px;">Você tem 4 membros ativos e 1 convite pendente.</div>
+                  </div>
+                </div>
+                <button style="height:40px; padding:0 17px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; flex:none;" style-hover="filter:brightness(1.05);">
+                  <span style="width:15px; height:15px; display:inline-flex;" dangerouslySetInnerHTML="{{ icoMail }}"></span>Convidar pessoa
+                </button>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ CARGOS E PERMISSÕES ============ -->
+          <sc-if value="{{ isCargos }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:14px; padding-bottom:10px;">
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:14px; padding:24px 26px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px;">
+                <div>
+                  <h2 style="margin:0; font-size:16.5px; font-weight:600; letter-spacing:-0.01em;">Cargos e permissões</h2>
+                  <p style="margin:5px 0 0; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); line-height:1.5;">Arraste para reordenar a hierarquia — cargos no topo têm mais permissões.</p>
+                </div>
+                <button style="height:40px; padding:0 16px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px; flex:none;" style-hover="filter:brightness(1.05);">
+                  <span style="width:15px; height:15px; display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>Novo cargo
+                </button>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:9px;">
+                <sc-for list="{{ roles }}" as="r" hint-placeholder-count="4">
+                  <div draggable="true" onDragStart="{{ r.onDragStart }}" onDragEnter="{{ r.onDragEnter }}" onDragOver="{{ allowDrop }}" onDragEnd="{{ r.onDragEnd }}" style="display:flex; align-items:center; gap:13px; background:hsl(var(--background)); border:1px solid {{ r.border }}; border-radius:11px; padding:12px 14px; opacity:{{ r.opacity }}; transition:border-color .12s;">
+                    <span title="Arraste para reordenar" style="width:20px; height:20px; display:inline-flex; color:hsl(var(--muted-foreground)); cursor:grab; flex:none;" dangerouslySetInnerHTML="{{ icoGrip }}"></span>
+                    <span style="width:30px; height:30px; border-radius:8px; flex:none; display:flex; align-items:center; justify-content:center; background:hsl(var(--primary)/0.14); color:hsl(var(--primary-text));"><span style="width:15px; height:15px; display:inline-flex;" dangerouslySetInnerHTML="{{ icoShield }}"></span></span>
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:13.5px; font-weight:600;">{{ r.name }}</div>
+                      <div style="font-size:12px; color:hsl(var(--muted-foreground)); margin-top:1px;">{{ r.usersLabel }}</div>
+                    </div>
+                    <div style="display:flex; gap:6px; flex:none;">
+                      <button title="Editar" style="width:34px; height:34px; border-radius:8px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--muted-foreground)); cursor:pointer; display:flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent)); color:hsl(var(--foreground));"><span style="width:15px; height:15px; display:inline-flex;" dangerouslySetInnerHTML="{{ icoEdit }}"></span></button>
+                      <button title="Excluir" style="width:34px; height:34px; border-radius:8px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--muted-foreground)); cursor:pointer; display:flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--destructive)/0.1); color:hsl(var(--destructive)); border-color:hsl(var(--destructive)/0.4);"><span style="width:15px; height:15px; display:inline-flex;" dangerouslySetInnerHTML="{{ icoTrash }}"></span></button>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- ============ USUÁRIOS DA CLÍNICA ============ -->
+          <sc-if value="{{ isUsuarios }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; gap:14px; padding-bottom:10px;">
+            <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:14px; padding:24px 26px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+              <div style="margin-bottom:14px;">
+                <h2 style="margin:0; font-size:16.5px; font-weight:600; letter-spacing:-0.01em;">Usuários da clínica</h2>
+                <p style="margin:5px 0 0; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); line-height:1.5;">Atribua um cargo a cada usuário interno.</p>
+              </div>
+              <div>
+                <sc-for list="{{ users }}" as="u" hint-placeholder-count="5">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 2px; border-bottom:1px solid hsl(var(--border));">
+                    <div style="min-width:0;">
+                      <div style="display:flex; align-items:center; gap:7px;">
+                        <span style="font-size:13.5px; font-weight:600;">{{ u.name }}</span>
+                        <sc-if value="{{ u.owner }}" hint-placeholder-val=""><span style="width:15px; height:15px; display:inline-flex; color:hsl(var(--primary-text));" dangerouslySetInnerHTML="{{ icoCrown }}"></span></sc-if>
+                      </div>
+                      <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:2px;">{{ u.email }}</div>
+                    </div>
+                    <sc-if value="{{ u.owner }}" hint-placeholder-val="">
+                      <span style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); color:hsl(var(--muted-foreground)); flex:none;">Acesso total</span>
+                    </sc-if>
+                    <sc-if value="{{ u.notOwner }}" hint-placeholder-val="{{ true }}">
+                      <div style="position:relative; width:172px; flex:none;">
+                        <select defaultValue="{{ u.role }}" style="width:100%; height:40px; padding:0 34px 0 13px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); outline:none; -webkit-appearance:none; appearance:none; cursor:pointer;">
+                          <option value="Sem cargo">Sem cargo</option>
+                          <option value="Gerente">Gerente</option>
+                          <option value="Financeiro">Financeiro</option>
+                          <option value="Atendente">Atendente</option>
+                        </select>
+                        <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:hsl(var(--muted-foreground)); pointer-events:none; display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevDown }}"></span>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:860},&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;}}">
+class Component extends DCLogic {
+  state = {
+    theme: this.props.defaultTheme || 'light',
+    notifOpen:false,
+    notifs:[{id:1,type:'lead',title:'Novo lead',sub:'Mariana Alves · Instagram',time:'agora',read:false},{id:2,type:'money',title:'Pagamento confirmado',sub:'R$ 1.200 · Botox · Camila Souza',time:'8 min',read:false},{id:3,type:'agenda',title:'Agendamento confirmado',sub:'Patrícia Lima · amanhã às 14h',time:'40 min',read:false},{id:4,type:'alert',title:'Tarefa atrasada',sub:'Retornar ligação · Rafael Dias',time:'1 h',read:true},{id:5,type:'agenda',title:'Novo agendamento online',sub:'Beatriz Ramos · Limpeza de pele',time:'3 h',read:true}],
+    section:'todas',
+    searchQuery:'',
+    appearance:'system',
+    creditMode:'repasse',
+    retentionMode:'tarefas',
+    messages:[
+      {key:'agendamento',label:'Relembrar do agendamento',hint:'Enviada antes da consulta',apelido:'Lembrete de horário',active:true},
+      {key:'nutricao',label:'Nutrição',hint:'Enviada de 2 a 15 dias após o procedimento',apelido:'Dica de cuidado',active:true},
+      {key:'pos',label:'Pós-procedimento',hint:'Enviada de 0 a 24h após',apelido:'Como você está?',active:true},
+      {key:'reativacao',label:'Reativação',hint:'Paciente com retorno atrasado',apelido:'Sentimos sua falta',active:false},
+      {key:'inativos',label:'Salvamento / inativos',hint:'Última tentativa de retorno',apelido:'Uma condição especial',active:false},
+    ],
+    roles:[{id:1,name:'Proprietária',users:1},{id:2,name:'Gerente',users:2},{id:3,name:'Financeiro',users:1},{id:4,name:'Atendente',users:3}],
+    dragIndex:null,
+    token:'whk_live_8f3a2b91c7d64e05',
+    copiedId:null,
+  };
+
+  ico(p){ return {__html:'<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'}; }
+  icoFill(p){ return {__html:'<svg viewBox="0 0 24 24" width="100%" height="100%" fill="currentColor" stroke="none">'+p+'</svg>'}; }
+
+  _notif(){
+    const ic=(p)=>this.ico(p);
+    const icoSun=ic('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon=ic('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+    const icoBell=ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoUsers=ic('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney=ic('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoCal=ic('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoAlert=ic('<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>');
+    const tint={lead:{bg:'hsl(var(--primary)/0.16)',color:'hsl(var(--primary-text))'},money:{bg:'hsl(var(--ok-bg))',color:'hsl(var(--ok))'},agenda:{bg:'hsl(var(--accent))',color:'hsl(var(--muted-foreground))'},alert:{bg:'hsl(var(--destructive)/0.14)',color:'hsl(var(--destructive))'}};
+    const icoBy={lead:icoUsers,money:icoMoney,agenda:icoCal,alert:icoAlert};
+    const notifItems=this.state.notifs.map(n=>{const t=tint[n.type]||tint.agenda; return {...n, icon:icoBy[n.type]||icoBell, iconBg:t.bg, iconColor:t.color, unread:!n.read, titleWeight:n.read?500:600, rowBg:n.read?'transparent':'hsl(var(--primary)/0.05)', onClick:()=>this.setState(s=>({notifs:s.notifs.map(x=>x.id===n.id?{...x,read:true}:x)}))};});
+    const unreadCount=this.state.notifs.filter(n=>!n.read).length;
+    return { icoSun, icoMoon, notifOpen:this.state.notifOpen, hasUnread:unreadCount>0, unreadCount, notifItems,
+      bellClass:(this.state.bellRing?'senno-bell-ring-a':''), bellAnimEnd:()=>this.setState({bellRing:false}), toggleNotif:()=>this.setState(s=>({bellRing:true, notifOpen:!s.notifOpen})), closeNotif:()=>this.setState({notifOpen:false}),
+      markAllRead:()=>this.setState(s=>({notifs:s.notifs.map(x=>({...x,read:true}))})) };
+  }
+
+  renderVals(){
+    const I=(p)=>this.ico(p);
+    const icoGrid    = I('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>');
+    const icoActivity= I('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>');
+    const icoCalendar= I('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoFunnel  = I('<path d="M3 4h18l-7 8v6l-4 2v-8z"/>');
+    const icoUsers   = I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney   = I('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoTarget  = I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>');
+    const icoBulb    = I('<path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/>');
+    const icoSyringe = I('<rect x="3" y="3" width="7" height="7" rx="1.5"/><path d="M14 7h6M14 12h6M14 17h6M5 14v6M3 17h4"/>');
+    const icoDownload= I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>');
+    const icoBell    = I('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoSettings= I('<path d="M22.00 12.00 L21.24 15.83 L18.28 14.60 L16.81 16.81 L19.07 19.07 L15.83 21.24 L14.60 18.28 L12.00 18.80 L12.00 22.00 L8.17 21.24 L9.40 18.28 L7.19 16.81 L4.93 19.07 L2.76 15.83 L5.72 14.60 L5.20 12.00 L2.00 12.00 L2.76 8.17 L5.72 9.40 L7.19 7.19 L4.93 4.93 L8.17 2.76 L9.40 5.72 L12.00 5.20 L12.00 2.00 L15.83 2.76 L14.60 5.72 L16.81 7.19 L19.07 4.93 L21.24 8.17 L18.28 9.40 L18.80 12.00 Z"/><circle cx="12" cy="12" r="3"/>');
+    const icoSearch  = I('<circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/>');
+    const icoPlus    = I('<path d="M12 5v14M5 12h14"/>');
+    const icoSun     = I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon    = I('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+    const icoMonitor = I('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>');
+    const icoUser    = I('<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>');
+    const icoPalette = I('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/>');
+    const icoBuilding= I('<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h.01M15 8h.01M9 12h.01M15 12h.01M9.5 21v-4h5v4"/>');
+    const icoCard    = I('<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/>');
+    const icoPlug    = I('<path d="M9 2v6M15 2v6M7 8h10v3a5 5 0 0 1-10 0z M12 16v6"/>');
+    const icoMessage = I('<path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.6 8.6 0 0 1-3.9-.9L3 21l1.9-5.6A8.4 8.4 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/>');
+    const icoShield  = I('<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>');
+    const icoUserChk = I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/>');
+    const icoLock    = I('<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>');
+    const icoChevDown= I('<path d="m6 9 6 6 6-6"/>');
+    const icoRefresh = I('<path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/>');
+    const icoTrash   = I('<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>');
+    const icoEdit    = I('<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>');
+    const icoMail    = I('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>');
+    const icoCopy    = I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>');
+    const icoCheck   = I('<path d="M20 6 9 17l-5-5"/>');
+    const icoWhats   = I('<path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.6 8.6 0 0 1-3.9-.9L3 21l1.9-5.6A8.4 8.4 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/>');
+    const icoGrip    = this.icoFill('<circle cx="9" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="15" cy="18" r="1.4"/>');
+    const icoCrown   = this.icoFill('<path d="M3 8l4 3.5L12 5l5 6.5L21 8l-1.6 11H4.6z"/>');
+
+    const P='hsl(var(--primary-text))', M='hsl(var(--muted-foreground))';
+    const navMain = [
+      {label:'Dashboard',icon:icoGrid}, {label:'Atividades',icon:icoActivity},
+      {label:'Agenda',icon:icoCalendar}, {label:'Funil',icon:icoFunnel},
+      {label:'Pacientes',icon:icoUsers}, {label:'Financeiro',icon:icoMoney},
+      {label:'Metas',icon:icoTarget}, {label:'Insights',icon:icoBulb},
+      {label:'Procedimentos',icon:icoSyringe}, {label:'Exportações',icon:icoDownload},
+      {label:'Notificações',icon:icoBell}, {label:'Configurações',icon:icoSettings, active:true},
+    ].map(n=>({ ...n, weight:n.active?600:500, color:n.active?P:M, iconColor:n.active?P:M, bg:n.active?'hsl(var(--accent))':'transparent', onClick:(e)=>{ if(e&&e.preventDefault)e.preventDefault(); if(this.props.onNavigate)this.props.onNavigate(n.label); } }));
+
+    // ---------- category nav ----------
+    const cats = [
+      ['todas','Todas',icoGrid],
+      ['perfil','Perfil',icoUser], ['aparencia','Aparência',icoPalette], ['clinica','Clínica',icoBuilding],
+      ['pagamento','Pagamento no crédito',icoCard], ['webhooks','Webhooks',icoPlug], ['retencao','Régua de retenção',icoMessage],
+      ['pessoas','Pessoas',icoUsers], ['cargos','Cargos e permissões',icoShield], ['usuarios','Usuários da clínica',icoUserChk],
+    ];
+    const q=(this.state.searchQuery||'').trim().toLowerCase();
+    const chipBase='display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 15px; border-radius:10px; font-family:inherit; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); cursor:pointer; white-space:nowrap; transition:background .15s, border-color .15s, color .15s;';
+    const chips = cats.filter(([k,label])=> !q || label.toLowerCase().includes(q)).map(([k,label,icon])=>{
+      const on=this.state.section===k;
+      return { label, icon,
+        style: chipBase + (on
+          ? ' background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); border:1px solid hsl(var(--primary)); font-weight:600;'
+          : ' background:hsl(var(--card)); color:hsl(var(--muted-foreground)); border:1px solid hsl(var(--border)); font-weight:500;'),
+        hover: on ? 'filter:brightness(1.05);' : 'background:hsl(var(--accent)); color:hsl(var(--foreground));',
+        onClick:()=>this.setState({section:k}),
+      };
+    });
+    const noChips = chips.length===0;
+    const sec=this.state.section;
+    const all = sec==='todas';
+
+    // ---------- appearance segmented ----------
+    const segBase='display:inline-flex; align-items:center; gap:7px; height:36px; padding:0 15px; border-radius:9px; font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; border:none; transition:background .15s, color .15s;';
+    const mkSeg=(cur,val)=> cur===val
+      ? segBase+' background:hsl(var(--primary)); color:hsl(var(--primary-foreground));'
+      : segBase+' background:transparent; color:hsl(var(--muted-foreground));';
+    const segHover=(cur,val)=> cur===val ? 'filter:brightness(1.05);' : 'color:hsl(var(--foreground));';
+    const setAppearance=(v)=>this.setState(s=>({appearance:v, theme: v==='system'? s.theme : v}));
+    const appearanceOptions=[['light','Claro',icoSun],['dark','Escuro',icoMoon],['system','Sistema',icoMonitor]].map(([v,label,icon])=>({
+      label, icon, style:mkSeg(this.state.appearance,v), hover:segHover(this.state.appearance,v), onClick:()=>setAppearance(v),
+    }));
+
+    // ---------- credit ----------
+    const creditHelp = this.state.creditMode==='antecipacao'
+      ? 'As vendas no crédito entram no financeiro como recebidas à vista, já descontada a taxa de antecipação da adquirente.'
+      : 'As parcelas entram no financeiro na data em que a adquirente repassa cada uma, acompanhando o pagamento do cliente.';
+    const showFee = this.state.creditMode==='antecipacao';
+
+    // ---------- retention ----------
+    const retMode=this.state.retentionMode;
+    const retentionOptions=[['manual','Manual',icoEdit],['tarefas','Por tarefas',icoUserChk],['automatico','Automático',icoWhats]].map(([v,label,icon])=>({
+      label, icon, style:mkSeg(retMode,v), hover:segHover(retMode,v), onClick:()=>this.setState({retentionMode:v}),
+    }));
+    const retentionHelp = retMode==='manual' ? 'Nenhuma ação automática. Você registra os contatos de retenção manualmente.'
+      : retMode==='tarefas' ? 'O sistema cria tarefas para a equipe entrar em contato no momento certo.'
+      : 'As mensagens abaixo são enviadas automaticamente pelo WhatsApp nos gatilhos definidos.';
+
+    const showMessages = retMode !== 'manual';
+    const messages=this.state.messages.map((m,i)=>({
+      ...m,
+      cardOpacity: m.active?'1':'0.66',
+      stateLabel: m.active?'Ativa':'Inativa',
+      stateColor: m.active?'hsl(var(--primary-text))':'hsl(var(--muted-foreground))',
+      trackStyle:'position:relative; width:38px; height:22px; border-radius:99px; border:1px solid '+(m.active?'hsl(var(--primary))':'hsl(var(--border))')+'; background:'+(m.active?'hsl(var(--primary))':'hsl(var(--muted))')+'; cursor:pointer; padding:0; flex:none; transition:background .2s, border-color .2s;',
+      knobStyle:'position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:'+(m.active?'hsl(var(--primary-foreground))':'hsl(var(--card))')+'; box-shadow:0 1px 2px rgba(0,0,0,0.25); transition:transform .2s; transform:translateX('+(m.active?'16px':'0')+');',
+      onToggle:()=>this.setState(s=>({messages:s.messages.map((x,j)=>j===i?{...x,active:!x.active}:x)})),
+    }));
+
+    // ---------- webhooks ----------
+    const epMeta={wa:{name:'WhatsApp',desc:'Cloud API',icon:icoWhats},meta:{name:'Meta Ads',desc:'Lead Ads',icon:icoUsers},google:{name:'Google Ads',desc:'Lead Form',icon:icoTarget}};
+    const epUrls={wa:'https://api.senno.app/webhooks/wa/8f3a2b',meta:'https://api.senno.app/webhooks/meta/8f3a2b',google:'https://api.senno.app/webhooks/gads/8f3a2b'};
+    const endpoints=Object.keys(epMeta).map(id=>{
+      const copied=this.state.copiedId===id;
+      return { id, name:epMeta[id].name, desc:epMeta[id].desc, icon:epMeta[id].icon, url:epUrls[id],
+        copyIcon: copied?icoCheck:icoCopy, copyLabel: copied?'Copiado':'Copiar',
+        copyBg: copied?'hsl(var(--ok-bg))':'hsl(var(--card))',
+        copyColor: copied?'hsl(var(--ok))':'hsl(var(--foreground))',
+        copyBorder: copied?'hsl(var(--ok)/0.4)':'hsl(var(--border))',
+        onCopy:()=>{ try{ navigator.clipboard && navigator.clipboard.writeText(epUrls[id]); }catch(e){} this.setState({copiedId:id}); setTimeout(()=>this.setState(s=>s.copiedId===id?{copiedId:null}:{}),1400); },
+      };
+    });
+    const rotateToken=()=>{ const h='0123456789abcdef'; let t=''; for(let i=0;i<16;i++)t+=h[Math.floor(Math.random()*16)]; this.setState({token:'whk_live_'+t}); };
+    const revokeToken=()=>this.setState({token:'— revogado —'});
+
+    // ---------- roles (drag reorder) ----------
+    const allowDrop=(e)=>{ if(e&&e.preventDefault)e.preventDefault(); };
+    const roles=this.state.roles.map((r,i)=>({
+      ...r,
+      usersLabel: r.users+(r.users===1?' usuário':' usuários'),
+      opacity: this.state.dragIndex===i?'0.5':'1',
+      border: this.state.dragIndex===i?'hsl(var(--primary)/0.6)':'hsl(var(--border))',
+      onDragStart:(e)=>{ if(e&&e.dataTransfer)e.dataTransfer.effectAllowed='move'; this.setState({dragIndex:i}); },
+      onDragEnter:(e)=>{ if(e&&e.preventDefault)e.preventDefault(); this.setState(s=>{ if(s.dragIndex===null||s.dragIndex===i)return {}; const arr=[...s.roles]; const [mv]=arr.splice(s.dragIndex,1); arr.splice(i,0,mv); return {roles:arr, dragIndex:i}; }); },
+      onDragEnd:()=>this.setState({dragIndex:null}),
+    }));
+
+    // ---------- users ----------
+    const users=[
+      {name:'Atendente (teste)',email:'atendente-lucorreia@senno.dev',role:'Sem cargo'},
+      {name:'Financeiro (teste)',email:'financeiro-lucorreia@senno.dev',role:'Sem cargo'},
+      {name:'Gerente (teste)',email:'gerente-lucorreia@senno.dev',role:'Gerente'},
+      {name:'LuCorreia Estética',email:'lucorreiaesteticacwb@gmail.com',owner:true},
+      {name:'Sem Cargo (teste)',email:'semcargo-lucorreia@senno.dev',role:'Sem cargo'},
+    ].map(u=>({ ...u, notOwner:!u.owner }));
+
+    return {
+      theme:this.props.theme ?? this.state.theme,
+      ...this._notif(), navMain,
+      icoSearch, icoBell, icoPlus, icoLock, icoChevDown, icoRefresh, icoTrash, icoEdit, icoMail, icoUsers, icoShield, icoGrip, icoCrown,
+      searchQuery:this.state.searchQuery, onSearch:(e)=>this.setState({searchQuery:e.target.value}),
+      chips, noChips,
+      isPerfil:sec==='perfil'||all, isAparencia:sec==='aparencia'||all, isClinica:sec==='clinica'||all, isPagamento:sec==='pagamento'||all,
+      isWebhooks:sec==='webhooks'||all, isRetencao:sec==='retencao'||all, isPessoas:sec==='pessoas'||all, isCargos:sec==='cargos'||all, isUsuarios:sec==='usuarios'||all,
+      appearanceOptions,
+      creditMode:this.state.creditMode, onCreditMode:(e)=>this.setState({creditMode:e.target.value}), creditHelp, showFee,
+      retentionOptions, retentionHelp, messages, showMessages,
+      token:this.state.token, endpoints, rotateToken, revokeToken,
+      roles, allowDrop, users,
+      themeTitle:(this.props.theme??this.state.theme)==='dark'?'Modo escuro':'Modo claro',
+      toggleTheme:()=> this.props.onToggleTheme ? this.props.onToggleTheme() : this.setState(s=>({theme:s.theme==='dark'?'light':'dark', appearance:s.theme==='dark'?'light':'dark'})),
+    };
+  }
+}
+</script>
+</body>
+</html>
