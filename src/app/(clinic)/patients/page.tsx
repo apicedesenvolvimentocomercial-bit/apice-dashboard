@@ -22,9 +22,5 @@ export default async function ClientPatientsPage() {
 
   const patients = await getClinicPatients({ onlyCompleted: true })
 
-  return (
-    <div className="space-y-6">
-      <PatientsList patients={patients} clientId={clientId} />
-    </div>
-  )
+  return <PatientsList patients={patients} clientId={clientId} />
 }

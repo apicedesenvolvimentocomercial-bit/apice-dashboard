@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, Plus } from 'lucide-react'
+import { Box, HelpCircle, Loader2, MonitorSmartphone, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
@@ -16,6 +16,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import {
   createFixedAssetAction,
   deleteFixedAssetAction,
@@ -52,6 +54,89 @@ type RentalRow = {
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const dt = (d: string | Date) => new Date(d).toLocaleDateString('pt-BR')
 
+/** Vida útil legível: ≥24 meses vira anos ("3 anos"); abaixo, meses ("18 m"). */
+function lifeLabel(months: number): string {
+  if (months >= 24) return `${Math.round(months / 12)} anos`
+  if (months === 12) return '1 ano'
+  return `${months} m`
+}
+
+/** Amortização acumulada até hoje, limitada ao valor amortizável. */
+function accumulated(a: Row): number {
+  const start = new Date(a.acquisitionDate).getTime()
+  const end = a.disposedAt ? new Date(a.disposedAt).getTime() : Date.now()
+  const monthsElapsed = Math.max(0, Math.floor((end - start) / (30.44 * 86_400_000)))
+  const cap = Math.max(0, a.acquisitionValue - a.residualValue)
+  return Math.min(a.monthlyDepreciation * Math.min(monthsElapsed, a.usefulLifeMonths), cap)
+}
+
+/** Cabeçalho de seção (handoff §10.1): h2 + "?" com tooltip + ação primária. */
+function SectionHeader({
+  title,
+  hint,
+  action,
+}: {
+  title: string
+  hint: string
+  action: React.ReactNode
+}) {
+  return (
+    <div className="mb-3.5 flex flex-wrap items-end justify-between gap-4">
+      <div className="flex items-center gap-2">
+        <h2 className="m-0 text-[length:clamp(15px,0.2vw+12.4px,16.5px)] font-semibold">{title}</h2>
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-help text-muted-foreground" aria-label={`Sobre ${title}`}>
+                <HelpCircle className="h-[15px] w-[15px]" aria-hidden="true" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[240px] text-xs leading-normal">{hint}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+      {action}
+    </div>
+  )
+}
+
+/** Estado vazio composto por seção (handoff §10.5). */
+function SectionEmpty({
+  icon: Icon,
+  title,
+  desc,
+}: {
+  icon: React.ElementType
+  title: string
+  desc: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-[11px] rounded-[13px] border border-dashed border-border bg-card px-6 py-[46px] text-center">
+      <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-muted text-muted-foreground">
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <div className="text-sm font-semibold">{title}</div>
+      <p className="-mt-1 max-w-[420px] text-[12.5px] text-muted-foreground">{desc}</p>
+    </div>
+  )
+}
+
+// Grids das tabelas (handoff §10.2/§10.4, adaptados aos dados reais).
+const ASSET_GRID =
+  'grid grid-cols-[minmax(0,1.7fr)_110px_120px_100px_130px_130px_150px] items-center gap-3.5'
+const RENTAL_GRID =
+  'grid grid-cols-[minmax(0,1.6fr)_110px_140px_110px_110px_76px] items-center gap-3.5'
+
+const HEADER_ROW =
+  'border-b border-border bg-muted/40 px-[18px] py-[11px] text-[11.5px] font-semibold uppercase tracking-[0.02em] text-muted-foreground'
+
+/**
+ * Aba Ativos — redesign Senno (Financeiro-handoff §10): seções empilhadas com
+ * cabeçalho (título + tooltip de ajuda + ação primária), tabela num card com
+ * rodapé de total e estado vazio composto POR SEÇÃO. Hoje o produto tem ativos
+ * intangíveis (amortização na DRE) e equipamentos alugados (despesa fixa); a
+ * seção de tangíveis com manutenção do protótipo depende de modelo novo.
+ */
 export function AssetsTab({ clientId }: { clientId: string }) {
   const [rows, setRows] = useState<Row[]>([])
   const [rentals, setRentals] = useState<RentalRow[]>([])
@@ -83,142 +168,236 @@ export function AssetsTab({ clientId }: { clientId: string }) {
     })
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <NewAssetDialog clientId={clientId} onSaved={load} />
-      </div>
+  const activeAssets = rows.filter((a) => !a.disposedAt)
+  const totalAmortization = activeAssets.reduce((s, a) => s + a.monthlyDepreciation, 0)
+  const totalRent = rentals.reduce((s, r) => s + r.amount, 0)
 
-      {loading ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="py-16 text-center text-sm text-muted-foreground">
-          Nenhum ativo intangível cadastrado. Cadastre software, licenças ou marcas para a
-          amortização entrar na DRE.
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">Ativo</th>
-                <th className="px-3 py-2">Aquisição</th>
-                <th className="px-3 py-2 text-right">Valor</th>
-                <th className="px-3 py-2 text-right">Vida útil</th>
-                <th className="px-3 py-2 text-right">Amort./mês</th>
-                <th className="px-3 py-2 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
+  return (
+    <div className="flex flex-col gap-7">
+      {/* ================= Ativos intangíveis (handoff §10.2) ================= */}
+      <section>
+        <SectionHeader
+          title="Ativos intangíveis"
+          hint="Software, licenças e marcas — geram amortização na DRE."
+          action={<NewAssetDialog clientId={clientId} onSaved={load} />}
+        />
+
+        {loading ? (
+          <div className="overflow-hidden rounded-[13px] border border-border bg-card shadow-card">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  ASSET_GRID,
+                  'border-t border-border px-[18px] py-[13px] first:border-t-0'
+                )}
+              >
+                {Array.from({ length: 7 }).map((_, j) => (
+                  <div key={j} className="senno-shimmer h-3 w-4/5 rounded" />
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <SectionEmpty
+            icon={Box}
+            title="Nenhum ativo intangível cadastrado"
+            desc="Cadastre software, licenças ou marcas para a amortização entrar na DRE."
+          />
+        ) : (
+          <div className="overflow-x-auto rounded-[13px] border border-border bg-card shadow-card">
+            <div className="min-w-[900px]">
+              <div className={cn(ASSET_GRID, HEADER_ROW)}>
+                <div>Ativo</div>
+                <div>Tipo</div>
+                <div className="text-right">Valor</div>
+                <div>Vida útil</div>
+                <div className="text-right">Amort./mês</div>
+                <div className="text-right">Acumulada</div>
+                <div />
+              </div>
+
               {rows.map((a) => (
-                <tr key={a.id} className={a.disposedAt ? 'text-muted-foreground' : ''}>
-                  <td className="px-3 py-2">
-                    {a.name}
-                    {a.category && (
-                      <span className="ml-1 text-xs text-muted-foreground">· {a.category}</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">{dt(a.acquisitionDate)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{brl(a.acquisitionValue)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{a.usefulLifeMonths} m</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {brl(a.monthlyDepreciation)}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1">
-                      {a.disposedAt ? (
-                        <span className="text-xs">Baixado {dt(a.disposedAt)}</span>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={pending}
-                          onClick={() =>
-                            act(() => disposeFixedAssetAction(clientId, a.id), 'Ativo baixado')
-                          }
-                        >
-                          Dar baixa
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
+                <div
+                  key={a.id}
+                  className={cn(
+                    ASSET_GRID,
+                    'border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50',
+                    a.disposedAt && 'opacity-60'
+                  )}
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-semibold">{a.name}</div>
+                    <div className="truncate text-[11.5px] tabular-nums text-muted-foreground">
+                      Adquirido em {dt(a.acquisitionDate)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="inline-flex whitespace-nowrap rounded-full bg-muted px-2.5 py-[3px] text-[11px] font-semibold leading-none text-foreground">
+                      {a.category?.trim() || 'Intangível'}
+                    </span>
+                  </div>
+                  <div className="text-right text-[12.5px] font-semibold tabular-nums">
+                    {brl(a.acquisitionValue)}
+                  </div>
+                  <div className="text-[12.5px] tabular-nums text-muted-foreground">
+                    {lifeLabel(a.usefulLifeMonths)}
+                  </div>
+                  <div className="text-right text-[12.5px] font-semibold tabular-nums text-destructive">
+                    {brl(-a.monthlyDepreciation)}
+                  </div>
+                  <div className="text-right text-[12.5px] tabular-nums text-muted-foreground">
+                    {brl(accumulated(a))}
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    {a.disposedAt ? (
+                      <span className="whitespace-nowrap text-[11.5px] tabular-nums text-muted-foreground">
+                        Baixado {dt(a.disposedAt)}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
                         disabled={pending}
                         onClick={() =>
-                          act(() => deleteFixedAssetAction(clientId, a.id), 'Ativo excluído')
+                          act(() => disposeFixedAssetAction(clientId, a.id), 'Ativo baixado')
                         }
+                        className="whitespace-nowrap text-[12.5px] font-semibold text-primary-text hover:underline disabled:opacity-50"
                       >
-                        Excluir
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
+                        Dar baixa
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      title="Excluir"
+                      aria-label="Excluir ativo"
+                      disabled={pending}
+                      onClick={() =>
+                        act(() => deleteFixedAssetAction(clientId, a.id), 'Ativo excluído')
+                      }
+                      className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/[0.12] hover:text-destructive disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
-      {/* Equipamentos alugados (custo FIXED recorrente — sem depreciação) */}
-      <div className="space-y-2 pt-2">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold">Equipamentos alugados</h3>
-            <p className="text-xs text-muted-foreground">
-              Aluguel mensal recorrente — entra na DRE como despesa fixa (sem depreciação).
-            </p>
-          </div>
-          <NewRentalDialog clientId={clientId} onSaved={load} />
-        </div>
-        {rentals.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            Nenhum equipamento alugado.
-          </p>
-        ) : (
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Equipamento</th>
-                  <th className="px-3 py-2 text-right">Aluguel/mês</th>
-                  <th className="px-3 py-2 text-right">Dia venc.</th>
-                  <th className="px-3 py-2 text-right">Desde</th>
-                  <th className="px-3 py-2 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {rentals.map((r) => (
-                  <tr key={r.id}>
-                    <td className="px-3 py-2">{r.description ?? 'Aluguel'}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{brl(r.amount)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{r.recurringDay ?? '—'}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{dt(r.date)}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={pending}
-                          onClick={() =>
-                            act(() => deleteCostAction(r.id, clientId), 'Aluguel removido')
-                          }
-                        >
-                          Remover
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              {/* Rodapé de total (handoff §10.2) */}
+              <div className="flex items-center justify-between border-t border-border bg-muted/40 px-[18px] py-3">
+                <span className="text-[12.5px] text-muted-foreground">
+                  Amortização total no mês
+                </span>
+                <span className="text-[13px] font-bold tabular-nums text-destructive">
+                  {brl(-totalAmortization)}
+                </span>
+              </div>
+            </div>
           </div>
         )}
-      </div>
+      </section>
+
+      {/* ================= Equipamentos alugados (handoff §10.4) ================= */}
+      <section>
+        <SectionHeader
+          title="Equipamentos alugados"
+          hint="Aluguel mensal recorrente — entra na DRE como despesa fixa (sem depreciação)."
+          action={<NewRentalDialog clientId={clientId} onSaved={load} />}
+        />
+
+        {loading ? (
+          <div className="overflow-hidden rounded-[13px] border border-border bg-card shadow-card">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  RENTAL_GRID,
+                  'border-t border-border px-[18px] py-[13px] first:border-t-0'
+                )}
+              >
+                {Array.from({ length: 6 }).map((_, j) => (
+                  <div key={j} className="senno-shimmer h-3 w-4/5 rounded" />
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : rentals.length === 0 ? (
+          <SectionEmpty
+            icon={MonitorSmartphone}
+            title="Nenhum equipamento alugado"
+            desc="Cadastre o primeiro aluguel para vê-lo somar como despesa fixa."
+          />
+        ) : (
+          <div className="overflow-x-auto rounded-[13px] border border-border bg-card shadow-card">
+            <div className="min-w-[760px]">
+              <div className={cn(RENTAL_GRID, HEADER_ROW)}>
+                <div>Equipamento</div>
+                <div>Início</div>
+                <div className="text-right">Aluguel/mês</div>
+                <div>Dia venc.</div>
+                <div>Status</div>
+                <div />
+              </div>
+
+              {rentals.map((r) => (
+                <div
+                  key={r.id}
+                  className={cn(
+                    RENTAL_GRID,
+                    'border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50'
+                  )}
+                >
+                  <div className="truncate text-[13px] font-semibold">
+                    {r.description ?? 'Aluguel'}
+                  </div>
+                  <div className="text-[12.5px] tabular-nums text-foreground">{dt(r.date)}</div>
+                  <div className="text-right text-[12.5px] font-semibold tabular-nums text-destructive">
+                    {brl(-r.amount)}
+                  </div>
+                  <div className="text-[12.5px] tabular-nums text-muted-foreground">
+                    {r.recurringDay ?? '—'}
+                  </div>
+                  <div>
+                    <span className="inline-flex items-center whitespace-nowrap rounded-full bg-ok-bg px-[11px] py-1 text-[11px] font-semibold leading-none text-ok">
+                      Ativo
+                    </span>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      title="Remover"
+                      aria-label="Remover aluguel"
+                      disabled={pending}
+                      onClick={() =>
+                        act(() => deleteCostAction(r.id, clientId), 'Aluguel removido')
+                      }
+                      className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/[0.12] hover:text-destructive disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Rodapé de total (handoff §10.4) */}
+              <div className="flex items-center justify-between border-t border-border bg-muted/40 px-[18px] py-3">
+                <span className="text-[12.5px] text-muted-foreground">
+                  Despesa fixa de aluguel no mês
+                </span>
+                <span className="text-[13px] font-bold tabular-nums text-destructive">
+                  {brl(-totalRent)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
+
+// Botão primário do redesign (trigger dos dialogs de cadastro).
+const PRIMARY_TRIGGER_CLASS =
+  'inline-flex h-[38px] items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 function NewRentalDialog({ clientId, onSaved }: { clientId: string; onSaved: () => void }) {
   const [open, setOpen] = useState(false)
@@ -252,9 +431,10 @@ function NewRentalDialog({ clientId, onSaved }: { clientId: string; onSaved: () 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Plus className="mr-2 h-4 w-4" /> Novo aluguel
-        </Button>
+        <button type="button" className={PRIMARY_TRIGGER_CLASS}>
+          <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+          Novo aluguel
+        </button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -364,9 +544,10 @@ function NewAssetDialog({ clientId, onSaved }: { clientId: string; onSaved: () =
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" /> Novo ativo
-        </Button>
+        <button type="button" className={PRIMARY_TRIGGER_CLASS}>
+          <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+          Novo ativo
+        </button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

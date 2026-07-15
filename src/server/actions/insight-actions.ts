@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
-import { NotFoundError, fail, runAction } from '@/types/errors'
+import { NotFoundError, ValidationError, fail, runAction } from '@/types/errors'
 import { runInsightsForClinic } from '@/server/services/insights/engine'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -21,7 +21,7 @@ async function loadInsight(insightId: string) {
   const ctx = await getTenantContext()
   const insight = await prisma.insight.findFirst({
     where: { id: insightId, organizationId: ctx.organizationId },
-    select: { id: true, clientId: true },
+    select: { id: true, clientId: true, ruleKey: true },
   })
   if (!insight) throw new NotFoundError('Insight')
   await assertClientAccess(ctx, insight.clientId)
@@ -66,7 +66,16 @@ export async function resolveInsightAction(insightId: string) {
   })
 }
 
-const dismissSchema = z.object({ reason: z.string().min(3, 'Motivo é obrigatório') })
+const dismissSchema = z.object({
+  reason: z
+    .string()
+    .min(3, 'Motivo é obrigatório')
+    .max(255, 'Texto de motivação de dispensa muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O Texto de motivação de dispensa contém caracteres inválidos'
+    ),
+})
 
 export async function dismissInsightAction(insightId: string, formData: unknown) {
   const parsed = dismissSchema.safeParse(formData)
@@ -80,6 +89,44 @@ export async function dismissInsightAction(insightId: string, formData: unknown)
         status: 'DISMISSED',
         dismissedAt: new Date(),
         dismissReason: parsed.data.reason,
+      },
+    })
+    revalidate(insight.clientId)
+    return null
+  })
+}
+
+/**
+ * "Reabrir" (redesign): volta um insight RESOLVIDO/DISPENSADO para OPEN,
+ * limpando os carimbos do ciclo anterior. O engine continua idempotente — se a
+ * regra não estiver mais disparando, o próximo recálculo o resolve de novo.
+ * Trava anti-duplicata: se o recálculo já recriou um insight ATIVO da mesma
+ * regra, reabrir este colocaria dois iguais na lista — bloqueia com mensagem.
+ */
+export async function reopenInsightAction(insightId: string) {
+  return runAction(async () => {
+    const { ctx, insight } = await loadInsight(insightId)
+    const activeTwin = await prisma.insight.findFirst({
+      where: {
+        organizationId: ctx.organizationId,
+        clientId: insight.clientId,
+        ruleKey: insight.ruleKey,
+        status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] },
+        id: { not: insightId },
+      },
+      select: { id: true },
+    })
+    if (activeTwin) {
+      throw new ValidationError('Já existe um insight ativo desta regra — o recálculo o recriou.')
+    }
+    await prisma.insight.update({
+      where: { id: insightId, clientId: insight.clientId },
+      data: {
+        status: 'OPEN',
+        acknowledgedAt: null,
+        resolvedAt: null,
+        dismissedAt: null,
+        dismissReason: null,
       },
     })
     revalidate(insight.clientId)

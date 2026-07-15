@@ -8,6 +8,7 @@ import {
   markReceivableLost,
   markReceivablePaid,
   markReceivablePending,
+  summarizeReceivables,
 } from '@/server/repositories/receivable-repository'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -25,6 +26,16 @@ export async function listReceivablesAction(clientId: string, cursor?: string) {
     enterClientScope(clientId)
     await assertCan(ctx, 'financial', 'read')
     return listReceivables(ctx, clientId, undefined, cursor ? { cursor } : undefined)
+  })
+}
+
+export async function getReceivablesSummaryAction(clientId: string) {
+  return runAction(async () => {
+    const ctx = await getTenantContext()
+    await assertClientAccess(ctx, clientId)
+    enterClientScope(clientId)
+    await assertCan(ctx, 'financial', 'read')
+    return summarizeReceivables(ctx, clientId)
   })
 }
 

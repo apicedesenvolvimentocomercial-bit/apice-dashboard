@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 
 import { ClinicSidebar } from '@/components/clinic/clinic-sidebar'
 import { ClinicTopbar } from '@/components/clinic/clinic-topbar'
+import { getClinicChrome } from '@/domains/clinic/chrome/chrome-queries'
 import { getClinicNotifications } from '@/domains/clinic/notifications/notification-queries'
 import { auth } from '@/server/auth'
 import { getClinicContext } from '@/server/auth/clinic-context'
@@ -24,6 +25,9 @@ export default async function ClientLayout({ children }: { children: React.React
     .filter(([, mod]) => visibleTabs.has(mod))
     .map(([href]) => href)
 
+  // Chrome do redesign: identidade da clínica (sidebar) + rótulo do usuário.
+  const chrome = await getClinicChrome()
+
   // Sino do topbar da clínica usa a query de clínica (escopo clientId), não a
   // compartilhada por userId — separação total do domínio (Fase 2).
   const { rows, unread } = await getClinicNotifications({ take: 10 }).catch(() => ({
@@ -33,10 +37,24 @@ export default async function ClientLayout({ children }: { children: React.React
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <ClinicSidebar role={role} visibleHrefs={visibleHrefs} />
+      <ClinicSidebar
+        role={role}
+        visibleHrefs={visibleHrefs}
+        clinicName={chrome.clinicName}
+        clinicSub={chrome.clinicSub}
+        userName={session.user.name ?? 'Usuário'}
+        userEmail={session.user.email ?? null}
+        roleLabel={chrome.roleLabel}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <ClinicTopbar user={session.user} notifications={rows} unreadCount={unread} />
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>
+        <ClinicTopbar
+          clientId={ctx.clientId}
+          canSearchPatients={ctx.isOwner || visibleTabs.has('patients')}
+          notifications={rows}
+          unreadCount={unread}
+        />
+        {/* Só o corpo rola — sidebar e topbar ficam fixos (handoff §1). */}
+        <main className="flex-1 overflow-y-auto px-6 py-[22px]">{children}</main>
       </div>
     </div>
   )

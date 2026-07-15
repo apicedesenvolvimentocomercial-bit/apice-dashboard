@@ -9,10 +9,9 @@ import ptBrLocale from '@fullcalendar/core/locales/pt-br'
 import type { EventClickArg } from '@fullcalendar/core'
 import { useEffect, useRef } from 'react'
 
-import { toSPWallClock } from '@/lib/calendar-time'
 import type { CalendarEvent, CalendarHoliday } from '@/shared/calendar-types'
 
-const ONE_HOUR_MS = 60 * 60 * 1000
+import { mapCalendarEventToFc } from './fc-event-mapping'
 
 type Props = {
   events: CalendarEvent[]
@@ -37,50 +36,17 @@ export function CalendarInner({ events, holidays, onEventClick, onRangeChange }:
     return () => obs.disconnect()
   }, [])
 
-  // Atividade "fim do dia" (sentinela 23:59 SP, sem `end`) não tem horário
-  // real: é só um prazo "vence neste dia". No timeGrid (dia/semana) um bloco
-  // às 23:59 cai no rodapé do grid com 1 min de altura e fica cortado pela
-  // borda. Por isso esses eventos viram all-day — caem na faixa all-day do
-  // topo (nunca cortada) na visão dia/semana e como bloco normal no mês. É
-  // pra isso que a faixa all-day existe.
-  //
-  // Demais eventos sem `end` assumem 1h como bloco de tempo real. O fim é
-  // clampado no mesmo dia SP pra barra não esticar pro dia seguinte quando
-  // começa perto da meia-noite. O clamp NÃO pode igualar o start (duração
-  // zero): o FullCalendar trataria como "sem fim" e aplicaria 1h default,
-  // transbordando pro dia seguinte. Por isso fecha em 23:59:59. Eventos com
-  // `end` mantêm o horário.
+  // Regra de mapeamento (sentinela fim-do-dia → all-day; sem `end` → 1h
+  // clampada no mesmo dia SP) extraída p/ `fc-event-mapping.ts` — é
+  // compartilhada com a skin da Agenda da clínica. Comportamento idêntico.
   const fcEvents = events.map((e) => {
-    const start = toSPWallClock(e.start)
-
-    // Sentinela de fim de dia: 23:59 SP sem `end` → all-day.
-    const isEndOfDaySentinel = e.end == null && start.slice(11, 16) === '23:59'
-    if (isEndOfDaySentinel) {
-      return {
-        id: e.id,
-        title: e.title,
-        start: start.slice(0, 10),
-        allDay: true,
-        backgroundColor: e.color,
-        borderColor: e.color,
-        extendedProps: { source: e },
-      }
-    }
-
-    let end: string
-    if (e.end != null) {
-      end = toSPWallClock(e.end)
-    } else {
-      const oneHourLater = toSPWallClock(new Date(e.start.getTime() + ONE_HOUR_MS))
-      const sameDay = oneHourLater.slice(0, 10) === start.slice(0, 10)
-      end = sameDay ? oneHourLater : `${start.slice(0, 10)}T23:59:59`
-    }
+    const m = mapCalendarEventToFc(e)
     return {
-      id: e.id,
-      title: e.title,
-      start,
-      end,
-      allDay: false,
+      id: m.id,
+      title: m.title,
+      start: m.start,
+      ...(m.end != null ? { end: m.end } : {}),
+      allDay: m.allDay,
       backgroundColor: e.color,
       borderColor: e.color,
       extendedProps: { source: e },

@@ -46,7 +46,11 @@ export const slowFirstContactRule: InsightRule = {
       estimatedImpact: null,
       suggestion:
         'Implemente resposta automática via WhatsApp e atribua leads em até 5 minutos da criação.',
-      metadata: { avgMinutes: Math.round(avg), sampleSize: leads.length },
+      metadata: {
+        avgMinutes: Math.round(avg),
+        sampleSize: leads.length,
+        metric: { value: `${Math.round(avg)} min`, label: 'até o 1º contato' },
+      },
     }
   },
 }

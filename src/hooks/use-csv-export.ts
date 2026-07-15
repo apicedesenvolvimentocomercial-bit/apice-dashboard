@@ -7,7 +7,6 @@ type ExportOptions = {
   resource: 'revenues' | 'costs' | 'leads' | 'patients' | 'appointments'
   from?: string
   to?: string
-  filename?: string
 }
 
 export function useCsvExport() {

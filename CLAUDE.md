@@ -19,7 +19,14 @@ deploy/banco:
 - **Next.js 16** (App Router, Turbopack, React 19) + **TypeScript**.
 - **Prisma 6** + **PostgreSQL**. Prod = Supabase; testes E2E = Neon (descartável).
 - **NextAuth v5 (beta)** — credenciais (email/senha, bcrypt). JWT carrega
-  role/orgId/clientId/clinicRoleId; re-sync do DB a cada ~10 min.
+  role/orgId/clientId/clinicRoleId/**sessionVersion**; re-sync do DB a cada ~10 min;
+  `maxAge` 7d + `updateAge` 24h. **Revogação de JWT** = `User.sessionVersion`: o claim
+  viaja no token e `getTenantContext` nega o acesso a dados JÁ no próximo request se o
+  version do token != o do DB (o re-sync do jwt callback também mata token/página em
+  ≤10 min). Incremente o version p/ invalidar TODAS as sessões na hora — já feito no
+  **logout** (`logoutAction`, antes do `signOut` do cookie → "sair" é global, todos os
+  dispositivos), na **troca** (`changePasswordAction`, força novo login) e no **reset**
+  de senha. Revogação por-dispositivo exigiria denylist de jti (não implementado).
 - **Tailwind** + **shadcn/ui** (Radix). **Recharts** (gráficos), **FullCalendar** (agenda),
   **dnd-kit** (kanban), **react-hook-form + zod**, **sonner** (toasts), **Sentry**.
 - Testes: **Vitest** (unit, mock do Prisma) + **Playwright** (E2E).

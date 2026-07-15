@@ -72,6 +72,53 @@ export async function listReceivables(
   }
 }
 
+export type ReceivablesSummary = {
+  open: { total: number; count: number }
+  overdue: { total: number; count: number }
+  lost: { total: number; count: number }
+  paid: { total: number; count: number }
+}
+
+/**
+ * Totais agregados p/ os cards de resumo da aba Contas a Receber (independem da
+ * paginação da lista): em aberto (PENDENTE a vencer), vencido (PENDENTE com
+ * vencimento no passado), perdido (write-off) e recebido (PAGO).
+ */
+export async function summarizeReceivables(
+  ctx: TenantContext,
+  clientId: string
+): Promise<ReceivablesSummary> {
+  const tenant = { organizationId: ctx.organizationId, clientId }
+  const now = new Date()
+  const [open, overdue, lost, paid] = await Promise.all([
+    prisma.receivable.aggregate({
+      where: { ...tenant, status: 'PENDENTE', dueDate: { gte: now } },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.receivable.aggregate({
+      where: { ...tenant, status: 'PENDENTE', dueDate: { lt: now } },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.receivable.aggregate({
+      where: { ...tenant, status: 'PERDIDO' },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.receivable.aggregate({
+      where: { ...tenant, status: 'PAGO' },
+      _sum: { amount: true },
+      _count: true,
+    }),
+  ])
+  const pick = (r: { _sum: { amount: unknown }; _count: number }) => ({
+    total: Number(r._sum.amount ?? 0),
+    count: r._count,
+  })
+  return { open: pick(open), overdue: pick(overdue), lost: pick(lost), paid: pick(paid) }
+}
+
 // Recalcula o status da venda após uma parcela mudar: QUITADA quando não há mais
 // parcela PENDENTE; ABERTA caso contrário. Nunca mexe numa venda CANCELADA.
 async function syncRevenueStatus(tx: Prisma.TransactionClient, revenueId: string) {

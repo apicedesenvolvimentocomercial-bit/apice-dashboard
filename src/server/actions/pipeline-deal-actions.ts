@@ -28,10 +28,17 @@ const STAGE_VALUES = [
 const createSchema = z.object({
   clientId: z.string().cuid(),
   stage: z.enum(STAGE_VALUES).optional(),
-  value: z.coerce.number().nonnegative().optional(),
-  probability: z.coerce.number().int().min(0).max(100).optional(),
+  value: z.coerce.number().max(9_999_999_999.99, 'Valor muito alto').nonnegative().optional(),
+  probability: z.coerce.number().int().min(0).max(100, 'probabilidade muito grande').optional(),
   expectedCloseAt: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A nota contém caracteres inválidos'
+    )
+    .optional(),
 })
 
 export async function createPipelineDealAction(input: z.infer<typeof createSchema>) {
@@ -80,7 +87,14 @@ const moveSchema = z.object({
   dealId: z.string().cuid(),
   stage: z.enum(STAGE_VALUES),
   position: z.number().finite().optional(),
-  lostReason: z.string().optional(),
+  lostReason: z
+    .string()
+    .max(65535, 'Texto muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto contém caracteres inválidos'
+    )
+    .optional(),
 })
 
 export async function moveDealStageAction(input: z.infer<typeof moveSchema>) {
@@ -154,10 +168,17 @@ export async function reorderDealAction(input: z.infer<typeof reorderSchema>) {
 
 const updateSchema = z.object({
   dealId: z.string().cuid(),
-  value: z.coerce.number().nonnegative().optional(),
-  probability: z.coerce.number().int().min(0).max(100).optional(),
+  value: z.coerce.number().max(9_999_999_999.99, 'Numero muito alto').nonnegative().optional(),
+  probability: z.coerce.number().int().min(0).max(100, 'Probabilidade muito grande').optional(),
   expectedCloseAt: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A nota contém caracteres inválidos'
+    )
+    .optional(),
 })
 
 export async function updatePipelineDealAction(input: z.infer<typeof updateSchema>) {

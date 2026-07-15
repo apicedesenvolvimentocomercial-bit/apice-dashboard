@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  .senno{
+    --background:38 14% 97%; --foreground:220 9% 12%;
+    --card:0 0% 100%; --card-foreground:220 9% 12%;
+    --popover:0 0% 100%;
+    --primary:42 53% 42%; --primary-foreground:225 11% 7%; --primary-text:42 53% 33%;
+    --secondary:38 18% 90%; --secondary-foreground:25 47% 18%;
+    --muted:38 18% 90%; --muted-foreground:25 15% 38%;
+    --accent:38 18% 90%; --accent-foreground:25 47% 18%;
+    --destructive:0 72% 48%;
+    --border:38 20% 85%; --input:38 20% 85%; --ring:42 65% 52%;
+    --ok:142 55% 30%; --ok-bg:142 50% 91%;
+    --warn:32 80% 32%; --warn-bg:38 88% 90%;
+    --info-t:217 65% 40%; --info-bg:214 90% 93%;
+    --shadow:220 28% 22%; --shadow-a:0.07;
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .senno[data-theme="dark"]{
+    --background:225 11% 7%; --foreground:38 33% 96%;
+    --card:220 9% 11%; --card-foreground:38 33% 96%;
+    --popover:220 9% 11%;
+    --primary:42 65% 58%; --primary-foreground:225 11% 7%; --primary-text:42 65% 58%;
+    --secondary:220 9% 16%; --secondary-foreground:38 33% 96%;
+    --muted:220 9% 16%; --muted-foreground:38 15% 65%;
+    --accent:220 9% 16%; --accent-foreground:38 33% 96%;
+    --destructive:0 63% 50%;
+    --border:220 9% 18%; --input:220 9% 18%; --ring:42 65% 58%;
+    --ok:142 58% 64%; --ok-bg:142 45% 15%;
+    --warn:38 85% 66%; --warn-bg:36 55% 15%;
+    --info-t:214 85% 72%; --info-bg:217 50% 17%;
+    --shadow:0 0% 0%; --shadow-a:0.4;
+  }
+  .senno[data-font="ranade"]{ font-family:'Ranade','Inter',Georgia,serif; }
+  @keyframes sennoShimmer{ 0%{background-position:-180% 0;} 100%{background-position:180% 0;} }
+  @keyframes sennoGrow{ from{transform:scaleY(0);} to{transform:scaleY(1);} }
+  /* topbar search: collapses to icon, expands right-to-left on hover; 0s grace before collapsing */
+  .senno-search{ position:relative; width:38px; height:38px; flex:none; }
+  .senno-search-box{ position:absolute; top:0; right:0; height:38px; width:38px; display:flex; align-items:center; gap:8px; padding:0 11px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--muted-foreground)); font-size:12.5px; overflow:hidden; white-space:nowrap; cursor:pointer; transition:width .34s cubic-bezier(.4,0,.2,1), background .22s ease, border-color .22s ease, box-shadow .22s ease; transition-delay:0s; }
+  .senno-search:hover .senno-search-box, .senno-search-box:focus-within{ width:240px; background:hsl(var(--background)); border-color:hsl(var(--input)); cursor:text; transition-delay:0s; }
+  .senno-search-box:focus-within{ border-color:hsl(var(--ring)); box-shadow:0 0 0 3px hsl(var(--ring)/0.18); }
+  /* theme toggle: sun/moon swap with rotate + fade */
+  .senno-theme-btn{ position:relative; overflow:hidden; }
+  .senno-theme-ico{ position:absolute; top:50%; left:50%; width:17px; height:17px; margin:-8.5px 0 0 -8.5px; display:inline-flex; transition:transform .5s cubic-bezier(.34,1.3,.5,1), opacity .35s ease; }
+  .senno-theme-sun{ transform:rotate(0deg) scale(1); opacity:1; }
+  .senno-theme-moon{ transform:rotate(-90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-sun{ transform:rotate(90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-moon{ transform:rotate(0deg) scale(1); opacity:1; }
+  /* notification bell: small resonating shake on click */
+  @keyframes senno-bell-ring{ 0%{transform:rotate(0);} 15%{transform:rotate(11deg);} 30%{transform:rotate(-9deg);} 45%{transform:rotate(6deg);} 60%{transform:rotate(-4deg);} 75%{transform:rotate(2deg);} 100%{transform:rotate(0);} }
+  .senno-bell-ico{ transform-origin:top center; }
+  .senno-bell-ring-a{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+  .senno-bell-ring-b{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+  /* responsive: stack multi-column grids on tablet/portrait */
+  @media (max-width:1024px){ .senno-2col{ grid-template-columns:1fr !important; } .senno-3col{ grid-template-columns:1fr 1fr !important; } }
+  @media (max-width:660px){ .senno-3col{ grid-template-columns:1fr !important; } }
+</style>
+</helmet>
+
+<div class="senno" data-theme="{{ theme }}" data-font="{{ font }}" style="background:hsl(var(--background)); color:hsl(var(--foreground)); height:100vh; box-sizing:border-box; overflow:hidden; line-height:1.45;">
+
+  <!-- ===== APP FRAME (full-bleed website shell) ===== -->
+  <div data-screen-label="Dashboard Clínica — Visão geral" style="width:100%; height:100%; min-height:0; display:flex; overflow:hidden; background:hsl(var(--background));">
+
+    <!-- SIDEBAR -->
+    <aside style="width:236px; flex:none; background:hsl(var(--card)); border-right:1px solid hsl(var(--border)); display:flex; flex-direction:column; padding:18px 14px;">
+      <div style="display:flex; align-items:center; gap:10px; padding:6px 8px 18px;">
+        <div style="width:34px; height:34px; border-radius:9px; background:hsl(var(--primary)); display:flex; align-items:center; justify-content:center; flex:none;">
+          <span style="color:hsl(var(--primary-foreground)); font-weight:700; font-size:17px;">B</span>
+        </div>
+        <div style="min-width:0;">
+          <div style="font-weight:600; font-size:14px; color:hsl(var(--foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Clínica Bellavie</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Plano Premium</div>
+        </div>
+      </div>
+
+      <nav style="display:flex; flex-direction:column; gap:2px;">
+        <sc-for list="{{ navMain }}" as="item" hint-placeholder-count="12">
+          <a href="#" onClick="{{ item.onClick }}" style="display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:8px; font-size:13.5px; font-weight:{{ item.weight }}; text-decoration:none; color:{{ item.color }}; background:{{ item.bg }};" style-hover="background:hsl(var(--accent));">
+            <span style="width:18px; height:18px; display:inline-flex; flex:none; color:{{ item.iconColor }};" dangerouslySetInnerHTML="{{ item.icon }}"></span>
+            <span style="flex:1; white-space:nowrap;">{{ item.label }}</span>
+            <sc-if value="{{ item.badge }}" hint-placeholder-val="">
+              <span style="font-size:10.5px; font-weight:600; padding:1px 7px; border-radius:99px; background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text));">{{ item.badge }}</span>
+            </sc-if>
+          </a>
+        </sc-for>
+      </nav>
+
+      <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; background:hsl(var(--muted));">
+        <div style="width:32px; height:32px; border-radius:99px; background:hsl(var(--primary)/0.2); display:flex; align-items:center; justify-content:center; flex:none; color:hsl(var(--primary-text)); font-weight:600; font-size:12.5px;">HC</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Dra. Helena Costa</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Proprietária</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div style="flex:1; min-width:0; min-height:0; display:flex; flex-direction:column;">
+
+      <!-- TOPBAR -->
+      <header style="flex:none; display:flex; align-items:center; gap:16px; padding:14px 24px; border-bottom:1px solid hsl(var(--border)); background:hsl(var(--card));">
+        <div style="flex:1; min-width:0;">
+          <h1 style="margin:0; font-size:clamp(22px, 0.5vw + 18px, 27px); font-weight:600; letter-spacing:-0.01em;">Visão geral</h1>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <div class="senno-search">
+            <div class="senno-search-box">
+              <span style="width:15px;height:15px;display:inline-flex;flex:none;" dangerouslySetInnerHTML="{{ icoSearch }}"></span>
+              <input type="text" placeholder="Buscar paciente…" value="{{ query }}" onInput="{{ onSearchInput }}" onFocus="{{ onSearchFocus }}" onKeyDown="{{ onSearchKey }}" style="flex:1; min-width:0; border:none; outline:none; background:transparent; font-family:inherit; font-size:12.5px; color:hsl(var(--foreground));" />
+            </div>
+            <sc-if value="{{ searchOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closeSearch }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:46px; right:0; width:344px; background:hsl(var(--popover)); border:1px solid hsl(var(--border)); border-radius:12px; box-shadow:0 16px 40px -12px hsl(var(--shadow)/calc(var(--shadow-a) * 3.5)); z-index:50; overflow:hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:11px 14px 8px;">
+                  <span style="font-size:10.5px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:hsl(var(--muted-foreground));">{{ listLabel }}</span>
+                </div>
+                <sc-if value="{{ hasResults }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex; flex-direction:column; padding:0 6px 6px;">
+                    <sc-for list="{{ results }}" as="p" hint-placeholder-count="5">
+                      <button onClick="{{ p.onClick }}" style="display:flex; align-items:center; gap:11px; width:100%; text-align:left; padding:9px 8px; border:none; background:transparent; border-radius:8px; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+                        <span style="width:34px; height:34px; border-radius:99px; flex:none; display:flex; align-items:center; justify-content:center; background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text)); font-size:12px; font-weight:600;">{{ p.initials }}</span>
+                        <span style="flex:1; min-width:0;">
+                          <span style="display:block; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500; color:hsl(var(--foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" dangerouslySetInnerHTML="{{ p.nameHtml }}"></span>
+                          <span style="display:block; font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.sub }}</span>
+                        </span>
+                        <span style="font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:99px; background:{{ p.stBg }}; color:{{ p.stColor }}; flex:none;">{{ p.status }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ noResults }}" hint-placeholder-val="">
+                  <div style="display:flex; flex-direction:column; align-items:center; text-align:center; gap:9px; padding:22px 18px 24px;">
+                    <span style="width:30px; height:30px; display:inline-flex; color:hsl(var(--muted-foreground));" dangerouslySetInnerHTML="{{ icoSearch }}"></span>
+                    <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500;">Nenhum paciente encontrado</div>
+                    <div style="font-size:12px; color:hsl(var(--muted-foreground)); margin-top:-4px;">Tente outro nome ou telefone.</div>
+                    <button style="margin-top:4px; height:34px; padding:0 14px; border-radius:8px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:12.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+                      <span style="width:14px;height:14px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>Cadastrar paciente
+                    </button>
+                  </div>
+                </sc-if>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 14px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                  <a href="#" style="font-size:12px; font-weight:600; color:hsl(var(--primary-text)); text-decoration:none;">Ver todos os pacientes</a>
+                  <span style="font-size:10.5px; color:hsl(var(--muted-foreground));">Esc para fechar</span>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <button onClick="{{ toggleTheme }}" title="{{ themeTitle }}" class="senno-theme-btn" style="width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+            <span class="senno-theme-ico senno-theme-sun" dangerouslySetInnerHTML="{{ icoSun }}"></span>
+            <span class="senno-theme-ico senno-theme-moon" dangerouslySetInnerHTML="{{ icoMoon }}"></span>
+          </button>
+          <div class="senno-notif" style="position:relative;">
+            <button onClick="{{ toggleNotif }}" title="Notificações" style="position:relative; width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+              <span class="senno-bell-ico {{ bellClass }}" onAnimationEnd="{{ bellAnimEnd }}" style="width:17px;height:17px;display:inline-flex; transform-origin:top center;" dangerouslySetInnerHTML="{{ icoBell }}"></span>
+              <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}">
+                <span style="position:absolute; top:7px; right:8px; width:7px; height:7px; border-radius:99px; background:hsl(var(--destructive)); border:1.5px solid hsl(var(--card));"></span>
+              </sc-if>
+            </button>
+            <sc-if value="{{ notifOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closeNotif }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:46px; right:0; width:362px; background:hsl(var(--popover)); border:1px solid hsl(var(--border)); border-radius:12px; box-shadow:0 16px 40px -12px hsl(var(--shadow)/calc(var(--shadow-a) * 3.5)); z-index:50; overflow:hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px 10px;">
+                  <span style="display:flex; align-items:center; gap:8px; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--foreground));">Notificações<sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px; font-weight:600; padding:1px 7px; border-radius:99px; background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text)); font-variant-numeric:tabular-nums;">{{ unreadCount }}</span></sc-if></span>
+                  <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><button onClick="{{ markAllRead }}" style="border:none; background:transparent; font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); cursor:pointer; padding:2px 4px; font-family:inherit;" style-hover="text-decoration:underline;">Marcar todas como lidas</button></sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; padding:0 6px 6px; max-height:344px; overflow-y:auto;">
+                  <sc-for list="{{ notifItems }}" as="n" hint-placeholder-count="4">
+                    <button onClick="{{ n.onClick }}" style="display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left; padding:10px 8px; border:none; background:{{ n.rowBg }}; border-radius:8px; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+                      <span style="width:32px; height:32px; border-radius:99px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ n.iconBg }}; color:{{ n.iconColor }};"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ n.icon }}"></span></span>
+                      <span style="flex:1; min-width:0;">
+                        <span style="display:block; font-size:12.5px; font-weight:{{ n.titleWeight }}; color:hsl(var(--foreground));">{{ n.title }}</span>
+                        <span style="display:block; font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ n.sub }}</span>
+                      </span>
+                      <span style="flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+                        <span style="font-size:10.5px; color:hsl(var(--muted-foreground)); white-space:nowrap;">{{ n.time }}</span>
+                        <sc-if value="{{ n.unread }}" hint-placeholder-val=""><span style="width:7px; height:7px; border-radius:99px; background:hsl(var(--primary)); flex:none;"></span></sc-if>
+                      </span>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:center; padding:9px 14px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                  <a href="#" style="font-size:12px; font-weight:600; color:hsl(var(--primary-text)); text-decoration:none;">Ver todas as notificações</a>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <button onClick="{{ onNewLead }}" style="height:38px; padding:0 15px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+            <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>
+            Novo lead
+          </button>
+        </div>
+      </header>
+
+      <!-- SCROLL BODY -->
+      <div style="flex:1; min-height:0; overflow-y:auto; padding:22px 24px; display:flex; flex-direction:column; gap:18px;">
+
+        <!-- PERIOD TOOLBAR -->
+        <div style="display:flex; align-items:center; justify-content:center; gap:12px;">
+          <div style="position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:1fr; padding:3px; border-radius:9px; background:hsl(var(--muted)); border:1px solid hsl(var(--border));">
+            <div style="{{ periodPill }}"></div>
+            <sc-for list="{{ periodTabs }}" as="p" hint-placeholder-count="4">
+              <button onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- KPI SECTORS -->
+        <div style="display:flex; flex-direction:column; gap:18px;">
+          <sc-for list="{{ sectors }}" as="sec" hint-placeholder-count="3">
+            <div>
+              <div style="font-size:11px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:hsl(var(--muted-foreground)); margin:0 0 10px 2px;">{{ sec.name }}</div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(228px,1fr)); gap:14px;">
+                <sc-for list="{{ sec.items }}" as="k" hint-placeholder-count="4">
+                  <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:18px 18px 16px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); display:flex; flex-direction:column; gap:9px;" style-hover="border-color:hsl(var(--primary)/0.5);">
+                    <div style="display:flex; align-items:center; gap:7px;">
+                      <span style="width:14px; height:14px; display:inline-flex; flex:none; color:hsl(var(--muted-foreground));" dangerouslySetInnerHTML="{{ k.icon }}"></span>
+                      <span style="font-size:12.5px; color:hsl(var(--foreground)); font-weight:600;">{{ k.label }}</span>
+                    </div>
+                    <div style="font-size:clamp(27px, 0.6vw + 21px, 33px); font-weight:700; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; line-height:1; white-space:nowrap;">{{ k.value }}</div>
+                    <div style="display:flex; align-items:center; gap:7px; font-size:11.5px; min-width:0;">
+                      <sc-if value="{{ k.showDelta }}" hint-placeholder-val="">
+                        <span style="display:inline-flex; align-items:center; gap:2px; font-weight:600; padding:1px 6px; border-radius:99px; background:{{ k.deltaBg }}; color:{{ k.deltaColor }}; white-space:nowrap; flex:none;">
+                          <span style="width:11px;height:11px;display:inline-flex;" dangerouslySetInnerHTML="{{ k.deltaIcon }}"></span>{{ k.delta }}
+                        </span>
+                      </sc-if>
+                      <span style="color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;">{{ k.sub }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- CHART + METAS -->
+        <div class="senno-2col" style="display:grid; grid-template-columns:1.7fr 1fr; gap:18px;">
+
+          <!-- REVENUE x COST CHART -->
+          <div style="min-width:0;">
+            <dc-import name="Grafico Receita" theme="{{ theme }}" months="{{ chartMonths }}" window-count="8" default-period="12" step="2" scale-max="200" hint-size="100%,388px"></dc-import>
+          </div>
+
+          <!-- METAS -->
+          <div style="position:relative; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:20px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); display:flex; flex-direction:column;">
+            <sc-if value="{{ metasPopOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closePop }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:0; left:0; right:0; z-index:50; background:hsl(var(--card)); border:1px solid hsl(var(--primary)/0.35); border-radius:13px; padding:20px; box-shadow:0 20px 44px -14px hsl(var(--shadow)/calc(var(--shadow-a) * 4)); display:flex; flex-direction:column;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                  <div style="display:flex; align-items:center; gap:9px;">
+                    <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Metas</h2>
+                    <span style="font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); background:hsl(var(--accent)); border:1px solid hsl(var(--border)); border-radius:99px; padding:2px 9px; font-variant-numeric:tabular-nums;">{{ metasCount }}</span>
+                  </div>
+                  <button onClick="{{ closePop }}" style="display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 10px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));"><span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevU }}"></span>Ver menos</button>
+                </div>
+                <div style="margin-top:18px; display:flex; flex-direction:column; gap:13px; max-height:min(62vh, 620px); overflow-y:auto;">
+                  <sc-for list="{{ metasFull }}" as="g" hint-placeholder-count="6">
+                    <div>
+                      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:3px;">
+                        <span style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500;">{{ g.label }}</span>
+                        <span style="font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ g.detail }}</span>
+                      </div>
+                      <div style="display:flex; align-items:center; gap:5px; margin-bottom:8px; font-size:11.5px; color:hsl(var(--muted-foreground));">
+                        <span style="width:13px;height:13px;display:inline-flex;flex:none;" dangerouslySetInnerHTML="{{ icoCalendar }}"></span>
+                        <span style="font-variant-numeric:tabular-nums;">{{ g.prazo }}</span>
+                      </div>
+                      <div style="height:8px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden;">
+                        <div style="height:100%; width:{{ g.pct }}; border-radius:99px; background:{{ g.fill }};"></div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+              <div style="display:flex; align-items:center; gap:9px;">
+                <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Metas</h2>
+                <span style="font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); background:hsl(var(--accent)); border:1px solid hsl(var(--border)); border-radius:99px; padding:2px 9px; font-variant-numeric:tabular-nums;">{{ metasCount }}</span>
+              </div>
+              <sc-if value="{{ metasHasMore }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ openMetasPop }}" style="display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 8px 0 11px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));">Ver todas<span style="display:inline-flex; align-items:center; height:18px; padding:0 6px; border-radius:99px; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;">+{{ metasMore }}</span></button>
+              </sc-if>
+            </div>
+            <div style="margin-top:18px; display:flex; flex-direction:column; gap:13px;">
+              <sc-for list="{{ metas }}" as="g" hint-placeholder-count="3">
+                <div>
+                  <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:3px;">
+                    <span style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500;">{{ g.label }}</span>
+                    <span style="font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ g.detail }}</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:5px; margin-bottom:8px; font-size:11.5px; color:hsl(var(--muted-foreground));">
+                    <span style="width:13px;height:13px;display:inline-flex;flex:none;" dangerouslySetInnerHTML="{{ icoCalendar }}"></span>
+                    <span style="font-variant-numeric:tabular-nums;">{{ g.prazo }}</span>
+                  </div>
+                  <div style="height:8px; border-radius:99px; background:hsl(var(--muted)); overflow:hidden;">
+                    <div style="height:100%; width:{{ g.pct }}; border-radius:99px; background:{{ g.fill }};"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <!-- ORIGEM DOS LEADS + RECEITA POR PROCEDIMENTO -->
+        <div class="senno-2col" style="display:grid; grid-template-columns:1fr 1.6fr; gap:18px; align-items:stretch;">
+
+          <!-- ORIGEM DOS LEADS (donut) -->
+          <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:20px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); display:flex; flex-direction:column;">
+            <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Origem dos leads</h2>
+            <div style="margin-top:16px; display:flex; align-items:center; gap:22px;">
+              <div style="position:relative; width:140px; height:140px; flex:none;">
+                {{ leadDonut }}
+                <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; gap:1px;">
+                  <span style="font-size:22px; font-weight:700; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; color:hsl(var(--foreground)); line-height:1.05;">{{ leadCenterBig }}</span>
+                  <span style="font-size:10.5px; color:hsl(var(--muted-foreground)); text-align:center; max-width:86px; line-height:1.15;">{{ leadCenterSmall }}</span>
+                  <sc-if value="{{ hasLeadSub }}" hint-placeholder-val=""><span style="font-size:10px; font-weight:600; color:hsl(var(--primary-text)); font-variant-numeric:tabular-nums; margin-top:1px;">{{ leadCenterSub }}</span></sc-if>
+                </div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; gap:9px;">
+                <sc-for list="{{ leadLegend }}" as="l" hint-placeholder-count="7">
+                  <div style="display:flex; align-items:center; gap:9px;">
+                    <span style="width:10px; height:10px; border-radius:3px; background:{{ l.fill }}; flex:none;"></span>
+                    <span style="flex:1; font-size:12.5px; color:hsl(var(--foreground));">{{ l.label }}</span>
+                    <span style="font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; color:hsl(var(--muted-foreground));">{{ l.pct }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <!-- RECEITA POR PROCEDIMENTO (barras horizontais) -->
+          <div style="position:relative; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:20px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); display:flex; flex-direction:column;">
+            <sc-if value="{{ procPopOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closePop }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:0; left:0; right:0; z-index:50; background:hsl(var(--card)); border:1px solid hsl(var(--primary)/0.35); border-radius:13px; padding:20px; box-shadow:0 20px 44px -14px hsl(var(--shadow)/calc(var(--shadow-a) * 4)); display:flex; flex-direction:column;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                  <div style="display:flex; align-items:center; gap:9px;">
+                    <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Receita por procedimento</h2>
+                    <span style="font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); background:hsl(var(--accent)); border:1px solid hsl(var(--border)); border-radius:99px; padding:2px 9px; font-variant-numeric:tabular-nums;">{{ procCount }}</span>
+                  </div>
+                  <button onClick="{{ closePop }}" style="display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 10px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));"><span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevU }}"></span>Ver menos</button>
+                </div>
+                <div style="margin-top:18px; display:flex; flex-direction:column; gap:13px; max-height:min(62vh, 620px); overflow-y:auto;">
+                  <sc-for list="{{ procBarsFull }}" as="p" hint-placeholder-count="8">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <span style="width:128px; flex:none; font-size:12px; color:hsl(var(--foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.label }}</span>
+                      <div style="flex:1; height:20px; border-radius:6px; background:hsl(var(--muted)); overflow:hidden;">
+                        <div style="height:100%; width:{{ p.w }}; border-radius:6px; background:{{ p.fill }};"></div>
+                      </div>
+                      <span style="width:64px; flex:none; text-align:right; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums;">{{ p.value }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+              <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Receita por procedimento</h2>
+              <sc-if value="{{ procHasMore }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ openProcPop }}" style="display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 8px 0 11px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));">Ver todos<span style="display:inline-flex; align-items:center; height:18px; padding:0 6px; border-radius:99px; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;">+{{ procMore }}</span></button>
+              </sc-if>
+            </div>
+            <div style="margin-top:18px; display:flex; flex-direction:column; gap:13px;">
+              <sc-for list="{{ procBars }}" as="p" hint-placeholder-count="6">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="width:128px; flex:none; font-size:12px; color:hsl(var(--foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.label }}</span>
+                  <div style="flex:1; height:20px; border-radius:6px; background:hsl(var(--muted)); overflow:hidden;">
+                    <div style="height:100%; width:{{ p.w }}; border-radius:6px; background:{{ p.fill }};"></div>
+                  </div>
+                  <span style="width:64px; flex:none; text-align:right; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums;">{{ p.value }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div class="senno-3col" style="display:grid; grid-template-columns:0.95fr 0.9fr 1.55fr; gap:18px; align-items:start;">
+
+          <!-- PRÓXIMOS AGENDAMENTOS -->
+          <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 18px 12px;">
+              <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Próximos agendamentos</h2>
+              <a href="#" onClick="{{ goAgenda }}" style="font-size:12px; font-weight:600; color:hsl(var(--primary-text)); text-decoration:none;">Ver agenda</a>
+            </div>
+            <div style="display:flex; flex-direction:column;">
+              <sc-for list="{{ agenda }}" as="a" hint-placeholder-count="5">
+                <div style="display:flex; align-items:center; gap:12px; padding:11px 18px; border-top:1px solid hsl(var(--border));">
+                  <div style="font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; color:hsl(var(--foreground)); width:42px; flex:none;">{{ a.time }}</div>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.name }}</div>
+                    <div style="font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.proc }}</div>
+                  </div>
+                  <span style="font-size:11px; font-weight:600; padding:2px 9px; border-radius:99px; background:{{ a.bg }}; color:{{ a.color }}; flex:none;">{{ a.status }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- FUNIL -->
+          <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:16px 18px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+            <h2 style="margin:0 0 14px; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Funil de conversão</h2>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <sc-for list="{{ funil }}" as="f" hint-placeholder-count="5">
+                <div>
+                  <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:5px;">
+                    <span style="font-size:12.5px; font-weight:500;">{{ f.stage }}</span>
+                    <span style="font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ f.count }}</span>
+                  </div>
+                  <div style="height:22px; border-radius:6px; background:hsl(var(--muted)); overflow:hidden;">
+                    <div style="height:100%; width:{{ f.pct }}; border-radius:6px; background:hsl(var(--primary)/{{ f.alpha }}); display:flex; align-items:center; justify-content:flex-end; padding-right:8px;">
+                      <span style="font-size:10.5px; font-weight:600; color:hsl(var(--primary-foreground));">{{ f.pct }}</span>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- INSIGHTS ATIVOS -->
+          <div style="position:relative; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:16px 18px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a));">
+            <sc-if value="{{ insightsPopOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closePop }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:0; left:0; right:0; z-index:50; background:hsl(var(--card)); border:1px solid hsl(var(--primary)/0.35); border-radius:13px; padding:16px 18px; box-shadow:0 20px 44px -14px hsl(var(--shadow)/calc(var(--shadow-a) * 4));">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+                  <div style="display:flex; align-items:center; gap:9px;">
+                    <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Insights ativos</h2>
+                    <span style="font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); background:hsl(var(--accent)); border:1px solid hsl(var(--border)); border-radius:99px; padding:2px 9px; font-variant-numeric:tabular-nums;">{{ insightsCount }}</span>
+                  </div>
+                  <button onClick="{{ closePop }}" style="display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 10px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));"><span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevU }}"></span>Ver menos</button>
+                </div>
+                <div style="display:flex; flex-direction:column; max-height:min(62vh, 620px); overflow-y:auto; overflow-x:hidden; padding:0 12px; margin:0 -12px;">
+                  <sc-for list="{{ insightsFull }}" as="i" hint-placeholder-count="6">
+                    <button onClick="{{ i.onClick }}" title="Ver insight" style="display:flex; align-items:center; gap:11px; padding:11px 10px; border:none; border-top:1px solid hsl(var(--border)); background:transparent; text-align:left; cursor:pointer; width:100%; border-radius:8px; transition:transform .16s ease, box-shadow .16s ease, background .16s ease;" style-hover="background:hsl(var(--card)); transform:translateY(-2px); box-shadow:0 9px 20px -8px hsl(var(--shadow)/calc(var(--shadow-a) * 5));">
+                      <span style="width:30px; height:30px; border-radius:8px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ i.tintBg }}; color:{{ i.tint }};">
+                        <span style="width:16px;height:16px;display:inline-flex;" dangerouslySetInnerHTML="{{ i.icon }}"></span>
+                      </span>
+                      <div style="flex:1; min-width:0;">
+                        <div style="font-size:12.5px; font-weight:500; line-height:1.35; color:hsl(var(--foreground));">{{ i.title }}</div>
+                        <div style="font-size:11px; color:hsl(var(--muted-foreground)); margin-top:1px;">{{ i.cat }}</div>
+                      </div>
+                      <span style="font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:99px; background:{{ i.pillBg }}; color:{{ i.pillColor }}; flex:none; white-space:nowrap;">{{ i.sevLabel }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+              <div style="display:flex; align-items:center; gap:9px;">
+                <h2 style="margin:0; font-size:clamp(15px, 0.2vw + 12.4px, 16.5px); font-weight:600;">Insights ativos</h2>
+                <span style="font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); background:hsl(var(--accent)); border:1px solid hsl(var(--border)); border-radius:99px; padding:2px 9px; font-variant-numeric:tabular-nums;">{{ insightsCount }}</span>
+              </div>
+              <sc-if value="{{ insightsHasMore }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ openInsightsPop }}" style="display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 8px 0 11px; border-radius:8px; border:1px solid hsl(var(--border)); background:transparent; color:hsl(var(--primary-text)); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;" style-hover="background:hsl(var(--accent));">Ver todos<span style="display:inline-flex; align-items:center; height:18px; padding:0 6px; border-radius:99px; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;">+{{ insightsMore }}</span></button>
+              </sc-if>
+            </div>
+            <div style="display:flex; flex-direction:column;">
+              <sc-for list="{{ insights }}" as="i" hint-placeholder-count="4">
+                <button onClick="{{ i.onClick }}" title="Ver insight" style="display:flex; align-items:center; gap:11px; padding:11px 10px; border:none; border-top:1px solid hsl(var(--border)); background:transparent; text-align:left; cursor:pointer; width:100%; border-radius:8px; transition:transform .16s ease, box-shadow .16s ease, background .16s ease;" style-hover="background:hsl(var(--card)); transform:translateY(-2px); box-shadow:0 9px 20px -8px hsl(var(--shadow)/calc(var(--shadow-a) * 5));">
+                  <span style="width:30px; height:30px; border-radius:8px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ i.tintBg }}; color:{{ i.tint }};">
+                    <span style="width:16px;height:16px;display:inline-flex;" dangerouslySetInnerHTML="{{ i.icon }}"></span>
+                  </span>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-size:12.5px; font-weight:500; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:hsl(var(--foreground));">{{ i.title }}</div>
+                    <div style="font-size:11px; color:hsl(var(--muted-foreground)); margin-top:1px;">{{ i.cat }}</div>
+                  </div>
+                  <span style="font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:99px; background:{{ i.pillBg }}; color:{{ i.pillColor }}; flex:none; white-space:nowrap;">{{ i.sevLabel }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STATES GALLERY ===== -->
+  <div data-screen-label="Galeria de estados" style="max-width:1376px; margin:40px auto 0;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:baseline; gap:10px;">
+        <h2 style="margin:0; font-size:16px; font-weight:600;">Estados</h2>
+        <span style="font-size:12.5px; color:hsl(var(--muted-foreground));">carregado · skeleton · vazio · erro</span>
+      </div>
+      <div style="position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:1fr; padding:3px; border-radius:9px; background:hsl(var(--muted)); border:1px solid hsl(var(--border));">
+        <div style="{{ statePill }}"></div>
+        <sc-for list="{{ stateTabs }}" as="s" hint-placeholder-count="4">
+          <button onClick="{{ s.onClick }}" style="{{ s.style }}">{{ s.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:18px;">
+      <!-- KPI state -->
+      <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:18px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); min-height:150px;">
+        <sc-if value="{{ isLoaded }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span style="font-size:12.5px; color:hsl(var(--muted-foreground)); font-weight:500;">Receita do mês</span>
+              <span style="width:30px;height:30px;border-radius:8px;background:hsl(var(--primary)/0.12);color:hsl(var(--primary-text));display:flex;align-items:center;justify-content:center;"><span style="width:16px;height:16px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoMoney }}"></span></span>
+            </div>
+            <div style="margin-top:11px; font-size:25px; font-weight:700; letter-spacing:-0.02em; font-variant-numeric:tabular-nums;">R$ 184.320</div>
+            <div style="margin-top:7px; font-size:12px;"><span style="font-weight:600; padding:1px 7px; border-radius:99px; background:hsl(var(--ok-bg)); color:hsl(var(--ok));">↑ 12,4%</span> <span style="color:hsl(var(--muted-foreground));">vs. mês anterior</span></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isSkeleton }}" hint-placeholder-val="">
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div style="height:13px; width:90px; border-radius:6px; background:{{ shimmer }}; background-size:220% 100%; animation:sennoShimmer 1.5s ease-in-out infinite;"></div>
+              <div style="height:30px; width:30px; border-radius:8px; background:{{ shimmer }}; background-size:220% 100%; animation:sennoShimmer 1.5s ease-in-out infinite;"></div>
+            </div>
+            <div style="height:28px; width:140px; border-radius:7px; background:{{ shimmer }}; background-size:220% 100%; animation:sennoShimmer 1.5s ease-in-out infinite; margin-top:14px;"></div>
+            <div style="height:13px; width:120px; border-radius:6px; background:{{ shimmer }}; background-size:220% 100%; animation:sennoShimmer 1.5s ease-in-out infinite; margin-top:12px;"></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; height:114px; gap:8px;">
+            <span style="width:34px;height:34px;display:inline-flex;color:hsl(var(--muted-foreground));" dangerouslySetInnerHTML="{{ icoMoney }}"></span>
+            <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500;">Sem receita registrada</div>
+            <div style="font-size:12px; color:hsl(var(--muted-foreground));">Os lançamentos do mês aparecerão aqui.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isError }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; height:114px; gap:9px;">
+            <span style="width:30px;height:30px;display:inline-flex;color:hsl(var(--destructive));" dangerouslySetInnerHTML="{{ icoAlert }}"></span>
+            <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500;">Não foi possível carregar</div>
+            <button onClick="{{ retry }}" style="height:32px; padding:0 14px; border-radius:8px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:12.5px; font-weight:600; cursor:pointer;" style-hover="background:hsl(var(--accent));">Tentar novamente</button>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- LIST state -->
+      <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; padding:18px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); min-height:150px;">
+        <h3 style="margin:0 0 12px; font-size:14px; font-weight:600;">Próximos agendamentos</h3>
+        <sc-if value="{{ isLoaded }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column;">
+            <sc-for list="{{ agendaShort }}" as="a" hint-placeholder-count="3">
+              <div style="display:flex; align-items:center; gap:12px; padding:9px 0; border-top:1px solid hsl(var(--border));">
+                <div style="font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; width:42px;">{{ a.time }}</div>
+                <div style="flex:1; min-width:0;"><div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500;">{{ a.name }}</div><div style="font-size:11.5px; color:hsl(var(--muted-foreground));">{{ a.proc }}</div></div>
+                <span style="font-size:11px; font-weight:600; padding:2px 9px; border-radius:99px; background:{{ a.bg }}; color:{{ a.color }};">{{ a.status }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isSkeleton }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column;">
+            <sc-for list="{{ three }}" as="n" hint-placeholder-count="3">
+              <div style="display:flex; align-items:center; gap:12px; padding:11px 0; border-top:1px solid hsl(var(--border));">
+                <div style="height:13px; width:38px; border-radius:6px; background:{{ shimmer }}; background-size:220% 100%; animation:sennoShimmer 1.5s ease-in-out infinite;"></div>
+                <div style="flex:1;"><div style="height:13px; width:60%; border-radius:6px; background:{{ shimmer }}; background-size:220% 100%; animation:sennoShimmer 1.5s ease-in-out infinite;"></div><div style="height:11px; width:40%; border-radius:6px; background:{{ shimmer }}; background-size:220% 100%; animation:sennoShimmer 1.5s ease-in-out infinite; margin-top:6px;"></div></div>
+                <div style="height:18px; width:64px; border-radius:99px; background:{{ shimmer }}; background-size:220% 100%; animation:sennoShimmer 1.5s ease-in-out infinite;"></div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; height:114px; gap:9px;">
+            <span style="width:34px;height:34px;display:inline-flex;color:hsl(var(--muted-foreground));" dangerouslySetInnerHTML="{{ icoCalendar }}"></span>
+            <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:500;">Nenhum agendamento hoje</div>
+            <button style="height:32px; padding:0 14px; border-radius:8px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:12.5px; font-weight:600; cursor:pointer;" style-hover="filter:brightness(1.05);">Agendar paciente</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isError }}" hint-placeholder-val="">
+          <div style="display:flex; align-items:flex-start; gap:11px; padding:13px; border-radius:10px; background:hsl(var(--destructive)/0.1); border:1px solid hsl(var(--destructive)/0.3);">
+            <span style="width:18px;height:18px;display:inline-flex;flex:none;color:hsl(var(--destructive));margin-top:1px;" dangerouslySetInnerHTML="{{ icoAlert }}"></span>
+            <div style="flex:1;">
+              <div style="font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--destructive));">Erro ao carregar a agenda</div>
+              <div style="font-size:12px; color:hsl(var(--muted-foreground)); margin-top:2px;">Verifique a conexão e tente novamente.</div>
+            </div>
+            <button onClick="{{ retry }}" style="height:30px; padding:0 12px; border-radius:7px; border:1px solid hsl(var(--destructive)/0.4); background:transparent; color:hsl(var(--destructive)); font-size:12px; font-weight:600; cursor:pointer;">Recarregar</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1180},&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;},&quot;defaultFont&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;inter&quot;,&quot;ranade&quot;],&quot;default&quot;:&quot;inter&quot;,&quot;tsType&quot;:&quot;'inter' | 'ranade'&quot;}}">
+class Component extends DCLogic {
+  state = {
+    theme: this.props.defaultTheme || 'light',
+    font: this.props.defaultFont || 'inter',
+    demo: 'loaded',
+    pop: null,
+    period: 'mes',
+    revMode: 'gerada',
+    query: '',
+    searchOpen: false,
+    notifOpen: false,
+    notifs: [
+      {id:1, type:'lead',   title:'Novo lead',                sub:'Mariana Alves · Instagram',          time:'agora',  read:false},
+      {id:2, type:'money',  title:'Pagamento confirmado',     sub:'R$ 1.200 · Botox · Camila Souza',     time:'8 min',  read:false},
+      {id:3, type:'agenda', title:'Agendamento confirmado',   sub:'Patrícia Lima · amanhã às 14h',       time:'40 min', read:false},
+      {id:4, type:'alert',  title:'Tarefa atrasada',          sub:'Retornar ligação · Rafael Dias',      time:'1 h',    read:true},
+      {id:5, type:'agenda', title:'Novo agendamento online',  sub:'Beatriz Ramos · Limpeza de pele',     time:'3 h',    read:true},
+    ],
+  };
+
+  ico(p){ return {__html:'<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'}; }
+
+  // navega para a página de Insights com foco no insight clicado
+  goInsight(title){ try{ localStorage.setItem('senno-insight-focus', title); }catch(e){} if(this.props.onNavigate) this.props.onNavigate('Insights'); }
+
+  // ---- sliding segmented pill ----
+  segPill(idx, n, o){ o=o||{}; return 'position:absolute; top:3px; left:3px; bottom:3px; width:calc((100% - 6px)/'+n+'); transform:translateX('+(idx*100)+'%); background:'+(o.bg||'hsl(var(--primary))')+'; border-radius:'+(o.r||7)+'px; box-shadow:'+(o.sh||'0 1px 2px hsl(var(--shadow)/var(--shadow-a))')+'; transition:transform .34s cubic-bezier(.34,1.1,.5,1); pointer-events:none; z-index:0;'; }
+  segBtn(on, o){ o=o||{}; return 'position:relative; z-index:1; border:none; cursor:pointer; font-family:inherit; font-size:'+(o.fs||'12.5px')+'; font-weight:600; padding:'+(o.pad||'6px 14px')+'; border-radius:'+(o.r||7)+'px; background:transparent; white-space:nowrap; transition:color .25s ease; color:'+(on?(o.on||'hsl(var(--primary-foreground))'):(o.off||'hsl(var(--muted-foreground))'))+';'; }
+
+  renderVals(){
+    const I = (p)=>this.ico(p);
+    const icoGrid    = I('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>');
+    const icoFunnel  = I('<path d="M3 4h18l-7 8v6l-4 2v-8z"/>');
+    const icoMoney   = I('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoUsers   = I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoSyringe = I('<rect x="3" y="3" width="7" height="7" rx="1.5"/><path d="M14 7h6M14 12h6M14 17h6M5 14v6M3 17h4"/>');
+    const icoCalendar= I('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoTarget  = I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>');
+    const icoSpark   = I('<path d="M3 12h4l3 8 4-16 3 8h4"/>');
+    const icoActivity= I('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>');
+    const icoSettings= I('<path d="M22.00 12.00 L21.24 15.83 L18.28 14.60 L16.81 16.81 L19.07 19.07 L15.83 21.24 L14.60 18.28 L12.00 18.80 L12.00 22.00 L8.17 21.24 L9.40 18.28 L7.19 16.81 L4.93 19.07 L2.76 15.83 L5.72 14.60 L5.20 12.00 L2.00 12.00 L2.76 8.17 L5.72 9.40 L7.19 7.19 L4.93 4.93 L8.17 2.76 L9.40 5.72 L12.00 5.20 L12.00 2.00 L15.83 2.76 L14.60 5.72 L16.81 7.19 L19.07 4.93 L21.24 8.17 L18.28 9.40 L18.80 12.00 Z"/><circle cx="12" cy="12" r="3"/>');
+    const icoSearch  = I('<circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/>');
+    const icoBulb    = I('<path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/>');
+    const icoBell    = I('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoPlus    = I('<path d="M12 5v14M5 12h14"/>');
+    const icoChevR   = I('<path d="m9 18 6-6-6-6"/>');
+    const icoChevU   = I('<path d="m18 15-6-6-6 6"/>');
+    const icoUp      = I('<path d="M7 17 17 7M9 7h8v8"/>');
+    const icoDown    = I('<path d="M7 7 17 17M17 9v8H9"/>');
+    const icoCheck   = I('<path d="M20 6 9 17l-5-5"/>');
+    const icoUserPlus= I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>');
+    const icoClock   = I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>');
+    const icoAlert   = I('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>');
+    const icoTrend   = I('<path d="M3 17 9 11l4 4 8-8"/><path d="M17 7h4v4"/>');
+    const icoHeart   = I('<path d="M19 14c1.49-1.46 3-3.21 3-5.5A4.5 4.5 0 0 0 12 6 4.5 4.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/>');
+    const icoUserX   = I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 8 5 5M22 8l-5 5"/>');
+    const icoReceipt = I('<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1z"/><path d="M8 8h8M8 12h8M8 16h5"/>');
+    const icoWallet  = I('<path d="M3 7a2 2 0 0 1 2-2h14v4M3 7v10a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H3"/><circle cx="17" cy="13" r="1.2"/>');
+    const icoChart   = I('<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="7"/><rect x="12" y="7" width="3" height="11"/><rect x="17" y="4" width="3" height="14"/>');
+    const icoTag     = I('<path d="M20.59 13.41 12 22l-9-9V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><circle cx="7.5" cy="7.5" r="1.3"/>');
+    const icoSun     = I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon    = I('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+
+    const F = 'hsl(var(--foreground))', M = 'hsl(var(--muted-foreground))', P = 'hsl(var(--primary-text))';
+
+    const icoDownload = I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>');
+    const navMain = [
+      {label:'Dashboard',    icon:icoGrid,     active:true},
+      {label:'Atividades',   icon:icoActivity},
+      {label:'Agenda',       icon:icoCalendar},
+      {label:'Funil',        icon:icoFunnel},
+      {label:'Pacientes',    icon:icoUsers},
+      {label:'Financeiro',   icon:icoMoney},
+      {label:'Metas',        icon:icoTarget},
+      {label:'Insights',     icon:icoBulb},
+      {label:'Procedimentos',icon:icoSyringe},
+      {label:'Exportações',  icon:icoDownload},
+      {label:'Notificações', icon:icoBell},
+      {label:'Configurações',icon:icoSettings},
+    ].map(n=>({
+      ...n,
+      weight: n.active ? 600 : 500,
+      color:  n.active ? P : M,
+      bg:     n.active ? 'hsl(var(--accent))' : 'transparent',
+      iconColor: n.active ? P : M,
+      badge: n.badge || '',
+      onClick:(e)=>{ if(e&&e.preventDefault)e.preventDefault(); if(this.props.onNavigate)this.props.onNavigate(n.label); },
+    }));
+
+    const kpiDefs = [
+      {sector:'Financeiro', label:'Faturamento',    value:'R$ 184.320', icon:icoMoney,   delta:'12,4%', dir:'up',   good:true,  sub:'vs. período anterior'},
+      {sector:'Financeiro', label:'Lucro líquido',  value:'R$ 142.880', icon:icoTrend,   delta:'9,1%',  dir:'up',   good:true,  sub:'líquido no período'},
+      {sector:'Financeiro', label:'Custos',         value:'R$ 41.440',  icon:icoWallet,  delta:'3,2%',  dir:'up',   good:false, sub:'no período'},
+      {sector:'Financeiro', label:'Margem líquida', value:'77,5%',      icon:icoChart,   sub:'sobre o faturamento'},
+      {sector:'Comercial',  label:'Leads totais',   value:'142',        icon:icoFunnel,  sub:'11 hoje'},
+      {sector:'Comercial',  label:'Conversão',      value:'34,2%',      icon:icoTarget,  sub:'meta 38%'},
+      {sector:'Comercial',  label:'CAC',            value:'R$ 86',      icon:icoTag,     sub:'custo por novo paciente'},
+      {sector:'Comercial',  label:'ROI marketing',  value:'4,2×',       icon:icoSpark,   sub:'retorno sobre invest.'},
+      {sector:'Operação',   label:'Agendamentos',   value:'318',        icon:icoCalendar,sub:'24 hoje'},
+      {sector:'Operação',   label:'No-show',        value:'8,4%',       icon:icoUserX,   sub:'comparecimento 91,6%'},
+      {sector:'Operação',   label:'Ticket médio',   value:'R$ 1.298',   icon:icoReceipt, delta:'5,6%',  dir:'up',   good:true,  sub:'por paciente'},
+      {sector:'Operação',   label:'Health Score',   value:'82',         icon:icoHeart,   sub:'de 100 · saudável'},
+    ].map(k=>({
+      ...k,
+      showDelta: !!k.delta,
+      deltaIcon: k.dir==='up' ? icoUp : icoDown,
+      deltaBg:   k.good ? 'hsl(var(--ok-bg))' : 'hsl(var(--destructive)/0.12)',
+      deltaColor:k.good ? 'hsl(var(--ok))' : 'hsl(var(--destructive))',
+    }));
+    const sectors = [
+      {name:'Financeiro',           items:kpiDefs.filter(k=>k.sector==='Financeiro')},
+      {name:'Comercial · aquisição',items:kpiDefs.filter(k=>k.sector==='Comercial')},
+      {name:'Operação · atendimento',items:kpiDefs.filter(k=>k.sector==='Operação')},
+    ];
+
+    // period selector
+    const period = this.state.period;
+    const perDefs = [['hoje','Hoje'],['semana','Semana'],['mes','Mês'],['tri','Trimestre']];
+    const periodTabs = perDefs.map(([k,label])=>({ label, style:this.segBtn(period===k), onClick:()=>this.setState({period:k}) }));
+    const periodPill = this.segPill(perDefs.findIndex(d=>d[0]===period), perDefs.length);
+
+    // Receita x Custos — últimos 12 meses (valores em milhares de R$)
+    const raw12 = [
+      {month:'jan', g:121, r:114, c:34}, {month:'fev', g:118, r:110, c:33},
+      {month:'mar', g:129, r:121, c:36}, {month:'abr', g:134, r:126, c:37},
+      {month:'mai', g:128, r:120, c:35}, {month:'jun', g:141, r:133, c:38},
+      {month:'jul', g:139, r:131, c:38}, {month:'ago', g:144, r:136, c:39},
+      {month:'set', g:151, r:142, c:41}, {month:'out', g:146, r:138, c:40},
+      {month:'nov', g:148, r:140, c:40}, {month:'dez', g:163, r:152, c:46},
+      {month:'jan', g:158, r:149, c:42}, {month:'fev', g:160, r:151, c:41},
+      {month:'mar', g:166, r:157, c:43}, {month:'abr', g:171, r:162, c:42},
+      {month:'mai', g:179, r:169, c:45}, {month:'jun', g:184, r:174, c:41},
+    ];
+    const chartMonths = raw12.map(m=>({ label:m.month, gerada:m.g, recebida:m.r, custos:m.c }));
+
+    const metasFull = [
+      {label:'Receita',              pct:78, detail:'R$ 184k / 235k',   prazoISO:'2026-06-30'},
+      {label:'Novos pacientes',      pct:64, detail:'32 / 50',          prazoISO:'2026-06-30'},
+      {label:'Procedimentos',        pct:91, detail:'218 / 240',        prazoISO:'2026-07-15'},
+      {label:'Ticket médio',         pct:82, detail:'R$ 1.298 / 1.580', prazoISO:'2026-07-31'},
+      {label:'Taxa de retorno',      pct:56, detail:'28% / 50%',        prazoISO:'2026-08-15'},
+      {label:'Reativação de inativos',pct:41, detail:'11 / 27',         prazoISO:'2026-08-31'},
+    ].map(g=>{
+      const hoje = new Date('2026-06-28');
+      const dias = Math.max(0, Math.round((new Date(g.prazoISO) - hoje)/86400000));
+      return { ...g, pct:g.pct+'%', fill: g.pct>=85 ? 'hsl(var(--ok))' : 'hsl(var(--primary))',
+        prazo: dias+' '+(dias===1?'dia restante':'dias restantes') };
+    });
+    const metasVisibleCount = 4;
+    const metas = metasFull.slice(0, metasVisibleCount);
+    const metasCount = metasFull.length+' metas';
+    const metasMore = metasFull.length - metasVisibleCount;
+    const metasHasMore = metasMore > 0;
+
+    const st = (s)=>{
+      if(s==='confirmado') return {bg:'hsl(var(--ok-bg))', color:'hsl(var(--ok))'};
+      return {bg:'hsl(var(--warn-bg))', color:'hsl(var(--warn))'};
+    };
+    const agenda = [
+      {time:'09:00', name:'Mariana Costa',   proc:'Limpeza de pele',     status:'confirmado'},
+      {time:'10:30', name:'Bruno Almeida',   proc:'Botox — full face',   status:'confirmado'},
+      {time:'13:00', name:'Patrícia Nunes',  proc:'Preenchimento labial',status:'pendente'},
+      {time:'15:30', name:'Camila Ribeiro',  proc:'Microagulhamento',    status:'confirmado'},
+      {time:'17:00', name:'Rafael Souza',    proc:'Avaliação',           status:'pendente'},
+    ].map(a=>({ ...a, ...st(a.status) }));
+    const agendaShort = agenda.slice(0,3);
+
+    const funilRaw = [
+      {stage:'Leads',      count:142, pct:100},
+      {stage:'Contato',    count:98,  pct:69},
+      {stage:'Agendado',   count:61,  pct:43},
+      {stage:'Compareceu', count:49,  pct:35},
+      {stage:'Fechado',    count:38,  pct:27},
+    ];
+    const funil = funilRaw.map(f=>({ ...f, pct:f.pct+'%', alpha:(0.35+f.pct/100*0.65).toFixed(2) }));
+
+    // ===== Insights ativos (deep-link para a página de Insights) =====
+    const DES='hsl(var(--destructive))', WARN='hsl(var(--warn))', OKc='hsl(var(--ok))';
+    const SEV = {
+      critico:{label:'Crítico', tint:DES,  tintBg:'hsl(var(--destructive)/0.12)', pillBg:'hsl(var(--destructive)/0.12)', pillColor:DES,  icon:icoAlert},
+      aviso:  {label:'Aviso',   tint:WARN, tintBg:'hsl(var(--warn-bg))',          pillBg:'hsl(var(--warn-bg))',          pillColor:WARN, icon:icoAlert},
+      info:   {label:'Info',    tint:OKc,  tintBg:'hsl(var(--ok-bg))',            pillBg:'hsl(var(--ok-bg))',            pillColor:OKc,  icon:icoActivity},
+    };
+    const icoBox = I('<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>');
+    const insightsRaw = [
+      {sev:'critico', icon:icoCalendar, cat:'Agenda',     title:'Queda de 28% nos agendamentos da próxima semana'},
+      {sev:'critico', icon:icoHeart,    cat:'Retenção',   title:'14 pacientes sem retorno há mais de 90 dias'},
+      {sev:'aviso',   icon:icoFunnel,   cat:'Funil',      title:'Conversão do funil caiu para 31%'},
+      {sev:'aviso',   icon:icoBox,      cat:'Estoque',    title:'Estoque de toxina botulínica baixo'},
+      {sev:'aviso',   icon:icoReceipt,  cat:'Financeiro', title:'Ticket médio 7% abaixo da meta'},
+      {sev:'info',    icon:icoActivity, cat:'Operação',   title:'Quinta é o dia de maior movimento'},
+    ];
+    const insightsFull = insightsRaw.map(r=>{ const s=SEV[r.sev]; return { title:r.title, cat:r.cat, icon:r.icon, tint:s.tint, tintBg:s.tintBg, pillBg:s.pillBg, pillColor:s.pillColor, sevLabel:s.label, onClick:()=>this.goInsight(r.title) }; });
+    const insightsVisibleCount = 5;
+    const insights = insightsFull.slice(0, insightsVisibleCount);
+    const insightsCount = insightsFull.length+' ativos';
+    const insightsMore = insightsFull.length - insightsVisibleCount;
+    const insightsHasMore = insightsMore > 0;
+
+    // theme/font segmented controls
+    const seg = (on)=> 'border:none; cursor:pointer; font-size:12.5px; font-weight:600; padding:5px 13px; border-radius:7px; background:'+(on?'hsl(var(--card))':'transparent')+'; color:'+(on?'hsl(var(--foreground))':'hsl(var(--muted-foreground))')+'; box-shadow:'+(on?'0 1px 2px hsl(var(--shadow)/var(--shadow-a))':'none')+';';
+
+    // states gallery tabs
+    const demo = this.state.demo;
+    const tabDefs = [['loaded','Carregado'],['skeleton','Skeleton'],['empty','Vazio'],['error','Erro']];
+    const stateTabs = tabDefs.map(([k,label])=>({
+      label, style: this.segBtn(demo===k, {fs:'12px', pad:'5px 12px', on:'hsl(var(--foreground))'}), onClick: ()=>this.setState({demo:k}),
+    }));
+    const statePill = this.segPill(tabDefs.findIndex(d=>d[0]===demo), tabDefs.length, {bg:'hsl(var(--card))'});
+
+    const shimmer = 'linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--accent)) 37%, hsl(var(--muted)) 63%)';
+    const shimmerBg = shimmer; // applied with background-size + animation inline below
+
+    // ===== Patient search =====
+    const patients = [
+      {name:'Mariana Costa',    phone:'(11) 98472-1130', proc:'Limpeza de pele',      status:'Ativa'},
+      {name:'Bruno Almeida',    phone:'(11) 99021-4456', proc:'Botox — full face',    status:'Ativo'},
+      {name:'Patrícia Nunes',   phone:'(21) 98123-7788', proc:'Preenchimento labial', status:'Ativa'},
+      {name:'Camila Ribeiro',   phone:'(11) 97654-3321', proc:'Microagulhamento',     status:'Ativa'},
+      {name:'Rafael Souza',     phone:'(11) 98800-1290', proc:'Avaliação',            status:'Lead'},
+      {name:'Helena Martins',   phone:'(31) 99110-2034', proc:'Peeling químico',      status:'Ativa'},
+      {name:'Carla Mendes',     phone:'(11) 98345-6677', proc:'Drenagem linfática',   status:'Inativa'},
+      {name:'Marcos Vinícius',  phone:'(11) 99887-1234', proc:'Depilação a laser',    status:'Ativo'},
+      {name:'Beatriz Lima',     phone:'(11) 98222-7654', proc:'Botox',                status:'Ativa'},
+      {name:'Anderson Pereira', phone:'(11) 97001-8899', proc:'Avaliação',            status:'Lead'},
+    ];
+    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const initials = n => n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+    const stStyle = (s)=>{
+      if(s==='Lead')    return {bg:'hsl(var(--info-bg))', color:'hsl(var(--info-t))'};
+      if(s==='Inativa') return {bg:'hsl(var(--muted))',   color:'hsl(var(--muted-foreground))'};
+      return {bg:'hsl(var(--ok-bg))', color:'hsl(var(--ok))'};
+    };
+    const q = (this.state.query||'').trim();
+    const nq = norm(q);
+    const dq = q.replace(/\D/g,'');
+    const matched = patients.filter(p=> nq==='' ? true : (norm(p.name).includes(nq) || (dq && p.phone.replace(/\D/g,'').includes(dq))) );
+    const hl = (name)=>{
+      const i = nq ? norm(name).indexOf(nq) : -1;
+      if(i<0 || !q) return {__html:esc(name)};
+      const a=name.slice(0,i), m=name.slice(i,i+q.length), b=name.slice(i+q.length);
+      return {__html: esc(a)+'<span style="color:hsl(var(--primary-text)); font-weight:700; background:hsl(var(--primary)/0.16); border-radius:3px; padding:0 1px;">'+esc(m)+'</span>'+esc(b)};
+    };
+    const results = matched.slice(0,6).map((p,i)=>{
+      const st = stStyle(p.status);
+      return {
+        nameHtml:hl(p.name), initials:initials(p.name), sub:p.proc+' · '+p.phone,
+        status:p.status, stBg:st.bg, stColor:st.color,
+        onClick:()=>this.setState({searchOpen:false}),
+      };
+    });
+    const noResults = q!=='' && matched.length===0;
+    const listLabel = q==='' ? 'Pacientes recentes' : (matched.length+' resultado'+(matched.length===1?'':'s'));
+
+    // ===== Origem dos leads (donut) =====
+    const leadTotal = 142;
+    const leadSrc = [
+      {label:'Meta Ads',   pct:28, fill:'hsl(33 70% 31%)'},
+      {label:'Google Ads', pct:20, fill:'hsl(37 66% 42%)'},
+      {label:'Orgânico',   pct:16, fill:'hsl(41 63% 52%)'},
+      {label:'Indicação',  pct:14, fill:'hsl(43 64% 61%)'},
+      {label:'WhatsApp',   pct:10, fill:'hsl(45 62% 70%)'},
+      {label:'Presencial', pct:7,  fill:'hsl(47 56% 79%)'},
+      {label:'Outro',      pct:5,  fill:'hsl(49 50% 88%)'},
+    ];
+    const hovLead = this.state.leadHover==null ? null : this.state.leadHover;
+    const LOR=70, LIR=41, LCX=70, LCY=70;
+    const leadPolar=(r,deg)=>{ const t=(deg-90)*Math.PI/180; return (LCX+r*Math.cos(t)).toFixed(2)+' '+(LCY+r*Math.sin(t)).toFixed(2); };
+    const RE=React.createElement;
+    let accLead = 0;
+    const leadPaths = leadSrc.map((s,idx)=>{
+      const a0=accLead/100*360, a1=(accLead+s.pct)/100*360; accLead+=s.pct;
+      const large=(a1-a0)>180?1:0;
+      const d='M '+leadPolar(LOR,a0)+' A '+LOR+' '+LOR+' 0 '+large+' 1 '+leadPolar(LOR,a1)+' L '+leadPolar(LIR,a1)+' A '+LIR+' '+LIR+' 0 '+large+' 0 '+leadPolar(LIR,a0)+' Z';
+      const dim = hovLead!=null && hovLead!==idx;
+      return RE('path',{ key:idx, d:d, fill:s.fill, opacity: dim?0.28:1,
+        onMouseEnter:()=>this.setState({leadHover:idx}), onMouseLeave:()=>this.setState({leadHover:null}),
+        style:{ cursor:'pointer', transition:'opacity .16s ease' } });
+    });
+    const leadDonut = RE('svg',{ viewBox:'0 0 140 140', width:140, height:140, style:{display:'block'} }, leadPaths);
+    const leadCount=(p)=>Math.round(p/100*leadTotal);
+    const leadCenterBig = hovLead!=null ? leadCount(leadSrc[hovLead].pct) : leadTotal;
+    const leadCenterSmall = hovLead!=null ? leadSrc[hovLead].label : 'leads';
+    const leadCenterSub = hovLead!=null ? leadSrc[hovLead].pct+'%' : '';
+    const hasLeadSub = hovLead!=null;
+    const leadLegend = leadSrc.map((s,idx)=>({ label:s.label, fill:s.fill, pct:s.pct+'%',
+      rowOpacity:(hovLead!=null && hovLead!==idx)?0.4:1,
+      onEnter:()=>this.setState({leadHover:idx}), onLeave:()=>this.setState({leadHover:null}) }));
+
+    // ===== Receita por procedimento (barras horizontais) =====
+    const procMax = 260;
+    const procBarsFull = [
+      {label:'Botox',              v:232},
+      {label:'Preenchimento',      v:198},
+      {label:'Microagulhamento',   v:156},
+      {label:'Limpeza de pele',    v:124},
+      {label:'Peeling químico',    v:98},
+      {label:'Drenagem linfática', v:76},
+      {label:'Depilação a laser',  v:64},
+      {label:'Skinbooster',        v:52},
+    ].map((p,i)=>({ ...p, w:(p.v/procMax*100).toFixed(1)+'%', value:'R$ '+p.v+'k', fill: i===0?'hsl(var(--primary))':'hsl(var(--primary)/0.62)' }));
+    const procVisibleCount = 5;
+    const procBars = procBarsFull.slice(0, procVisibleCount);
+    const procCount = procBarsFull.length+' procedimentos';
+    const procMore = procBarsFull.length - procVisibleCount;
+    const procHasMore = procMore > 0;
+
+    // ===== Notifications =====
+    const notifIco = { lead:icoUsers, money:icoMoney, agenda:icoCalendar, alert:icoAlert };
+    const notifTint = {
+      lead:  {bg:'hsl(var(--primary)/0.16)',   color:'hsl(var(--primary-text))'},
+      money: {bg:'hsl(var(--ok-bg))',          color:'hsl(var(--ok))'},
+      agenda:{bg:'hsl(var(--accent))',         color:'hsl(var(--muted-foreground))'},
+      alert: {bg:'hsl(var(--destructive)/0.14)',color:'hsl(var(--destructive))'},
+    };
+    const notifItems = this.state.notifs.map(n=>{
+      const t = notifTint[n.type] || notifTint.agenda;
+      return { ...n, icon: notifIco[n.type] || icoBell, iconBg:t.bg, iconColor:t.color,
+        unread:!n.read, titleWeight: n.read ? 500 : 600,
+        rowBg: n.read ? 'transparent' : 'hsl(var(--primary)/0.05)',
+        onClick: ()=> this.setState(s=>({notifs: s.notifs.map(x=> x.id===n.id ? {...x, read:true} : x)})) };
+    });
+    const unreadCount = this.state.notifs.filter(n=>!n.read).length;
+    const hasUnread = unreadCount>0;
+
+    return {
+      theme:this.props.theme ?? this.state.theme, font:this.state.font,
+      setLight:()=> this.props.onSetTheme ? this.props.onSetTheme('light') : this.setState({theme:'light'}), setDark:()=> this.props.onSetTheme ? this.props.onSetTheme('dark') : this.setState({theme:'dark'}),
+      setInter:()=>this.setState({font:'inter'}),  setRanade:()=>this.setState({font:'ranade'}),
+      segLightStyle:seg((this.props.theme??this.state.theme)==='light'), segDarkStyle:seg((this.props.theme??this.state.theme)==='dark'),
+      segInterStyle:seg(this.state.font==='inter'),  segRanadeStyle:seg(this.state.font==='ranade'),
+      navMain, sectors, chartMonths, metas, metasCount, agenda, agendaShort, funil, insights, insightsFull, insightsCount, insightsMore, insightsHasMore, periodTabs, periodPill, statePill,
+      goAgenda:(e)=>{ if(e&&e.preventDefault)e.preventDefault(); if(this.props.onNavigate)this.props.onNavigate('Agenda'); },
+      themeIcon: (this.props.theme??this.state.theme)==='dark' ? icoMoon : icoSun,
+      themeTitle: (this.props.theme??this.state.theme)==='dark' ? 'Modo escuro' : 'Modo claro',
+      toggleTheme: ()=> this.props.onToggleTheme ? this.props.onToggleTheme() : this.setState(s=>({theme: s.theme==='dark' ? 'light' : 'dark'})),
+      query:this.state.query, searchOpen:this.state.searchOpen,
+      onSearchInput:(e)=>this.setState({query:e.target.value, searchOpen:true}),
+      onSearchFocus:()=>this.setState({searchOpen:true}),
+      closeSearch:()=>this.setState({searchOpen:false}),
+      onSearchKey:(e)=>{ if(e.key==='Escape') this.setState({searchOpen:false}); },
+      results, noResults, listLabel, hasResults:results.length>0,
+      leadDonut, leadCenterBig, leadCenterSmall, leadCenterSub, hasLeadSub, leadLegend, procBars, procBarsFull, procCount, procHasMore, procMore,
+      metasFull, metasHasMore, metasMore,
+      metasPopOpen: this.state.pop==='metas', procPopOpen: this.state.pop==='proc', insightsPopOpen: this.state.pop==='insights',
+      openMetasPop: ()=>this.setState(s=>({pop: s.pop==='metas'?null:'metas'})),
+      openProcPop:  ()=>this.setState(s=>({pop: s.pop==='proc'?null:'proc'})),
+      openInsightsPop: ()=>this.setState(s=>({pop: s.pop==='insights'?null:'insights'})),
+      closePop: ()=>this.setState({pop:null}),
+      icoChevR, icoChevU,
+      icoSearch, icoBell, icoPlus, icoMoney, icoCalendar, icoAlert, icoSun, icoMoon,
+      notifOpen:this.state.notifOpen, hasUnread, unreadCount, notifItems,
+      bellClass:(this.state.bellRing?'senno-bell-ring-a':''), bellAnimEnd:()=>this.setState({bellRing:false}), toggleNotif:()=>this.setState(s=>({bellRing:true, notifOpen:!s.notifOpen})),
+      closeNotif:()=>this.setState({notifOpen:false}),
+      markAllRead:()=>this.setState(s=>({notifs: s.notifs.map(x=>({...x, read:true}))})),
+      stateTabs,
+      isLoaded:demo==='loaded', isSkeleton:demo==='skeleton', isEmpty:demo==='empty', isError:demo==='error',
+      retry:()=>this.setState({demo:'loaded'}),
+      three:[0,1,2],
+      shimmer:shimmer,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -25,7 +25,7 @@ const mockFindUnique = prisma.user.findUnique as unknown as ReturnType<typeof vi
 
 // userId DIFERENTE por teste: `cache()` do React memoiza por argumento dentro
 // de um "request" — ids distintos garantem que cada caso consulta o mock.
-function session(userId: string) {
+function session(userId: string, sessionVersion = 0) {
   return {
     user: {
       id: userId,
@@ -33,6 +33,7 @@ function session(userId: string) {
       organizationId: 'org-from-jwt',
       clientId: 'clinic-from-jwt',
       clinicRoleId: 'role-from-jwt',
+      sessionVersion,
     },
   }
 }
@@ -42,6 +43,7 @@ const ACTIVE = {
   role: 'CLIENT_STAFF',
   clientId: 'clinic-db',
   clinicRoleId: 'role-db',
+  sessionVersion: 0,
   isActive: true,
   deletedAt: null,
 }
@@ -78,6 +80,20 @@ describe('getTenantContext — usuário desativado/removido perde acesso na hora
     mockAuth.mockResolvedValue(session('user-orgless'))
     mockFindUnique.mockResolvedValue({ ...ACTIVE, organizationId: null })
     await expect(getTenantContext()).rejects.toBeInstanceOf(UnauthorizedError)
+  })
+
+  it('sessionVersion do token < DB (revogado por logout/troca de senha) → UnauthorizedError', async () => {
+    // Token carrega version 0; o DB avançou p/ 1 (logout global / reset de senha).
+    // O token está morto: nega o acesso a dados JÁ no próximo request.
+    mockAuth.mockResolvedValue(session('user-revoked', 0))
+    mockFindUnique.mockResolvedValue({ ...ACTIVE, sessionVersion: 1 })
+    await expect(getTenantContext()).rejects.toBeInstanceOf(UnauthorizedError)
+  })
+
+  it('sessionVersion do token == DB → acesso liberado', async () => {
+    mockAuth.mockResolvedValue(session('user-ok-version', 3))
+    mockFindUnique.mockResolvedValue({ ...ACTIVE, sessionVersion: 3 })
+    await expect(getTenantContext()).resolves.toMatchObject({ userId: 'user-ok-version' })
   })
 })
 

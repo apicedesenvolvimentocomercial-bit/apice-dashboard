@@ -54,7 +54,12 @@ export const revenueDropRule: InsightRule = {
       estimatedImpact: prevR - curR,
       suggestion:
         'Investigue perda de pacientes, retome contato com leads inativos e revise campanhas de marketing.',
-      metadata: { drop, current: curR, previous: prevR },
+      metadata: {
+        drop,
+        current: curR,
+        previous: prevR,
+        metric: { value: `-${(drop * 100).toFixed(0)}%`, label: 'vs. mês anterior' },
+      },
     }
   },
 }

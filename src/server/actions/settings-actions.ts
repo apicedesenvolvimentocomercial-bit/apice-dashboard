@@ -18,7 +18,15 @@ import { enterClientScope } from '@/server/tenant/client-scope'
 import { ConflictError, fail, ForbiddenError, ok, runAction } from '@/types/errors'
 
 const updateOrgSchema = z.object({
-  name: z.string().trim().min(2, 'Nome muito curto'),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Nome muito curto')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
 })
 
 export async function updateOrganizationAction(input: z.infer<typeof updateOrgSchema>) {
@@ -43,7 +51,15 @@ export async function updateOrganizationAction(input: z.infer<typeof updateOrgSc
 }
 
 const updateProfileSchema = z.object({
-  name: z.string().trim().min(2, 'Nome muito curto'),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Nome muito curto')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
 })
 
 export async function updateProfileAction(input: z.infer<typeof updateProfileSchema>) {
@@ -66,8 +82,14 @@ export async function updateProfileAction(input: z.infer<typeof updateProfileSch
 
 const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(6, 'Senha atual obrigatória'),
-    newPassword: z.string().min(8, 'Nova senha deve ter pelo menos 8 caracteres'),
+    currentPassword: z
+      .string()
+      .min(6, 'Senha atual obrigatória')
+      .max(100, 'Senha antiga muito grande'),
+    newPassword: z
+      .string()
+      .min(8, 'Nova senha deve ter pelo menos 8 caracteres')
+      .max(100, 'Senha nova muito grande'),
   })
   .refine((d) => d.currentPassword !== d.newPassword, {
     message: 'A nova senha precisa ser diferente da atual',
@@ -90,9 +112,12 @@ export async function changePasswordAction(input: z.infer<typeof changePasswordS
   if (!valid) return fail('Senha atual incorreta')
 
   const passwordHash = await hash(parsed.data.newPassword, 12)
+  // Bump de sessionVersion invalida TODAS as sessões existentes (inclusive a
+  // atual — o form redireciona p/ novo login). Trocar a senha deve derrubar
+  // qualquer token vazado na hora, não só mudar a credencial.
   await prisma.user.update({
     where: { id: ctx.userId },
-    data: { passwordHash },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
   })
   logger.info('Password changed', { userId: ctx.userId })
 
@@ -101,12 +126,51 @@ export async function changePasswordAction(input: z.infer<typeof changePasswordS
 
 const updateClinicSettingsSchema = z.object({
   clientId: z.string().cuid(),
-  name: z.string().min(2).optional(),
-  phone: z.string().optional(),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  notes: z.string().optional(),
+  name: z
+    .string()
+    .min(2)
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    )
+    .optional(),
+  phone: z
+    .string()
+    .length(12, 'Telefone inválido')
+    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
+    .optional(),
+  email: z
+    .string()
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .email('Email inválido')
+    .optional()
+    .or(z.literal('')),
+  city: z
+    .string()
+    .max(255, 'Nome da cidade muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome da cidade contém caracteres inválidos'
+    )
+    .optional(),
+  state: z
+    .string()
+    .max(2, 'Sigla do estado fora de padrão')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A sigla do estado contém caracteres inválidos'
+    )
+    .optional(),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'Nota contém caracteres inválidos'
+    )
+    .optional(),
   taxRegime: z.enum(['SIMPLES', 'PRESUMIDO', 'REAL']).optional(),
   cnae: z.string().optional(),
 })

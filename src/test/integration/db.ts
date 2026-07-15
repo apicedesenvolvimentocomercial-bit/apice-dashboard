@@ -100,6 +100,24 @@ export async function seedBaseline(): Promise<Baseline> {
   return { organizationId: org.id, clinicAId: clinicA.id, clinicBId: clinicB.id }
 }
 
+/**
+ * Materializa no banco o usuário da SESSÃO FAKE do teste. `getTenantContext`
+ * re-valida o usuário no banco a cada request (fix "sessão de usuário removido
+ * morre") — mockar `auth()` sozinho deixou de bastar: sem a linha na tabela
+ * User o contexto lança UnauthorizedError.
+ */
+export async function seedSessionUser(id: string, organizationId: string): Promise<void> {
+  await getAdminPrisma().user.create({
+    data: {
+      id,
+      email: `${id}@senno.dev`,
+      name: 'Usuário Integração',
+      role: 'ADMIN',
+      organizationId,
+    },
+  })
+}
+
 /** Encerra o client admin (afterAll da suíte). */
 export async function disconnectAdmin(): Promise<void> {
   await adminPrisma?.$disconnect()

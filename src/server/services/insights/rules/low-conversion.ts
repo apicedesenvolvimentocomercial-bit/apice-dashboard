@@ -49,7 +49,12 @@ export const lowConversionRule: InsightRule = {
       estimatedImpact: null,
       suggestion:
         'Revise a abordagem inicial, dê treinamento ao atendimento e considere ofertar primeiro horário gratuito para leads frios.',
-      metadata: { rate, leads: leadsCount, won: wonCount },
+      metadata: {
+        rate,
+        leads: leadsCount,
+        won: wonCount,
+        metric: { value: `${(rate * 100).toFixed(1)}%`, label: 'de conversão' },
+      },
     }
   },
 }

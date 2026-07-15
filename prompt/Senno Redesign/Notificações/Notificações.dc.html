@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  .senno{
+    --background:38 14% 97%; --foreground:220 9% 12%;
+    --card:0 0% 100%; --card-foreground:220 9% 12%; --popover:0 0% 100%;
+    --primary:42 53% 42%; --primary-foreground:225 11% 7%; --primary-text:42 53% 33%;
+    --secondary:38 18% 90%; --secondary-foreground:25 47% 18%;
+    --muted:38 18% 90%; --muted-foreground:25 15% 38%;
+    --accent:38 18% 90%; --accent-foreground:25 47% 18%;
+    --destructive:0 72% 48%; --destructive-bg:0 80% 96%;
+    --border:38 20% 85%; --input:38 20% 85%; --ring:42 65% 52%;
+    --ok:142 55% 30%; --ok-bg:142 50% 91%;
+    --warn:32 80% 32%; --warn-bg:38 88% 90%;
+    --shadow:220 28% 22%; --shadow-a:0.07;
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .senno[data-theme="dark"]{
+    --background:225 11% 7%; --foreground:38 33% 96%;
+    --card:220 9% 11%; --card-foreground:38 33% 96%; --popover:220 9% 11%;
+    --primary:42 65% 58%; --primary-foreground:225 11% 7%; --primary-text:42 65% 58%;
+    --secondary:220 9% 16%; --secondary-foreground:38 33% 96%;
+    --muted:220 9% 16%; --muted-foreground:38 15% 65%;
+    --accent:220 9% 16%; --accent-foreground:38 33% 96%;
+    --destructive:0 63% 50%; --destructive-bg:0 45% 14%;
+    --border:220 9% 18%; --input:220 9% 18%; --ring:42 65% 58%;
+    --ok:142 58% 64%; --ok-bg:142 45% 15%;
+    --warn:38 85% 66%; --warn-bg:36 55% 15%;
+    --shadow:0 0% 0%; --shadow-a:0.4;
+  }
+  /* topbar search: collapses to icon, expands right-to-left on hover; 0s grace before collapsing */
+  .senno-search{ position:relative; width:38px; height:38px; flex:none; }
+  .senno-search-box{ position:absolute; top:0; right:0; height:38px; width:38px; display:flex; align-items:center; gap:8px; padding:0 11px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--muted-foreground)); font-size:12.5px; overflow:hidden; white-space:nowrap; cursor:pointer; transition:width .34s cubic-bezier(.4,0,.2,1), background .22s ease, border-color .22s ease, box-shadow .22s ease; transition-delay:0s; }
+  .senno-search:hover .senno-search-box, .senno-search-box:focus-within{ width:240px; background:hsl(var(--background)); border-color:hsl(var(--input)); cursor:text; transition-delay:0s; }
+  .senno-search-box:focus-within{ border-color:hsl(var(--ring)); box-shadow:0 0 0 3px hsl(var(--ring)/0.18); }
+  .senno-theme-btn{ position:relative; overflow:hidden; }
+  .senno-theme-ico{ position:absolute; top:50%; left:50%; width:17px; height:17px; margin:-8.5px 0 0 -8.5px; display:inline-flex; transition:transform .5s cubic-bezier(.34,1.3,.5,1), opacity .35s ease; }
+  .senno-theme-sun{ transform:rotate(0deg) scale(1); opacity:1; }
+  .senno-theme-moon{ transform:rotate(-90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-sun{ transform:rotate(90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-moon{ transform:rotate(0deg) scale(1); opacity:1; }
+  /* notification bell: small resonating shake on click */
+  @keyframes senno-bell-ring{ 0%{transform:rotate(0);} 15%{transform:rotate(11deg);} 30%{transform:rotate(-9deg);} 45%{transform:rotate(6deg);} 60%{transform:rotate(-4deg);} 75%{transform:rotate(2deg);} 100%{transform:rotate(0);} }
+  .senno-bell-ico{ transform-origin:top center; }
+  .senno-bell-ring-a{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+  .senno-bell-ring-b{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+  /* dispensar notificação: hover vermelho + linha desliza para fora pela direita */
+  .senno-notif-row{ overflow:hidden; max-height:220px; transition:transform .42s cubic-bezier(.4,0,.2,1) .26s, opacity .42s ease .26s, max-height .32s ease .55s, padding .32s ease .55s, border-width .32s ease .55s; }
+  .senno-notif-leaving{ transform:translateX(115%); opacity:0; max-height:0 !important; padding-top:0 !important; padding-bottom:0 !important; border-top-width:0 !important; }
+  .senno-notif-group{ transition:max-height .4s ease .55s, opacity .3s ease .55s, margin .4s ease .55s; }
+  .senno-notif-group-empty{ max-height:0 !important; opacity:0; margin-bottom:0 !important; overflow:hidden; pointer-events:none; }
+  .senno-toggle{ transition:background .18s ease, border-color .18s ease, color .18s ease; }
+  .senno-mark:hover{ border-color:hsl(var(--primary)/0.5) !important; }
+  .senno-dismiss:hover{ border-color:hsl(var(--destructive)) !important; color:hsl(var(--destructive)) !important; background:hsl(var(--destructive)/0.12) !important; }
+  .senno-notif-leaving .senno-dismiss{ background:hsl(var(--destructive)) !important; border-color:hsl(var(--destructive)) !important; color:#fff !important; }
+
+  /* responsive: stack multi-column grids on tablet/portrait */
+  @media (max-width:1024px){ .senno-2col{ grid-template-columns:1fr !important; } .senno-3col{ grid-template-columns:1fr 1fr !important; } }
+  @media (max-width:660px){ .senno-3col{ grid-template-columns:1fr !important; } }
+</style>
+</helmet>
+
+<div class="senno" data-theme="{{ theme }}" data-font="inter" style="background:hsl(var(--background)); color:hsl(var(--foreground)); height:100vh; box-sizing:border-box; overflow:hidden; line-height:1.45;">
+
+  <div data-screen-label="Notificações" style="width:100%; height:100%; min-height:0; display:flex; overflow:hidden; background:hsl(var(--background));">
+
+    <!-- SIDEBAR -->
+    <aside style="width:236px; flex:none; background:hsl(var(--card)); border-right:1px solid hsl(var(--border)); display:flex; flex-direction:column; padding:18px 14px;">
+      <div style="display:flex; align-items:center; gap:10px; padding:6px 8px 18px;">
+        <div style="width:34px; height:34px; border-radius:9px; background:hsl(var(--primary)); display:flex; align-items:center; justify-content:center; flex:none;">
+          <span style="color:hsl(var(--primary-foreground)); font-weight:700; font-size:17px;">B</span>
+        </div>
+        <div style="min-width:0;">
+          <div style="font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Clínica Bellavie</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Plano Premium</div>
+        </div>
+      </div>
+      <nav style="display:flex; flex-direction:column; gap:2px;">
+        <sc-for list="{{ navMain }}" as="item" hint-placeholder-count="12">
+          <a href="#" onClick="{{ item.onClick }}" style="position:relative; display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:8px; font-size:13.5px; font-weight:{{ item.weight }}; text-decoration:none; color:{{ item.color }}; background:{{ item.bg }};" style-hover="background:hsl(var(--accent));">
+            <span style="width:18px; height:18px; display:inline-flex; flex:none; color:{{ item.iconColor }};" dangerouslySetInnerHTML="{{ item.icon }}"></span>
+            <span style="flex:1; white-space:nowrap;">{{ item.label }}</span>
+            <sc-if value="{{ item.showBadge }}" hint-placeholder-val="">
+              <span style="flex:none; min-width:18px; text-align:center; font-size:10.5px; font-weight:600; font-variant-numeric:tabular-nums; padding:1px 6px; border-radius:99px; background:hsl(var(--primary)); color:hsl(var(--primary-foreground));">{{ item.badge }}</span>
+            </sc-if>
+          </a>
+        </sc-for>
+      </nav>
+      <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; background:hsl(var(--muted));">
+        <div style="width:32px; height:32px; border-radius:99px; background:hsl(var(--primary)/0.2); display:flex; align-items:center; justify-content:center; flex:none; color:hsl(var(--primary-text)); font-weight:600; font-size:12.5px;">HC</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Dra. Helena Costa</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Proprietária</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div style="flex:1; min-width:0; min-height:0; display:flex; flex-direction:column;">
+
+      <!-- TOPBAR -->
+      <header style="flex:none; display:flex; align-items:center; gap:16px; padding:14px 24px; border-bottom:1px solid hsl(var(--border)); background:hsl(var(--card));">
+        <div style="flex:1; min-width:0;">
+          <h1 style="margin:0; font-size:clamp(22px, 0.5vw + 18px, 27px); font-weight:600; letter-spacing:-0.01em;">Notificações</h1>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <div class="senno-search">
+            <div class="senno-search-box">
+              <span style="width:15px;height:15px;display:inline-flex;flex:none;" dangerouslySetInnerHTML="{{ icoSearch }}"></span>
+              <input type="text" placeholder="Buscar paciente…" style="flex:1; min-width:0; border:none; outline:none; background:transparent; font-family:inherit; font-size:12.5px; color:hsl(var(--foreground));" />
+            </div>
+          </div>
+          <button onClick="{{ toggleTheme }}" title="{{ themeTitle }}" class="senno-theme-btn" style="width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+            <span class="senno-theme-ico senno-theme-sun" dangerouslySetInnerHTML="{{ icoSun }}"></span>
+            <span class="senno-theme-ico senno-theme-moon" dangerouslySetInnerHTML="{{ icoMoon }}"></span>
+          </button>
+          <div class="senno-notif" style="position:relative;">
+            <button onClick="{{ toggleNotif }}" title="Notificações" style="position:relative; width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+              <span class="senno-bell-ico {{ bellClass }}" onAnimationEnd="{{ bellAnimEnd }}" style="width:17px;height:17px;display:inline-flex; transform-origin:top center;" dangerouslySetInnerHTML="{{ icoBell }}"></span>
+              <sc-if value="{{ topbarUnread }}" hint-placeholder-val="{{ true }}">
+                <span style="position:absolute; top:7px; right:8px; width:7px; height:7px; border-radius:99px; background:hsl(var(--destructive)); border:1.5px solid hsl(var(--card));"></span>
+              </sc-if>
+            </button>
+            <sc-if value="{{ notifOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closeNotif }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:46px; right:0; width:362px; background:hsl(var(--popover)); border:1px solid hsl(var(--border)); border-radius:12px; box-shadow:0 16px 40px -12px hsl(var(--shadow)/calc(var(--shadow-a) * 3.5)); z-index:50; overflow:hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px 10px;">
+                  <span style="display:flex; align-items:center; gap:8px; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--foreground));">Notificações<sc-if value="{{ topbarUnread }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px; font-weight:600; padding:1px 7px; border-radius:99px; background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text)); font-variant-numeric:tabular-nums;">{{ topbarUnreadCount }}</span></sc-if></span>
+                  <sc-if value="{{ topbarUnread }}" hint-placeholder-val="{{ true }}"><button onClick="{{ markAllRead }}" style="border:none; background:transparent; font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); cursor:pointer; padding:2px 4px; font-family:inherit;" style-hover="text-decoration:underline;">Marcar todas como lidas</button></sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; padding:0 6px 6px; max-height:344px; overflow-y:auto;">
+                  <sc-for list="{{ notifItems }}" as="n" hint-placeholder-count="4">
+                    <button onClick="{{ n.onClick }}" style="display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left; padding:10px 8px; border:none; background:{{ n.rowBg }}; border-radius:8px; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+                      <span style="width:32px; height:32px; border-radius:99px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ n.iconBg }}; color:{{ n.iconColor }};"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ n.icon }}"></span></span>
+                      <span style="flex:1; min-width:0;">
+                        <span style="display:block; font-size:12.5px; font-weight:{{ n.titleWeight }}; color:hsl(var(--foreground));">{{ n.title }}</span>
+                        <span style="display:block; font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ n.sub }}</span>
+                      </span>
+                      <span style="flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+                        <span style="font-size:10.5px; color:hsl(var(--muted-foreground)); white-space:nowrap;">{{ n.time }}</span>
+                        <sc-if value="{{ n.unread }}" hint-placeholder-val=""><span style="width:7px; height:7px; border-radius:99px; background:hsl(var(--primary)); flex:none;"></span></sc-if>
+                      </span>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:center; padding:9px 14px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                  <a href="#" style="font-size:12px; font-weight:600; color:hsl(var(--primary-text)); text-decoration:none;">Ver todas as notificações</a>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <button onClick="{{ onNewLead }}" style="height:38px; padding:0 15px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+            <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>
+            Novo lead
+          </button>
+        </div>
+      </header>
+
+      <!-- BODY -->
+      <div style="flex:1; min-height:0; overflow-y:auto; padding:18px 24px; display:flex; flex-direction:column; gap:16px;">
+
+        <!-- TABS + AÇÕES -->
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+          <div ref="{{ setTabBar }}" style="position:relative; display:flex; align-items:center; gap:2px; border-bottom:1px solid hsl(var(--border)); flex-wrap:wrap;">
+            <div style="position:absolute; left:0; bottom:-1px; height:2px; border-radius:2px; background:hsl(var(--primary)); width:{{ indWidth }}; transform:translateX({{ indLeft }}); opacity:{{ indOpacity }}; transition:transform .32s cubic-bezier(.34,1.1,.5,1), width .32s cubic-bezier(.34,1.1,.5,1), opacity .2s ease; pointer-events:none;"></div>
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="6">
+              <button onClick="{{ t.onClick }}" data-tab-active="{{ t.active }}" style="{{ t.style }}">
+                {{ t.label }}
+                <sc-if value="{{ t.showCount }}" hint-placeholder-val="">
+                  <span style="font-size:10.5px; font-weight:600; font-variant-numeric:tabular-nums; min-width:18px; text-align:center; padding:1px 6px; border-radius:99px; background:{{ t.badgeBg }}; color:{{ t.badgeColor }};">{{ t.count }}</span>
+                </sc-if>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:flex; align-items:center; gap:9px;">
+            <button onClick="{{ markAll }}" disabled="{{ noUnread }}" style="{{ markAllStyle }}" style-hover="{{ markAllHover }}">
+              <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoCheckCheck }}"></span>
+              Marcar todas como lidas
+            </button>
+          </div>
+        </div>
+
+        <!-- LISTA AGRUPADA -->
+        <sc-if value="{{ hasItems }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column;">
+            <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+              <div class="senno-notif-group {{ g.groupClass }}" style="display:flex; flex-direction:column; gap:9px; margin-bottom:18px;">
+                <div style="display:flex; align-items:center; gap:10px; padding:0 2px;">
+                  <span style="font-size:11.5px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:hsl(var(--muted-foreground));">{{ g.label }}</span>
+                  <span style="flex:1; height:1px; background:hsl(var(--border));"></span>
+                  <span style="font-size:11.5px; font-weight:500; font-variant-numeric:tabular-nums; color:hsl(var(--muted-foreground));">{{ g.meta }}</span>
+                </div>
+                <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+                  <sc-for list="{{ g.items }}" as="n" hint-placeholder-count="4">
+                    <div class="senno-notif-row {{ n.rowClass }}" style="position:relative; display:flex; align-items:flex-start; gap:13px; padding:14px 18px 14px 18px; border-top:1px solid hsl(var(--border)); background:{{ n.rowBg }};" style-hover="background:hsl(var(--accent)/0.5);">
+                      <span style="width:38px; height:38px; border-radius:10px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ n.tintBg }}; color:{{ n.tintColor }};">
+                        <span style="width:18px;height:18px;display:inline-flex;" dangerouslySetInnerHTML="{{ n.icon }}"></span>
+                      </span>
+                      <div style="flex:1; min-width:0; padding-top:1px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <span style="font-size:13.5px; font-weight:{{ n.titleWeight }}; color:hsl(var(--foreground)); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ n.title }}</span>
+                          <sc-if value="{{ n.unread }}" hint-placeholder-val="">
+                            <span style="width:7px; height:7px; flex:none; border-radius:99px; background:hsl(var(--primary));"></span>
+                          </sc-if>
+                        </div>
+                        <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:3px; line-height:1.45;">{{ n.desc }}</div>
+                        <sc-if value="{{ n.hasAction }}" hint-placeholder-val="">
+                          <button onClick="{{ n.onAction }}" style="margin-top:9px; display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; border-radius:8px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-family:inherit; font-size:12px; font-weight:600; cursor:pointer;" style-hover="border-color:hsl(var(--primary)/0.5); color:hsl(var(--primary-text));">
+                            {{ n.actionLabel }}
+                            <span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoArrow }}"></span>
+                          </button>
+                        </sc-if>
+                      </div>
+                      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex:none;">
+                        <span style="font-size:11.5px; font-weight:500; color:hsl(var(--muted-foreground)); white-space:nowrap; font-variant-numeric:tabular-nums;">{{ n.when }}</span>
+                        <button onClick="{{ n.onToggle }}" title="{{ n.toggleTitle }}" class="senno-toggle {{ n.toggleClass }}" style="width:26px; height:26px; border-radius:7px; border:1px solid {{ n.toggleBorder }}; background:{{ n.toggleBg }}; color:{{ n.toggleColor }}; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                          <span style="width:13px;height:13px;display:inline-flex;" dangerouslySetInnerHTML="{{ n.toggleIcon }}"></span>
+                        </button>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <!-- EMPTY STATE -->
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="">
+          <div style="background:hsl(var(--card)); border:1px dashed hsl(var(--border)); border-radius:13px; padding:54px 24px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:11px;">
+            <span style="width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:hsl(var(--ok-bg)); color:hsl(var(--ok));">
+              <span style="width:22px;height:22px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoCheckCheck }}"></span>
+            </span>
+            <div style="font-size:14.5px; font-weight:600;">{{ emptyTitle }}</div>
+            <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:-4px; max-width:340px;">{{ emptyDesc }}</div>
+            <sc-if value="{{ canResetFilter }}" hint-placeholder-val="">
+              <button onClick="{{ goAll }}" style="margin-top:6px; height:36px; padding:0 16px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer;" style-hover="background:hsl(var(--accent));">Ver todas</button>
+            </sc-if>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:960},&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;}}">
+class Component extends DCLogic {
+  state = { theme: this.props.defaultTheme || 'light', tab: 'todas', read: {}, removed: {}, notifOpen:false, notifs:[{id:1,type:'lead',title:'Novo lead',sub:'Mariana Alves · Instagram',time:'agora',read:false},{id:2,type:'money',title:'Pagamento confirmado',sub:'R$ 1.200 · Botox · Camila Souza',time:'8 min',read:false},{id:3,type:'agenda',title:'Agendamento confirmado',sub:'Patrícia Lima · amanhã às 14h',time:'40 min',read:false},{id:4,type:'alert',title:'Tarefa atrasada',sub:'Retornar ligação · Rafael Dias',time:'1 h',read:true},{id:5,type:'agenda',title:'Novo agendamento online',sub:'Beatriz Ramos · Limpeza de pele',time:'3 h',read:true}] };
+
+  ico(p){ return {__html:'<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'}; }
+
+  setTabBar = (el)=>{ this._tabBar = el; };
+  componentDidMount(){ this._measureTabs(); if(typeof document!=='undefined'&&document.fonts&&document.fonts.ready){ document.fonts.ready.then(()=>this._measureTabs()); } }
+  componentDidUpdate(){ this._measureTabs(); }
+  _measureTabs(){ const bar=this._tabBar; if(!bar) return; const act=bar.querySelector('[data-tab-active="1"]'); if(!act) return; const left=act.offsetLeft, width=act.offsetWidth; if(left!==this.state.indLeft||width!==this.state.indWidth){ this.setState({indLeft:left, indWidth:width}); } }
+
+  _notif(){
+    const ic=(p)=>this.ico(p);
+    const icoSun=ic('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon=ic('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+    const icoBellL=ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoUsers=ic('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney=ic('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoCal=ic('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoAlert=ic('<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>');
+    const tint={lead:{bg:'hsl(var(--primary)/0.16)',color:'hsl(var(--primary-text))'},money:{bg:'hsl(var(--ok-bg))',color:'hsl(var(--ok))'},agenda:{bg:'hsl(var(--accent))',color:'hsl(var(--muted-foreground))'},alert:{bg:'hsl(var(--destructive)/0.14)',color:'hsl(var(--destructive))'}};
+    const icoBy={lead:icoUsers,money:icoMoney,agenda:icoCal,alert:icoAlert};
+    const notifItems=this.state.notifs.map(n=>{const t=tint[n.type]||tint.agenda; return {...n, icon:icoBy[n.type]||icoBellL, iconBg:t.bg, iconColor:t.color, unread:!n.read, titleWeight:n.read?500:600, rowBg:n.read?'transparent':'hsl(var(--primary)/0.05)', onClick:()=>this.setState(s=>({notifs:s.notifs.map(x=>x.id===n.id?{...x,read:true}:x)}))};});
+    const c=this.state.notifs.filter(n=>!n.read).length;
+    return { icoSun, icoMoon, notifOpen:this.state.notifOpen, topbarUnread:c>0, topbarUnreadCount:c, notifItems,
+      bellClass:(this.state.bellRing?'senno-bell-ring-a':''), bellAnimEnd:()=>this.setState({bellRing:false}),
+      toggleNotif:()=>this.setState(s=>({bellRing:true, notifOpen:!s.notifOpen})), closeNotif:()=>this.setState({notifOpen:false}),
+      markAllRead:()=>this.setState(s=>({notifs:s.notifs.map(x=>({...x,read:true}))})) };
+  }
+
+  renderVals(){
+    const I=(p)=>this.ico(p);
+    const icoGrid    = I('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>');
+    const icoActivity= I('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>');
+    const icoCalendar= I('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoFunnel  = I('<path d="M3 4h18l-7 8v6l-4 2v-8z"/>');
+    const icoUsers   = I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney   = I('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoTarget  = I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>');
+    const icoBulb    = I('<path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/>');
+    const icoSyringe = I('<rect x="3" y="3" width="7" height="7" rx="1.5"/><path d="M14 7h6M14 12h6M14 17h6M5 14v6M3 17h4"/>');
+    const icoDownload= I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>');
+    const icoBell    = I('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoSettings= I('<path d="M22.00 12.00 L21.24 15.83 L18.28 14.60 L16.81 16.81 L19.07 19.07 L15.83 21.24 L14.60 18.28 L12.00 18.80 L12.00 22.00 L8.17 21.24 L9.40 18.28 L7.19 16.81 L4.93 19.07 L2.76 15.83 L5.72 14.60 L5.20 12.00 L2.00 12.00 L2.76 8.17 L5.72 9.40 L7.19 7.19 L4.93 4.93 L8.17 2.76 L9.40 5.72 L12.00 5.20 L12.00 2.00 L15.83 2.76 L14.60 5.72 L16.81 7.19 L19.07 4.93 L21.24 8.17 L18.28 9.40 L18.80 12.00 Z"/><circle cx="12" cy="12" r="3"/>');
+    const icoPlus    = I('<path d="M12 5v14M5 12h14"/>');
+    const icoSearch  = I('<circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/>');
+    const icoSun     = I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon    = I('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+    const icoCheck   = I('<path d="M20 6 9 17l-5-5"/>');
+    const icoCheckCheck = I('<path d="M18 6 7 17l-3-3"/><path d="m22 10-7.5 7.5L13 16"/>');
+    const icoArrow   = I('<path d="M5 12h14M13 6l6 6-6 6"/>');
+    const icoX       = I('<path d="M18 6 6 18M6 6l12 12"/>');
+    const icoSliders = I('<line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="3.1" fill="hsl(var(--card))"/><circle cx="15" cy="16" r="3.1" fill="hsl(var(--card))"/>');
+    const icoGift    = I('<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v9h14v-9"/><path d="M12 8C12 8 11 3 8 3a2.5 2.5 0 0 0 0 5zM12 8c0 0 1-5 4-5a2.5 2.5 0 0 1 0 5z"/>');
+    const icoMessage = I('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>');
+    const icoAlert   = I('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>');
+    const icoXCircle = I('<circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/>');
+
+    const P='hsl(var(--primary-text))', M='hsl(var(--muted-foreground))';
+
+    // ---- dataset ----
+    const defs = [
+      {id:'n1', cat:'leads',     group:'hoje',   when:'Há 8 min',   unread:true,  title:'Novo lead: Rafael Souza', desc:'Veio pelo Instagram interessado em Botox. Entrou na etapa Lead do funil.', action:'Ver no funil'},
+      {id:'n2', cat:'tarefas',   group:'hoje',   when:'Há 35 min',  unread:true,  title:'Tarefa atrasada', desc:'“Ligar para Patrícia Nunes” venceu ontem e ainda está em aberto.', action:'Abrir atividade'},
+      {id:'n3', cat:'financeiro',group:'hoje',   when:'Há 1 h',     unread:true,  title:'Pagamento recebido', desc:'Beatriz Lima pagou R$ 1.200,00 — Botox full face (Pix).', action:'Ver recibo'},
+      {id:'n4', cat:'agenda',    group:'hoje',   when:'Há 2 h',     unread:false, title:'Agendamento confirmado', desc:'Bruno Almeida confirmou presença para hoje às 14:00.', action:'Ver na agenda'},
+      {id:'n5', cat:'agenda',    group:'hoje',   when:'Há 3 h',     unread:false, title:'Agendamento cancelado', desc:'Camila Ribeiro cancelou o horário de quinta às 10:00.', action:'Reagendar'},
+
+      {id:'n6', cat:'metas',     group:'semana', when:'Ontem · 18:40', unread:false, title:'Meta de faturamento atingida', desc:'A clínica bateu a meta mensal de R$ 80.000 com 4 dias de folga.', action:'Ver metas'},
+      {id:'n7', cat:'leads',     group:'semana', when:'Ontem · 15:10', unread:false, title:'Lead avançou no funil', desc:'Anderson Pereira passou de Avaliação para Proposta.', action:'Ver no funil'},
+      {id:'n8', cat:'pacientes', group:'semana', when:'Ter · 09:00',   unread:false, title:'5 aniversariantes esta semana', desc:'Envie uma mensagem de parabéns e fortaleça o relacionamento.', action:'Ver pacientes'},
+      {id:'n9', cat:'financeiro',group:'semana', when:'Seg · 11:25',   unread:false, title:'Conta a receber vencendo', desc:'Parcela 2/3 de Marcos Vinícius vence em 2 dias (R$ 450,00).', action:'Ver financeiro'},
+
+      {id:'n10', cat:'agenda',    group:'antes', when:'12 jun',  unread:false, title:'Resumo semanal da agenda', desc:'42 atendimentos realizados, 3 cancelamentos e 1 falta na semana.', action:''},
+      {id:'n11', cat:'pacientes', group:'antes', when:'10 jun',  unread:false, title:'Nova avaliação recebida', desc:'Helena Martins deixou uma avaliação 5 estrelas após o procedimento.', action:''},
+    ];
+
+    const isRead = (n)=> !n.unread || !!this.state.read[n.id];
+
+    const cats = {
+      leads:      {label:'Leads',      icon:icoFunnel,  bg:'hsl(var(--primary)/0.14)', color:P,                       accent:'hsl(var(--primary))'},
+      agenda:     {label:'Agenda',     icon:icoCalendar,bg:'hsl(217 80% 58% / 0.16)',  color:'hsl(217 75% 50%)',      accent:'hsl(217 75% 56%)'},
+      financeiro: {label:'Financeiro', icon:icoMoney,   bg:'hsl(142 58% 44% / 0.16)',  color:'hsl(142 52% 36%)',      accent:'hsl(142 52% 44%)'},
+      tarefas:    {label:'Tarefas',    icon:icoAlert,   bg:'hsl(var(--destructive)/0.13)', color:'hsl(var(--destructive))', accent:'hsl(var(--destructive))'},
+      metas:      {label:'Metas',      icon:icoTarget,  bg:'hsl(var(--primary)/0.14)', color:P,                       accent:'hsl(var(--primary))'},
+      pacientes:  {label:'Pacientes',  icon:icoGift,    bg:'hsl(262 52% 58% / 0.16)',  color:'hsl(262 48% 56%)',      accent:'hsl(262 48% 58%)'},
+    };
+
+    // ---- tabs (filtros) ----
+    const isGone = (n)=> !!this.state.removed[n.id];
+    const live = defs.filter(n=>!isGone(n));
+    const unreadCount = live.filter(n=>!isRead(n)).length;
+    const tabDefs = [
+      ['todas','Todas', live.length, true],
+      ['nao-lidas','Não lidas', unreadCount, true],
+      ['leads','Leads', null, false],
+      ['agenda','Agenda', null, false],
+      ['financeiro','Financeiro', null, false],
+      ['tarefas','Tarefas', null, false],
+    ];
+    const tabs = tabDefs.map(([k,label,count,showCount])=>{
+      const on = this.state.tab===k;
+      const isUnreadTab = k==='nao-lidas';
+      return {
+        label, count, showCount,
+        style:'position:relative; display:inline-flex; align-items:center; gap:7px; border:none; background:transparent; cursor:pointer; font-family:inherit; font-size:13.5px; font-weight:600; padding:9px 12px; margin-bottom:-1px; color:'+(on?'hsl(var(--foreground))':'hsl(var(--muted-foreground))')+'; border-bottom:2px solid transparent;', active: on?'1':'',
+        badgeBg: isUnreadTab && count>0 ? 'hsl(var(--primary)/0.16)' : (on?'hsl(var(--primary)/0.16)':'hsl(var(--muted))'),
+        badgeColor: isUnreadTab && count>0 ? P : (on?P:'hsl(var(--muted-foreground))'),
+        onClick:()=>this.setState({tab:k}),
+      };
+    });
+
+    // ---- filtragem (mantém itens removidos no DOM, colapsados, p/ não reindexar) ----
+    const tab = this.state.tab;
+    let filtered;
+    if(tab==='nao-lidas') filtered = defs.filter(n=>!isRead(n) && !isGone(n));
+    else if(tab!=='todas') filtered = defs.filter(n=>n.cat===tab);
+    else filtered = defs.slice();
+
+    const mkRow = (n)=>{
+      const c = cats[n.cat];
+      const read = isRead(n);
+      return {
+        id:n.id, icon:c.icon, tintBg:c.bg, tintColor:c.color,
+        accent: read ? 'transparent' : c.accent,
+        rowBg: read ? 'transparent' : 'hsl(var(--primary)/0.05)',
+        title:n.title, desc:n.desc, when:n.when,
+        titleWeight: read ? 500 : 600,
+        unread: !read,
+        hasAction: !!n.action, actionLabel:n.action, onAction:()=>{},
+        icoArrow,
+        toggleIcon: read ? icoX : icoCheck,
+        toggleTitle: read ? 'Dispensar' : 'Marcar como lida',
+        toggleClass: read ? 'senno-dismiss' : 'senno-mark',
+        rowClass: isGone(n) ? 'senno-notif-leaving' : '',
+        toggleBorder: read ? 'hsl(var(--border))' : 'hsl(var(--primary)/0.4)',
+        toggleBg: read ? 'hsl(var(--background))' : 'hsl(var(--primary)/0.12)',
+        toggleColor: read ? 'hsl(var(--muted-foreground))' : P,
+        onToggle:(e)=>{
+          if(read){
+            const btn = e && e.currentTarget;
+            const row = btn && btn.closest('.senno-notif-row');
+            if(btn){ btn.style.background='hsl(var(--destructive))'; btn.style.borderColor='hsl(var(--destructive))'; btn.style.color='#fff'; }
+            const done = ()=>this.setState(s=>({removed:{...s.removed,[n.id]:true}}));
+            if(row && row.animate){
+              const h = row.offsetHeight;
+              row.style.overflow='hidden';
+              const a = row.animate([
+                {transform:'translateX(0)', opacity:1, maxHeight:h+'px', paddingTop:'14px', paddingBottom:'14px'},
+                {transform:'translateX(115%)', opacity:0, maxHeight:h+'px', paddingTop:'14px', paddingBottom:'14px', offset:0.55},
+                {transform:'translateX(115%)', opacity:0, maxHeight:'0px', paddingTop:'0px', paddingBottom:'0px'}
+              ], {duration:780, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards'});
+              a.onfinish = done; a.oncancel = done;
+            } else { done(); }
+          } else {
+            this.setState(s=>({read:{...s.read,[n.id]:true}}));
+          }
+        },
+      };
+    };
+
+    const groupDefs = [['hoje','Hoje'],['semana','Esta semana'],['antes','Anteriores']];
+    const groups = groupDefs.map(([k,label])=>{
+      const items = filtered.filter(n=>n.group===k);
+      const vis = items.filter(n=>!isGone(n));
+      const u = vis.filter(n=>!isRead(n)).length;
+      return {
+        key:k, label,
+        groupClass: vis.length ? '' : 'senno-notif-group-empty',
+        meta: vis.length ? (u>0 ? u+' não '+(u===1?'lida':'lidas') : 'Tudo lido') : '',
+        items: items.map(mkRow),
+      };
+    }).filter(g=>g.items.length>0);
+
+    const hasItems = filtered.some(n=>!isGone(n));
+    const noUnread = unreadCount===0;
+
+    const navMain = [
+      {label:'Dashboard',icon:icoGrid}, {label:'Atividades',icon:icoActivity},
+      {label:'Agenda',icon:icoCalendar}, {label:'Funil',icon:icoFunnel},
+      {label:'Pacientes',icon:icoUsers}, {label:'Financeiro',icon:icoMoney},
+      {label:'Metas',icon:icoTarget}, {label:'Insights',icon:icoBulb},
+      {label:'Procedimentos',icon:icoSyringe}, {label:'Exportações',icon:icoDownload},
+      {label:'Notificações',icon:icoBell, active:true, badge:unreadCount},
+      {label:'Configurações',icon:icoSettings},
+    ].map(n=>({ ...n, weight:n.active?600:500, color:n.active?P:M, iconColor:n.active?P:M, bg:n.active?'hsl(var(--accent))':'transparent', showBadge: n.active && unreadCount>0, onClick:(e)=>{ if(e&&e.preventDefault)e.preventDefault(); if(this.props.onNavigate)this.props.onNavigate(n.label); } }));
+
+    const markAllBase = 'display:inline-flex; align-items:center; gap:7px; height:36px; padding:0 14px; border-radius:9px; font-family:inherit; font-size:12.5px; font-weight:600;';
+    const markAllStyle = noUnread
+      ? markAllBase+' border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--muted-foreground)/0.6); cursor:default;'
+      : markAllBase+' border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); cursor:pointer;';
+
+    return {
+      theme:this.props.theme ?? this.state.theme, ...this._notif(), indLeft:(this.state.indLeft||0)+'px', indWidth:(this.state.indWidth||0)+'px', indOpacity:this.state.indWidth?1:0, setTabBar:this.setTabBar, navMain, tabs, groups,
+      hasItems, isEmpty: !hasItems,
+      hasUnread: unreadCount>0, noUnread,
+      markAll:()=>{ if(noUnread) return; const r={}; live.forEach(n=>{ if(!isRead(n)) r[n.id]=true; }); this.setState(s=>({read:{...s.read,...r}})); },
+      markAllStyle, markAllHover: noUnread ? '' : 'background:hsl(var(--accent));',
+      goAll:()=>this.setState({tab:'todas'}),
+      canResetFilter: tab!=='todas',
+      emptyTitle: tab==='nao-lidas' ? 'Você está em dia' : 'Nada por aqui',
+      emptyDesc: tab==='nao-lidas'
+        ? 'Não há notificações não lidas. Tudo o que precisava da sua atenção já foi visto.'
+        : 'Nenhuma notificação neste filtro. Quando algo acontecer nesta categoria, aparece aqui.',
+      icoSearch, icoBell, icoPlus, icoSettings, icoSliders, icoCheckCheck, icoArrow,
+      themeIcon:(this.props.theme??this.state.theme)==='dark'?icoMoon:icoSun,
+      themeTitle:(this.props.theme??this.state.theme)==='dark'?'Modo escuro':'Modo claro',
+      toggleTheme:()=> this.props.onToggleTheme ? this.props.onToggleTheme() : this.setState(s=>({theme:s.theme==='dark'?'light':'dark'})),
+    };
+  }
+}
+</script>
+</body>
+</html>

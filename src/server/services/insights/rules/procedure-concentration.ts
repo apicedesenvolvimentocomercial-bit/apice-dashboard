@@ -53,7 +53,11 @@ export const procedureConcentrationRule: InsightRule = {
       estimatedImpact: null,
       suggestion:
         'Diversifique a oferta com pacotes complementares e treine a equipe para cross-sell.',
-      metadata: { share, procedureName: procedure?.name },
+      metadata: {
+        share,
+        procedureName: procedure?.name,
+        metric: { value: `${(share * 100).toFixed(0)}%`, label: 'da receita' },
+      },
     }
   },
 }

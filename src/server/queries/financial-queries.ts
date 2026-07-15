@@ -9,6 +9,8 @@ import {
   getMonthlyRevenueCostData,
   getTopProceduresByRevenue,
   getTopCostCategories,
+  getTopBuyers,
+  getTopSellers,
 } from '@/server/repositories/revenue-repository'
 import { listCosts } from '@/server/repositories/cost-repository'
 import {
@@ -25,13 +27,17 @@ export async function getFinancialOverview(clientId: string) {
   await assertCan(ctx, 'financial', 'read')
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const [summary, chartData, topProcedures, topCostCategories] = await Promise.all([
-    getFinancialSummary(ctx, clientId),
-    getMonthlyRevenueCostData(ctx, clientId, 12),
-    getTopProceduresByRevenue(ctx, clientId, { from: startOfMonth }),
-    getTopCostCategories(ctx, clientId, { from: startOfMonth }),
-  ])
-  return { summary, chartData, topProcedures, topCostCategories }
+  // limit 10: a Visão Geral mostra 5 por ranking e o excedente vai no "Ver todos".
+  const [summary, chartData, topProcedures, topCostCategories, topBuyers, topSellers] =
+    await Promise.all([
+      getFinancialSummary(ctx, clientId),
+      getMonthlyRevenueCostData(ctx, clientId, 12),
+      getTopProceduresByRevenue(ctx, clientId, { from: startOfMonth, limit: 10 }),
+      getTopCostCategories(ctx, clientId, { from: startOfMonth, limit: 10 }),
+      getTopBuyers(ctx, clientId, { limit: 10 }),
+      getTopSellers(ctx, clientId, { limit: 10 }),
+    ])
+  return { summary, chartData, topProcedures, topCostCategories, topBuyers, topSellers }
 }
 
 export async function getRevenues(

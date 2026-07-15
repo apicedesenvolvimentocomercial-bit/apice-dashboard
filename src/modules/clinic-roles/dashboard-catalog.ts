@@ -27,7 +27,9 @@ export const DASHBOARD_SECTIONS: DashboardSectionDef[] = [
     items: [
       { key: 'leads', label: 'Leads totais' },
       { key: 'appointments', label: 'Agendamentos' },
-      { key: 'attendance', label: 'Comparecimento' },
+      // Linha secundária dentro do card de No-show (vira card próprio se o
+      // cargo esconder o No-show).
+      { key: 'attendance', label: 'Comparecimento (no card No-show)' },
       { key: 'noShow', label: 'No-show' },
       { key: 'conversion', label: 'Conversão' },
       { key: 'timeToFirstContact', label: 'Tempo até 1º contato' },
@@ -42,11 +44,14 @@ export const DASHBOARD_SECTIONS: DashboardSectionDef[] = [
       { key: 'costs', label: 'Custos' },
       { key: 'netProfit', label: 'Lucro líquido' },
       { key: 'averageTicket', label: 'Ticket médio' },
-      { key: 'grossMargin', label: 'Margem bruta' },
+      // 'grossMargin' saiu do dashboard (2026-06-11): a margem bruta vive na
+      // aba DRE. Chave antiga em JSONs de cargo fica inerte (sem efeito).
       { key: 'netMargin', label: 'Margem líquida' },
       { key: 'roi', label: 'ROI marketing' },
       { key: 'cac', label: 'CAC' },
-      { key: 'lostRevenue', label: 'Receita perdida' },
+      // Linha secundária dentro do card de No-show (card próprio se o cargo
+      // esconder o No-show).
+      { key: 'lostRevenue', label: 'Receita perdida (no card No-show)' },
       { key: 'healthScore', label: 'Health Score' },
     ],
   },
@@ -72,10 +77,13 @@ export const DASHBOARD_SECTIONS: DashboardSectionDef[] = [
   {
     key: 'tracking',
     label: 'Acompanhamento',
-    description: 'Insights ativos e progresso de metas',
+    description: 'Insights ativos, metas e próximos agendamentos',
     items: [
       { key: 'insights', label: 'Insights ativos' },
       { key: 'goals', label: 'Progresso de metas' },
+      // Item novo (redesign): dentro de seção ligada, item ausente no JSON do
+      // cargo é VISÍVEL por padrão — cargos existentes ganham o card sem edição.
+      { key: 'upcomingAppointments', label: 'Próximos agendamentos' },
     ],
   },
 ]

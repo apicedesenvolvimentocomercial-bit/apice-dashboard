@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
-import { AppointmentsCalendarToggle } from '@/components/clinic/appointments/appointments-calendar-toggle'
-import { ClinicUserCalendar } from '@/components/clinic/calendar/clinic-user-calendar'
+import { AgendaShell } from '@/components/clinic/appointments/agenda-shell'
 import {
   getClinicAppointments,
   getClinicAppointmentProcedures,
@@ -9,11 +8,10 @@ import {
 } from '@/domains/clinic/appointments/appointment-queries'
 import { getClinicCalendar } from '@/domains/clinic/calendar/calendar-queries'
 import { getClinicPatients } from '@/domains/clinic/patients/patient-queries'
-import { AppointmentsCalendar } from '@/modules/appointments/appointments-calendar'
 import { auth } from '@/server/auth'
 import { gateClinicTab } from '@/server/auth/clinic-tabs'
 
-export const metadata: Metadata = { title: 'Agendamentos' }
+export const metadata: Metadata = { title: 'Agenda' }
 
 export default async function ClientAppointmentsPage() {
   await gateClinicTab('appointments')
@@ -28,7 +26,8 @@ export default async function ClientAppointmentsPage() {
     )
   }
 
-  // Janela do calendário pessoal = mês corrente.
+  // Janela inicial do calendário pessoal = mês corrente; navegar de período
+  // refaz o fetch da janela visível no client (painel Calendário).
   const now = new Date()
   const from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
@@ -40,22 +39,15 @@ export default async function ClientAppointmentsPage() {
     getClinicScheduleConfig(),
     getClinicCalendar({ from, to }),
   ])
-
   return (
-    <div className="space-y-6">
-      <AppointmentsCalendarToggle
-        appointmentsSlot={
-          <AppointmentsCalendar
-            appointments={appointments}
-            patients={patients}
-            procedures={procedures}
-            clientId={clientId}
-            schedule={schedule}
-            hideTitle
-          />
-        }
-        calendarSlot={<ClinicUserCalendar events={calendar.events} holidays={calendar.holidays} />}
-      />
-    </div>
+    <AgendaShell
+      clientId={clientId}
+      appointments={appointments}
+      patients={patients}
+      procedures={procedures}
+      schedule={schedule}
+      calendarEvents={calendar.events}
+      calendarHolidays={calendar.holidays}
+    />
   )
 }

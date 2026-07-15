@@ -110,7 +110,9 @@ export async function ingestLead(
       source,
       procedureInterest: procedureInterest ?? null,
       stageId: leadStage.id,
-      firstContactAt: new Date(),
+      // `firstContactAt` NÃO é setado aqui: criação ≠ contato. O campo passa a
+      // ser gravado quando a atendente responder o lead (integração WhatsApp,
+      // Fase C) — spec em retencao-reforma-progresso.md ("Tempo até 1º contato").
     },
     select: { id: true },
   })

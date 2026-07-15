@@ -113,11 +113,3 @@ export async function POST(req: Request, ctx: { params: Promise<{ provider: stri
   logger.info('Webhook lead ingested', { provider, leadId: result.leadId })
   return NextResponse.json({ ok: true, provider, leadId: result.leadId })
 }
-
-export async function GET(_req: Request, ctx: { params: Promise<{ provider: string }> }) {
-  const { provider } = await ctx.params
-  if (!VALID_PROVIDERS.has(provider)) {
-    return NextResponse.json({ error: 'Unknown provider' }, { status: 404 })
-  }
-  return NextResponse.json({ ok: true, provider, status: 'mock' })
-}

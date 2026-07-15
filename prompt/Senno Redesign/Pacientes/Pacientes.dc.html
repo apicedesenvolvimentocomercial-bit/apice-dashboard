@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  .senno{
+    --background:38 14% 97%; --foreground:220 9% 12%;
+    --card:0 0% 100%; --card-foreground:220 9% 12%; --popover:0 0% 100%;
+    --primary:42 53% 42%; --primary-foreground:225 11% 7%; --primary-text:42 53% 33%;
+    --secondary:38 18% 90%; --secondary-foreground:25 47% 18%;
+    --muted:38 18% 90%; --muted-foreground:25 15% 38%;
+    --accent:38 18% 90%; --accent-foreground:25 47% 18%;
+    --destructive:0 72% 48%; --destructive-bg:0 80% 96%;
+    --border:38 20% 85%; --input:38 20% 85%; --ring:42 65% 52%;
+    --ok:142 55% 30%; --ok-bg:142 50% 91%;
+    --warn:32 80% 32%; --warn-bg:38 88% 90%;
+    --shadow:220 28% 22%; --shadow-a:0.07;
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .senno[data-theme="dark"]{
+    --background:225 11% 7%; --foreground:38 33% 96%;
+    --card:220 9% 11%; --card-foreground:38 33% 96%; --popover:220 9% 11%;
+    --primary:42 65% 58%; --primary-foreground:225 11% 7%; --primary-text:42 65% 58%;
+    --secondary:220 9% 16%; --secondary-foreground:38 33% 96%;
+    --muted:220 9% 16%; --muted-foreground:38 15% 65%;
+    --accent:220 9% 16%; --accent-foreground:38 33% 96%;
+    --destructive:0 63% 50%; --destructive-bg:0 45% 14%;
+    --border:220 9% 18%; --input:220 9% 18%; --ring:42 65% 58%;
+    --ok:142 58% 64%; --ok-bg:142 45% 15%;
+    --warn:38 85% 66%; --warn-bg:36 55% 15%;
+    --shadow:0 0% 0%; --shadow-a:0.4;
+  }
+  /* topbar search: collapses to icon, expands right-to-left on hover; 0s grace before collapsing */
+  .senno-search{ position:relative; width:38px; height:38px; flex:none; }
+  .senno-search-box{ position:absolute; top:0; right:0; height:38px; width:38px; display:flex; align-items:center; gap:8px; padding:0 11px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--muted-foreground)); font-size:12.5px; overflow:hidden; white-space:nowrap; cursor:pointer; transition:width .34s cubic-bezier(.4,0,.2,1), background .22s ease, border-color .22s ease, box-shadow .22s ease; transition-delay:0s; }
+  .senno-search:hover .senno-search-box, .senno-search-box:focus-within{ width:240px; background:hsl(var(--background)); border-color:hsl(var(--input)); cursor:text; transition-delay:0s; }
+  .senno-search-box:focus-within{ border-color:hsl(var(--ring)); box-shadow:0 0 0 3px hsl(var(--ring)/0.18); }
+  /* theme toggle: sun/moon swap with rotate + fade */
+  .senno-theme-btn{ position:relative; overflow:hidden; }
+  .senno-theme-ico{ position:absolute; top:50%; left:50%; width:17px; height:17px; margin:-8.5px 0 0 -8.5px; display:inline-flex; transition:transform .5s cubic-bezier(.34,1.3,.5,1), opacity .35s ease; }
+  .senno-theme-sun{ transform:rotate(0deg) scale(1); opacity:1; }
+  .senno-theme-moon{ transform:rotate(-90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-sun{ transform:rotate(90deg) scale(.35); opacity:0; }
+  .senno[data-theme="dark"] .senno-theme-moon{ transform:rotate(0deg) scale(1); opacity:1; }
+  /* notification bell: small resonating shake on click */
+  @keyframes senno-bell-ring{ 0%{transform:rotate(0);} 15%{transform:rotate(11deg);} 30%{transform:rotate(-9deg);} 45%{transform:rotate(6deg);} 60%{transform:rotate(-4deg);} 75%{transform:rotate(2deg);} 100%{transform:rotate(0);} }
+  .senno-bell-ico{ transform-origin:top center; }
+  .senno-bell-ring-a{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+  .senno-bell-ring-b{ animation:senno-bell-ring .7s cubic-bezier(.36,.07,.19,.97); }
+
+  /* responsive: stack multi-column grids on tablet/portrait */
+  @media (max-width:1024px){ .senno-2col{ grid-template-columns:1fr !important; } .senno-3col{ grid-template-columns:1fr 1fr !important; } }
+  @media (max-width:660px){ .senno-3col{ grid-template-columns:1fr !important; } }
+</style>
+</helmet>
+
+<div class="senno" data-theme="{{ theme }}" data-font="inter" style="background:hsl(var(--background)); color:hsl(var(--foreground)); height:100vh; box-sizing:border-box; overflow:hidden; line-height:1.45;">
+
+  <div data-screen-label="Pacientes" style="width:100%; height:100%; min-height:0; display:flex; overflow:hidden; background:hsl(var(--background));">
+
+    <!-- SIDEBAR -->
+    <aside style="width:236px; flex:none; background:hsl(var(--card)); border-right:1px solid hsl(var(--border)); display:flex; flex-direction:column; padding:18px 14px;">
+      <div style="display:flex; align-items:center; gap:10px; padding:6px 8px 18px;">
+        <div style="width:34px; height:34px; border-radius:9px; background:hsl(var(--primary)); display:flex; align-items:center; justify-content:center; flex:none;">
+          <span style="color:hsl(var(--primary-foreground)); font-weight:700; font-size:17px;">B</span>
+        </div>
+        <div style="min-width:0;">
+          <div style="font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Clínica Bellavie</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Plano Premium</div>
+        </div>
+      </div>
+      <nav style="display:flex; flex-direction:column; gap:2px;">
+        <sc-for list="{{ navMain }}" as="item" hint-placeholder-count="12">
+          <a href="#" onClick="{{ item.onClick }}" style="display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:8px; font-size:13.5px; font-weight:{{ item.weight }}; text-decoration:none; color:{{ item.color }}; background:{{ item.bg }};" style-hover="background:hsl(var(--accent));">
+            <span style="width:18px; height:18px; display:inline-flex; flex:none; color:{{ item.iconColor }};" dangerouslySetInnerHTML="{{ item.icon }}"></span>
+            <span style="flex:1; white-space:nowrap;">{{ item.label }}</span>
+          </a>
+        </sc-for>
+      </nav>
+      <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; background:hsl(var(--muted));">
+        <div style="width:32px; height:32px; border-radius:99px; background:hsl(var(--primary)/0.2); display:flex; align-items:center; justify-content:center; flex:none; color:hsl(var(--primary-text)); font-weight:600; font-size:12.5px;">HC</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Dra. Helena Costa</div>
+          <div style="font-size:11px; color:hsl(var(--muted-foreground));">Proprietária</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div style="flex:1; min-width:0; min-height:0; display:flex; flex-direction:column;">
+
+      <!-- TOPBAR -->
+      <header style="flex:none; display:flex; align-items:center; gap:16px; padding:14px 24px; border-bottom:1px solid hsl(var(--border)); background:hsl(var(--card));">
+        <div style="flex:1; min-width:0;">
+          <h1 style="margin:0; font-size:clamp(22px, 0.5vw + 18px, 27px); font-weight:600; letter-spacing:-0.01em;">Pacientes</h1>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <div class="senno-search">
+            <div class="senno-search-box">
+              <span style="width:15px;height:15px;display:inline-flex;flex:none;" dangerouslySetInnerHTML="{{ icoSearch }}"></span>
+              <input type="text" placeholder="Buscar paciente…" style="flex:1; min-width:0; border:none; outline:none; background:transparent; font-family:inherit; font-size:12.5px; color:hsl(var(--foreground));" />
+            </div>
+          </div>
+          <button onClick="{{ toggleTheme }}" title="{{ themeTitle }}" class="senno-theme-btn" style="width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+            <span class="senno-theme-ico senno-theme-sun" dangerouslySetInnerHTML="{{ icoSun }}"></span>
+            <span class="senno-theme-ico senno-theme-moon" dangerouslySetInnerHTML="{{ icoMoon }}"></span>
+          </button>
+          <div class="senno-notif" style="position:relative;">
+            <button onClick="{{ toggleNotif }}" title="Notificações" style="position:relative; width:38px; height:38px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+              <span class="senno-bell-ico {{ bellClass }}" onAnimationEnd="{{ bellAnimEnd }}" style="width:17px;height:17px;display:inline-flex; transform-origin:top center;" dangerouslySetInnerHTML="{{ icoBell }}"></span>
+              <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}">
+                <span style="position:absolute; top:7px; right:8px; width:7px; height:7px; border-radius:99px; background:hsl(var(--destructive)); border:1.5px solid hsl(var(--card));"></span>
+              </sc-if>
+            </button>
+            <sc-if value="{{ notifOpen }}" hint-placeholder-val="">
+              <div onClick="{{ closeNotif }}" style="position:fixed; inset:0; z-index:40;"></div>
+              <div style="position:absolute; top:46px; right:0; width:362px; background:hsl(var(--popover)); border:1px solid hsl(var(--border)); border-radius:12px; box-shadow:0 16px 40px -12px hsl(var(--shadow)/calc(var(--shadow-a) * 3.5)); z-index:50; overflow:hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px 10px;">
+                  <span style="display:flex; align-items:center; gap:8px; font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; color:hsl(var(--foreground));">Notificações<sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px; font-weight:600; padding:1px 7px; border-radius:99px; background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text)); font-variant-numeric:tabular-nums;">{{ unreadCount }}</span></sc-if></span>
+                  <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><button onClick="{{ markAllRead }}" style="border:none; background:transparent; font-size:11.5px; font-weight:600; color:hsl(var(--primary-text)); cursor:pointer; padding:2px 4px; font-family:inherit;" style-hover="text-decoration:underline;">Marcar todas como lidas</button></sc-if>
+                </div>
+                <div style="display:flex; flex-direction:column; padding:0 6px 6px; max-height:344px; overflow-y:auto;">
+                  <sc-for list="{{ notifItems }}" as="n" hint-placeholder-count="4">
+                    <button onClick="{{ n.onClick }}" style="display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left; padding:10px 8px; border:none; background:{{ n.rowBg }}; border-radius:8px; cursor:pointer;" style-hover="background:hsl(var(--accent));">
+                      <span style="width:32px; height:32px; border-radius:99px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ n.iconBg }}; color:{{ n.iconColor }};"><span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ n.icon }}"></span></span>
+                      <span style="flex:1; min-width:0;">
+                        <span style="display:block; font-size:12.5px; font-weight:{{ n.titleWeight }}; color:hsl(var(--foreground));">{{ n.title }}</span>
+                        <span style="display:block; font-size:11.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ n.sub }}</span>
+                      </span>
+                      <span style="flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+                        <span style="font-size:10.5px; color:hsl(var(--muted-foreground)); white-space:nowrap;">{{ n.time }}</span>
+                        <sc-if value="{{ n.unread }}" hint-placeholder-val=""><span style="width:7px; height:7px; border-radius:99px; background:hsl(var(--primary)); flex:none;"></span></sc-if>
+                      </span>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:center; padding:9px 14px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+                  <a href="#" style="font-size:12px; font-weight:600; color:hsl(var(--primary-text)); text-decoration:none;">Ver todas as notificações</a>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <button onClick="{{ onNewLead }}" style="height:38px; padding:0 15px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+            <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>
+            Novo lead
+          </button>
+        </div>
+      </header>
+
+      <!-- BODY -->
+      <div style="flex:1; min-height:0; overflow-y:auto; padding:18px 24px; display:flex; flex-direction:column; gap:16px;">
+
+        <!-- TABS + AÇÕES -->
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+          <div ref="{{ setTabBar }}" style="position:relative; display:flex; align-items:center; gap:4px; border-bottom:1px solid hsl(var(--border));">
+            <div style="position:absolute; left:0; bottom:-1px; height:2px; border-radius:2px; background:hsl(var(--primary)); width:{{ indWidth }}; transform:translateX({{ indLeft }}); opacity:{{ indOpacity }}; transition:transform .32s cubic-bezier(.34,1.1,.5,1), width .32s cubic-bezier(.34,1.1,.5,1), opacity .2s ease; pointer-events:none;"></div>
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.onClick }}" data-tab-active="{{ t.active }}" style="{{ t.style }}">
+                {{ t.label }}
+                <span style="font-size:10.5px; font-weight:600; font-variant-numeric:tabular-nums; min-width:18px; text-align:center; padding:1px 6px; border-radius:99px; background:{{ t.badgeBg }}; color:{{ t.badgeColor }};">{{ t.count }}</span>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:flex; align-items:center; gap:9px; flex:none;">
+            <button title="Filtros" style="width:36px; height:36px; border-radius:9px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent));">
+              <span style="width:17px;height:17px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoSliders }}"></span>
+            </button>
+            <button style="height:36px; padding:0 14px; border-radius:9px; border:none; background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.05);">
+              <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoPlus }}"></span>
+              Novo paciente
+            </button>
+          </div>
+        </div>
+
+        <!-- TABELA -->
+        <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+          <div style="background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:13px; box-shadow:0 1px 2px hsl(var(--shadow)/var(--shadow-a)); overflow:hidden;">
+
+            <!-- cabeçalho -->
+            <div style="display:grid; grid-template-columns:minmax(0,2.3fr) minmax(0,1.9fr) 112px 112px 92px minmax(0,1.7fr); align-items:center; gap:16px; padding:11px 20px; background:hsl(var(--muted)/0.4); border-bottom:1px solid hsl(var(--border)); font-size:11.5px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; color:hsl(var(--muted-foreground));">
+              <div>Paciente</div>
+              <div>E-mail</div>
+              <div>1ª visita</div>
+              <div>Última visita</div>
+              <div style="text-align:center;">Agend.</div>
+              <div>Tags</div>
+            </div>
+
+            <!-- linhas -->
+            <sc-for list="{{ rows }}" as="p" hint-placeholder-count="9">
+              <div style="display:grid; grid-template-columns:minmax(0,2.3fr) minmax(0,1.9fr) 112px 112px 92px minmax(0,1.7fr); align-items:center; gap:16px; padding:12px 20px; border-top:1px solid hsl(var(--border)); cursor:pointer;" style-hover="background:hsl(var(--accent)/0.5);">
+                <div style="display:flex; align-items:center; gap:11px; min-width:0;">
+                  <span style="width:36px; height:36px; border-radius:99px; flex:none; display:flex; align-items:center; justify-content:center; background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text)); font-size:12px; font-weight:600;">{{ p.initials }}</span>
+                  <div style="min-width:0;">
+                    <div style="font-size:13.5px; font-weight:600; line-height:1.25; color:{{ p.nameColor }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.name }}</div>
+                    <div style="font-size:11.5px; color:hsl(var(--muted-foreground)); line-height:1.25; font-variant-numeric:tabular-nums;">{{ p.phone }}</div>
+                  </div>
+                </div>
+                <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.email }}</div>
+                <div style="font-size:12.5px; color:hsl(var(--foreground)); font-variant-numeric:tabular-nums;">{{ p.first }}</div>
+                <div style="font-size:12.5px; color:{{ p.lastColor }}; font-variant-numeric:tabular-nums;">{{ p.last }}</div>
+                <div style="display:flex; justify-content:center;">
+                  <span style="min-width:26px; text-align:center; padding:2px 9px; border-radius:99px; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; background:{{ p.countBg }}; color:{{ p.countColor }};">{{ p.count }}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <sc-for list="{{ p.tags }}" as="tag" hint-placeholder-count="2">
+                    <span style="{{ tag.style }}">{{ tag.label }}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+
+            <!-- rodapé / paginação -->
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 20px; border-top:1px solid hsl(var(--border)); background:hsl(var(--muted)/0.4);">
+              <span style="font-size:12px; color:hsl(var(--muted-foreground)); font-variant-numeric:tabular-nums;">{{ pageLabel }}</span>
+              <div style="display:flex; align-items:center; gap:7px;">
+                <button disabled style="width:32px; height:32px; border-radius:8px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--muted-foreground)/0.5); cursor:not-allowed; display:inline-flex; align-items:center; justify-content:center;">
+                  <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevL }}"></span>
+                </button>
+                <button style="width:32px; height:32px; border-radius:8px; border:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" style-hover="background:hsl(var(--accent));">
+                  <span style="width:15px;height:15px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoChevR }}"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ESTADO VAZIO -->
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="">
+          <div style="background:hsl(var(--card)); border:1px dashed hsl(var(--border)); border-radius:13px; padding:46px 24px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:11px;">
+            <span style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:hsl(var(--muted)); color:hsl(var(--muted-foreground));">
+              <span style="width:20px;height:20px;display:inline-flex;" dangerouslySetInnerHTML="{{ icoUsers }}"></span>
+            </span>
+            <div style="font-size:14px; font-weight:600;">Nenhum paciente neste filtro</div>
+            <div style="font-size:12.5px; color:hsl(var(--muted-foreground)); margin-top:-4px; max-width:330px;">Ajuste a busca ou cadastre um novo paciente para começar a montar a base da clínica.</div>
+            <button onClick="{{ goAll }}" style="margin-top:6px; height:36px; padding:0 16px; border-radius:9px; border:1px solid hsl(var(--input)); background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:clamp(13px, 0.14vw + 11.2px, 14.3px); font-weight:600; cursor:pointer;" style-hover="background:hsl(var(--accent));">Ver todos</button>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:860},&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;}}">
+class Component extends DCLogic {
+  state = { theme: this.props.defaultTheme || 'light', notifOpen:false, notifs:[{id:1,type:'lead',title:'Novo lead',sub:'Mariana Alves · Instagram',time:'agora',read:false},{id:2,type:'money',title:'Pagamento confirmado',sub:'R$ 1.200 · Botox · Camila Souza',time:'8 min',read:false},{id:3,type:'agenda',title:'Agendamento confirmado',sub:'Patrícia Lima · amanhã às 14h',time:'40 min',read:false},{id:4,type:'alert',title:'Tarefa atrasada',sub:'Retornar ligação · Rafael Dias',time:'1 h',read:true},{id:5,type:'agenda',title:'Novo agendamento online',sub:'Beatriz Ramos · Limpeza de pele',time:'3 h',read:true}], tab: 'todos' };
+
+  ico(p){ return {__html:'<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'}; }
+
+  setTabBar = (el)=>{ this._tabBar = el; };
+  componentDidMount(){ this._measureTabs(); if(typeof document!=='undefined'&&document.fonts&&document.fonts.ready){ document.fonts.ready.then(()=>this._measureTabs()); } }
+  componentDidUpdate(){ this._measureTabs(); }
+  _measureTabs(){ const bar=this._tabBar; if(!bar) return; const act=bar.querySelector('[data-tab-active="1"]'); if(!act) return; const left=act.offsetLeft, width=act.offsetWidth; if(left!==this.state.indLeft||width!==this.state.indWidth){ this.setState({indLeft:left, indWidth:width}); } }
+
+  _notif(){
+    const ic=(p)=>this.ico(p);
+    const icoSun=ic('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon=ic('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+    const icoBell=ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoUsers=ic('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney=ic('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoCal=ic('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoAlert=ic('<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>');
+    const tint={lead:{bg:'hsl(var(--primary)/0.16)',color:'hsl(var(--primary-text))'},money:{bg:'hsl(var(--ok-bg))',color:'hsl(var(--ok))'},agenda:{bg:'hsl(var(--accent))',color:'hsl(var(--muted-foreground))'},alert:{bg:'hsl(var(--destructive)/0.14)',color:'hsl(var(--destructive))'}};
+    const icoBy={lead:icoUsers,money:icoMoney,agenda:icoCal,alert:icoAlert};
+    const notifItems=this.state.notifs.map(n=>{const t=tint[n.type]||tint.agenda; return {...n, icon:icoBy[n.type]||icoBell, iconBg:t.bg, iconColor:t.color, unread:!n.read, titleWeight:n.read?500:600, rowBg:n.read?'transparent':'hsl(var(--primary)/0.05)', onClick:()=>this.setState(s=>({notifs:s.notifs.map(x=>x.id===n.id?{...x,read:true}:x)}))};});
+    const unreadCount=this.state.notifs.filter(n=>!n.read).length;
+    return { icoSun, icoMoon, notifOpen:this.state.notifOpen, hasUnread:unreadCount>0, unreadCount, notifItems,
+      bellClass:(this.state.bellRing?'senno-bell-ring-a':''), bellAnimEnd:()=>this.setState({bellRing:false}), toggleNotif:()=>this.setState(s=>({bellRing:true, notifOpen:!s.notifOpen})), closeNotif:()=>this.setState({notifOpen:false}),
+      markAllRead:()=>this.setState(s=>({notifs:s.notifs.map(x=>({...x,read:true}))})) };
+  }
+
+  renderVals(){
+    const I=(p)=>this.ico(p);
+    const icoGrid    = I('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>');
+    const icoActivity= I('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>');
+    const icoCalendar= I('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>');
+    const icoFunnel  = I('<path d="M3 4h18l-7 8v6l-4 2v-8z"/>');
+    const icoUsers   = I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>');
+    const icoMoney   = I('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>');
+    const icoTarget  = I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>');
+    const icoBulb    = I('<path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/>');
+    const icoSyringe = I('<rect x="3" y="3" width="7" height="7" rx="1.5"/><path d="M14 7h6M14 12h6M14 17h6M5 14v6M3 17h4"/>');
+    const icoDownload= I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>');
+    const icoBell    = I('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
+    const icoSettings= I('<path d="M22.00 12.00 L21.24 15.83 L18.28 14.60 L16.81 16.81 L19.07 19.07 L15.83 21.24 L14.60 18.28 L12.00 18.80 L12.00 22.00 L8.17 21.24 L9.40 18.28 L7.19 16.81 L4.93 19.07 L2.76 15.83 L5.72 14.60 L5.20 12.00 L2.00 12.00 L2.76 8.17 L5.72 9.40 L7.19 7.19 L4.93 4.93 L8.17 2.76 L9.40 5.72 L12.00 5.20 L12.00 2.00 L15.83 2.76 L14.60 5.72 L16.81 7.19 L19.07 4.93 L21.24 8.17 L18.28 9.40 L18.80 12.00 Z"/><circle cx="12" cy="12" r="3"/>');
+    const icoSearch  = I('<circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/>');
+    const icoPlus    = I('<path d="M12 5v14M5 12h14"/>');
+    const icoChevL   = I('<path d="m15 18-6-6 6-6"/>');
+    const icoChevR   = I('<path d="m9 18 6-6-6-6"/>');
+    const icoSliders = I('<line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="3.1" fill="hsl(var(--card))"/><circle cx="15" cy="16" r="3.1" fill="hsl(var(--card))"/>');
+    const icoSun     = I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>');
+    const icoMoon    = I('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
+
+    const P='hsl(var(--primary-text))', M='hsl(var(--muted-foreground))';
+    const navMain = [
+      {label:'Dashboard',icon:icoGrid}, {label:'Atividades',icon:icoActivity},
+      {label:'Agenda',icon:icoCalendar}, {label:'Funil',icon:icoFunnel},
+      {label:'Pacientes',icon:icoUsers, active:true}, {label:'Financeiro',icon:icoMoney},
+      {label:'Metas',icon:icoTarget}, {label:'Insights',icon:icoBulb},
+      {label:'Procedimentos',icon:icoSyringe}, {label:'Exportações',icon:icoDownload},
+      {label:'Notificações',icon:icoBell}, {label:'Configurações',icon:icoSettings},
+    ].map(n=>({ ...n, weight:n.active?600:500, color:n.active?P:M, iconColor:n.active?P:M, bg:n.active?'hsl(var(--accent))':'transparent', onClick:(e)=>{ if(e&&e.preventDefault)e.preventDefault(); if(this.props.onNavigate)this.props.onNavigate(n.label); } }));
+
+    // ---- tags ----
+    const tagStyle = (kind)=>{
+      const base = 'display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; line-height:1; padding:4px 9px; border-radius:99px; white-space:nowrap;';
+      if(kind==='vip')        return base+' background:hsl(var(--primary)/0.16); color:hsl(var(--primary-text));';
+      if(kind==='plano')      return base+' background:transparent; border:1px solid hsl(var(--primary)/0.45); color:hsl(var(--primary-text));';
+      if(kind==='recorrente') return base+' background:hsl(var(--ok-bg)); color:hsl(var(--ok));';
+      if(kind==='danger')     return base+' background:hsl(var(--destructive)/0.12); color:hsl(var(--destructive));';
+      if(kind==='muted')      return base+' background:hsl(var(--muted)); color:hsl(var(--muted-foreground));';
+      return base+' background:hsl(var(--muted)); color:hsl(var(--muted-foreground));';
+    };
+    const initials = (name)=> name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+
+    // ---- base de pacientes ----
+    const data = [
+      {name:'Mariana Costa',   phone:'(11) 98876-1240', email:'mariana.costa@gmail.com',   first:'12/03/2025', last:'18/06/2026', count:7, status:'ativo',   tags:[['VIP','vip'],['Plano mensal','plano']]},
+      {name:'Sofia Andrade',   phone:'(11) 99431-7782', email:'sofia.andrade@outlook.com',  first:'04/08/2024', last:'21/06/2026', count:9, status:'ativo',   tags:[['VIP','vip'],['Recorrente','recorrente']]},
+      {name:'Bruno Almeida',   phone:'(11) 97720-5519', email:'bruno.almeida@gmail.com',    first:'27/01/2026', last:'19/06/2026', count:3, status:'ativo',   tags:[['Recorrente','recorrente']]},
+      {name:'Patrícia Nunes',  phone:'(11) 99102-3344', email:'patricia.nunes@gmail.com',   first:'19/11/2024', last:'10/06/2026', count:5, status:'ativo',   tags:[['VIP','vip'],['Plano mensal','plano']]},
+      {name:'Letícia Moraes',  phone:'(11) 98045-9911', email:'leticia.moraes@gmail.com',   first:'06/02/2025', last:'14/06/2026', count:6, status:'ativo',   tags:[['Recorrente','recorrente']]},
+      {name:'Camila Ribeiro',  phone:'(11) 99655-2078', email:'camila.ribeiro@hotmail.com', first:'15/05/2025', last:'09/06/2026', count:2, status:'ativo',   tags:[['Plano mensal','plano']]},
+      {name:'Beatriz Lima',    phone:'(11) 98290-6633', email:'beatriz.lima@gmail.com',     first:'30/09/2024', last:'02/06/2026', count:4, status:'ativo',   tags:[['Recorrente','recorrente']]},
+      {name:'Rafael Souza',    phone:'(11) 99877-1002', email:'rafael.souza@gmail.com',     first:'22/06/2026', last:'22/06/2026', count:1, status:'ativo',   tags:[['VIP','vip']]},
+      {name:'Helena Martins',  phone:'(11) 98112-4567', email:'helena.martins@gmail.com',   first:'08/04/2024', last:'12/10/2025', count:8, status:'inativo', tags:[['Inadimplente','danger'],['Inativo','muted']]},
+      {name:'Diego Fonseca',   phone:'(11) 99540-8821', email:'diego.fonseca@gmail.com',    first:'17/07/2024', last:'03/11/2025', count:2, status:'inativo', tags:[['Inativo','muted']]},
+    ];
+
+    const counts = {
+      todos: data.length,
+      ativos: data.filter(d=>d.status==='ativo').length,
+      inativos: data.filter(d=>d.status==='inativo').length,
+    };
+    const tabDefs = [['todos','Todos'],['ativos','Ativos'],['inativos','Inativos']];
+    const tabs = tabDefs.map(([k,label])=>{
+      const on = this.state.tab===k;
+      return {
+        label, count:counts[k],
+        style:'position:relative; display:inline-flex; align-items:center; gap:7px; border:none; background:transparent; cursor:pointer; font-size:13.5px; font-weight:600; padding:9px 12px; margin-bottom:-1px; color:'+(on?'hsl(var(--foreground))':'hsl(var(--muted-foreground))')+'; border-bottom:2px solid transparent;', active: on?'1':'',
+        badgeBg: on?'hsl(var(--primary)/0.16)':'hsl(var(--muted))',
+        badgeColor: on?P:'hsl(var(--muted-foreground))',
+        onClick:()=>this.setState({tab:k}),
+      };
+    });
+
+    const tab = this.state.tab;
+    const filtered = tab==='todos' ? data : data.filter(d=> tab==='ativos' ? d.status==='ativo' : d.status==='inativo');
+
+    const rows = filtered.map(p=>{
+      const inactive = p.status==='inativo';
+      return {
+        initials: initials(p.name),
+        name:p.name, phone:p.phone, email:p.email, first:p.first, last:p.last, count:p.count,
+        nameColor: inactive ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))',
+        lastColor: inactive ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))',
+        countBg: p.count>0 ? 'hsl(var(--primary)/0.14)' : 'hsl(var(--muted))',
+        countColor: p.count>0 ? P : 'hsl(var(--muted-foreground))',
+        tags: p.tags.map(([label,kind])=>({ label, style:tagStyle(kind) })),
+      };
+    });
+
+    const total = counts.todos;
+    const totalLabel = total+(total===1?' paciente cadastrado':' pacientes cadastrados');
+    const pageLabel = 'Mostrando 1–'+rows.length+' de '+filtered.length;
+
+    return {
+      theme:this.props.theme ?? this.state.theme,
+      ...this._notif(), indLeft:(this.state.indLeft||0)+'px', indWidth:(this.state.indWidth||0)+'px', indOpacity:this.state.indWidth?1:0, setTabBar:this.setTabBar, navMain, tabs, rows,
+      hasRows: rows.length>0, isEmpty: rows.length===0,
+      totalLabel, pageLabel,
+      goAll:()=>this.setState({tab:'todos'}),
+      icoSearch, icoBell, icoPlus, icoChevL, icoChevR, icoSliders, icoUsers,
+      themeIcon:(this.props.theme??this.state.theme)==='dark'?icoMoon:icoSun,
+      themeTitle:(this.props.theme??this.state.theme)==='dark'?'Modo escuro':'Modo claro',
+      toggleTheme:()=> this.props.onToggleTheme ? this.props.onToggleTheme() : this.setState(s=>({theme:s.theme==='dark'?'light':'dark'})),
+    };
+  }
+}
+</script>
+</body>
+</html>
