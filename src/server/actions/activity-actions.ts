@@ -31,8 +31,22 @@ const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as const
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const
 
 const activitySchema = z.object({
-  title: z.string().min(2, 'Título obrigatório'),
-  description: z.string().optional(),
+  title: z
+    .string()
+    .min(2, 'Título obrigatório')
+    .max(255, 'titulo muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O titulo contém caracteres inválidos'
+    ),
+  description: z
+    .string()
+    .max(65535, 'Descrição muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'Descrição contém caracteres inválidos'
+    )
+    .optional(),
   type: z.enum(TYPES),
   status: z.enum(STATUSES).optional(),
   priority: z.enum(PRIORITIES).default('MEDIUM'),
