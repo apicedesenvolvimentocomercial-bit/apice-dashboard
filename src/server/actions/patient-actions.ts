@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { ok, fail, NotFoundError, validationFail } from '@/types/errors'
+import { isValidCpf } from '@/lib/cpf'
 import { assertCan } from '@/server/auth/assert-can'
 import { can } from '@/server/auth/permissions'
 import { resolveOwnerScope } from '@/server/auth/owner-scope'
@@ -29,9 +30,26 @@ import {
 import { logger } from '@/lib/logger'
 
 const patientSchema = z.object({
-  name: z.string().min(2, 'Nome obrigatório'),
-  phone: z.string().optional(),
-  email: z.string().email('E-mail inválido').optional().or(z.literal('')),
+  name: z
+    .string()
+    .min(2, 'Nome obrigatório')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
+  phone: z
+    .string()
+    .length(12, 'Telefone inválido')
+    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
+    .optional(),
+  email: z
+    .string()
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .email('E-mail inválido')
+    .optional()
+    .or(z.literal('')),
   birthDate: z.string().optional(),
   cpf: z.string().optional(),
   notes: z.string().optional(),
@@ -45,8 +63,15 @@ const createPatientSchema = z.object({
   phone: z.string().min(1, 'Telefone obrigatório'),
   email: z.string().email('E-mail inválido'),
   birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
-  cpf: z.string().min(1, 'CPF obrigatório'),
-  notes: z.string().optional(),
+  cpf: z.string().min(1, 'CPF obrigatório').refine(isValidCpf, 'cpf inválido'),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A nota contém caracteres inválidos'
+    )
+    .optional(),
   tags: z.array(z.string()).optional(),
 })
 

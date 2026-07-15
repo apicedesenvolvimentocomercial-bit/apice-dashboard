@@ -33,10 +33,24 @@ const COST_TYPES = [
 
 const costSchema = z.object({
   type: z.enum(COST_TYPES),
-  category: z.string().optional(),
-  amount: z.number().positive('Valor deve ser positivo'),
+  category: z
+    .string()
+    .max(100, 'Categoria muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A categotia contém caracteres inválidos'
+    )
+    .optional(),
+  amount: z.number().max(9_999_999_999.99, 'Valor muito alto').positive('Valor deve ser positivo'),
   date: z.string().min(1, 'Data obrigatória'),
-  description: z.string().optional(),
+  description: z
+    .string()
+    .max(65535, 'Descrição muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A descrição contém caracteres inválidos'
+    )
+    .optional(),
   isRecurring: z.boolean().optional(),
   recurringDay: z.number().int().min(1).max(31).optional(),
 })
@@ -103,10 +117,21 @@ export async function updateCostAction(costId: string, clientId: string, formDat
 // --- Aluguel de equipamentos (seção "Alugados" da aba Ativos) ---
 
 const rentalSchema = z.object({
-  name: z.string().trim().min(2, 'Dê um nome ao equipamento').max(120),
-  amount: z.number().positive('Valor mensal deve ser positivo'),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Dê um nome ao equipamento')
+    .max(255, 'Nome do ativo muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome do ativo contém caracteres inválidos'
+    ),
+  amount: z
+    .number()
+    .max(9_999_999_999.99, 'Aluguel mensal muito alto')
+    .positive('Valor mensal deve ser positivo'),
   startDate: z.string().min(1, 'Data obrigatória'),
-  recurringDay: z.number().int().min(1).max(31).optional(),
+  recurringDay: z.number().int().min(1).max(31, 'dia do vencimento fora do padrão').optional(),
 })
 
 export async function listEquipmentRentalsAction(clientId: string) {

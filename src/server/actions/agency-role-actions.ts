@@ -56,10 +56,22 @@ const modulePermSchema = z.object({
 const permissionsSchema = z.record(z.string(), modulePermSchema)
 
 const createRoleSchema = z.object({
-  name: z.string().trim().min(2, 'Nome do cargo muito curto').max(60),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Nome do cargo muito curto')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto contém caracteres inválidos'
+    ),
   permissions: permissionsSchema,
   canManageRoles: z.boolean().default(false),
-  level: z.number().int().min(1, 'Nível inválido'),
+  level: z
+    .number()
+    .int()
+    .min(1, 'Nível inválido')
+    .max(1000, 'Nível do cargo muito grande (limite: 1000)'),
 })
 
 export async function createAgencyRoleAction(input: z.infer<typeof createRoleSchema>) {
@@ -100,10 +112,19 @@ export async function createAgencyRoleAction(input: z.infer<typeof createRoleSch
 
 const updateRoleSchema = z.object({
   roleId: z.string().cuid(),
-  name: z.string().trim().min(2).max(60).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(2)
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto contém caracteres inválidos'
+    )
+    .optional(),
   permissions: permissionsSchema.optional(),
   canManageRoles: z.boolean().optional(),
-  level: z.number().int().min(1).optional(),
+  level: z.number().int().min(1).max(1000, 'Nível do cargo muito grande (limite: 1000)').optional(),
 })
 
 export async function updateAgencyRoleAction(input: z.infer<typeof updateRoleSchema>) {

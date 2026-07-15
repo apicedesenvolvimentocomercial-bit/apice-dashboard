@@ -28,7 +28,14 @@ function revalidate(clientId: string) {
 }
 
 const createSchema = z.object({
-  name: z.string().min(1, 'Nome obrigatório'),
+  name: z
+    .string()
+    .min(1, 'Nome obrigatório')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
   color: colorSchema,
 })
 
@@ -55,7 +62,15 @@ export async function createStageAction(pipelineId: string, clientId: string, fo
 }
 
 const updateSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z
+    .string()
+    .min(1)
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    )
+    .optional(),
   color: colorSchema,
 })
 

@@ -11,7 +11,14 @@ import { deleteOrgHoliday, upsertOrgHoliday } from '@/server/repositories/org-ho
 
 const holidaySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD'),
-  name: z.string().min(1, 'Nome obrigatório').max(100),
+  name: z
+    .string()
+    .min(1, 'Nome obrigatório')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
 })
 
 function revalidate() {

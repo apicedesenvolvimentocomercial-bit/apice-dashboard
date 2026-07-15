@@ -30,11 +30,25 @@ const REVENUE_TYPES = [
 ] as const
 
 const revenueSchema = z.object({
-  amount: z.number().positive('Valor deve ser positivo'),
+  amount: z.number().max(9_999_999_999.99, 'Valor muito alto').positive('Valor deve ser positivo'),
   date: z.string().min(1, 'Data obrigatória'),
-  description: z.string().optional(),
-  paymentMethod: z.string().optional(),
-  installments: z.number().int().positive().optional(),
+  description: z
+    .string()
+    .max(65535, 'Descrição muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'Descrição contém caracteres inválidos'
+    )
+    .optional(),
+  paymentMethod: z
+    .string()
+    .max(255, 'Método de pagamento muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O método de pagamento contém caracteres inválidos'
+    )
+    .optional(),
+  installments: z.number().int().max(100, 'Numero de parcelas muito grande').positive().optional(),
   patientId: z.string().optional(),
   procedureIds: z.array(z.string()).optional(),
   discountPct: z.number().min(0, 'Desconto inválido').max(100, 'Desconto máximo 100%').optional(),

@@ -17,7 +17,14 @@ import { combineCalendarDateTime } from '@/lib/calendar-time'
 const HEX = /^#[0-9a-fA-F]{6}$/
 
 const createSchema = z.object({
-  title: z.string().min(1, 'Título obrigatório'),
+  title: z
+    .string()
+    .min(1, 'Título obrigatório')
+    .max(255, 'Titulo muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto contém caracteres inválidos'
+    ),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z
     .string()
@@ -31,7 +38,14 @@ const createSchema = z.object({
     .string()
     .regex(/^\d{2}:\d{2}$/)
     .optional(),
-  notes: z.string().optional(),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto contém caracteres inválidos'
+    )
+    .optional(),
   color: z.string().regex(HEX, 'Cor inválida').optional(),
   category: z.string().max(40).optional(),
 })

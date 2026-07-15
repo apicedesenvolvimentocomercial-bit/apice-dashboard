@@ -30,14 +30,57 @@ function slugify(name: string) {
 }
 
 const createClientSchema = z.object({
-  name: z.string().trim().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email().optional().or(z.literal('')),
-  monthlyFee: z.coerce.number().positive().optional(),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Nome deve ter pelo menos 2 caracteres')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
+  city: z
+    .string()
+    .max(255, 'Nome da cidade inválido')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome da cidade contém caracteres inválidos'
+    )
+    .optional(),
+  state: z
+    .string()
+    .max(2, 'Sigla do Estado inválida')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome do estado contém caracteres inváilidos'
+    )
+    .optional(),
+  phone: z
+    .string()
+    .length(12, 'Telefone inválido')
+    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
+    .optional(),
+  email: z
+    .string()
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .email()
+    .optional()
+    .or(z.literal('')),
+  monthlyFee: z.coerce
+    .number()
+    .max(9_999_999_999.99, 'Número da mensalidade muito grande')
+    .positive()
+    .optional(),
   contractStart: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z
+    .string()
+    .max(65535, 'Notas muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A nota contém caracteres inválidos'
+    )
+    .optional(),
 })
 
 export async function createClientAction(formData: z.infer<typeof createClientSchema>) {
@@ -83,14 +126,57 @@ export async function createClientAction(formData: z.infer<typeof createClientSc
 
 const updateClientSchema = z.object({
   clientId: z.string().cuid(),
-  name: z.string().min(2).optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email().optional().or(z.literal('')),
-  monthlyFee: z.coerce.number().positive().optional(),
+  name: z
+    .string()
+    .min(2)
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    )
+    .optional(),
+  city: z
+    .string()
+    .max(255, 'Nome da cidade inválido')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome da cidade contém caracteres inválidos'
+    )
+    .optional(),
+  state: z
+    .string()
+    .max(2, 'Sigla do Estado inválida')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome do estado contém caracteres inváilidos'
+    )
+    .optional(),
+  phone: z
+    .string()
+    .length(12, 'Telefone inválido')
+    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
+    .optional(),
+  email: z
+    .string()
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .email()
+    .optional()
+    .or(z.literal('')),
+  monthlyFee: z.coerce
+    .number()
+    .max(9_999_999_999.99, 'Número da mensalidade muito grande')
+    .positive()
+    .optional(),
   contractStart: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z
+    .string()
+    .max(65535, 'Notas muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A nota contém caracteres inválidos'
+    )
+    .optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'ONBOARDING', 'CHURNED']).optional(),
 })
 
@@ -136,7 +222,11 @@ const CLINIC_ROLES = ['CLIENT_OWNER', 'CLIENT_STAFF'] as const
 
 const inviteClientOwnerSchema = z.object({
   clientId: z.string().cuid(),
-  email: z.string().email('Email inválido'),
+  email: z
+    .string()
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .email('Email inválido'),
   role: z.enum(CLINIC_ROLES).optional(),
 })
 

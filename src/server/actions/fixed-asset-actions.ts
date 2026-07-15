@@ -16,15 +16,43 @@ import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { fail, NotFoundError, ok, runAction } from '@/types/errors'
 
 const createSchema = z.object({
-  name: z.string().trim().min(2, 'Nome muito curto').max(120),
-  category: z.string().trim().max(80).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Nome muito curto')
+    .max(255, 'Nome de ativo muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome do ativo contém caracteres inválidos'
+    ),
+  category: z
+    .string()
+    .trim()
+    .max(255, 'Categoria muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto de categoria contém caracteres inválidos'
+    )
+    .optional(),
   // Depreciação de equipamentos (tangível) foi descontinuada — só intangível
   // (amortização). Ver migration drop_tangible_assets.
   kind: z.literal('INTANGIVEL'),
-  acquisitionValue: z.number().positive('Valor deve ser positivo'),
-  residualValue: z.number().min(0).optional(),
+  acquisitionValue: z
+    .number()
+    .max(9_999_999_999.99, 'valor de aquisição muito alto')
+    .positive('valor de aquisição deve ser positivo'),
+  residualValue: z
+    .number()
+    .min(0)
+    .max(9_999_999_999.99, 'valor de aquisição muito alto')
+    .positive('valor de aquisição deve ser positivo')
+    .optional(),
   acquisitionDate: z.string().min(1, 'Data obrigatória'),
-  usefulLifeMonths: z.number().int().positive('Vida útil em meses'),
+  usefulLifeMonths: z
+    .number()
+    .max(10, 'Vida útil muito longa')
+    .int()
+    .positive('Vida útil em meses'),
 })
 
 function revalidate(clientId: string) {
