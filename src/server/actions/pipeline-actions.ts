@@ -20,7 +20,14 @@ function revalidate(clientId: string) {
   revalidatePath(`/clients/${clientId}/crm`)
 }
 
-const nameSchema = z.string().min(1, 'Nome obrigatório').max(60, 'Nome muito longo')
+const nameSchema = z
+  .string()
+  .min(1, 'Nome obrigatório')
+  .max(255, 'Nome muito grande')
+  .regex(
+    /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+    'O nome contém caracteres inválidos'
+  )
 
 export async function createPipelineAction(clientId: string, name: string) {
   const ctx = await getTenantContext()

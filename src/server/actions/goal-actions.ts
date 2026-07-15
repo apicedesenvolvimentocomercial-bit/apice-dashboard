@@ -28,10 +28,20 @@ const MODES = ['INDIVIDUAL', 'SHARED'] as const
 const goalSchema = z.object({
   metric: z.enum(METRICS),
   period: z.enum(PERIODS),
-  targetValue: z.number().positive('Valor alvo deve ser positivo'),
+  targetValue: z
+    .number()
+    .max(9_999_999_999.99, 'Valor alvo muito alto')
+    .positive('Valor alvo deve ser positivo'),
   startDate: z.string().min(1, 'Data inicial obrigatória'),
   endDate: z.string().min(1, 'Data final obrigatória'),
-  notes: z.string().optional(),
+  notes: z
+    .string()
+    .max(65535, 'Notas muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'As notas contém caracteres inválidos'
+    )
+    .optional(),
   // Etapa 2 — escopo. Default CLINIC (coletiva) p/ retrocompatibilidade.
   scopeType: z.enum(SCOPE_TYPES).default('CLINIC'),
   mode: z.enum(MODES).default('SHARED'),

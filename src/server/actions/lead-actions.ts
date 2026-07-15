@@ -9,6 +9,7 @@ import { NotFoundError, ok, fail, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
+import { isValidCpf } from '@/lib/cpf'
 import {
   createLead,
   createLeadForPatient,
@@ -36,15 +37,50 @@ import { createAuditLog } from '@/server/repositories/audit-repository'
 import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
 
 const leadSchema = z.object({
-  name: z.string().min(2, 'Nome obrigatório'),
-  phone: z.string().optional(),
-  email: z.string().email('E-mail inválido').optional().or(z.literal('')),
+  name: z
+    .string()
+    .min(2, 'Nome obrigatório')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
+  phone: z
+    .string()
+    .length(12, 'Telefone inválido')
+    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
+    .optional(),
+  email: z
+    .string()
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .email('E-mail inválido')
+    .optional()
+    .or(z.literal('')),
   source: z.enum(['META_ADS', 'GOOGLE_ADS', 'ORGANIC', 'REFERRAL', 'WHATSAPP', 'WALK_IN', 'OTHER']),
   stageId: z.string().min(1),
-  procedureInterest: z.string().optional(),
+  procedureInterest: z
+    .string()
+    .max(65535, 'Muitos procedimentos de interesse')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'Os procedimentos de interesse contém caracteres inválidos'
+    )
+    .optional(),
   procedureInterestIds: z.array(z.string()).optional(),
-  estimatedValue: z.number().positive().optional(),
-  notes: z.string().optional(),
+  estimatedValue: z
+    .number()
+    .max(9_999_999_999.99, 'Valor estimado muito alto')
+    .positive()
+    .optional(),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'a nota contém caracteres inválidos'
+    )
+    .optional(),
 })
 
 function revalidate(clientId: string) {
@@ -277,8 +313,19 @@ const scheduleSchema = z.object({
   stageId: z.string().min(1),
   procedureIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um procedimento'),
   scheduledAt: z.string().min(1, 'Data obrigatória'),
-  durationMinutes: z.number().int().positive(),
-  notes: z.string().optional(),
+  durationMinutes: z
+    .number()
+    .max(360, 'Duração de procedimento muito grande muito grande')
+    .int()
+    .positive(),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A nota contém caracteres inválidos'
+    )
+    .optional(),
   position: z.number().optional(),
 })
 
@@ -287,8 +334,19 @@ const rescheduleSchema = z.object({
   appointmentId: z.string().min(1),
   procedureId: z.string().min(1, 'Procedimento obrigatório'),
   scheduledAt: z.string().min(1, 'Data obrigatória'),
-  durationMinutes: z.number().int().positive(),
-  notes: z.string().optional(),
+  durationMinutes: z
+    .number()
+    .max(360, 'Duração de procedimento muito grande muito grande')
+    .int()
+    .positive(),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A nota contém caracteres inválidos'
+    )
+    .optional(),
   position: z.number().optional(),
 })
 
@@ -408,11 +466,26 @@ export async function scheduleLeadAction(leadId: string, clientId: string, formD
 const attendSchema = z.object({
   stageId: z.string().min(1),
   position: z.number().optional(),
-  name: z.string().min(2, 'Nome obrigatório'),
-  phone: z.string().min(1, 'Telefone obrigatório'),
-  email: z.string().email('E-mail inválido'),
+  name: z
+    .string()
+    .min(2, 'Nome obrigatório')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
+  phone: z
+    .string()
+    .min(1, 'Telefone obrigatório')
+    .length(12, 'Telefone inválido')
+    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido'),
+  email: z
+    .string()
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .email('E-mail inválido'),
   birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
-  cpf: z.string().min(1, 'CPF obrigatório'),
+  cpf: z.string().min(1, 'CPF obrigatório').refine(isValidCpf, 'CPF inválido'),
 })
 
 /**
@@ -473,11 +546,26 @@ const movePipelineSchema = z.object({
   // Dados do paciente (obrigatórios só na conversão LEAD→PATIENT; validados aqui).
   patient: z
     .object({
-      name: z.string().min(2, 'Nome obrigatório'),
-      phone: z.string().min(1, 'Telefone obrigatório'),
-      email: z.string().email('E-mail inválido'),
+      name: z
+        .string()
+        .min(2, 'Nome obrigatório')
+        .max(255, 'Nome muito grande')
+        .regex(
+          /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+          'O nome contém caracteres inválidos'
+        ),
+      phone: z
+        .string()
+        .min(1, 'Telefone obrigatório')
+        .length(12, 'Telefone inválido')
+        .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido'),
+      email: z
+        .string()
+        .email('E-mail inválido')
+        .max(255, 'Email de tamanho inválido')
+        .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido'),
       birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
-      cpf: z.string().min(1, 'CPF obrigatório'),
+      cpf: z.string().min(1, 'CPF obrigatório').refine(isValidCpf, 'cpf inválido'),
     })
     .optional(),
   reason: z.string().optional(),

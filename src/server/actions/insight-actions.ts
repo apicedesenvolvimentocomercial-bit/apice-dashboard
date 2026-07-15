@@ -66,7 +66,16 @@ export async function resolveInsightAction(insightId: string) {
   })
 }
 
-const dismissSchema = z.object({ reason: z.string().min(3, 'Motivo é obrigatório') })
+const dismissSchema = z.object({
+  reason: z
+    .string()
+    .min(3, 'Motivo é obrigatório')
+    .max(255, 'Texto de motivação de dispensa muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O Texto de motivação de dispensa contém caracteres inválidos'
+    ),
+})
 
 export async function dismissInsightAction(insightId: string, formData: unknown) {
   const parsed = dismissSchema.safeParse(formData)
