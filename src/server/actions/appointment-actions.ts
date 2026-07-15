@@ -3,6 +3,7 @@
 import type { AppointmentStatus } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { isValidCpf } from '@/lib/cpf'
 
 import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
 import { ok, fail, NotFoundError, validationFail } from '@/types/errors'
@@ -34,8 +35,15 @@ const appointmentSchema = z.object({
   patientId: z.string().min(1, 'Paciente obrigatório'),
   procedureIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um procedimento'),
   scheduledAt: z.string().min(1, 'Data obrigatória'),
-  durationMinutes: z.number().int().positive(),
-  notes: z.string().optional(),
+  durationMinutes: z.number().max(360, 'tempo de procedimento excede o limite').int().positive(),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto contém caracteres inválidos'
+    )
+    .optional(),
 })
 
 function rejectIfTooOld(scheduledAt: Date): { ok: true } | { ok: false; message: string } {
@@ -65,24 +73,62 @@ function revalidateCrm(clientId: string) {
 // feat agenda→pipeline: Compareceu pela agenda completa o cadastro (os 5 campos
 // obrigatórios), igual ao fluxo da pipeline.
 const attendSchema = z.object({
-  name: z.string().min(2, 'Nome obrigatório'),
-  phone: z.string().min(1, 'Telefone obrigatório'),
-  email: z.string().email('E-mail inválido'),
+  name: z
+    .string()
+    .max(225, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto contém caracteres inválidos'
+    )
+    .min(2, 'Nome obrigatório'),
+  phone: z
+    .string()
+    .length(12, 'Telefone inválido')
+    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido'),
+  email: z
+    .string()
+    .email('E-mail inválido')
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido'),
   birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
-  cpf: z.string().min(1, 'CPF obrigatório'),
+  cpf: z.string().min(1, 'CPF obrigatório').length(14).refine(isValidCpf, 'CPF inválido'),
 })
 
 // feat agenda→pipeline: criar um LEAD NOVO direto pela agenda (cai em Agendado
 // no funil comercial). Campos mínimos do lead + dados do agendamento.
 const scheduledLeadSchema = z.object({
-  name: z.string().min(2, 'Nome obrigatório'),
-  phone: z.string().optional(),
-  email: z.string().email('E-mail inválido').optional().or(z.literal('')),
+  name: z
+    .string()
+    .min(2, 'Nome obrigatório')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto contém caracteres inválidos'
+    ),
+  phone: z
+    .string()
+    .length(12, 'Telefone inválido')
+    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
+    .optional(),
+  email: z
+    .string()
+    .email('E-mail inválido')
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .optional()
+    .or(z.literal('')),
   source: z.enum(['META_ADS', 'GOOGLE_ADS', 'ORGANIC', 'REFERRAL', 'WHATSAPP', 'WALK_IN', 'OTHER']),
   procedureIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um procedimento'),
   scheduledAt: z.string().min(1, 'Data obrigatória'),
-  durationMinutes: z.number().int().positive(),
-  notes: z.string().optional(),
+  durationMinutes: z.number().max(360, 'tempo de procedimento excede o limite').int().positive(),
+  notes: z
+    .string()
+    .max(65535, 'Nota muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O texto contém caracteres inválidos'
+    )
+    .optional(),
 })
 
 export async function getAppointmentsAction(
@@ -316,6 +362,7 @@ export async function updateAppointmentStatusAction(
   }
 }
 
+// usado somente na confirmação de receita a partir do agendamento
 const revenueDetailsSchema = z.object({
   paymentMethod: z.string().optional().nullable(),
   installments: z.number().int().min(1).max(36).optional(),
