@@ -14,8 +14,22 @@ import {
 } from '@/server/repositories/procedure-repository'
 
 const procedureSchema = z.object({
-  name: z.string().min(2, 'Nome obrigatório').max(60, 'texto muito grande'),
-  description: z.string().max(255, 'texto muito grande').optional(),
+  name: z
+    .string()
+    .min(2, 'Nome obrigatório')
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
+  description: z
+    .string()
+    .max(65535, 'Descrição muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'A descrição contém caracteres inválidos'
+    )
+    .optional(),
   price: z
     .number()
     .max(9_999_999_999.99, 'Preço muito alto')

@@ -17,7 +17,11 @@ import { ConflictError, ForbiddenError, NotFoundError, runAction } from '@/types
 const ROLE_VALUES = ['ADMIN', 'STAFF'] as const
 
 const inviteSchema = z.object({
-  email: z.string().email('Email inválido'),
+  email: z
+    .string()
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .email('Email inválido'),
   role: z.enum(ROLE_VALUES),
 })
 

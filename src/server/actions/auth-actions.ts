@@ -21,8 +21,15 @@ import { fail, ok } from '@/types/errors'
 
 const acceptInviteSchema = z.object({
   token: z.string().min(1),
-  name: z.string().min(2),
-  password: z.string().min(8),
+  name: z
+    .string()
+    .min(2)
+    .max(255, 'Nome muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O nome contém caracteres inválidos'
+    ),
+  password: z.string().min(8).max(100, 'Senha muito grande'),
 })
 
 export async function acceptInviteAction(input: z.infer<typeof acceptInviteSchema>) {
@@ -154,7 +161,11 @@ function hashToken(raw: string): string {
 }
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  email: z
+    .string()
+    .max(255, 'Email de tamanho inválido')
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .email(),
 })
 
 export async function forgotPasswordAction(input: z.infer<typeof forgotPasswordSchema>) {
@@ -211,7 +222,10 @@ export async function forgotPasswordAction(input: z.infer<typeof forgotPasswordS
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
+  password: z
+    .string()
+    .min(8, 'Senha deve ter pelo menos 8 caracteres')
+    .max(100, 'Senha muito grande'),
 })
 
 export async function resetPasswordAction(input: z.infer<typeof resetPasswordSchema>) {

@@ -10,8 +10,15 @@ import { enterClientScope } from '@/server/tenant/client-scope'
 import { prisma } from '@/lib/prisma'
 
 const updateTemplateSchema = z.object({
-  title: z.string().max(120).optional(),
-  body: z.string().min(1, 'Mensagem obrigatória').max(2000),
+  title: z
+    .string()
+    .max(255, 'Título muito grande')
+    .regex(
+      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+      'O título contém caracteres inválidos'
+    )
+    .optional(),
+  body: z.string().min(1, 'Mensagem obrigatória').max(2000, 'Mensagem muito grande'),
   isActive: z.boolean(),
 })
 
