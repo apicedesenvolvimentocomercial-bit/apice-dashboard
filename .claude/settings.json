@@ -4,6 +4,6 @@
     "allow": ["Bash", "Write", "Edit", "Read", "Grep", "Glob", "WebFetch"],
     "defaultMode": "acceptEdits"
   },
-  "claude.code.dangerouslySkipPermissions": true,
+  "claude.code.dangerouslySkipPermissions": false,
   "claude.code.allowedTools": ["*"]
 }

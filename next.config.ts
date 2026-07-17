@@ -28,6 +28,7 @@ const nextConfig: NextConfig = {
     serverActions: {
       // Lê de NEXT_PUBLIC_APP_URL para funcionar em dev/preview/produção.
       allowedOrigins: [allowedHost],
+      bodySizeLimit: '300kb',
     },
   },
   async headers() {

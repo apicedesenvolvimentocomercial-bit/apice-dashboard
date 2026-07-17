@@ -289,7 +289,9 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   `buildReceivables`/`buildAppointmentRevenueData`**, senão a antecipação não é aplicada. A taxa
   vira despesa financeira na DRE sem código extra.
 - **Notificações (targeting por cargo + preferências).** Todo aviso passa por
-  `dispatchNotification` (`notification-service.ts`) — ponto ÚNICO de enforcement: deriva a
+  `dispatchNotification` (`notification-service.ts`) — ponto ÚNICO de enforcement: aplica o
+  `broadcast-guard` (`server/security/` — anti-amplificação: payload × destinatários tem
+  orçamento; estourar lança `ValidationError` antes de qualquer efeito), deriva a
   `category` do tipo (ou do override `category` no payload) e filtra destinatários/canais pela
   chave reservada **`notifications`** do JSON do cargo (`role-permissions.ts`:
   `parseNotificationPermissions`/`notificationChannelEnabled`; default OPT-OUT = ausência liga

@@ -25,6 +25,7 @@ O compartilhado legítimo se resume a:
 | `activities/folder-colors.ts`         | Cor determinística de pasta por `userId`. Função pura.                                     |
 | `settings/profile-form.tsx`           | Form de perfil (nome) — conta-nível, idêntico nos dois domínios.                           |
 | `settings/change-password-form.tsx`   | Troca de senha — conta-nível, idêntico nos dois domínios.                                  |
+| `route-error-card.tsx`                | Caixa de erro inline dos `error.tsx` de rota (título via prop). Display puro.              |
 
 > O que **não** é shared (mora no domínio): páginas/rotas, server actions,
 > queries, repositories, e qualquer componente que escolha comportamento por

@@ -14,6 +14,7 @@ import {
   createNotifications,
   hasRecentNotification,
 } from '@/server/repositories/notification-repository'
+import { assertBroadcastBudget } from '@/server/security/broadcast-guard'
 
 /**
  * Tipos para os quais disparamos email mesmo em produção.
@@ -73,6 +74,16 @@ export async function dispatchNotification(
   payload: NotificationDispatch
 ): Promise<{ created: number; skipped: number; emailed: number }> {
   if (targets.length === 0) return { created: 0, skipped: 0, emailed: 0 }
+
+  // Guarda anti-amplificação (broadcast-guard): o payload é replicado por
+  // destinatário, então texto sob o limite individual ainda pode virar DoS de
+  // escrita (bytes × N). Lança ValidationError ANTES de qualquer efeito.
+  assertBroadcastBudget(targets.length, [
+    payload.title,
+    payload.message,
+    payload.link,
+    payload.metadata,
+  ])
 
   const link = payload.link ?? null
   const category = payload.category ?? CATEGORY_BY_TYPE[payload.type] ?? 'system'

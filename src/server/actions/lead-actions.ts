@@ -36,6 +36,14 @@ import {
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
 
+// Motivo de desfecho (cancelamento/perda/mudança de funil): texto do usuário
+// replicado em Appointment.cancelReason/Lead.lostReason/LeadInteraction e na
+// notificação de desfecho — teto curto (motivo não é nota longa).
+const reasonSchema = z.string().max(1000, 'Motivo muito grande')
+
+// Nota de timeline do lead — mesmo teto das demais notas/descrições do app.
+const interactionContentSchema = z.string().max(65535, 'Nota muito grande')
+
 const leadSchema = z.object({
   name: z
     .string()
@@ -244,6 +252,9 @@ export async function moveLeadAction(
   // leve; repassado ao efeito CLOSED. Ausente = baixa simples (compat).
   revenueDetails?: RevenueDetails
 ) {
+  const parsedReason = reasonSchema.optional().safeParse(cancelReason)
+  if (!parsedReason.success) return validationFail(parsedReason.error)
+
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
   enterClientScope(clientId)
@@ -568,7 +579,7 @@ const movePipelineSchema = z.object({
       cpf: z.string().min(1, 'CPF obrigatório').refine(isValidCpf, 'cpf inválido'),
     })
     .optional(),
-  reason: z.string().optional(),
+  reason: reasonSchema.optional(),
 })
 
 /**
@@ -656,6 +667,8 @@ export async function loseLeadAction(
   clientId: string,
   reason: string
 ) {
+  const parsedReason = reasonSchema.safeParse(reason)
+  if (!parsedReason.success) return validationFail(parsedReason.error)
   try {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
@@ -677,6 +690,8 @@ export async function addInteractionAction(
   content: string
 ) {
   if (!content.trim()) return fail('Conteúdo obrigatório')
+  const parsedContent = interactionContentSchema.safeParse(content)
+  if (!parsedContent.success) return validationFail(parsedContent.error)
   const ctx = await getTenantContext()
   await assertClientAccess(ctx, clientId)
   enterClientScope(clientId)

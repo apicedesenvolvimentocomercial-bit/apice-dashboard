@@ -329,12 +329,18 @@ export async function attendAppointmentAction(
   return ok({ hadLead: res.hadLead })
 }
 
+// Motivo de falta/cancelamento: replicado em Appointment/Lead/notificação —
+// teto curto (motivo não é nota longa). Espelha o `reasonSchema` de lead-actions.
+const cancelReasonSchema = z.string().max(1000, 'Motivo muito grande').optional()
+
 export async function updateAppointmentStatusAction(
   appointmentId: string,
   clientId: string,
   status: AppointmentStatus,
   extra?: { cancelReason?: string }
 ) {
+  const parsedReason = cancelReasonSchema.safeParse(extra?.cancelReason)
+  if (!parsedReason.success) return validationFail(parsedReason.error)
   try {
     const ctx = await getTenantContext()
     await assertClientAccess(ctx, clientId)
