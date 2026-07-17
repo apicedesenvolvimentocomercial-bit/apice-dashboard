@@ -21,9 +21,9 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
 
   useEffect(() => setMounted(true), [])
 
-  const isDark = resolvedTheme === 'dark'
+  const isDark = mounted && resolvedTheme === 'dark'
   const next = isDark ? 'light' : 'dark'
-  const label = isDark ? 'Modo claro' : 'Modo escuro'
+  const label = mounted ? (isDark ? 'Modo claro' : 'Modo escuro') : 'Tema'
 
   return (
     <button
@@ -36,8 +36,7 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
       title={label}
       aria-label={label}
     >
-      {/* Antes de montar, mostra o sol como placeholder neutro (sem piscar). */}
-      {mounted && isDark ? (
+      {isDark ? (
         <Sun className="h-4 w-4 shrink-0" aria-hidden="true" />
       ) : (
         <Moon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -48,7 +47,7 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
           collapsed ? 'pointer-events-none -translate-x-2 opacity-0' : 'translate-x-0 opacity-100'
         )}
       >
-        {mounted ? label : 'Tema'}
+        {label}
       </span>
     </button>
   )

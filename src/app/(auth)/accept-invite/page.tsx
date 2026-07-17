@@ -4,7 +4,7 @@ import { Suspense } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AcceptInviteForm } from '@/modules/settings/accept-invite-form'
 
-export const metadata: Metadata = { title: 'Aceitar convite | Senno' }
+export const metadata: Metadata = { title: 'Aceitar convite ' }
 
 export default function AcceptInvitePage() {
   return (
