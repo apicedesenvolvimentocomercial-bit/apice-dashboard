@@ -12,6 +12,7 @@ import {
   parseRolePermissions,
   type RolePermissions,
 } from '@/server/auth/role-permissions'
+import { assertMutationBudget } from '@/server/security/mutation-throttle'
 import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 import {
   assignClinicRole,
@@ -26,8 +27,11 @@ import { ConflictError, ForbiddenError, NotFoundError, runAction } from '@/types
 /**
  * Quem pode administrar cargos (Etapa 1, Bloco C): o titular da clínica (coroa)
  * ou um usuário cujo cargo tenha `canManageRoles`. Lança ForbiddenError senão.
+ * Também consome o orçamento de mutações (estas actions não passam por
+ * `assertCan`, então o rate-limit anti-DoS entra aqui, no gate comum).
  */
 async function assertCanManageRoles(ctx: ClinicContext): Promise<void> {
+  await assertMutationBudget(ctx.userId)
   if (ctx.isOwner) return
   if (ctx.clinicRoleId) {
     const role = await prisma.clinicRole.findUnique({

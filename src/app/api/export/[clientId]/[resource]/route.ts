@@ -5,6 +5,7 @@ import { auth } from '@/server/auth'
 import { assertCan } from '@/server/auth/assert-can'
 import { getTenantContext, assertClientAccess } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
+import { consumeExportBudget } from '@/server/security/mutation-throttle'
 import { logger } from '@/lib/logger'
 import { ForbiddenError } from '@/types/errors'
 import {
@@ -81,6 +82,16 @@ export async function GET(req: Request, { params }: { params: Promise<Params> })
 
     const def = EXPORT_RESOURCE_BY_KEY.get(resource as ExportResourceKey)
     if (!def) return NextResponse.json({ error: 'Resource not found' }, { status: 404 })
+
+    // Anti-DoS: exportar é leitura PESADA (dataset inteiro + arquivo em memória)
+    // e scriptável por curl com o cookie de sessão — orçamento por usuário.
+    const budget = await consumeExportBudget(ctx.userId)
+    if (!budget.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(budget.retryAfterSec) } }
+      )
+    }
 
     // Permissão por MÓDULO de origem: exportar leads exige crm:read, receitas
     // exige financial:read etc. — exportação não pode vazar o que a aba esconde.

@@ -92,6 +92,16 @@ compartilhado. Só primitivos de UI, display burro (`components/shared`), tipos
   `assertClientAccess` (CLIENT\_\* só convida p/ a própria clínica); UI no card "Pessoas" de
   `/configuracoes`; convidado entra CLIENT_STAFF SEM cargo (deny-by-default até ganhar um).
 - `assert-can.ts` — `assertCan(ctx, module, action)` no topo de cada action/query.
+  **Também é o chokepoint do rate-limit de mutações** (anti-DoS por volume — ledger
+  `seguranca-pendencias.md` #1b): `write|delete|assignToOthers` consomem o orçamento
+  por-usuário (`src/server/security/mutation-throttle.ts`, 120/min + 2000/h, fail-open,
+  lança `TooManyRequestsError` 429) ANTES de resolver a permissão; `read|viewAll` livres.
+  **Mutação nova que NÃO passe por `assertCan`** (gate próprio: coroa, canManageRoles,
+  dado do próprio usuário) → chame `assertMutationBudget(ctx.userId)` explícito (padrão
+  em role-actions/titularidade/notificações/preferências). Exports (`/api/export`,
+  `/api/reports/**/pdf`) têm orçamento próprio (15/min + 100/h → 429+Retry-After);
+  recálculo de insights tem teto extra por clínica (5/5min). Jobs/crons não passam por
+  `assertCan` — seguem ilimitados de propósito.
 - **Cargos de clínica** (`ClinicRole`): permissões por aba num JSON
   (`access` master + `read/write/delete/assignToOthers/viewAll`). Aba sem `access`
   some da sidebar **e** bloqueia a rota (`clinic-tabs.ts`: `gateClinicTab`). Visibilidade
@@ -406,4 +416,6 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
   (`src/server/security/*`, tabela `RateLimit` fora da RLS) e segredo do webhook **por-clínica**
   (`Client.webhookTokenHash`; o token resolve o `clientId` server-side, o body não decide mais
   a clínica) + hook `verifyProviderSignature` pronto p/ HMAC quando os adapters reais entrarem.
-  `WEBHOOK_SECRET` global ficou DEPRECADO. Sem bloqueador de segurança pendente aqui.
+  `WEBHOOK_SECRET` global ficou DEPRECADO. **#1b (2026-07-17):** rate-limit de MUTAÇÕES
+  autenticadas + exports (anti-DoS por volume) — chokepoint em `assertCan`, detalhe na
+  seção Permissões. Sem bloqueador de segurança pendente aqui.
