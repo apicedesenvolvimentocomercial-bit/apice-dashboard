@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError, fail, runAction } from '@/types/errors'
 import { runInsightsForClinic } from '@/server/services/insights/engine'
 import { assertCan } from '@/server/auth/assert-can'
+import { assertInsightRecalcBudget } from '@/server/security/mutation-throttle'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 
@@ -140,6 +141,9 @@ export async function recalculateInsightsAction(clientId: string) {
     await assertClientAccess(ctx, clientId)
     enterClientScope(clientId)
     await assertCan(ctx, 'insights', 'write')
+    // Teto POR CLÍNICA além do orçamento por usuário: o recálculo roda o
+    // engine inteiro (dezenas de queries + writes) — spam do botão vira DoS.
+    await assertInsightRecalcBudget(clientId)
     const result = await runInsightsForClinic(ctx.organizationId, clientId)
     revalidate(clientId)
     return result

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import { getClinicContext } from '@/server/auth/clinic-context'
+import { assertMutationBudget } from '@/server/security/mutation-throttle'
 import { ConflictError, ForbiddenError, NotFoundError, runAction } from '@/types/errors'
 
 const transferClinicOwnershipSchema = z.object({
@@ -24,6 +25,8 @@ export async function transferClinicOwnershipAction(
 ) {
   return runAction(async () => {
     const ctx = await getClinicContext()
+    // Não passa por assertCan (gate = coroa) → rate-limit de mutação explícito.
+    await assertMutationBudget(ctx.userId)
     if (!ctx.isOwner) {
       throw new ForbiddenError('Apenas o titular da clínica pode transferir a titularidade')
     }

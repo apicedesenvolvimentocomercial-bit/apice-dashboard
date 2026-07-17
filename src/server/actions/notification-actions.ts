@@ -4,15 +4,20 @@ import { revalidatePath } from 'next/cache'
 
 import { runAction } from '@/types/errors'
 import { getTenantContext } from '@/server/tenant/context'
+import { assertMutationBudget } from '@/server/security/mutation-throttle'
 import {
   deleteNotification,
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/server/repositories/notification-repository'
 
+// Estas actions não passam por assertCan (operam nos avisos do PRÓPRIO usuário)
+// → o rate-limit anti-DoS de mutação entra explícito em cada uma.
+
 export async function markNotificationReadAction(notificationId: string) {
   return runAction(async () => {
     const ctx = await getTenantContext()
+    await assertMutationBudget(ctx.userId)
     await markNotificationRead(ctx.userId, notificationId)
     revalidatePath('/dashboard')
     revalidatePath('/overview')
@@ -24,6 +29,7 @@ export async function markNotificationReadAction(notificationId: string) {
 export async function markAllReadAction() {
   return runAction(async () => {
     const ctx = await getTenantContext()
+    await assertMutationBudget(ctx.userId)
     await markAllNotificationsRead(ctx.userId)
     revalidatePath('/dashboard')
     revalidatePath('/overview')
@@ -35,6 +41,7 @@ export async function markAllReadAction() {
 export async function deleteNotificationAction(notificationId: string) {
   return runAction(async () => {
     const ctx = await getTenantContext()
+    await assertMutationBudget(ctx.userId)
     await deleteNotification(ctx.userId, notificationId)
     revalidatePath('/dashboard')
     revalidatePath('/overview')

@@ -7,6 +7,7 @@ import { auth } from '@/server/auth'
 import { assertCan } from '@/server/auth/assert-can'
 import { getTenantContext, assertClientAccess } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
+import { consumeExportBudget } from '@/server/security/mutation-throttle'
 import { ForbiddenError } from '@/types/errors'
 import { prisma } from '@/lib/prisma'
 import { computeClinicKpis } from '@/server/services/kpi/clinic-kpis'
@@ -36,6 +37,16 @@ export async function GET(req: Request, { params }: { params: Promise<Params> })
     // isso a rota roda como contexto admin (GUC nula). Também faz os helpers do
     // revenue-repository (`scopedTransaction`) setarem a GUC corretamente.
     enterClientScope(clientId)
+
+    // Anti-DoS: o PDF roda dezenas de agregações + renderização — divide o
+    // orçamento de export por usuário com a rota de export (CSV/XLSX).
+    const budget = await consumeExportBudget(ctx.userId)
+    if (!budget.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(budget.retryAfterSec) } }
+      )
+    }
 
     // O relatório expõe KPIs financeiros — exige financial:read (titular/ADMIN
     // passam direto; cargo decide o resto).

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getAdminContext, type AdminContext } from '@/server/auth/admin-context'
 import { canActOnRoleLevel } from '@/server/auth/role-permissions'
+import { assertMutationBudget } from '@/server/security/mutation-throttle'
 import {
   assignAgencyRole,
   createAgencyRole,
@@ -19,9 +20,11 @@ import { ConflictError, ForbiddenError, NotFoundError, runAction } from '@/types
 /**
  * Quem pode administrar cargos de agência (ledger agency-roles, D5): o ADMIN
  * titular da org (coroa) ou um usuário cujo cargo tenha `canManageRoles`. STAFF
- * sem cargo / sem a flag = barrado.
+ * sem cargo / sem a flag = barrado. Também consome o orçamento de mutações
+ * (estas actions não passam por `assertCan` — o rate-limit entra no gate comum).
  */
 async function assertCanManageAgencyRoles(ctx: AdminContext): Promise<void> {
+  await assertMutationBudget(ctx.userId)
   if (ctx.isOwner || ctx.role === 'ADMIN') return
   if (ctx.agencyRoleId) {
     const role = await prisma.agencyRole.findUnique({

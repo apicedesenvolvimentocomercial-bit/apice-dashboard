@@ -47,6 +47,17 @@ export class ConflictError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  constructor(
+    message = 'Muitas requisições em pouco tempo. Aguarde alguns instantes e tente novamente.',
+    /** Segundos até a janela de rate-limit liberar (p/ header Retry-After em rotas). */
+    public retryAfterSec = 60
+  ) {
+    super('RATE_LIMITED', message, 429)
+    this.name = 'TooManyRequestsError'
+  }
+}
+
 export type ErrorPayload = { code: string; message: string; fields?: Record<string, string[]> }
 
 /**

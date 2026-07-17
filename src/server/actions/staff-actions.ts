@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/resend'
 import { assertCan } from '@/server/auth/assert-can'
+import { assertMutationBudget } from '@/server/security/mutation-throttle'
 import { createAuditLog } from '@/server/repositories/audit-repository'
 import { setUserActive, updateUserRole } from '@/server/repositories/user-repository'
 import { getTenantContext } from '@/server/tenant/context'
@@ -207,6 +208,8 @@ const transferOwnershipSchema = z.object({
 export async function transferOwnershipAction(input: z.infer<typeof transferOwnershipSchema>) {
   return runAction(async () => {
     const ctx = await getTenantContext()
+    // Não passa por assertCan (gate = dono da org) → rate-limit explícito.
+    await assertMutationBudget(ctx.userId)
     if (ctx.role !== 'ADMIN') {
       throw new ForbiddenError('Apenas ADMIN pode transferir titularidade')
     }

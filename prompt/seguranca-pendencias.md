@@ -81,6 +81,41 @@ Vercel + Supabase, sem Redis).
 - **Testes:** `rate-limit.test.ts` + `login-throttle.test.ts` (chaves, thresholds,
   fail-open). Migration aplicada no Neon + provado que `app_user` lê/escreve a tabela.
 
+### #1b — Rate-limiting de MUTAÇÕES autenticadas + exports (2026-07-17) ✅
+
+Complemento anti-DoS por **VOLUME**: os tetos de tamanho (bodySizeLimit, `.max()`
+do zod, broadcast-guard) limitam UM request, mas um usuário autenticado podia
+scriptar milhares de requests pequenos (curl + cookie) e afogar a fila de conexões
+do Postgres. Sobre o mesmo limiter Postgres (#1), agora em
+[`mutation-throttle.ts`](../src/server/security/mutation-throttle.ts):
+
+- **Orçamento de ESCRITA por usuário** — janela dupla: rajada **120/min** +
+  sustentado **2000/h** (inalcançável à mão; trivial de estourar por script).
+  Estourou → `TooManyRequestsError` (`RATE_LIMITED`, 429) → `fail()` amigável via
+  `runAction`. **FAIL-OPEN** (política igual ao login/reset).
+- **Enforcement no CHOKEPOINT [`assertCan`](../src/server/auth/assert-can.ts):**
+  toda ação `write`/`delete`/`assignToOthers` consome o orçamento ANTES de resolver
+  a permissão — cobre atividades, agendamentos, eventos de calendário, leads/kanban
+  (mover/criar/etapas/pipelines), pacientes, receitas/custos/ativos/recebíveis,
+  metas, insights (ciclo reconhecer/dispensar/reabrir), procedimentos, configurações,
+  staff, holidays, templates de mensagem, docs/notas — e qualquer action futura que
+  passe pelo gate. `read`/`viewAll` ficam FORA (SSR/busca/filtros livres).
+- **Mutações sem `assertCan`** chamam `assertMutationBudget` explícito: cargos
+  (`assertCanManageRoles` clínica/agência), transferência de titularidade (org e
+  clínica), notificações (marcar lida/excluir, admin e clínica), preferências.
+- **Exports** (`/api/export/**` + `/api/reports/**/pdf`): leitura pesada + arquivo
+  em memória → orçamento próprio por usuário (**15/min + 100/h**, bucket único p/
+  CSV/XLSX/PDF) → **429 + `Retry-After`**.
+- **Recálculo de insights**: teto extra POR CLÍNICA (**5/5min**) — o botão roda o
+  engine inteiro. Cron diário não passa por aqui (jobs não usam `assertCan`).
+- **Testes:** `mutation-throttle.test.ts` (janela dupla, chaves, fail-open) +
+  `assert-can.test.ts` (consome só em mutação; 429 antes da permissão).
+- Fora de escopo (aceito por ora): `logoutAction` (1 update na própria linha,
+  throttle quebraria a semântica de logout), `getDreReportAction` (leitura;
+  bloquear filtros legítimos custa mais que o risco), `acceptInviteAction`
+  (não autenticada, mas token-gated com lookup barato — candidata a throttle
+  por IP se virar alvo).
+
 ### #2 — Modelo de segredo do webhook (2026-06-01) ✅ — opção híbrida (token + hook de assinatura)
 
 Token **por-clínica** agora (isola de verdade, implementável sem adapter real) +
