@@ -50,10 +50,10 @@ const activitySchema = z.object({
   type: z.enum(TYPES),
   status: z.enum(STATUSES).optional(),
   priority: z.enum(PRIORITIES).default('MEDIUM'),
-  dueDate: z.string().optional().nullable(),
-  dueTime: z.string().optional().nullable(),
-  clientId: z.string().optional().nullable(),
-  assignedToId: z.string().optional().nullable(),
+  dueDate: z.string().max(30, 'Data inválida').optional().nullable(),
+  dueTime: z.string().max(10, 'Hora inválida').optional().nullable(),
+  clientId: z.string().max(64).optional().nullable(),
+  assignedToId: z.string().max(64).optional().nullable(),
   // Flag vindo da UI quando pref do usuário é ASK. Se pref é AUTO, ignorado
   // (sempre adiciona). Se pref é NEVER, também ignorado (nunca adiciona).
   addToCalendar: z.boolean().optional(),

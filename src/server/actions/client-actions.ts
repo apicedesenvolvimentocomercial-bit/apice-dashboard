@@ -72,7 +72,7 @@ const createClientSchema = z.object({
     .max(9_999_999_999.99, 'Número da mensalidade muito grande')
     .positive()
     .optional(),
-  contractStart: z.string().optional(),
+  contractStart: z.string().max(30, 'Data inválida').optional(),
   notes: z
     .string()
     .max(65535, 'Notas muito grande')
@@ -168,7 +168,7 @@ const updateClientSchema = z.object({
     .max(9_999_999_999.99, 'Número da mensalidade muito grande')
     .positive()
     .optional(),
-  contractStart: z.string().optional(),
+  contractStart: z.string().max(30, 'Data inválida').optional(),
   notes: z
     .string()
     .max(65535, 'Notas muito grande')

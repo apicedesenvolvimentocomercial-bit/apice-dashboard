@@ -32,9 +32,12 @@ import { createAuditLog } from '@/server/repositories/audit-repository'
 import { logger } from '@/lib/logger'
 
 const appointmentSchema = z.object({
-  patientId: z.string().min(1, 'Paciente obrigatório'),
-  procedureIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um procedimento'),
-  scheduledAt: z.string().min(1, 'Data obrigatória'),
+  patientId: z.string().min(1, 'Paciente obrigatório').max(64),
+  procedureIds: z
+    .array(z.string().min(1).max(64))
+    .min(1, 'Selecione ao menos um procedimento')
+    .max(100, 'Muitos procedimentos'),
+  scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   durationMinutes: z.number().max(360, 'tempo de procedimento excede o limite').int().positive(),
   notes: z
     .string()
@@ -118,8 +121,11 @@ const scheduledLeadSchema = z.object({
     .optional()
     .or(z.literal('')),
   source: z.enum(['META_ADS', 'GOOGLE_ADS', 'ORGANIC', 'REFERRAL', 'WHATSAPP', 'WALK_IN', 'OTHER']),
-  procedureIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um procedimento'),
-  scheduledAt: z.string().min(1, 'Data obrigatória'),
+  procedureIds: z
+    .array(z.string().min(1).max(64))
+    .min(1, 'Selecione ao menos um procedimento')
+    .max(100, 'Muitos procedimentos'),
+  scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   durationMinutes: z.number().max(360, 'tempo de procedimento excede o limite').int().positive(),
   notes: z
     .string()
@@ -370,10 +376,10 @@ export async function updateAppointmentStatusAction(
 
 // usado somente na confirmação de receita a partir do agendamento
 const revenueDetailsSchema = z.object({
-  paymentMethod: z.string().optional().nullable(),
+  paymentMethod: z.string().max(255, 'Método de pagamento muito grande').optional().nullable(),
   installments: z.number().int().min(1).max(36).optional(),
   discountPct: z.number().min(0).max(100).optional(),
-  date: z.string().optional(),
+  date: z.string().max(30, 'Data inválida').optional(),
 })
 
 export async function confirmRevenueFromAppointmentAction(

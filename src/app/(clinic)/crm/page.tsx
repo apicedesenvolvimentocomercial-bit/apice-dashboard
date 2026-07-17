@@ -11,8 +11,15 @@ import { PipelineTabs } from '@/modules/crm/pipeline-tabs'
 
 export const metadata: Metadata = { title: 'Funil' }
 
-export default async function ClientCrmPage() {
+export default async function ClientCrmPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ highlight?: string }>
+}) {
   await gateClinicTab('crm')
+  // Destaque via URL (`?highlight=<leadId>`): redirect pós-criação do botão
+  // global "Novo lead" do topbar — o funil ativa a aba certa e destaca o card.
+  const { highlight } = await searchParams
   const session = await auth()
   const clientId = session?.user?.clientId
 
@@ -41,6 +48,7 @@ export default async function ClientCrmPage() {
         pipelines={pipelines}
         procedures={procedures}
         schedule={schedule}
+        highlightFromUrl={highlight ?? null}
       />
     </div>
   )

@@ -20,9 +20,11 @@ import {
   updateLead,
   reorderLead,
   reassignLead,
+  findKanbanLeadById,
   findLeadById,
   softDeleteLead,
 } from '@/server/repositories/lead-repository'
+import { getProceduresForScheduling } from '@/server/queries/lead-queries'
 import { resolveOwnerScope } from '@/server/auth/owner-scope'
 import { loseLead, addInteraction } from '@/server/services/lead-service'
 import {
@@ -66,7 +68,7 @@ const leadSchema = z.object({
     .optional()
     .or(z.literal('')),
   source: z.enum(['META_ADS', 'GOOGLE_ADS', 'ORGANIC', 'REFERRAL', 'WHATSAPP', 'WALK_IN', 'OTHER']),
-  stageId: z.string().min(1),
+  stageId: z.string().min(1).max(64),
   procedureInterest: z
     .string()
     .max(65535, 'Muitos procedimentos de interesse')
@@ -75,7 +77,7 @@ const leadSchema = z.object({
       'Os procedimentos de interesse contém caracteres inválidos'
     )
     .optional(),
-  procedureInterestIds: z.array(z.string()).optional(),
+  procedureInterestIds: z.array(z.string().max(64)).max(100, 'Muitos procedimentos').optional(),
   estimatedValue: z
     .number()
     .max(9_999_999_999.99, 'Valor estimado muito alto')
@@ -233,6 +235,48 @@ export async function searchLeadsAction(clientId: string, term: string) {
 }
 
 /**
+ * Dados do dialog GLOBAL "Novo lead" do topbar (chrome): resolve a etapa Lead
+ * do funil COMERCIAL da clínica (mesma resolução do lead-ingest) + os
+ * procedimentos p/ "procedimentos de interesse". Gate em `crm:write` — o dialog
+ * só serve p/ criar.
+ */
+export async function getNewLeadDialogDataAction(clientId: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'write')
+
+  const leadStage = await prisma.pipelineStage.findFirst({
+    where: { clientId, nativeKey: 'LEAD', pipeline: { kind: 'COMMERCIAL' } },
+    select: { id: true, pipelineId: true },
+  })
+  if (!leadStage) return fail('Funil comercial não encontrado. Configure-o na aba Funil.')
+
+  const procedures = await getProceduresForScheduling(clientId)
+  return ok({ stageId: leadStage.id, pipelineId: leadStage.pipelineId, procedures })
+}
+
+/**
+ * Um card no shape do kanban p/ o destaque via URL (`/crm?highlight=<id>` — o
+ * redirect pós-criação do "Novo lead" global). O funil devolve junto p/ a aba
+ * certa ser ativada; o board injeta o card se ele estiver além da 1ª página
+ * (mesmo fluxo do ensureLead da busca global).
+ */
+export async function getKanbanLeadAction(clientId: string, leadId: string) {
+  const ctx = await getTenantContext()
+  await assertClientAccess(ctx, clientId)
+  enterClientScope(clientId)
+  await assertCan(ctx, 'crm', 'read')
+
+  const ownerId = await resolveOwnerScope(ctx, 'crm')
+  const row = await findKanbanLeadById(ctx, clientId, leadId, ownerId)
+  if (!row) return fail(new NotFoundError('Lead'))
+
+  const { stage, ...lead } = row
+  return ok({ lead, pipelineId: stage.pipeline.id })
+}
+
+/**
  * Move um lead aplicando os efeitos de etapa nativa (2b/2c) e detectando
  * retrocesso (2d). Retorna um payload de status que o cliente interpreta:
  *   - `{ status: 'moved' }` — move concluído (com efeito, se houver).
@@ -321,9 +365,12 @@ export async function regressLeadAction(
 }
 
 const scheduleSchema = z.object({
-  stageId: z.string().min(1),
-  procedureIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um procedimento'),
-  scheduledAt: z.string().min(1, 'Data obrigatória'),
+  stageId: z.string().min(1).max(64),
+  procedureIds: z
+    .array(z.string().min(1).max(64))
+    .min(1, 'Selecione ao menos um procedimento')
+    .max(100, 'Muitos procedimentos'),
+  scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   durationMinutes: z
     .number()
     .max(360, 'Duração de procedimento muito grande muito grande')
@@ -341,10 +388,10 @@ const scheduleSchema = z.object({
 })
 
 const rescheduleSchema = z.object({
-  stageId: z.string().min(1),
-  appointmentId: z.string().min(1),
-  procedureId: z.string().min(1, 'Procedimento obrigatório'),
-  scheduledAt: z.string().min(1, 'Data obrigatória'),
+  stageId: z.string().min(1).max(64),
+  appointmentId: z.string().min(1).max(64),
+  procedureId: z.string().min(1, 'Procedimento obrigatório').max(64),
+  scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   durationMinutes: z
     .number()
     .max(360, 'Duração de procedimento muito grande muito grande')
@@ -475,7 +522,7 @@ export async function scheduleLeadAction(leadId: string, clientId: string, formD
 }
 
 const attendSchema = z.object({
-  stageId: z.string().min(1),
+  stageId: z.string().min(1).max(64),
   position: z.number().optional(),
   name: z
     .string()
@@ -495,8 +542,12 @@ const attendSchema = z.object({
     .max(255, 'Email de tamanho inválido')
     .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
     .email('E-mail inválido'),
-  birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
-  cpf: z.string().min(1, 'CPF obrigatório').refine(isValidCpf, 'CPF inválido'),
+  birthDate: z.string().min(1, 'Data de nascimento obrigatória').max(30, 'Data inválida'),
+  cpf: z
+    .string()
+    .min(1, 'CPF obrigatório')
+    .max(20, 'CPF inválido')
+    .refine(isValidCpf, 'CPF inválido'),
 })
 
 /**
@@ -553,7 +604,7 @@ export async function attendLeadAction(leadId: string, clientId: string, formDat
 }
 
 const movePipelineSchema = z.object({
-  targetPipelineId: z.string().min(1, 'Funil destino obrigatório'),
+  targetPipelineId: z.string().min(1, 'Funil destino obrigatório').max(64),
   // Dados do paciente (obrigatórios só na conversão LEAD→PATIENT; validados aqui).
   patient: z
     .object({
@@ -575,8 +626,12 @@ const movePipelineSchema = z.object({
         .email('E-mail inválido')
         .max(255, 'Email de tamanho inválido')
         .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido'),
-      birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
-      cpf: z.string().min(1, 'CPF obrigatório').refine(isValidCpf, 'cpf inválido'),
+      birthDate: z.string().min(1, 'Data de nascimento obrigatória').max(30, 'Data inválida'),
+      cpf: z
+        .string()
+        .min(1, 'CPF obrigatório')
+        .max(20, 'CPF inválido')
+        .refine(isValidCpf, 'cpf inválido'),
     })
     .optional(),
   reason: reasonSchema.optional(),

@@ -172,7 +172,7 @@ const updateClinicSettingsSchema = z.object({
     )
     .optional(),
   taxRegime: z.enum(['SIMPLES', 'PRESUMIDO', 'REAL']).optional(),
-  cnae: z.string().optional(),
+  cnae: z.string().max(20, 'CNAE muito grande').optional(),
 })
 
 export async function updateClinicSettingsAction(

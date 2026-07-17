@@ -31,7 +31,7 @@ const REVENUE_TYPES = [
 
 const revenueSchema = z.object({
   amount: z.number().max(9_999_999_999.99, 'Valor muito alto').positive('Valor deve ser positivo'),
-  date: z.string().min(1, 'Data obrigatória'),
+  date: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   description: z
     .string()
     .max(65535, 'Descrição muito grande')
@@ -49,8 +49,8 @@ const revenueSchema = z.object({
     )
     .optional(),
   installments: z.number().int().max(100, 'Numero de parcelas muito grande').positive().optional(),
-  patientId: z.string().optional(),
-  procedureIds: z.array(z.string()).optional(),
+  patientId: z.string().max(64).optional(),
+  procedureIds: z.array(z.string().max(64)).max(100, 'Muitos procedimentos').optional(),
   discountPct: z.number().min(0, 'Desconto inválido').max(100, 'Desconto máximo 100%').optional(),
   type: z.enum(REVENUE_TYPES).optional(),
 })
@@ -256,12 +256,12 @@ export async function deleteRevenueAction(revenueId: string, clientId: string) {
 }
 
 const importRowSchema = z.object({
-  amountRaw: z.string(),
-  dateRaw: z.string(),
-  description: z.string().optional(),
-  paymentMethod: z.string().optional(),
-  installmentsRaw: z.string().optional(),
-  procedureName: z.string().optional(),
+  amountRaw: z.string().max(50, 'Valor muito grande'),
+  dateRaw: z.string().max(50, 'Data muito grande'),
+  description: z.string().max(65535, 'Descrição muito grande').optional(),
+  paymentMethod: z.string().max(100, 'Método de pagamento muito grande').optional(),
+  installmentsRaw: z.string().max(10, 'Parcelas inválidas').optional(),
+  procedureName: z.string().max(255, 'Nome de procedimento muito grande').optional(),
 })
 
 const importPayloadSchema = z.array(importRowSchema).min(1).max(1000)

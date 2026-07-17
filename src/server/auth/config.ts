@@ -12,9 +12,11 @@ import {
   recordLoginFailure,
 } from '@/server/security/login-throttle'
 
+// Tetos de tamanho (anti-DoS): input estourado é rejeitado antes do rate-limit
+// e do bcrypt — e não vira chave gigante na tabela RateLimit.
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().email().max(254),
+  password: z.string().min(6).max(128),
 })
 
 export const authConfig = {

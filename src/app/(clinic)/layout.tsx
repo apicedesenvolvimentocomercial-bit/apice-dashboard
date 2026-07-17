@@ -7,6 +7,7 @@ import { getClinicNotifications } from '@/domains/clinic/notifications/notificat
 import { auth } from '@/server/auth'
 import { getClinicContext } from '@/server/auth/clinic-context'
 import { getVisibleTabs, TAB_MODULE } from '@/server/auth/clinic-tabs'
+import { can } from '@/server/auth/permissions'
 
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -27,6 +28,9 @@ export default async function ClientLayout({ children }: { children: React.React
 
   // Chrome do redesign: identidade da clínica (sidebar) + rótulo do usuário.
   const chrome = await getClinicChrome()
+
+  // Botão global "Novo lead" do topbar: exige crm:write (titular sempre pode).
+  const canCreateLead = ctx.isOwner || (await can(ctx.userId, ctx.role, 'crm', 'write'))
 
   // Sino do topbar da clínica usa a query de clínica (escopo clientId), não a
   // compartilhada por userId — separação total do domínio (Fase 2).
@@ -50,6 +54,7 @@ export default async function ClientLayout({ children }: { children: React.React
         <ClinicTopbar
           clientId={ctx.clientId}
           canSearchPatients={ctx.isOwner || visibleTabs.has('patients')}
+          canCreateLead={canCreateLead}
           notifications={rows}
           unreadCount={unread}
         />

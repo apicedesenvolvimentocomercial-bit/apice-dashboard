@@ -56,7 +56,7 @@ const modulePermSchema = z.object({
   assignToOthers: z.boolean().optional(),
   viewAll: z.boolean().optional(),
 })
-const permissionsSchema = z.record(z.string(), modulePermSchema)
+const permissionsSchema = z.record(z.string().max(100), modulePermSchema)
 
 const createRoleSchema = z.object({
   name: z

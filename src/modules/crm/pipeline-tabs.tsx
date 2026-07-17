@@ -3,11 +3,12 @@
 import type { PipelineCategory, PipelineKind } from '@prisma/client'
 import { Loader2, Pencil, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
 import type { ClinicSchedule } from '@/modules/appointments/types'
+import { getKanbanLeadAction } from '@/server/actions/lead-actions'
 import { createPipelineAction } from '@/server/actions/pipeline-actions'
 
 import { KanbanBoard } from './kanban-board'
@@ -33,6 +34,10 @@ type Props = {
   pipelines: PipelineTab[]
   procedures: ProcedureOption[]
   schedule: ClinicSchedule
+  /** Lead a destacar vindo da URL (`?highlight=` — redirect do "Novo lead"
+   *  global do topbar). O card é buscado por id e recebe o mesmo tratamento
+   *  da busca global (ativa a aba, injeta na coluna, destaca + scroll). */
+  highlightFromUrl?: string | null
 }
 
 /**
@@ -42,7 +47,13 @@ type Props = {
  * dentro do conteúdo (design.md §4). Cada aba monta um KanbanBoard que fica
  * MONTADO quando inativo (display:none) p/ preservar páginas já carregadas.
  */
-export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Props) {
+export function PipelineTabs({
+  clientId,
+  pipelines,
+  procedures,
+  schedule,
+  highlightFromUrl,
+}: Props) {
   const router = useRouter()
   const [active, setActive] = useState<string>(pipelines[0]?.id ?? '')
   const [creating, setCreating] = useState(false)
@@ -70,13 +81,29 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
     []
   )
 
-  function handleSearchSelect(pipelineId: string, lead: KanbanLead) {
+  // Foca um card: ativa a aba do funil, injeta o card na coluna (se estiver
+  // além da página carregada) e destaca por alguns segundos. Compartilhado
+  // pela busca global (feat6) e pelo destaque via URL (?highlight=).
+  const focusLead = useCallback((pipelineId: string, lead: KanbanLead) => {
     setActive(pipelineId)
     setEnsureLead({ pipelineId, lead })
     setHighlightLeadId(lead.id)
     if (highlightTimer.current) clearTimeout(highlightTimer.current)
     highlightTimer.current = setTimeout(() => setHighlightLeadId(null), 4000)
-  }
+  }, [])
+
+  // Destaque via URL (redirect do "Novo lead" global do topbar): busca o card
+  // por id e o foca. `processed` evita re-foco em re-renders do MESMO param
+  // (ex.: router.refresh após mutações no board).
+  const processedUrlHighlight = useRef<string | null>(null)
+  useEffect(() => {
+    if (!highlightFromUrl || processedUrlHighlight.current === highlightFromUrl) return
+    processedUrlHighlight.current = highlightFromUrl
+    getKanbanLeadAction(clientId, highlightFromUrl).then((res) => {
+      if (!res.success) return // card sumiu/sem acesso — segue sem destaque
+      focusLead(res.data.pipelineId, res.data.lead as unknown as KanbanLead)
+    })
+  }, [highlightFromUrl, clientId, focusLead])
 
   async function handleCreate() {
     if (creating) return
@@ -107,7 +134,7 @@ export function PipelineTabs({ clientId, pipelines, procedures, schedule }: Prop
     // qual rolar horizontalmente (handoff §1: só o kanban rola).
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="shrink-0">
-        <PipelineSearch clientId={clientId} onSelect={handleSearchSelect} />
+        <PipelineSearch clientId={clientId} onSelect={focusLead} />
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-4">

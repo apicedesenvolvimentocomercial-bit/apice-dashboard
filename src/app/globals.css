@@ -313,7 +313,12 @@
 
 /* Toggle de tema: sol no claro / lua no escuro, swap com rotação+fade
    (handoff §3.2). Dirigido pela classe `.dark` no <html> — CSS puro, sem
-   estado no React (zero flash de hidratação). */
+   estado no React (zero flash de hidratação).
+   O `!important` é NECESSÁRIO: o `disableTransitionOnChange` do next-themes
+   injeta `*{transition:none!important}` durante a troca de tema (evita o flash
+   de cores animando pelo app), o que mataria ESTA transição também. Entre dois
+   `!important`, vence a maior especificidade — `.senno-theme-ico` (classe) >
+   `*` — então só o toggle anima; o resto do app segue trocando seco. */
 .senno-theme-ico {
   position: absolute;
   top: 50%;
@@ -324,7 +329,7 @@
   display: inline-flex;
   transition:
     transform 0.5s cubic-bezier(0.34, 1.3, 0.5, 1),
-    opacity 0.35s ease;
+    opacity 0.35s ease !important;
 }
 .senno-theme-sun {
   transform: rotate(0deg) scale(1);
