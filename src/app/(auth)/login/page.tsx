@@ -4,7 +4,7 @@ import { Suspense } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LoginForm } from '@/modules/settings/login-form'
 
-export const metadata: Metadata = { title: 'Login | Senno' }
+export const metadata: Metadata = { title: 'Login' }
 
 export default function LoginPage() {
   return (
