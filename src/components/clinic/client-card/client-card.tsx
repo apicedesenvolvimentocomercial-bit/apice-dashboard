@@ -45,11 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getCardActivitiesAction } from '@/domains/clinic/activities/activity-actions'
-import {
-  createClinicNoteAction,
-  deleteClinicNoteAction,
-  getCardNotesAction,
-} from '@/domains/clinic/notes/note-actions'
+import { createClinicNoteAction, deleteClinicNoteAction } from '@/domains/clinic/notes/note-actions'
 import {
   deleteCardDocumentAction,
   getCardDocumentsAction,
@@ -65,11 +61,8 @@ import {
   loseLeadAction,
   reassignLeadAction,
 } from '@/server/actions/lead-actions'
-import {
-  deletePatientAction,
-  getPatientAction,
-  getPatientRetentionContextAction,
-} from '@/server/actions/patient-actions'
+import { deletePatientAction } from '@/server/actions/patient-actions'
+import { getClientCardAction } from '@/server/actions/client-card-actions'
 import { MoveLeadPipelineDialog } from '@/modules/crm/move-lead-pipeline-dialog'
 import {
   INTERACTION_LABELS,
@@ -228,6 +221,15 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<DrawerTab>('info')
 
+  // Identidade ESTÁVEL do alvo. O board recria o objeto `subject` a cada render;
+  // carregar chaveado na identidade do OBJETO fazia o card recarregar inteiro em
+  // qualquer re-render do pai (ex.: revalidate após registrar interação).
+  const subjectType = subject?.type ?? null
+  const subjectId = subject?.id ?? null
+
+  // Engajamento de retenção do PACIENTE (card unificado) — vem na carga única.
+  const [retention, setRetention] = useState<PatientRetention | null>(null)
+
   // Aba Atividades
   const [activities, setActivities] = useState<ActivityView[]>([])
   const [members, setMembers] = useState<{ id: string; name: string }[]>([])
@@ -248,36 +250,30 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
 
   const subjectName = lead?.name ?? patient?.name ?? ''
 
-  const loadNotes = useCallback(() => {
-    if (!subject) return
-    setNotesLoading(true)
-    getCardNotesAction({ type: subject.type, id: subject.id })
-      .then((res) => {
-        if (res.success) setNotes(res.data as CardNote[])
-      })
-      .finally(() => setNotesLoading(false))
-  }, [subject])
-
   function addNote() {
-    if (!subject || !newNote.trim()) return
+    if (!subjectType || !subjectId || !newNote.trim()) return
     setSavingNote(true)
-    createClinicNoteAction({ type: subject.type, id: subject.id }, newNote.trim())
+    createClinicNoteAction({ type: subjectType, id: subjectId }, newNote.trim())
       .then((res) => {
         if (res.success) {
+          // Append otimista: a action devolve a nota completa — sem re-listar.
           setNewNote('')
-          loadNotes()
+          setNotes((prev) => [res.data as CardNote, ...prev])
         } else {
           toast.error(res.error.message)
         }
       })
+      .catch(() => toast.error('Não foi possível salvar a anotação'))
       .finally(() => setSavingNote(false))
   }
 
   function removeNote(noteId: string) {
-    deleteClinicNoteAction(noteId).then((res) => {
-      if (res.success) setNotes((prev) => prev.filter((n) => n.id !== noteId))
-      else toast.error(res.error.message)
-    })
+    deleteClinicNoteAction(noteId)
+      .then((res) => {
+        if (res.success) setNotes((prev) => prev.filter((n) => n.id !== noteId))
+        else toast.error(res.error.message)
+      })
+      .catch(() => toast.error('Não foi possível excluir a anotação'))
   }
 
   // Aba Documentos (item 6c)
@@ -289,17 +285,18 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadDocuments = useCallback(() => {
-    if (!subject) return
+    if (!subjectType || !subjectId) return
     setDocsLoading(true)
-    getCardDocumentsAction({ type: subject.type, id: subject.id })
+    getCardDocumentsAction({ type: subjectType, id: subjectId })
       .then((res) => {
         if (res.success) {
           setDocsConfigured(res.data.configured)
           setDocuments(res.data.documents as CardDoc[])
         }
       })
+      .catch(() => toast.error('Não foi possível carregar os documentos'))
       .finally(() => setDocsLoading(false))
-  }, [subject])
+  }, [subjectType, subjectId])
 
   function onUploadFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -318,6 +315,7 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
           toast.error(res.error.message)
         }
       })
+      .catch(() => toast.error('Não foi possível enviar o arquivo'))
       .finally(() => {
         setUploading(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
@@ -325,23 +323,27 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
   }
 
   function downloadDoc(id: string) {
-    getDocumentDownloadUrlAction(id).then((res) => {
-      if (res.success) window.open(res.data.url, '_blank', 'noopener')
-      else toast.error(res.error.message)
-    })
+    getDocumentDownloadUrlAction(id)
+      .then((res) => {
+        if (res.success) window.open(res.data.url, '_blank', 'noopener')
+        else toast.error(res.error.message)
+      })
+      .catch(() => toast.error('Não foi possível gerar o link do arquivo'))
   }
 
   function removeDoc(doc: CardDoc) {
-    deleteCardDocumentAction(doc.id).then((res) => {
-      if (res.success) setDocuments((prev) => prev.filter((d) => d.id !== doc.id))
-      else toast.error(res.error.message)
-    })
+    deleteCardDocumentAction(doc.id)
+      .then((res) => {
+        if (res.success) setDocuments((prev) => prev.filter((d) => d.id !== doc.id))
+        else toast.error(res.error.message)
+      })
+      .catch(() => toast.error('Não foi possível excluir o documento'))
   }
 
   const loadActivities = useCallback(() => {
-    if (!subject) return
+    if (!subjectType || !subjectId) return
     setActivitiesLoading(true)
-    getCardActivitiesAction({ type: subject.type, id: subject.id })
+    getCardActivitiesAction({ type: subjectType, id: subjectId })
       .then((res) => {
         if (res.success) {
           setActivities(res.data.activities as ActivityView[])
@@ -354,30 +356,66 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
           setActivitiesEnabled(false)
         }
       })
+      .catch(() => toast.error('Não foi possível carregar as atividades'))
       .finally(() => setActivitiesLoading(false))
-  }, [subject])
+  }, [subjectType, subjectId])
 
+  // Carga ÚNICA do card (getClientCardAction — 1 roundtrip traz detalhe +
+  // atividades + anotações + documentos + retenção). Chaveada em type+id, nunca
+  // no objeto `subject`. `stale` descarta resposta atrasada quando o usuário
+  // troca de card antes de ela chegar (race de resposta obsoleta).
   useEffect(() => {
-    if (!open || !subject) {
+    if (!open || !subjectType || !subjectId) {
       setLead(null)
       setPatient(null)
+      setRetention(null)
       setTab('info')
       return
     }
+    let stale = false
     setLoading(true)
-    const detail =
-      subject.type === 'lead'
-        ? getLeadAction(subject.id, clientId).then((r) => {
-            if (r.success) setLead(r.data as LeadDetail)
-          })
-        : getPatientAction(subject.id, clientId).then((r) => {
-            if (r.success) setPatient(r.data as PatientDetail)
-          })
-    detail.finally(() => setLoading(false))
-    loadActivities()
-    loadNotes()
-    loadDocuments()
-  }, [open, subject, clientId, loadActivities, loadNotes, loadDocuments])
+    setActivitiesLoading(true)
+    setNotesLoading(true)
+    setDocsLoading(true)
+    setActivities([])
+    setNotes([])
+    setDocuments([])
+    setRetention(null)
+    getClientCardAction(clientId, { type: subjectType, id: subjectId })
+      .then((res) => {
+        if (stale) return
+        if (!res.success) {
+          toast.error(res.error.message)
+          return
+        }
+        const d = res.data
+        setLead(d.lead as LeadDetail | null)
+        setPatient(d.patient as PatientDetail | null)
+        setActivitiesEnabled(d.activitiesEnabled)
+        setActivities(d.activities as ActivityView[])
+        setMembers(d.members)
+        setCanAssignOthers(d.canAssignOthers)
+        setCanReassignLeads(d.canReassignLeads)
+        setSyncPref(d.syncPref)
+        setNotes(d.notes as CardNote[])
+        setDocsConfigured(d.docsConfigured)
+        setDocuments(d.documents as CardDoc[])
+        setRetention(d.retention as PatientRetention | null)
+      })
+      .catch(() => {
+        if (!stale) toast.error('Não foi possível carregar o card')
+      })
+      .finally(() => {
+        if (stale) return
+        setLoading(false)
+        setActivitiesLoading(false)
+        setNotesLoading(false)
+        setDocsLoading(false)
+      })
+    return () => {
+      stale = true
+    }
+  }, [open, subjectType, subjectId, clientId])
 
   const tabs: Array<{ value: DrawerTab; label: string; count: number | null }> = [
     { value: 'info', label: 'Info', count: null },
@@ -494,10 +532,17 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
                     canReassign={canReassignLeads}
                     onChanged={onChanged}
                     onClose={onClose}
+                    onInteractionAdded={(it) =>
+                      setLead((prev) =>
+                        prev ? { ...prev, interactions: [it, ...prev.interactions] } : prev
+                      )
+                    }
                     reloadLead={() =>
-                      getLeadAction(lead.id, clientId).then((r) => {
-                        if (r.success) setLead(r.data as LeadDetail)
-                      })
+                      getLeadAction(lead.id, clientId)
+                        .then((r) => {
+                          if (r.success) setLead(r.data as LeadDetail)
+                        })
+                        .catch(() => toast.error('Não foi possível atualizar o lead'))
                     }
                   />
                 )}
@@ -505,6 +550,12 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
                   <PatientInfo
                     patient={patient}
                     clientId={clientId}
+                    retention={retention}
+                    onInteractionAdded={(it) =>
+                      setRetention((prev) =>
+                        prev ? { ...prev, interactions: [it, ...prev.interactions] } : prev
+                      )
+                    }
                     onChanged={onChanged}
                     onClose={onClose}
                   />
@@ -745,7 +796,8 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
 // Registrar interação + Histórico (handoff §10.6/§10.7): composer + timeline
 // com dot colorido por tipo. COMPARTILHADO pelo card de LEAD e pelo card
 // UNIFICADO de PACIENTE — a interação grava sempre contra uma Lead (no paciente
-// é o card de RETENÇÃO dele). `onReload` re-busca a lista após registrar.
+// é o card de RETENÇÃO dele). `onAdded` recebe a interação criada p/ o pai
+// fazer append otimista (sem re-buscar o lead inteiro).
 // ---------------------------------------------------------------------------
 type Interaction = { id: string; type: string; content: string; createdAt: Date }
 
@@ -753,12 +805,12 @@ function InteractionSection({
   clientId,
   leadId,
   interactions,
-  onReload,
+  onAdded,
 }: {
   clientId: string
   leadId: string
   interactions: Interaction[]
-  onReload: () => void
+  onAdded: (interaction: Interaction) => void
 }) {
   const [isPending, startTransition] = useTransition()
   const [interactionType, setInteractionType] = useState('NOTE')
@@ -778,7 +830,7 @@ function InteractionSection({
         return
       }
       setInteractionContent('')
-      onReload()
+      onAdded(r.data as Interaction)
     })
   }
 
@@ -882,6 +934,7 @@ function LeadInfo({
   canReassign,
   onChanged,
   onClose,
+  onInteractionAdded,
   reloadLead,
 }: {
   lead: LeadDetail
@@ -891,6 +944,7 @@ function LeadInfo({
   canReassign: boolean
   onChanged: () => void
   onClose: () => void
+  onInteractionAdded: (interaction: Interaction) => void
   reloadLead: () => void
 }) {
   const [isPending, startTransition] = useTransition()
@@ -1084,7 +1138,7 @@ function LeadInfo({
         clientId={clientId}
         leadId={lead.id}
         interactions={lead.interactions}
-        onReload={reloadLead}
+        onAdded={onInteractionAdded}
       />
 
       {/* Remover lead (§10.8) — some na retenção; confirm real (§16). */}
@@ -1143,8 +1197,8 @@ function LeadInfo({
   )
 }
 
-// Contexto de RETENÇÃO do paciente p/ o card unificado (ver
-// `getPatientRetentionContextAction`): a Lead de retenção + funis de destino.
+// Contexto de RETENÇÃO do paciente p/ o card unificado (vem na carga única —
+// `getClientCardAction`): a Lead de retenção + funis de destino.
 type PatientRetention = {
   leadId: string
   pipelineId: string
@@ -1155,36 +1209,26 @@ type PatientRetention = {
 
 // ---------------------------------------------------------------------------
 // Info de PACIENTE (drawer → aba Info; mesmo layout do lead onde couber).
+// `retention` null = sem card de retenção ou sem acesso ao CRM → só clínico.
 // ---------------------------------------------------------------------------
 function PatientInfo({
   patient,
   clientId,
+  retention,
+  onInteractionAdded,
   onChanged,
   onClose,
 }: {
   patient: PatientDetail
   clientId: string
+  retention: PatientRetention | null
+  onInteractionAdded: (interaction: Interaction) => void
   onChanged: () => void
   onClose: () => void
 }) {
   const [isPending, startTransition] = useTransition()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
-
-  // Card UNIFICADO: além do clínico, o card de paciente mostra a MESMA engajamento
-  // do funil (interações + "Mover para funil") do card de RETENÇÃO do paciente.
-  // Null = sem card de retenção ou sem acesso ao CRM → card fica só clínico.
-  const [retention, setRetention] = useState<PatientRetention | null>(null)
-
-  const loadRetention = useCallback(() => {
-    getPatientRetentionContextAction(clientId, patient.id).then((r) => {
-      if (r.success) setRetention(r.data as PatientRetention | null)
-    })
-  }, [clientId, patient.id])
-
-  useEffect(() => {
-    loadRetention()
-  }, [loadRetention])
 
   function handleDelete() {
     startTransition(async () => {
@@ -1312,7 +1356,7 @@ function PatientInfo({
             clientId={clientId}
             leadId={retention.leadId}
             interactions={retention.interactions}
-            onReload={loadRetention}
+            onAdded={onInteractionAdded}
           />
         </>
       )}

@@ -18,10 +18,7 @@ import {
   softDeletePatient,
   quickSearchPatients,
 } from '@/server/repositories/patient-repository'
-import {
-  findCommercialLeadForPatient,
-  findRetentionLeadForPatient,
-} from '@/server/repositories/lead-repository'
+import { findCommercialLeadForPatient } from '@/server/repositories/lead-repository'
 import { listPipelines } from '@/server/repositories/pipeline-repository'
 import {
   addPatientToRetention,
@@ -118,38 +115,6 @@ export async function getPatientAction(patientId: string, clientId: string) {
   const patient = await findPatientById(ctx, clientId, patientId)
   if (!patient) return fail(new NotFoundError('Paciente'))
   return ok(patient)
-}
-
-/**
- * Contexto de RETENÇÃO do paciente p/ o card UNIFICADO (aba Pacientes / busca do
- * topbar): o card de paciente passa a mostrar a MESMA engajamento do funil —
- * timeline de interações + "Registrar interação" + "Mover para funil" — além dos
- * dados clínicos. Retorna `null` (card fica só clínico) quando o usuário não lê
- * CRM ou o paciente ainda não tem card de retenção. `crm:write` é enforçado nas
- * ações de escrita (addInteraction / move), igual ao card do funil.
- */
-export async function getPatientRetentionContextAction(clientId: string, patientId: string) {
-  const ctx = await getTenantContext()
-  await assertClientAccess(ctx, clientId)
-  enterClientScope(clientId)
-  await assertCan(ctx, 'patients', 'read')
-
-  // Engajamento (interações + mover de funil) é do módulo CRM — sem leitura de
-  // CRM o card mostra só a parte clínica.
-  if (!(await can(ctx.userId, ctx.role, 'crm', 'read'))) return ok(null)
-
-  const lead = await findRetentionLeadForPatient(ctx, clientId, patientId)
-  if (!lead) return ok(null)
-
-  const viewerId = await resolveOwnerScope(ctx, 'crm')
-  const pipelines = await listPipelines(ctx, clientId, viewerId)
-  return ok({
-    leadId: lead.id,
-    pipelineId: lead.stage.pipelineId,
-    pipelineCategory: lead.stage.pipeline.category,
-    pipelines: pipelines.map((p) => ({ id: p.id, name: p.name, category: p.category })),
-    interactions: lead.interactions,
-  })
 }
 
 /**

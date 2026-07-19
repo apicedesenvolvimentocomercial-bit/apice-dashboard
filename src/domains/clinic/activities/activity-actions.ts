@@ -422,18 +422,17 @@ export async function getCardActivitiesAction(subject: { type: 'lead' | 'patient
       target = { patientId: subject.id, leadIds: leads.map((l) => l.id) }
     }
 
-    const [rows, members, pref] = await Promise.all([
+    // Item 4: canReassignLeads = pode reatribuir o LEAD a outro? (crm:assignToOthers)
+    const [rows, members, pref, canAssign, canReassignLeads] = await Promise.all([
       listClinicActivitiesForTarget(ctx, target),
       listClinicMembers(ctx),
       prisma.user.findUnique({
         where: { id: ctx.userId },
         select: { activityCalendarSync: true },
       }),
+      canAssignOthers(ctx),
+      ctx.isOwner || can(ctx.userId, ctx.role, 'crm', 'assignToOthers'),
     ])
-    const canAssign = await canAssignOthers(ctx)
-    // Item 4: pode reatribuir o LEAD a outro usuário? (crm:assignToOthers)
-    const canReassignLeads =
-      ctx.isOwner || (await can(ctx.userId, ctx.role, 'crm', 'assignToOthers'))
 
     const activities = rows.map((r) => ({
       id: r.id,

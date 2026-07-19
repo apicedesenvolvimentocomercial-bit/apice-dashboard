@@ -42,6 +42,8 @@ export async function createClinicNote(
       authorId: ctx.userId,
       content: data.content,
     },
+    // Volta completa p/ o card fazer append otimista sem re-listar.
+    include: { author: { select: { id: true, name: true } } },
   })
 }
 
