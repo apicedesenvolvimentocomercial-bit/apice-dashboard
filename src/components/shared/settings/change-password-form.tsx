@@ -22,11 +22,11 @@ import { changePasswordAction } from '@/server/actions/settings-actions'
 const schema = z
   .object({
     currentPassword: z.string().min(6, 'Senha atual obrigatória'),
-    newPassword: z.string().min(8, 'Nova senha deve ter pelo menos 8 caracteres'),
+    newPassword: z.string().min(8, 'Mínimo 8 caracteres'),
     confirmPassword: z.string(),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
-    message: 'As senhas não coincidem',
+    message: 'Senhas não coincidem',
     path: ['confirmPassword'],
   })
 

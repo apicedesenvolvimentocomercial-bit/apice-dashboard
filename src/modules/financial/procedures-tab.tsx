@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { ActionButton } from '@/components/ui/action-button'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -56,10 +57,10 @@ export function ProceduresTab({ procedures, clientId }: Props) {
         <p className="text-sm text-muted-foreground">
           {procedures.length} {procedures.length === 1 ? 'procedimento' : 'procedimentos'}
         </p>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
+        <ActionButton onClick={openCreate}>
+          <Plus aria-hidden="true" />
           Novo procedimento
-        </Button>
+        </ActionButton>
       </div>
 
       {procedures.length === 0 ? (
@@ -67,10 +68,10 @@ export function ProceduresTab({ procedures, clientId }: Props) {
           <p className="text-sm font-medium text-muted-foreground">
             Nenhum procedimento cadastrado
           </p>
-          <Button size="sm" className="mt-4" onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
+          <ActionButton className="mt-4" onClick={openCreate}>
+            <Plus aria-hidden="true" />
             Adicionar procedimento
-          </Button>
+          </ActionButton>
         </div>
       ) : (
         <div className="rounded-lg border">

@@ -29,7 +29,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { createClientAction } from '@/server/actions/client-actions'
 
 const schema = z.object({
-  name: z.string().trim().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  name: z.string().trim().min(2, 'Mínimo 2 caracteres'),
   city: z.string().optional(),
   state: z.string().optional(),
   phone: z.string().optional(),

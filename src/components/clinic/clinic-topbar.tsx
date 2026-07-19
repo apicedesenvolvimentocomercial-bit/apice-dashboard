@@ -1,11 +1,11 @@
 'use client'
 
-import { Plus } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 import type { BellNotification } from '@/components/shared/notifications/notification-bell'
 
 import { AgendaTopbarTabs } from './appointments/agenda-topbar-tabs'
+import { TopbarNewLead } from './topbar-new-lead'
 import { TopbarNotifications } from './topbar-notifications'
 import { TopbarPatientSearch } from './topbar-patient-search'
 import { TopbarThemeToggle } from './topbar-theme-toggle'
@@ -39,6 +39,8 @@ type Props = {
   clientId: string
   /** Cargo sem patients:read não vê a busca de paciente. */
   canSearchPatients: boolean
+  /** Cargo sem crm:write não vê o "Novo lead" (a action revalida no submit). */
+  canCreateLead: boolean
   notifications: BellNotification[]
   unreadCount: number
 }
@@ -46,12 +48,16 @@ type Props = {
 /**
  * Topbar do domínio Clínica — redesign Senno (design.md §4 / handoff §3).
  * Esquerda: título da página. Direita: busca de paciente (colapsável) →
- * toggle de tema → sino → botão dourado "Novo lead".
- *
- * O "Novo lead" está SEM função por enquanto (decisão do redesign: o handoff
- * do fluxo desse botão será entregue depois) — não remover nem ligar a nada.
+ * toggle de tema → sino → botão dourado "Novo lead" (cria na etapa Lead do
+ * funil comercial e redireciona destacando o card — TopbarNewLead).
  */
-export function ClinicTopbar({ clientId, canSearchPatients, notifications, unreadCount }: Props) {
+export function ClinicTopbar({
+  clientId,
+  canSearchPatients,
+  canCreateLead,
+  notifications,
+  unreadCount,
+}: Props) {
   const pathname = usePathname()
   // Na Agenda as abas Agendamentos/Calendário SUBSTITUEM o h1, no mesmo
   // tamanho de fonte — elas SÃO o título da página (agenda-handoff §3.1).
@@ -75,13 +81,7 @@ export function ClinicTopbar({ clientId, canSearchPatients, notifications, unrea
         {canSearchPatients && !isFunil && <TopbarPatientSearch clientId={clientId} />}
         <TopbarThemeToggle />
         <TopbarNotifications notifications={notifications} unreadCount={unreadCount} />
-        <button
-          type="button"
-          className="flex h-[38px] items-center gap-[7px] rounded-[9px] bg-primary px-[15px] text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
-          Novo lead
-        </button>
+        {canCreateLead && <TopbarNewLead clientId={clientId} />}
       </div>
     </header>
   )

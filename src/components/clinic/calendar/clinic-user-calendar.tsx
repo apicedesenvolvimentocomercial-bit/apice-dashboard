@@ -4,7 +4,7 @@ import { CalendarPlus } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useCallback, useRef, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { ActionButton } from '@/components/ui/action-button'
 import { ClinicEventDialog } from '@/components/clinic/calendar/clinic-event-dialog'
 import { getClinicCalendarRangeAction } from '@/domains/clinic/calendar/calendar-event-actions'
 import type { CalendarEvent, CalendarHoliday } from '@/server/queries/calendar-queries'
@@ -68,10 +68,10 @@ export function ClinicUserCalendar({ events: initialEvents, holidays: initialHol
   return (
     <div className="space-y-3 rounded-lg border bg-background p-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <CalendarPlus className="mr-2 h-4 w-4" />
+        <ActionButton onClick={() => setCreateOpen(true)}>
+          <CalendarPlus aria-hidden="true" />
           Novo evento
-        </Button>
+        </ActionButton>
       </div>
 
       <CalendarInner

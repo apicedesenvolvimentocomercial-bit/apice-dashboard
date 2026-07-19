@@ -20,7 +20,7 @@ import {
 import { fail, ok } from '@/types/errors'
 
 const acceptInviteSchema = z.object({
-  token: z.string().min(1),
+  token: z.string().min(1).max(500, 'Token inválido'),
   name: z
     .string()
     .min(2)
@@ -221,7 +221,7 @@ export async function forgotPasswordAction(input: z.infer<typeof forgotPasswordS
 }
 
 const resetPasswordSchema = z.object({
-  token: z.string().min(1),
+  token: z.string().min(1).max(500, 'Token inválido'),
   password: z
     .string()
     .min(8, 'Senha deve ter pelo menos 8 caracteres')

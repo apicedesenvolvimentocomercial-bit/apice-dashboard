@@ -50,20 +50,24 @@ const patientSchema = z.object({
     .email('E-mail inválido')
     .optional()
     .or(z.literal('')),
-  birthDate: z.string().optional(),
-  cpf: z.string().optional(),
-  notes: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  birthDate: z.string().max(30, 'Data inválida').optional(),
+  cpf: z.string().max(20, 'CPF inválido').optional(),
+  notes: z.string().max(65535, 'Nota muito grande').optional(),
+  tags: z.array(z.string().max(100, 'Tag muito grande')).max(50, 'Muitas tags').optional(),
 })
 
 // feat1 — Cadastro manual exige os 5 campos. Schema separado p/ o create;
 // `updatePatientAction` segue usando o `patientSchema.partial()` (edição lenient).
 const createPatientSchema = z.object({
-  name: z.string().min(2, 'Nome obrigatório'),
-  phone: z.string().min(1, 'Telefone obrigatório'),
-  email: z.string().email('E-mail inválido'),
-  birthDate: z.string().min(1, 'Data de nascimento obrigatória'),
-  cpf: z.string().min(1, 'CPF obrigatório').refine(isValidCpf, 'cpf inválido'),
+  name: z.string().min(2, 'Nome obrigatório').max(255, 'Nome muito grande'),
+  phone: z.string().min(1, 'Telefone obrigatório').max(20, 'Telefone inválido'),
+  email: z.string().email('E-mail inválido').max(255, 'Email de tamanho inválido'),
+  birthDate: z.string().min(1, 'Data de nascimento obrigatória').max(30, 'Data inválida'),
+  cpf: z
+    .string()
+    .min(1, 'CPF obrigatório')
+    .max(20, 'CPF inválido')
+    .refine(isValidCpf, 'cpf inválido'),
   notes: z
     .string()
     .max(65535, 'Nota muito grande')
@@ -72,7 +76,7 @@ const createPatientSchema = z.object({
       'A nota contém caracteres inválidos'
     )
     .optional(),
-  tags: z.array(z.string()).optional(),
+  tags: z.array(z.string().max(100, 'Tag muito grande')).max(50, 'Muitas tags').optional(),
 })
 
 function revalidate(clientId: string) {

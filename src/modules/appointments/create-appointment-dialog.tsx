@@ -12,8 +12,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { FieldError } from '@/components/ui/field-error'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PhoneInput } from '@/components/ui/phone-input'
 import {
   Select,
   SelectContent,
@@ -23,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/searchable-select'
 import { cn } from '@/lib/utils'
+import { EMAIL_REGEX, PHONE_BR_REGEX, SAFE_TEXT_REGEX } from '@/lib/masks'
 import { getScheduleViolation } from '@/lib/schedule-violation'
 import {
   createAppointmentAction,
@@ -44,6 +47,41 @@ const SOURCE_OPTIONS: { value: string; label: string }[] = [
   { value: 'WALK_IN', label: 'Presencial' },
   { value: 'OTHER', label: 'Outro' },
 ]
+
+type LeadField = 'name' | 'phone' | 'email' | 'source'
+type LeadErrors = Partial<Record<LeadField, string>>
+
+/** Regra cruzada: cobrada só no submit (ver `leadError`). */
+const CONTACT_REQUIRED = 'Informe telefone ou e-mail'
+
+/**
+ * Validação do modo "novo lead" — espelha `create-lead-dialog` e o zod da
+ * action. Mensagens de UMA linha curta (ver `field-error.tsx`): elas moram
+ * debaixo de inputs em grid de 2 colunas.
+ */
+function validateLead(f: {
+  name: string
+  phone: string
+  email: string
+  source: string
+}): LeadErrors {
+  const errors: LeadErrors = {}
+  const name = f.name.trim()
+
+  if (!name) errors.name = 'Nome obrigatório'
+  else if (name.length < 2) errors.name = 'Mínimo 2 caracteres'
+  else if (name.length > 255) errors.name = 'Nome muito grande'
+  else if (!SAFE_TEXT_REGEX.test(name)) errors.name = 'Caracteres inválidos'
+
+  // Cada um é opcional isoladamente (valida o formato só se houver conteúdo),
+  // mas ao menos UM contato é exigido — lead sem contato nasce inalcançável.
+  if (f.phone.trim() && !PHONE_BR_REGEX.test(f.phone.trim())) errors.phone = 'Telefone incompleto'
+  else if (!f.phone.trim() && !f.email.trim()) errors.phone = CONTACT_REQUIRED
+  if (f.email.trim() && !EMAIL_REGEX.test(f.email.trim())) errors.email = 'E-mail inválido'
+  if (!f.source) errors.source = 'Origem obrigatória'
+
+  return errors
+}
 
 type Props = {
   open: boolean
@@ -76,12 +114,18 @@ export function CreateAppointmentDialog({
     name: '',
     phone: '',
     email: '',
-    source: 'OTHER',
+    // Vazio de propósito: pré-selecionar "Outro" induz o usuário a aceitar o
+    // padrão e suja o relatório de origem de leads. Obrigatório escolher.
+    source: '',
     procedureIds: [] as string[],
     scheduledAt: defaultDate ?? '',
     durationMinutes: 60,
     notes: '',
   })
+  // Erro inline só aparece depois que o usuário sai do campo (ou tenta salvar),
+  // senão acusaria "Nome obrigatório" na primeira letra.
+  const [leadTouched, setLeadTouched] = useState<Partial<Record<LeadField, boolean>>>({})
+  const [submitAttempted, setSubmitAttempted] = useState(false)
   const [dateBlurred, setDateBlurred] = useState(false)
   const [pastDateAck, setPastDateAck] = useState(false)
   const [scheduleAck, setScheduleAck] = useState(false)
@@ -153,13 +197,15 @@ export function CreateAppointmentDialog({
       name: '',
       phone: '',
       email: '',
-      source: 'OTHER',
+      source: '',
       procedureIds: [],
       scheduledAt: defaultDate ?? '',
       durationMinutes: 60,
       notes: '',
     })
     setMode('existing')
+    setLeadTouched({})
+    setSubmitAttempted(false)
     setDateBlurred(false)
     setPastDateAck(false)
     setScheduleAck(false)
@@ -167,10 +213,34 @@ export function CreateAppointmentDialog({
   }
 
   // O "quem" varia por modo; o resto (procedimento/data/duração/obs + acks) é
-  // compartilhado. `who` válido = paciente escolhido (existente) ou nome (novo).
-  const whoValid = mode === 'existing' ? !!form.patientId : form.name.trim().length >= 2
+  // compartilhado. Modo "existente" = paciente escolhido; modo "novo lead" =
+  // nome/telefone/e-mail/origem válidos (origem inclusa: nasce vazia e a action
+  // exige o enum, então recusaria '' com erro cru do zod).
+  const leadErrors: LeadErrors = mode === 'new-lead' ? validateLead(form) : {}
+  // A regra CRUZADA não desabilita o botão: com ele travado o usuário ficaria
+  // preso sem explicação. Ela é revelada ao tentar salvar (`handleSubmit`).
+  const blockingLead = Object.values(leadErrors).filter((m) => m !== CONTACT_REQUIRED)
+  const whoInvalid = mode === 'existing' ? !form.patientId : blockingLead.length > 0
+  const leadIncomplete = Object.keys(leadErrors).length > 0
+  /**
+   * Só mostra o erro depois do blur/submit — e a regra CRUZADA (telefone OU
+   * e-mail) só depois do submit: no blur do telefone vazio o usuário ainda pode
+   * estar a caminho do e-mail.
+   */
+  const leadError = (f: LeadField) => {
+    const message = leadErrors[f]
+    if (!message) return undefined
+    if (message === CONTACT_REQUIRED) return submitAttempted ? message : undefined
+    return leadTouched[f] ? message : undefined
+  }
+  /** Campo vazio não é cobrado ao sair; obrigatoriedade fica para o submit. */
+  const touchLeadIfFilled = (f: LeadField, value: string) => {
+    if (value.trim()) setLeadTouched((t) => ({ ...t, [f]: true }))
+  }
+  const touchLead = (f: LeadField) => setLeadTouched((t) => ({ ...t, [f]: true }))
+
   const baseInvalid =
-    !whoValid ||
+    whoInvalid ||
     form.procedureIds.length === 0 ||
     !form.scheduledAt ||
     isTooOld ||
@@ -180,7 +250,11 @@ export function CreateAppointmentDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!whoValid || form.procedureIds.length === 0 || !form.scheduledAt) {
+    if (whoInvalid || leadIncomplete || form.procedureIds.length === 0 || !form.scheduledAt) {
+      // Revela os erros inline dos campos que o usuário ainda não visitou (e a
+      // regra cruzada telefone-ou-e-mail, que só é cobrada aqui).
+      setLeadTouched({ name: true, phone: true, email: true, source: true })
+      setSubmitAttempted(true)
       toast.error('Preencha todos os campos obrigatórios')
       return
     }
@@ -287,6 +361,8 @@ export function CreateAppointmentDialog({
               />
             </div>
           ) : (
+            /* Cada campo tem a linha de erro RESERVADA (`reserve`): o erro
+               aparece e some sem empurrar o resto do diálogo. */
             <div className="space-y-3">
               <div className="space-y-1">
                 <Label htmlFor="lead-name">Nome *</Label>
@@ -294,18 +370,24 @@ export function CreateAppointmentDialog({
                   id="lead-name"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  onBlur={(e) => touchLeadIfFilled('name', e.target.value)}
+                  aria-invalid={!!leadError('name')}
+                  maxLength={255}
                   placeholder="Nome do lead"
                 />
+                <FieldError message={leadError('name')} reserve />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="lead-phone">Telefone</Label>
-                  <Input
+                  <PhoneInput
                     id="lead-phone"
                     value={form.phone}
                     onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                    placeholder="(11) 99999-9999"
+                    onBlur={(e) => touchLeadIfFilled('phone', e.target.value)}
+                    aria-invalid={!!leadError('phone')}
                   />
+                  <FieldError message={leadError('phone')} reserve />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="lead-email">E-mail</Label>
@@ -314,18 +396,25 @@ export function CreateAppointmentDialog({
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                    placeholder="email@exemplo.com"
+                    onBlur={(e) => touchLeadIfFilled('email', e.target.value)}
+                    aria-invalid={!!leadError('email')}
+                    maxLength={255}
+                    placeholder="exemplo@mail.com"
                   />
+                  <FieldError message={leadError('email')} reserve />
                 </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="lead-source">Origem *</Label>
                 <Select
                   value={form.source}
-                  onValueChange={(v) => setForm((f) => ({ ...f, source: v }))}
+                  onValueChange={(v) => {
+                    setForm((f) => ({ ...f, source: v }))
+                    touchLead('source')
+                  }}
                 >
                   <SelectTrigger id="lead-source">
-                    <SelectValue placeholder="Origem" />
+                    <SelectValue placeholder="Selecione a origem" />
                   </SelectTrigger>
                   <SelectContent>
                     {SOURCE_OPTIONS.map((s) => (
@@ -335,6 +424,7 @@ export function CreateAppointmentDialog({
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldError message={leadError('source')} reserve />
               </div>
             </div>
           )}
@@ -343,25 +433,30 @@ export function CreateAppointmentDialog({
             <Label htmlFor="apt-procedure">
               {mode === 'new-lead' ? 'Procedimentos de interesse *' : 'Procedimentos *'}
             </Label>
-            <Select key={procPickKey} onValueChange={addProcedure}>
-              <SelectTrigger id="apt-procedure">
-                <SelectValue placeholder="Adicionar procedimento..." />
-              </SelectTrigger>
-              <SelectContent>
-                {procedures.length === 0 ? (
-                  <SelectItem value="_empty" disabled>
-                    Nenhum procedimento cadastrado
-                  </SelectItem>
-                ) : (
-                  procedures.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                      {p.durationMinutes ? ` · ${p.durationMinutes}min` : ''}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+            {/* Combobox COM busca (a lista de procedimentos cresce por clínica).
+                O `key` remonta após cada escolha para limpar a busca e voltar ao
+                placeholder; já escolhidos saem da lista. */}
+            <SearchableSelect
+              key={procPickKey}
+              portal={false}
+              id="apt-procedure"
+              value=""
+              onChange={addProcedure}
+              placeholder="Adicionar procedimento..."
+              searchPlaceholder="Buscar procedimento..."
+              emptyText={
+                procedures.length === 0
+                  ? 'Nenhum procedimento cadastrado'
+                  : 'Nenhum procedimento encontrado'
+              }
+              options={procedures
+                .filter((p) => !form.procedureIds.includes(p.id))
+                .map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  sublabel: p.durationMinutes ? `${p.durationMinutes}min` : undefined,
+                }))}
+            />
             {form.procedureIds.length > 0 && (
               <ul className="mt-2 space-y-1">
                 {form.procedureIds.map((id, i) => {

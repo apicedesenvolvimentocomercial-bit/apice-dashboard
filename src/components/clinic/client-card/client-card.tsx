@@ -35,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { ActionButton } from '@/components/ui/action-button'
 import { Dialog, DialogOverlay, DialogPortal } from '@/components/ui/dialog'
 import {
   Select,
@@ -176,27 +177,6 @@ function Overline({ children }: { children: React.ReactNode }) {
     </p>
   )
 }
-
-/** Botão primário compacto (36px) — "Nova atividade" / "Enviar arquivo" (§11.1).
- *  forwardRef + spread p/ funcionar como trigger `asChild` do Radix. */
-const SmallPrimaryButton = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement>
->(function SmallPrimaryButton({ className, children, ...props }, ref) {
-  return (
-    <button
-      ref={ref}
-      type="button"
-      className={cn(
-        'flex h-9 items-center gap-[7px] rounded-[9px] bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  )
-})
 
 /** Empty state composto (handoff §11.4/§12.3/§13.3). */
 function EmptyState({
@@ -458,7 +438,7 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
             </div>
             <DialogPrimitive.Close
               aria-label="Fechar"
-              className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-[17px] w-[17px]" />
             </DialogPrimitive.Close>
@@ -549,9 +529,9 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
                       presetTarget={{ type: subject.type, id: subject.id, name: subjectName }}
                       onCreated={loadActivities}
                       trigger={
-                        <SmallPrimaryButton>
-                          <Plus className="h-[15px] w-[15px]" aria-hidden="true" /> Nova atividade
-                        </SmallPrimaryButton>
+                        <ActionButton>
+                          <Plus aria-hidden="true" /> Nova atividade
+                        </ActionButton>
                       }
                     />
                   </div>
@@ -662,17 +642,17 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
                         className="hidden"
                         onChange={onUploadFile}
                       />
-                      <SmallPrimaryButton
+                      <ActionButton
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploading}
                       >
                         {uploading ? (
-                          <Loader2 className="h-[15px] w-[15px] animate-spin" aria-hidden="true" />
+                          <Loader2 className="animate-spin" aria-hidden="true" />
                         ) : (
-                          <Upload className="h-[15px] w-[15px]" aria-hidden="true" />
+                          <Upload aria-hidden="true" />
                         )}
                         Enviar arquivo
-                      </SmallPrimaryButton>
+                      </ActionButton>
                     </div>
 
                     {docsLoading && documents.length === 0 ? (
@@ -1047,7 +1027,7 @@ function LeadInfo({
               className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-input bg-background px-3.5 text-[13.5px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               <ArrowRightLeft className="h-[15px] w-[15px] text-primary-text" aria-hidden="true" />
-              Mover para funil
+              Trocar de funil
             </button>
           )}
           {!isTerminal && !isRetention && lostStage && (
@@ -1215,79 +1195,103 @@ function PatientInfo({
     })
   }
 
+  const hasContact = Boolean(patient.phone || patient.email)
+  const hasDates = Boolean(patient.birthDate || patient.firstVisitAt || patient.lastVisitAt)
+
   return (
     <div className="flex flex-col gap-[18px]">
-      {/* Contato. */}
-      {(patient.phone || patient.email) && (
-        <div className="flex flex-col gap-[11px]">
-          {patient.phone && (
-            <a
-              href={`tel:${patient.phone.replace(/\D/g, '')}`}
-              className="flex items-center gap-2 text-[13.5px] tabular-nums text-foreground transition-colors hover:text-primary-text"
+      {/* Contato à esquerda, datas à direita — empilha quando o drawer ocupa a
+          tela toda (< sm). */}
+      {(hasContact || hasDates) && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+          {hasContact && (
+            <div
+              className={cn(
+                'flex min-w-0 flex-1 flex-col gap-[11px]',
+                hasDates && 'sm:border-r sm:border-border sm:pr-5'
+              )}
             >
-              <Phone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              {patient.phone}
-            </a>
+              {patient.phone && (
+                <a
+                  href={`tel:${patient.phone.replace(/\D/g, '')}`}
+                  className="flex items-center gap-2 text-[13.5px] tabular-nums text-foreground transition-colors hover:text-primary-text"
+                >
+                  <Phone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  {patient.phone}
+                </a>
+              )}
+              {patient.email && (
+                <a
+                  href={`mailto:${patient.email}`}
+                  className="flex items-center gap-2 break-all text-[13.5px] text-foreground transition-colors hover:text-primary-text"
+                >
+                  <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  {patient.email}
+                </a>
+              )}
+            </div>
           )}
-          {patient.email && (
-            <a
-              href={`mailto:${patient.email}`}
-              className="flex items-center gap-2 break-all text-[13.5px] text-foreground transition-colors hover:text-primary-text"
+
+          {hasDates && (
+            <div
+              className={cn(
+                'flex min-w-0 flex-1 flex-col gap-3',
+                hasContact && 'border-t border-border pt-4 sm:border-t-0 sm:pt-0'
+              )}
             >
-              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              {patient.email}
-            </a>
+              {patient.birthDate && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+                    Nascimento
+                  </span>
+                  <span className="text-[13px] font-medium tabular-nums">
+                    {format(new Date(patient.birthDate), 'dd/MM/yyyy', { locale: ptBR })}
+                  </span>
+                </div>
+              )}
+              {patient.firstVisitAt && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[12.5px] text-muted-foreground">Primeira visita</span>
+                  <span className="text-[13px] font-medium tabular-nums">
+                    {format(new Date(patient.firstVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
+                  </span>
+                </div>
+              )}
+              {patient.lastVisitAt && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[12.5px] text-muted-foreground">Última visita</span>
+                  <span className="text-[13px] font-medium tabular-nums">
+                    {format(new Date(patient.lastVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
+                  </span>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
 
-      {/* Bloco de dados. */}
-      <div className="flex flex-col gap-3 border-t border-border pt-4">
-        {patient.birthDate && (
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-              Nascimento
-            </span>
-            <span className="text-[13px] font-medium tabular-nums">
-              {format(new Date(patient.birthDate), 'dd/MM/yyyy', { locale: ptBR })}
-            </span>
-          </div>
-        )}
-        {patient.firstVisitAt && (
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[12.5px] text-muted-foreground">Primeira visita</span>
-            <span className="text-[13px] font-medium tabular-nums">
-              {format(new Date(patient.firstVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
-            </span>
-          </div>
-        )}
-        {patient.lastVisitAt && (
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[12.5px] text-muted-foreground">Última visita</span>
-            <span className="text-[13px] font-medium tabular-nums">
-              {format(new Date(patient.lastVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
-            </span>
-          </div>
-        )}
-        {patient.notes && (
-          <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
-            {patient.notes}
-          </p>
-        )}
-        {patient.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {patient.tags.map((t) => (
-              <span
-                key={t}
-                className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      {(patient.notes || patient.tags.length > 0) && (
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          {patient.notes && (
+            <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
+              {patient.notes}
+            </p>
+          )}
+          {patient.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {patient.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Engajamento do funil (card unificado): "Mover para funil" + interações
           do card de RETENÇÃO do paciente — o mesmo do card do funil. Só aparece
@@ -1301,7 +1305,7 @@ function PatientInfo({
               className="flex h-10 items-center justify-center gap-2 rounded-[10px] border border-input bg-background px-3.5 text-[13.5px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ArrowRightLeft className="h-[15px] w-[15px] text-primary-text" aria-hidden="true" />
-              Mover para funil
+              Trocar de funil
             </button>
           )}
           <InteractionSection

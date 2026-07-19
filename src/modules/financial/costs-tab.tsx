@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { ActionButton } from '@/components/ui/action-button'
 import { cn } from '@/lib/utils'
 import { deleteCostAction } from '@/server/actions/cost-actions'
 import { useCsvExport } from '@/hooks/use-csv-export'
@@ -76,14 +77,10 @@ export function CostsTab({ costs, clientId }: Props) {
             <Download className="h-4 w-4" aria-hidden="true" />
             Exportar CSV
           </button>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex h-[38px] items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+          <ActionButton onClick={openCreate}>
+            <Plus aria-hidden="true" />
             Novo custo
-          </button>
+          </ActionButton>
         </div>
       </div>
 
@@ -97,14 +94,10 @@ export function CostsTab({ costs, clientId }: Props) {
           <p className="-mt-1 max-w-[420px] text-[12.5px] text-muted-foreground">
             Lance custos fixos e variáveis para acompanhar o resultado do mês e alimentar a DRE.
           </p>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="mt-1.5 inline-flex h-9 items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105"
-          >
-            <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+          <ActionButton className="mt-1.5" onClick={openCreate}>
+            <Plus aria-hidden="true" />
             Adicionar custo
-          </button>
+          </ActionButton>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-[13px] border border-border bg-card shadow-card">

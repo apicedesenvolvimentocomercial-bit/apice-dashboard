@@ -96,9 +96,9 @@ const modulePermSchema = z.object({
 // (access ausente) e quebrava a criação/edição de cargo.
 const dashboardSectionSchema = z.object({
   access: z.boolean(),
-  items: z.record(z.string(), z.boolean()).optional(),
+  items: z.record(z.string().max(100), z.boolean()).optional(),
 })
-const dashboardBlockSchema = z.record(z.string(), dashboardSectionSchema)
+const dashboardBlockSchema = z.record(z.string().max(100), dashboardSectionSchema)
 // Chave reservada `notifications`: preferência por categoria — boolean (liga/
 // desliga tudo) ou canais ({ inApp, email }). Ausência = ligado (opt-out).
 // A ORDEM da união importa: dashboard antes (exige `access`), senão um bloco
@@ -107,9 +107,9 @@ const notificationCategorySchema = z.union([
   z.boolean(),
   z.object({ inApp: z.boolean().optional(), email: z.boolean().optional() }),
 ])
-const notificationBlockSchema = z.record(z.string(), notificationCategorySchema)
+const notificationBlockSchema = z.record(z.string().max(100), notificationCategorySchema)
 const permissionsSchema = z.record(
-  z.string(),
+  z.string().max(100),
   z.union([modulePermSchema, dashboardBlockSchema, notificationBlockSchema])
 )
 

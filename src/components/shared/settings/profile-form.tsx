@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input'
 import { updateProfileAction } from '@/server/actions/settings-actions'
 
 const schema = z.object({
-  name: z.string().trim().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  name: z.string().trim().min(2, 'Mínimo 2 caracteres'),
 })
 
 type Values = z.infer<typeof schema>

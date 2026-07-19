@@ -30,7 +30,7 @@ const createSchema = z.object({
   stage: z.enum(STAGE_VALUES).optional(),
   value: z.coerce.number().max(9_999_999_999.99, 'Valor muito alto').nonnegative().optional(),
   probability: z.coerce.number().int().min(0).max(100, 'probabilidade muito grande').optional(),
-  expectedCloseAt: z.string().optional(),
+  expectedCloseAt: z.string().max(30, 'Data inválida').optional(),
   notes: z
     .string()
     .max(65535, 'Nota muito grande')
@@ -170,7 +170,7 @@ const updateSchema = z.object({
   dealId: z.string().cuid(),
   value: z.coerce.number().max(9_999_999_999.99, 'Numero muito alto').nonnegative().optional(),
   probability: z.coerce.number().int().min(0).max(100, 'Probabilidade muito grande').optional(),
-  expectedCloseAt: z.string().optional(),
+  expectedCloseAt: z.string().max(30, 'Data inválida').optional(),
   notes: z
     .string()
     .max(65535, 'Nota muito grande')

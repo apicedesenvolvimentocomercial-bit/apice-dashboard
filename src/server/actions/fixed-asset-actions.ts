@@ -47,7 +47,7 @@ const createSchema = z.object({
     .max(9_999_999_999.99, 'valor de aquisição muito alto')
     .positive('valor de aquisição deve ser positivo')
     .optional(),
-  acquisitionDate: z.string().min(1, 'Data obrigatória'),
+  acquisitionDate: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   usefulLifeMonths: z
     .number()
     .max(10, 'Vida útil muito longa')

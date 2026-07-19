@@ -62,13 +62,6 @@ const TYPE_ICON: Record<ActivityView['type'], LucideIcon> = {
   MESSAGE: MessageSquare,
 }
 
-const PRIORITY_BORDER: Record<ActivityView['priority'], string> = {
-  LOW: 'border-l-zinc-300 dark:border-l-zinc-700',
-  MEDIUM: 'border-l-amber-500',
-  HIGH: 'border-l-red-600',
-  URGENT: 'border-l-red-700',
-}
-
 const PRIORITY_BADGE: Record<ActivityView['priority'], string> = {
   LOW: 'bg-muted text-muted-foreground',
   MEDIUM: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
@@ -131,8 +124,7 @@ export function ClinicActivityCard({ activity, ownerColor, ownerLabel, isNewForV
   return (
     <div
       className={cn(
-        'flex items-center gap-3.5 rounded-xl border border-l-[3px] bg-background px-3.5 py-3 transition-shadow hover:shadow-sm',
-        PRIORITY_BORDER[activity.priority],
+        'flex items-center gap-3.5 rounded-xl border bg-background px-3.5 py-3 transition-shadow hover:shadow-sm',
         isOverdue && 'border-red-300 dark:border-red-900',
         isCompleted && 'opacity-60'
       )}

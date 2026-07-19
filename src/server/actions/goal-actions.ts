@@ -32,8 +32,8 @@ const goalSchema = z.object({
     .number()
     .max(9_999_999_999.99, 'Valor alvo muito alto')
     .positive('Valor alvo deve ser positivo'),
-  startDate: z.string().min(1, 'Data inicial obrigatória'),
-  endDate: z.string().min(1, 'Data final obrigatória'),
+  startDate: z.string().min(1, 'Data inicial obrigatória').max(30, 'Data inválida'),
+  endDate: z.string().min(1, 'Data final obrigatória').max(30, 'Data inválida'),
   notes: z
     .string()
     .max(65535, 'Notas muito grande')

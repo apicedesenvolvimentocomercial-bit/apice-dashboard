@@ -5,10 +5,12 @@ import {
   Banknote,
   Bell,
   Calendar,
+  ChevronUp,
   Download,
   Filter,
   LayoutGrid,
   Lightbulb,
+  Loader2,
   LogOut,
   Settings,
   Syringe,
@@ -18,19 +20,11 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { signOut } from '@/lib/auth-client'
 import { logoutAction } from '@/server/actions/auth-actions'
 import { cn, getInitials } from '@/lib/utils'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 
 type ClinicRole = 'CLIENT_OWNER' | 'CLIENT_STAFF'
 
@@ -144,53 +138,135 @@ export function ClinicSidebar({
       </nav>
 
       {/* Rodapé: usuário logado — abre o menu de conta */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="mt-auto flex w-full items-center gap-2.5 rounded-[10px] bg-muted p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Menu da conta"
-          >
-            <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-primary/20 text-[12.5px] font-semibold text-primary-text">
-              {getInitials(userName)}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[12.5px] font-semibold text-foreground">
-                {userName}
-              </span>
-              {roleLabel && (
-                <span className="block text-[11px] text-muted-foreground">{roleLabel}</span>
-              )}
-            </span>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="top" className="w-52">
-          <DropdownMenuLabel className="font-normal">
-            <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium">{userName}</p>
-              {userEmail && <p className="text-xs text-muted-foreground">{userEmail}</p>}
-            </div>
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href="/configuracoes">
-              <User className="mr-2 h-4 w-4" />
-              Meu perfil
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onClick={async () => {
-              await logoutAction()
-              signOut({ callbackUrl: '/login' })
-            }}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <AccountMenu userName={userName} userEmail={userEmail} roleLabel={roleLabel} />
     </aside>
+  )
+}
+
+/**
+ * Menu de conta do rodapé da sidebar (redesign — design.md §5 "Popovers"):
+ * painel `bg-popover` radius 12px com sombra `shadow-pop`, overlay para fechar
+ * ao clicar fora, Esc para fechar e rodapé com a dica. Sair mostra estado
+ * ocupado (o logout é assíncrono: derruba TODAS as sessões antes do signOut).
+ */
+function AccountMenu({
+  userName,
+  userEmail,
+  roleLabel,
+}: {
+  userName: string
+  userEmail: string | null
+  roleLabel: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+
+  async function handleLogout() {
+    setLeaving(true)
+    await logoutAction()
+    signOut({ callbackUrl: '/login' })
+  }
+
+  return (
+    <div className="relative mt-auto">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Menu da conta"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={cn(
+          'flex w-full items-center gap-2.5 rounded-[10px] bg-muted p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          open && 'bg-accent'
+        )}
+      >
+        <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-primary/20 text-[12.5px] font-semibold text-primary-text">
+          {getInitials(userName)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12.5px] font-semibold text-foreground">
+            {userName}
+          </span>
+          {roleLabel && (
+            <span className="block truncate text-[11px] text-muted-foreground">{roleLabel}</span>
+          )}
+        </span>
+        <ChevronUp
+          className={cn(
+            'h-3.5 w-3.5 flex-none text-muted-foreground transition-transform duration-200',
+            !open && 'rotate-180'
+          )}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div
+            role="menu"
+            aria-label="Conta"
+            className="absolute inset-x-0 bottom-[calc(100%+8px)] z-50 overflow-hidden rounded-xl border border-border bg-popover shadow-pop"
+          >
+            {/* Identidade: quem está logado nesta sessão */}
+            <div className="flex items-center gap-[11px] px-3.5 pb-2.5 pt-3">
+              <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary-text">
+                {getInitials(userName)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-semibold text-foreground">
+                  {userName}
+                </span>
+                <span className="block truncate text-[11.5px] text-muted-foreground">
+                  {userEmail ?? roleLabel ?? 'Sessão ativa'}
+                </span>
+              </span>
+            </div>
+
+            <div className="flex flex-col px-1.5 pb-1.5">
+              <Link
+                href="/configuracoes"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-[11px] rounded-lg px-2 py-[9px] text-[12.5px] font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <User className="h-[15px] w-[15px] flex-none text-muted-foreground" />
+                Meu perfil
+              </Link>
+
+              <div className="-mx-1.5 my-1 h-px bg-border" />
+
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleLogout}
+                disabled={leaving}
+                className="flex items-center gap-[11px] rounded-lg px-2 py-[9px] text-left text-[12.5px] font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              >
+                {leaving ? (
+                  <Loader2 className="h-[15px] w-[15px] flex-none animate-spin" />
+                ) : (
+                  <LogOut className="h-[15px] w-[15px] flex-none" />
+                )}
+                {leaving ? 'Saindo…' : 'Sair'}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-end border-t border-border bg-muted/40 px-3.5 py-[9px]">
+              <span className="text-[10.5px] text-muted-foreground">Esc para fechar</span>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   )
 }

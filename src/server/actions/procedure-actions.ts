@@ -51,7 +51,7 @@ const procedureSchema = z.object({
     .positive()
     .nullable()
     .optional(),
-  categoryId: z.string().optional(),
+  categoryId: z.string().max(64).optional(),
 })
 
 function revalidate(clientId: string) {

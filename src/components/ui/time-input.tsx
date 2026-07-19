@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Clock } from 'lucide-react'
 
+import { INPUT_BASE_CLASS } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 type TimeInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>
@@ -44,7 +45,8 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
           type="time"
           disabled={disabled}
           className={cn(
-            'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-9 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-calendar-picker-indicator]:hidden',
+            INPUT_BASE_CLASS,
+            'pr-9 [&::-webkit-calendar-picker-indicator]:hidden',
             className
           )}
           {...props}

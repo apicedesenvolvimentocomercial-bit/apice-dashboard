@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ClientCard } from '@/components/clinic/client-card/client-card'
+import { ActionButton } from '@/components/ui/action-button'
 import { cn, getInitials } from '@/lib/utils'
 import type { PatientWithStats } from '@/server/repositories/patient-repository'
 
@@ -183,14 +184,10 @@ export function PatientsList({ patients, clientId }: Props) {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="inline-flex h-9 flex-none items-center gap-[7px] rounded-[9px] bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+        <ActionButton onClick={() => setCreateOpen(true)}>
+          <Plus aria-hidden="true" />
           Novo paciente
-        </button>
+        </ActionButton>
       </div>
 
       {/* ---- Tabela (handoff §5) ou vazio composto (§8) ---- */}
@@ -349,14 +346,10 @@ export function PatientsList({ patients, clientId }: Props) {
               : 'Ajuste o filtro ou cadastre um novo paciente para começar a montar a base da clínica.'}
           </p>
           {baseEmpty ? (
-            <button
-              type="button"
-              onClick={() => setCreateOpen(true)}
-              className="mt-1.5 inline-flex h-9 items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+            <ActionButton className="mt-1.5" onClick={() => setCreateOpen(true)}>
+              <Plus aria-hidden="true" />
               Cadastrar paciente
-            </button>
+            </ActionButton>
           ) : (
             <button
               type="button"

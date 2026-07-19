@@ -13,7 +13,9 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { DateInput } from '@/components/ui/date-input'
+import { FieldError } from '@/components/ui/field-error'
 import { Label } from '@/components/ui/label'
+import { EMAIL_REGEX } from '@/lib/masks'
 import { cn } from '@/lib/utils'
 import { createPatientAction } from '@/server/actions/patient-actions'
 
@@ -37,45 +39,45 @@ function validate(form: {
 
   // feat1 — os 5 campos são obrigatórios no cadastro manual.
   if (!form.name.trim()) {
-    errors.name = 'Nome é obrigatório'
+    errors.name = 'Nome obrigatório'
   } else if (form.name.trim().length < 2) {
-    errors.name = 'Nome deve ter ao menos 2 caracteres'
+    errors.name = 'Mínimo 2 caracteres'
   }
 
   if (!form.phone.trim()) {
-    errors.phone = 'Telefone é obrigatório'
+    errors.phone = 'Telefone obrigatório'
   } else {
     const digits = form.phone.replace(/\D/g, '')
     if (digits.length < 10 || digits.length > 11) {
-      errors.phone = 'Telefone deve ter 10 ou 11 dígitos'
+      errors.phone = 'Telefone incompleto'
     }
   }
 
   if (!form.email.trim()) {
-    errors.email = 'E-mail é obrigatório'
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    errors.email = 'E-mail obrigatório'
+  } else if (!EMAIL_REGEX.test(form.email.trim())) {
     errors.email = 'E-mail inválido'
   }
 
   if (!form.birthDate) {
-    errors.birthDate = 'Data de nascimento é obrigatória'
+    errors.birthDate = 'Data obrigatória'
   } else {
     const date = new Date(form.birthDate)
     if (isNaN(date.getTime())) {
       errors.birthDate = 'Data inválida'
     } else if (date > new Date()) {
-      errors.birthDate = 'Data não pode ser no futuro'
+      errors.birthDate = 'Data no futuro'
     } else if (date.getFullYear() < 1900) {
       errors.birthDate = 'Data muito antiga'
     }
   }
 
   if (!form.cpf.trim()) {
-    errors.cpf = 'CPF é obrigatório'
+    errors.cpf = 'CPF obrigatório'
   } else {
     const digits = form.cpf.replace(/\D/g, '')
     if (digits.length !== 11) {
-      errors.cpf = 'CPF deve ter 11 dígitos'
+      errors.cpf = 'CPF incompleto'
     }
   }
 
@@ -160,7 +162,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
               placeholder="Nome completo"
               {...field('name')}
             />
-            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            <FieldError message={errors.name} reserve />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -173,7 +175,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
                 placeholder="(00) 00000-0000"
                 {...field('phone')}
               />
-              {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+              <FieldError message={errors.phone} reserve />
             </div>
             <div className="space-y-1">
               <Label htmlFor="p-birth">Data de nascimento *</Label>
@@ -183,7 +185,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
                 onChange={(e) => handleChange('birthDate', e.target.value)}
                 {...field('birthDate')}
               />
-              {errors.birthDate && <p className="text-xs text-destructive">{errors.birthDate}</p>}
+              <FieldError message={errors.birthDate} reserve />
             </div>
           </div>
 
@@ -197,7 +199,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
               placeholder="paciente@email.com"
               {...field('email')}
             />
-            {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+            <FieldError message={errors.email} reserve />
           </div>
 
           <div className="space-y-1">
@@ -209,7 +211,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
               placeholder="000.000.000-00"
               {...field('cpf')}
             />
-            {errors.cpf && <p className="text-xs text-destructive">{errors.cpf}</p>}
+            <FieldError message={errors.cpf} reserve />
           </div>
 
           <div className="space-y-1">

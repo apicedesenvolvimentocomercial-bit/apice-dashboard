@@ -42,7 +42,7 @@ const costSchema = z.object({
     )
     .optional(),
   amount: z.number().max(9_999_999_999.99, 'Valor muito alto').positive('Valor deve ser positivo'),
-  date: z.string().min(1, 'Data obrigatória'),
+  date: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   description: z
     .string()
     .max(65535, 'Descrição muito grande')
@@ -130,7 +130,7 @@ const rentalSchema = z.object({
     .number()
     .max(9_999_999_999.99, 'Aluguel mensal muito alto')
     .positive('Valor mensal deve ser positivo'),
-  startDate: z.string().min(1, 'Data obrigatória'),
+  startDate: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   recurringDay: z.number().int().min(1).max(31, 'dia do vencimento fora do padrão').optional(),
 })
 

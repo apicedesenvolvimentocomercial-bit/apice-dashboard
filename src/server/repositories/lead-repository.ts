@@ -158,6 +158,34 @@ export async function searchLeads(
 }
 
 /**
+ * Um card único no shape do kanban + o funil dele — p/ o destaque via URL
+ * (`/crm?highlight=<id>`, botão global "Novo lead" do topbar). Mesmo escopo de
+ * dono da busca global: retenção é compartilhada, demais funis por `ownerId`.
+ */
+export async function findKanbanLeadById(
+  ctx: TenantContext,
+  clientId: string,
+  leadId: string,
+  ownerId: string | null
+) {
+  return prisma.lead.findFirst({
+    where: {
+      id: leadId,
+      organizationId: ctx.organizationId,
+      clientId,
+      deletedAt: null,
+      ...(ownerId
+        ? { OR: [{ stage: { pipeline: { kind: 'RETENTION' } } }, { assignedToId: ownerId }] }
+        : {}),
+    },
+    select: {
+      ...kanbanLeadSelect,
+      stage: { select: { pipeline: { select: { id: true } } } },
+    },
+  })
+}
+
+/**
  * Renumera as posições de uma coluna (Fase 4 — esgotamento da bissecção de
  * Float): reordena os cards da etapa em passos de 1000, colocando `leadId`
  * antes de `beforeLeadId` (ou no fim, se null). Transação com escopo (RLS) e

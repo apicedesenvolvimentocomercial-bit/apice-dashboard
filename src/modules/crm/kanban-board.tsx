@@ -505,7 +505,15 @@ export function KanbanBoard({
     setCreateDialogOpen(true)
   }
 
-  function handleLeadCreated(lead: { id: string; stageId: string; name: string }) {
+  // `source` é opcional porque o board de RETENÇÃO cria o card a partir de um
+  // paciente já existente (`AddPatientCardDialog`), onde não há origem de lead —
+  // só o funil comercial (`CreateLeadDialog`) a informa.
+  function handleLeadCreated(lead: {
+    id: string
+    stageId: string
+    name: string
+    source?: KanbanLead['source']
+  }) {
     setStages((prev) =>
       prev.map((stage) => {
         if (stage.id !== lead.stageId) return stage
@@ -515,7 +523,7 @@ export function KanbanBoard({
           name: lead.name,
           phone: null,
           email: null,
-          source: 'OTHER',
+          source: lead.source ?? 'OTHER',
           procedureInterest: null,
           tags: [],
           createdAt: new Date(),
