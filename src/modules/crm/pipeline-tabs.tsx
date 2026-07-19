@@ -142,12 +142,12 @@ export function PipelineTabs({
           {/* Switch dourado com pílula deslizante (handoff §6.1). */}
           {pipelines.length > 0 && (
             <div
-              className="relative grid auto-cols-fr grid-flow-col rounded-[10px] border border-border bg-muted p-[3px]"
+              className="relative grid auto-cols-fr grid-flow-col rounded-[9px] border border-border bg-muted p-[3px]"
               role="tablist"
               aria-label="Selecionar funil"
             >
               <div
-                className="pointer-events-none absolute bottom-[3px] left-[3px] top-[3px] z-0 rounded-lg bg-primary shadow-card transition-transform duration-340 ease-senno"
+                className="pointer-events-none absolute bottom-[3px] left-[3px] top-[3px] z-0 rounded-[7px] bg-primary shadow-card transition-transform duration-340 ease-senno"
                 style={{
                   width: `calc((100% - 6px) / ${pipelines.length})`,
                   transform: `translateX(${activeIdx * 100}%)`,
@@ -162,7 +162,7 @@ export function PipelineTabs({
                   aria-selected={active === p.id}
                   onClick={() => setActive(p.id)}
                   className={cn(
-                    'relative z-[1] max-w-[180px] truncate whitespace-nowrap rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors duration-250',
+                    'relative z-[1] max-w-[180px] truncate whitespace-nowrap rounded-[7px] px-4 py-1.5 text-[13px] font-semibold transition-colors duration-250',
                     active === p.id ? 'text-primary-foreground' : 'text-muted-foreground'
                   )}
                 >

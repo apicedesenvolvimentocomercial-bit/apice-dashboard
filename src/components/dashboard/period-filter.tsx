@@ -34,7 +34,7 @@ export function PeriodFilter() {
   return (
     <div
       className={cn(
-        'inline-flex rounded-md border bg-background p-0.5 text-sm shadow-sm',
+        'inline-flex rounded-[9px] border bg-background p-0.5 text-sm shadow-sm',
         isPending && 'opacity-70'
       )}
       role="tablist"
@@ -48,7 +48,7 @@ export function PeriodFilter() {
           aria-selected={current === opt.value}
           onClick={() => setPeriod(opt.value)}
           className={cn(
-            'rounded px-3 py-1.5 transition-colors',
+            'rounded-[7px] px-3 py-1.5 transition-colors',
             current === opt.value
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:text-foreground'
