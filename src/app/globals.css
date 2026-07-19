@@ -878,7 +878,9 @@ input[type='date'] {
    de AGENDAMENTOS (classe extra `senno-agenda-selectable`; o pessoal não tem
    seleção de slot). O fantasma de slot (bloco de 30min posicionado por JS no
    mousemove) marca o horário sob o mouse; Mês ganha hover na célula. */
-.senno-agenda-selectable .fc .fc-timegrid-col-frame,
+/* `:not(.fc-timegrid-axis)`: a célula do eixo de horários também tem col-frame —
+   ela não cria agendamento, então não ganha cursor de clique nem fantasma. */
+.senno-agenda-selectable .fc .fc-timegrid-col:not(.fc-timegrid-axis) .fc-timegrid-col-frame,
 .senno-agenda-selectable .fc .fc-timegrid-slot-lane {
   cursor: pointer;
 }

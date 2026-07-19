@@ -122,7 +122,7 @@ export function CostsTab({ costs, clientId }: Props) {
                 key={c.id}
                 className={cn(
                   GRID,
-                  'border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50'
+                  'group border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50'
                 )}
               >
                 <div className="text-[12.5px] tabular-nums">
@@ -166,7 +166,7 @@ export function CostsTab({ costs, clientId }: Props) {
                     title="Editar"
                     aria-label="Editar custo"
                     onClick={() => openEdit(c)}
-                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                   >
                     <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -176,7 +176,7 @@ export function CostsTab({ costs, clientId }: Props) {
                     aria-label="Remover custo"
                     disabled={deleting === c.id}
                     onClick={() => handleDelete(c.id)}
-                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/[0.12] hover:text-destructive disabled:opacity-50"
+                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground opacity-0 transition hover:bg-destructive/[0.12] hover:text-destructive focus-visible:opacity-100 disabled:opacity-50 group-hover:opacity-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>

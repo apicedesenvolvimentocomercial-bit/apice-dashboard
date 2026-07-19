@@ -374,7 +374,7 @@ export function ClinicRolesManager({ roles, users, viewerIsOwner, viewerLevel, o
 // Linha de cargo (§14.1): fundo `background`, radius 11, feedback dourado no arraste.
 function roleRowCls(dragging: boolean) {
   return cn(
-    'flex items-center gap-[13px] rounded-[11px] border bg-background px-3.5 py-3 transition-colors',
+    'group flex items-center gap-[13px] rounded-[11px] border bg-background px-3.5 py-3 transition-colors',
     dragging ? 'border-primary/60 opacity-50' : 'border-border'
   )
 }
@@ -418,7 +418,7 @@ function RoleControls({
         onClick={() => onEdit(role)}
         disabled={pending}
         aria-label={`Editar ${role.name}`}
-        className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
+        className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-border bg-card text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60 group-hover:opacity-100"
       >
         <Pencil className="h-[15px] w-[15px]" aria-hidden="true" />
       </button>
@@ -428,7 +428,7 @@ function RoleControls({
         onClick={() => onRemove(role)}
         disabled={pending}
         aria-label={`Excluir ${role.name}`}
-        className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
+        className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-border bg-card text-muted-foreground opacity-0 transition hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60 group-hover:opacity-100"
       >
         <Trash2 className="h-[15px] w-[15px]" aria-hidden="true" />
       </button>

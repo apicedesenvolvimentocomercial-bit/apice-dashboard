@@ -34,6 +34,10 @@ export async function listPatients(
       phone: true,
       email: true,
       birthDate: true,
+      // cpf/notes: o lápis de editar da lista abre o EditPatientDialog direto com
+      // a linha — sem eles o form nasceria incompleto e o save apagaria os dados.
+      cpf: true,
+      notes: true,
       tags: true,
       firstVisitAt: true,
       lastVisitAt: true,

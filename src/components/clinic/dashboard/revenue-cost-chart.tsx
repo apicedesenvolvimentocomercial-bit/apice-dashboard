@@ -159,7 +159,7 @@ export function RevenueCostChart({
             <button
               type="button"
               onClick={() => setPopOpen((o) => !o)}
-              className="inline-flex h-[30px] items-center gap-1.5 rounded-lg border border-border bg-card px-[11px] text-[12.5px] font-semibold text-foreground transition-colors hover:border-primary/50"
+              className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-border bg-card px-[11px] text-[12.5px] font-semibold text-foreground transition-colors hover:border-primary/50"
             >
               <Calendar className="h-3.5 w-3.5 text-primary-text" aria-hidden="true" />
               {p === 1 ? '1 mês' : `${p} meses`}
@@ -172,7 +172,7 @@ export function RevenueCostChart({
                   onClick={() => setPopOpen(false)}
                   aria-hidden="true"
                 />
-                <div className="absolute right-0 top-[38px] z-[31] w-[194px] rounded-[11px] border border-border bg-card p-[7px] shadow-[0_10px_28px_hsl(var(--shadow)/0.20)]">
+                <div className="absolute right-0 top-[38px] z-[31] w-[204px] rounded-[11px] border border-border bg-card p-[7px] shadow-[0_10px_28px_hsl(var(--shadow)/0.20)]">
                   <div className="px-2 pb-[7px] pt-[5px] text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                     Amostragem por período
                   </div>
@@ -205,21 +205,21 @@ export function RevenueCostChart({
                     )}
                   >
                     <span className="text-[13px]">Personalizado</span>
-                    <span className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min={1}
-                        max={total}
-                        value={p}
-                        onChange={(e) => {
-                          const n = Number(e.target.value)
-                          if (Number.isFinite(n) && n >= 1) selectPeriod(n, true)
-                        }}
-                        aria-label="Meses (personalizado)"
-                        className="h-7 w-[52px] rounded-[7px] border border-input bg-background text-center text-[13px] tabular-nums outline-none focus:border-[hsl(var(--ring))]"
-                      />
-                      <span className="text-xs text-muted-foreground">m</span>
-                    </span>
+                    {/* O spinner nativo cola na borda direita: o `pr` empurra
+                        ele p/ dentro e o h-8/w-[72px] dá folga p/ ele caber
+                        inteiro dentro da borda arredondada. */}
+                    <input
+                      type="number"
+                      min={1}
+                      max={total}
+                      value={p}
+                      onChange={(e) => {
+                        const n = Number(e.target.value)
+                        if (Number.isFinite(n) && n >= 1) selectPeriod(n, true)
+                      }}
+                      aria-label="Meses (personalizado)"
+                      className="h-8 w-[72px] rounded-[7px] border border-input bg-background pr-1.5 text-center text-[13px] tabular-nums outline-none focus:border-[hsl(var(--ring))]"
+                    />
                   </div>
                 </div>
               </>

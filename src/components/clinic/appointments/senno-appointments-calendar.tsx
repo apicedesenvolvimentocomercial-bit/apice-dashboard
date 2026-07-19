@@ -118,6 +118,8 @@ export function SennoAppointmentsCalendar({
       if (
         !target ||
         target.closest('.fc-event, .fc-timegrid-more-link, .fc-popover') ||
+        // Gutter de horários (eixo/labels) não é área de criação — sem fantasma.
+        target.closest('.fc-timegrid-slot-label, .fc-timegrid-axis') ||
         !target.closest('.fc-timegrid-body')
       ) {
         hide()
@@ -125,9 +127,13 @@ export function SennoAppointmentsCalendar({
       }
       // Em área vazia o alvo do mouse é a LANE (linha inteira, camada de
       // fundo), não a coluna — a coluna do dia é resolvida geometricamente.
+      // `:not(.fc-timegrid-axis)`: o FC também põe um col-frame na célula do
+      // EIXO; sem o filtro o fantasma acendia sobre a coluna dos horários.
       let frame: HTMLElement | null = null
       let rect: DOMRect | null = null
-      for (const f of root.querySelectorAll<HTMLElement>('.fc-timegrid-col-frame')) {
+      for (const f of root.querySelectorAll<HTMLElement>(
+        '.fc-timegrid-col:not(.fc-timegrid-axis) .fc-timegrid-col-frame'
+      )) {
         const r = f.getBoundingClientRect()
         if (
           e.clientX >= r.left &&

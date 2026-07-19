@@ -377,7 +377,7 @@ const scheduleSchema = z.object({
   scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   durationMinutes: z
     .number()
-    .max(360, 'Duração de procedimento muito grande muito grande')
+    .max(1000, 'Duração de procedimento muito grande muito grande')
     .int()
     .positive(),
   notes: z
@@ -398,7 +398,7 @@ const rescheduleSchema = z.object({
   scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   durationMinutes: z
     .number()
-    .max(360, 'Duração de procedimento muito grande muito grande')
+    .max(1000, 'Duração de procedimento muito grande muito grande')
     .int()
     .positive(),
   notes: z

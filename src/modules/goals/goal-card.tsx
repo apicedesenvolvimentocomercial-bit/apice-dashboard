@@ -65,7 +65,7 @@ export function GoalCard({ clientId, goal, users, roles, canAssign }: Props) {
   }
 
   return (
-    <Card>
+    <Card className="group">
       <CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -85,6 +85,7 @@ export function GoalCard({ clientId, goal, users, roles, canAssign }: Props) {
             <Button
               variant="ghost"
               size="sm"
+              className="opacity-0 transition focus-visible:opacity-100 group-hover:opacity-100"
               onClick={() => setEditOpen(true)}
               disabled={isPending}
               aria-label="Editar meta"
@@ -94,6 +95,7 @@ export function GoalCard({ clientId, goal, users, roles, canAssign }: Props) {
             <Button
               variant="ghost"
               size="sm"
+              className="opacity-0 transition focus-visible:opacity-100 group-hover:opacity-100"
               onClick={() => setConfirmOpen(true)}
               disabled={isPending}
               aria-label="Excluir meta"

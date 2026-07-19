@@ -26,35 +26,9 @@ import {
 } from '@/server/services/retention-service'
 import { logger } from '@/lib/logger'
 
-const patientSchema = z.object({
-  name: z
-    .string()
-    .min(2, 'Nome obrigatório')
-    .max(255, 'Nome muito grande')
-    .regex(
-      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
-      'O nome contém caracteres inválidos'
-    ),
-  phone: z
-    .string()
-    .length(12, 'Telefone inválido')
-    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
-    .optional(),
-  email: z
-    .string()
-    .max(255, 'Email de tamanho inválido')
-    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
-    .email('E-mail inválido')
-    .optional()
-    .or(z.literal('')),
-  birthDate: z.string().max(30, 'Data inválida').optional(),
-  cpf: z.string().max(20, 'CPF inválido').optional(),
-  notes: z.string().max(65535, 'Nota muito grande').optional(),
-  tags: z.array(z.string().max(100, 'Tag muito grande')).max(50, 'Muitas tags').optional(),
-})
-
-// feat1 — Cadastro manual exige os 5 campos. Schema separado p/ o create;
-// `updatePatientAction` segue usando o `patientSchema.partial()` (edição lenient).
+// feat1 — Cadastro manual exige os 5 campos. O MESMO schema vale para a edição
+// manual (`updatePatientAction`): editar um paciente re-exige dados válidos
+// (máscaras + `isValidCpf`), mantendo uma única definição de "paciente válido".
 const createPatientSchema = z.object({
   name: z.string().min(2, 'Nome obrigatório').max(255, 'Nome muito grande'),
   phone: z.string().min(1, 'Telefone obrigatório').max(20, 'Telefone inválido'),
@@ -186,15 +160,18 @@ export async function updatePatientAction(patientId: string, clientId: string, f
   enterClientScope(clientId)
   await assertCan(ctx, 'patients', 'write')
 
-  const parsed = patientSchema.partial().safeParse(formData)
+  // Edição manual re-exige os 5 campos válidos (mesmo schema do cadastro).
+  const parsed = createPatientSchema.safeParse(formData)
   if (!parsed.success) return validationFail(parsed.error)
 
   await updatePatient(ctx, patientId, clientId, {
     ...parsed.data,
-    email: parsed.data.email || undefined,
-    birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : undefined,
+    birthDate: new Date(parsed.data.birthDate),
   })
   revalidate(clientId)
+  // O nome do paciente aparece no board de retenção (CRM) — revalida também lá.
+  revalidatePath('/crm')
+  revalidatePath(`/clients/${clientId}/crm`)
   return ok(null)
 }
 

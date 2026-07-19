@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
+import { isValidCpf } from './cpf'
 import {
+  CPF_REGEX,
   MAX_MONEY,
   PHONE_BR_REGEX,
+  formatCpf,
   formatMoneyBR,
   formatPhoneBR,
   parseMoneyBR,
@@ -37,6 +40,32 @@ describe('formatPhoneBR', () => {
     expect(PHONE_BR_REGEX.test('(01) 91234-1234')).toBe(false)
     expect(PHONE_BR_REGEX.test('(11) 81234-1234')).toBe(false)
     expect(PHONE_BR_REGEX.test('11 912341234')).toBe(false) // formato antigo
+  })
+})
+
+describe('formatCpf', () => {
+  it('mascara progressivamente enquanto o usuário digita', () => {
+    expect(formatCpf('')).toBe('')
+    expect(formatCpf('1')).toBe('1')
+    expect(formatCpf('123')).toBe('123')
+    expect(formatCpf('1234')).toBe('123.4')
+    expect(formatCpf('1234567')).toBe('123.456.7')
+    expect(formatCpf('1234567890')).toBe('123.456.789-0')
+    expect(formatCpf('12345678901')).toBe('123.456.789-01')
+  })
+
+  it('descarta lixo e dígitos além do 11º (colar texto sujo converge p/ a máscara)', () => {
+    expect(formatCpf('123.456.789/01')).toBe('123.456.789-01')
+    expect(formatCpf('12345678901999')).toBe('123.456.789-01')
+    expect(formatCpf('abc')).toBe('')
+  })
+
+  it('a saída completa satisfaz o regex de formato exigido por isValidCpf', () => {
+    const masked = formatCpf('11144477735') // CPF válido (dígitos verificadores corretos)
+    expect(CPF_REGEX.test(masked)).toBe(true)
+    expect(isValidCpf(masked)).toBe(true)
+    // Incompleto NÃO passa no formato.
+    expect(CPF_REGEX.test(formatCpf('123456'))).toBe(false)
   })
 })
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -18,7 +18,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { FieldError } from '@/components/ui/field-error'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { createPatientAction } from '@/server/actions/patient-actions'
+import { updatePatientAction } from '@/server/actions/patient-actions'
 
 import {
   EMPTY_PATIENT_FORM,
@@ -28,27 +28,59 @@ import {
   type PatientFormValues,
 } from './patient-form'
 
+/** Paciente atual (subconjunto de campos editáveis) vindo do drawer. */
+export type EditablePatient = {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  birthDate: Date | string | null
+  cpf: string | null
+  notes: string | null
+}
+
 type Props = {
   open: boolean
   clientId: string
+  patient: EditablePatient
   onOpenChange: (open: boolean) => void
-  onCreated?: () => void
+  onUpdated?: () => void
 }
 
-export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }: Props) {
+/** `Date`/ISO → `yyyy-mm-dd` que o `DateInput` consome (usa a data UTC gravada,
+ *  sem shift de fuso — o cadastro grava `new Date('yyyy-mm-dd')` = meia-noite UTC). */
+function toDateInput(value: Date | string | null | undefined): string {
+  if (!value) return ''
+  const d = value instanceof Date ? value : new Date(value)
+  if (isNaN(d.getTime())) return ''
+  return d.toISOString().slice(0, 10)
+}
+
+export function EditPatientDialog({ open, clientId, patient, onOpenChange, onUpdated }: Props) {
   const [isPending, startTransition] = useTransition()
   const [form, setForm] = useState<PatientFormValues>(EMPTY_PATIENT_FORM)
   const [errors, setErrors] = useState<PatientFormErrors>({})
-  // Erros só aparecem DEPOIS de tentar salvar — nunca ao abrir o popup nem ao
-  // sair de um campo (o autofocus do dialog dispararia o blur do Nome). Depois
-  // do 1º submit, revalidamos a cada digitação para o erro sumir conforme corrige.
+  // Mesma regra do cadastro: erro só após tentar salvar (nunca ao abrir).
   const [submitted, setSubmitted] = useState(false)
 
-  function reset() {
-    setForm(EMPTY_PATIENT_FORM)
+  const birthIso = toDateInput(patient.birthDate)
+
+  // Semeia o form com os dados do paciente ao ABRIR (ou quando eles mudam após um
+  // salvamento) e zera erros/submitted. As deps são primitivas: enquanto o usuário
+  // edita, os props do paciente não mudam, então isto não sobrescreve o que ele digita.
+  useEffect(() => {
+    if (!open) return
+    setForm({
+      name: patient.name ?? '',
+      phone: patient.phone ?? '',
+      email: patient.email ?? '',
+      birthDate: birthIso,
+      cpf: patient.cpf ?? '',
+      notes: patient.notes ?? '',
+    })
     setErrors({})
     setSubmitted(false)
-  }
+  }, [open, patient.name, patient.phone, patient.email, birthIso, patient.cpf, patient.notes])
 
   function handleChange<K extends keyof PatientFormValues>(field: K, value: string) {
     const next = { ...form, [field]: value }
@@ -67,8 +99,6 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
 
   // Igual ao popup de novo lead (`blurIfFilled`): valida ao SAIR do campo só se ele
   // tem conteúdo (ou já houve submit). E-mail sem `@dominio.tld` acusa aqui, na hora.
-  // Sair de um campo vazio — inclusive o autofocado — não cobra "obrigatório" (isso
-  // fica pro submit), então não reintroduz o erro de acender tudo ao abrir.
   function handleBlur(name: PatientFormField) {
     if (!form[name].trim() && !submitted) return
     const all = validatePatientForm(form)
@@ -83,15 +113,14 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
     if (Object.keys(errs).length > 0) return
 
     startTransition(async () => {
-      const result = await createPatientAction(clientId, form)
+      const result = await updatePatientAction(patient.id, clientId, form)
       if (!result.success) {
         toast.error(result.error.message)
         return
       }
-      toast.success('Paciente cadastrado!')
-      reset()
+      toast.success('Paciente atualizado!')
       onOpenChange(false)
-      onCreated?.()
+      onUpdated?.()
     })
   }
 
@@ -104,22 +133,16 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) reset()
-        onOpenChange(v)
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>Novo Paciente</DialogTitle>
+          <DialogTitle>Editar Paciente</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div className="space-y-1">
-            <Label htmlFor="p-name">Nome *</Label>
+            <Label htmlFor="ep-name">Nome *</Label>
             <Input
-              id="p-name"
+              id="ep-name"
               value={form.name}
               onChange={(e) => handleChange('name', e.target.value)}
               placeholder="Nome completo"
@@ -131,9 +154,9 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="p-phone">Telefone *</Label>
+              <Label htmlFor="ep-phone">Telefone *</Label>
               <PhoneInput
-                id="p-phone"
+                id="ep-phone"
                 value={form.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
                 {...field('phone')}
@@ -141,9 +164,9 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
               <FieldError message={errors.phone} reserve />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="p-birth">Data de nascimento *</Label>
+              <Label htmlFor="ep-birth">Data de nascimento *</Label>
               <DateInput
-                id="p-birth"
+                id="ep-birth"
                 value={form.birthDate}
                 onChange={(e) => handleChange('birthDate', e.target.value)}
                 {...field('birthDate')}
@@ -153,9 +176,9 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="p-email">E-mail *</Label>
+            <Label htmlFor="ep-email">E-mail *</Label>
             <Input
-              id="p-email"
+              id="ep-email"
               type="email"
               value={form.email}
               onChange={(e) => handleChange('email', e.target.value)}
@@ -167,9 +190,9 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="p-cpf">CPF *</Label>
+            <Label htmlFor="ep-cpf">CPF *</Label>
             <CpfInput
-              id="p-cpf"
+              id="ep-cpf"
               value={form.cpf}
               onChange={(e) => handleChange('cpf', e.target.value)}
               {...field('cpf')}
@@ -178,9 +201,9 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="p-notes">Observações</Label>
+            <Label htmlFor="ep-notes">Observações</Label>
             <textarea
-              id="p-notes"
+              id="ep-notes"
               value={form.notes}
               onChange={(e) => handleChange('notes', e.target.value)}
               rows={2}
@@ -191,14 +214,7 @@ export function CreatePatientDialog({ open, clientId, onOpenChange, onCreated }:
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                reset()
-                onOpenChange(false)
-              }}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={isPending}>

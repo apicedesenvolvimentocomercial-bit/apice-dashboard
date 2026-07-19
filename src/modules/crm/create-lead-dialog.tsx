@@ -329,7 +329,9 @@ export function CreateLeadDialog({
                         <SelectValue placeholder="Selecione a origem" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    {/* `bg-background` casa com o fundo do dialog — o `bg-popover`
+                        padrão é mais claro no dark e destoava do popup. */}
+                    <SelectContent className="bg-background">
                       <SelectItem value="META_ADS">Meta Ads</SelectItem>
                       <SelectItem value="GOOGLE_ADS">Google Ads</SelectItem>
                       <SelectItem value="ORGANIC">Orgânico</SelectItem>

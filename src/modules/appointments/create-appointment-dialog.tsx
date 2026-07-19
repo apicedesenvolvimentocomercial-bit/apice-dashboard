@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { FieldError } from '@/components/ui/field-error'
 import { Input } from '@/components/ui/input'
+import { IntegerInput } from '@/components/ui/integer-input'
 import { Label } from '@/components/ui/label'
 import { PhoneInput } from '@/components/ui/phone-input'
 import {
@@ -37,6 +38,13 @@ import { DEFAULT_SCHEDULE } from './types'
 import type { ClinicSchedule } from './types'
 
 type Mode = 'existing' | 'new-lead'
+
+/** Alternador de modo — segmented com pílula deslizante, mesmo primitivo visual
+ *  do seletor Dia/Semana/Mês/Lista da `AgendaToolbar` (e do `PeriodBar`). */
+const MODE_OPTIONS: { value: Mode; label: string }[] = [
+  { value: 'existing', label: 'Paciente existente' },
+  { value: 'new-lead', label: 'Novo lead' },
+]
 
 const SOURCE_OPTIONS: { value: string; label: string }[] = [
   { value: 'META_ADS', label: 'Meta Ads' },
@@ -119,12 +127,15 @@ export function CreateAppointmentDialog({
     source: '',
     procedureIds: [] as string[],
     scheduledAt: defaultDate ?? '',
-    durationMinutes: 60,
+    // String de dígitos (formato do `IntegerInput`); `Number()` só no submit.
+    durationMinutes: '60',
     notes: '',
   })
   // Erro inline só aparece depois que o usuário sai do campo (ou tenta salvar),
   // senão acusaria "Nome obrigatório" na primeira letra.
   const [leadTouched, setLeadTouched] = useState<Partial<Record<LeadField, boolean>>>({})
+  const [durationTouched, setDurationTouched] = useState(false)
+  const [notesTouched, setNotesTouched] = useState(false)
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const [dateBlurred, setDateBlurred] = useState(false)
   const [pastDateAck, setPastDateAck] = useState(false)
@@ -178,7 +189,11 @@ export function CreateAppointmentDialog({
       if (f.procedureIds.includes(id)) return f
       const next = [...f.procedureIds, id]
       const sum = sumDuration(next)
-      return { ...f, procedureIds: next, durationMinutes: sum > 0 ? sum : f.durationMinutes }
+      return {
+        ...f,
+        procedureIds: next,
+        durationMinutes: sum > 0 ? String(sum) : f.durationMinutes,
+      }
     })
     setProcPickKey((k) => k + 1)
   }
@@ -187,7 +202,11 @@ export function CreateAppointmentDialog({
     setForm((f) => {
       const next = f.procedureIds.filter((_, i) => i !== index)
       const sum = sumDuration(next)
-      return { ...f, procedureIds: next, durationMinutes: sum > 0 ? sum : f.durationMinutes }
+      return {
+        ...f,
+        procedureIds: next,
+        durationMinutes: sum > 0 ? String(sum) : f.durationMinutes,
+      }
     })
   }
 
@@ -200,11 +219,13 @@ export function CreateAppointmentDialog({
       source: '',
       procedureIds: [],
       scheduledAt: defaultDate ?? '',
-      durationMinutes: 60,
+      durationMinutes: '60',
       notes: '',
     })
     setMode('existing')
     setLeadTouched({})
+    setDurationTouched(false)
+    setNotesTouched(false)
     setSubmitAttempted(false)
     setDateBlurred(false)
     setPastDateAck(false)
@@ -239,10 +260,29 @@ export function CreateAppointmentDialog({
   }
   const touchLead = (f: LeadField) => setLeadTouched((t) => ({ ...t, [f]: true }))
 
+  // Duração e observações espelham o zod da action (`appointmentSchema` /
+  // `scheduledLeadSchema`): inteiro positivo ≤ 1000 e texto seguro ≤ 65535.
+  // Mensagens de UMA linha curta (ver `field-error.tsx`), reveladas no blur.
+  const durationNum = Number(form.durationMinutes)
+  const durationInvalidMsg = !form.durationMinutes
+    ? 'Duração obrigatória'
+    : durationNum <= 0
+      ? 'Deve ser maior que zero'
+      : durationNum > 1000
+        ? 'Máximo 1000 minutos'
+        : undefined
+  const durationError = durationTouched || submitAttempted ? durationInvalidMsg : undefined
+
+  const notesInvalidMsg =
+    form.notes.trim() && !SAFE_TEXT_REGEX.test(form.notes) ? 'Caracteres inválidos' : undefined
+  const notesError = notesTouched || submitAttempted ? notesInvalidMsg : undefined
+
   const baseInvalid =
     whoInvalid ||
     form.procedureIds.length === 0 ||
     !form.scheduledAt ||
+    durationInvalidMsg !== undefined ||
+    notesInvalidMsg !== undefined ||
     isTooOld ||
     blockedByPastWarning ||
     blockedBySchedule ||
@@ -250,10 +290,19 @@ export function CreateAppointmentDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (whoInvalid || leadIncomplete || form.procedureIds.length === 0 || !form.scheduledAt) {
+    if (
+      whoInvalid ||
+      leadIncomplete ||
+      form.procedureIds.length === 0 ||
+      !form.scheduledAt ||
+      durationInvalidMsg ||
+      notesInvalidMsg
+    ) {
       // Revela os erros inline dos campos que o usuário ainda não visitou (e a
       // regra cruzada telefone-ou-e-mail, que só é cobrada aqui).
       setLeadTouched({ name: true, phone: true, email: true, source: true })
+      setDurationTouched(true)
+      setNotesTouched(true)
       setSubmitAttempted(true)
       toast.error('Preencha todos os campos obrigatórios')
       return
@@ -282,7 +331,9 @@ export function CreateAppointmentDialog({
               procedureIds: form.procedureIds,
               scheduledAt: form.scheduledAt,
               durationMinutes: Number(form.durationMinutes),
-              notes: form.notes,
+              // Vazio vira undefined: o zod é `.optional()`, mas '' reprovaria
+              // no regex de caracteres (`+` exige ao menos 1 caractere).
+              notes: form.notes.trim() || undefined,
             })
           : await createScheduledLeadFromAgendaAction(clientId, {
               name: form.name.trim(),
@@ -292,7 +343,7 @@ export function CreateAppointmentDialog({
               procedureIds: form.procedureIds,
               scheduledAt: form.scheduledAt,
               durationMinutes: Number(form.durationMinutes),
-              notes: form.notes,
+              notes: form.notes.trim() || undefined,
             })
       if (!result.success) {
         toast.error(result.error.message)
@@ -307,47 +358,67 @@ export function CreateAppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+      {/* `max-h`/scroll é rede de segurança p/ telas baixas (mesma do
+          create-lead-dialog): com os slots reservados a altura fica estável. */}
+      <DialogContent
+        className="max-h-[92vh] overflow-y-auto sm:max-w-md"
+        aria-describedby={undefined}
+      >
         <DialogHeader>
           <DialogTitle>
             {mode === 'new-lead' ? 'Novo lead agendado' : 'Novo Agendamento'}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* `space-y-3` (e não 4): com um slot de erro reservado sob CADA campo,
+            o ritmo de 16px somava demais — mesma medida do create-lead-dialog. */}
+        <form onSubmit={handleSubmit} className="space-y-3">
           {/* Alterna entre agendar um paciente existente e criar um lead novo
-              (que nasce em "Agendado" no funil comercial). */}
-          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-sm">
-            <button
-              type="button"
-              onClick={() => setMode('existing')}
-              className={cn(
-                'rounded-md px-3 py-1.5 font-medium transition-colors',
-                mode === 'existing'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              Paciente existente
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('new-lead')}
-              className={cn(
-                'rounded-md px-3 py-1.5 font-medium transition-colors',
-                mode === 'new-lead'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              Novo lead
-            </button>
+              (que nasce em "Agendado" no funil comercial). Pílula deslizante da
+              AgendaToolbar, mas com as cores NEUTRAS originais (o dourado aqui
+              foi testado e rejeitado — 2026-07-19). */}
+          <div
+            className="relative grid auto-cols-fr grid-flow-col rounded-[9px] border border-border bg-muted p-[3px]"
+            role="tablist"
+            aria-label="Tipo de agendamento"
+          >
+            <div
+              className="pointer-events-none absolute bottom-[3px] left-[3px] top-[3px] z-0 rounded-[7px] bg-background shadow-sm transition-transform duration-340 ease-senno"
+              style={{
+                width: `calc((100% - 6px) / ${MODE_OPTIONS.length})`,
+                transform: `translateX(${
+                  Math.max(
+                    0,
+                    MODE_OPTIONS.findIndex((o) => o.value === mode)
+                  ) * 100
+                }%)`,
+              }}
+              aria-hidden="true"
+            />
+            {MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="tab"
+                aria-selected={mode === opt.value}
+                onClick={() => setMode(opt.value)}
+                className={cn(
+                  'relative z-[1] whitespace-nowrap rounded-[7px] px-[13px] py-1.5 text-[12.5px] font-semibold transition-colors duration-250',
+                  mode === opt.value
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
 
           {mode === 'existing' ? (
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Label htmlFor="apt-patient">Paciente *</Label>
               <SearchableSelect
                 portal={false}
+                contentClassName="bg-background"
                 id="apt-patient"
                 value={form.patientId}
                 onChange={(v) => setForm((f) => ({ ...f, patientId: v }))}
@@ -359,12 +430,15 @@ export function CreateAppointmentDialog({
                   sublabel: p.phone ?? undefined,
                 }))}
               />
+              {/* Sem validação própria (o botão fica desabilitado sem paciente);
+                  o slot existe só p/ igualar o espaçamento dos outros campos. */}
+              <FieldError reserve />
             </div>
           ) : (
             /* Cada campo tem a linha de erro RESERVADA (`reserve`): o erro
                aparece e some sem empurrar o resto do diálogo. */
             <div className="space-y-3">
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label htmlFor="lead-name">Nome *</Label>
                 <Input
                   id="lead-name"
@@ -378,7 +452,7 @@ export function CreateAppointmentDialog({
                 <FieldError message={leadError('name')} reserve />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <Label htmlFor="lead-phone">Telefone</Label>
                   <PhoneInput
                     id="lead-phone"
@@ -389,7 +463,7 @@ export function CreateAppointmentDialog({
                   />
                   <FieldError message={leadError('phone')} reserve />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <Label htmlFor="lead-email">E-mail</Label>
                   <Input
                     id="lead-email"
@@ -404,7 +478,7 @@ export function CreateAppointmentDialog({
                   <FieldError message={leadError('email')} reserve />
                 </div>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label htmlFor="lead-source">Origem *</Label>
                 <Select
                   value={form.source}
@@ -416,7 +490,9 @@ export function CreateAppointmentDialog({
                   <SelectTrigger id="lead-source">
                     <SelectValue placeholder="Selecione a origem" />
                   </SelectTrigger>
-                  <SelectContent>
+                  {/* `bg-background` casa com o fundo do dialog — o `bg-popover`
+                      padrão é mais claro no dark e destoava do popup. */}
+                  <SelectContent className="bg-background">
                     {SOURCE_OPTIONS.map((s) => (
                       <SelectItem key={s.value} value={s.value}>
                         {s.label}
@@ -429,7 +505,7 @@ export function CreateAppointmentDialog({
             </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-2">
             <Label htmlFor="apt-procedure">
               {mode === 'new-lead' ? 'Procedimentos de interesse *' : 'Procedimentos *'}
             </Label>
@@ -439,6 +515,7 @@ export function CreateAppointmentDialog({
             <SearchableSelect
               key={procPickKey}
               portal={false}
+              contentClassName="bg-background"
               id="apt-procedure"
               value=""
               onChange={addProcedure}
@@ -485,10 +562,12 @@ export function CreateAppointmentDialog({
                 })}
               </ul>
             )}
+            {/* Slot só p/ ritmo — obrigatoriedade desabilita o botão. */}
+            <FieldError reserve />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Label htmlFor="apt-date">Data e hora *</Label>
               <Input
                 id="apt-date"
@@ -507,27 +586,23 @@ export function CreateAppointmentDialog({
                 className={isTooOld ? 'border-red-500 focus-visible:ring-red-500' : undefined}
                 required
               />
+              <FieldError message={isTooOld ? 'Máximo 1 ano no passado' : undefined} reserve />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Label htmlFor="apt-duration">Duração (min)</Label>
-              <Input
+              {/* Só dígitos entram (inteiro garantido na digitação); teto do
+                  zod = 1000 → 4 dígitos. */}
+              <IntegerInput
                 id="apt-duration"
-                type="number"
-                min={5}
-                max={480}
+                maxDigits={4}
                 value={form.durationMinutes}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, durationMinutes: e.target.value }))}
+                onBlur={() => setDurationTouched(true)}
+                aria-invalid={!!durationError}
               />
+              <FieldError message={durationError} reserve />
             </div>
           </div>
-
-          {isTooOld && (
-            <p className="rounded-md border border-red-400 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-700 dark:bg-red-950/50 dark:text-red-200">
-              Não é possível agendar mais de 1 ano no passado.
-            </p>
-          )}
 
           {showPastWarning && (
             <label
@@ -598,16 +673,20 @@ export function CreateAppointmentDialog({
             </label>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-2">
             <Label htmlFor="apt-notes">Observações</Label>
             <textarea
               id="apt-notes"
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              onBlur={() => setNotesTouched(true)}
               rows={2}
+              maxLength={65535}
+              aria-invalid={!!notesError}
               className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               placeholder="Observações opcionais..."
             />
+            <FieldError message={notesError} reserve />
           </div>
 
           <DialogFooter>

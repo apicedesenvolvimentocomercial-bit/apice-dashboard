@@ -38,7 +38,7 @@ const procedureSchema = z.object({
   // Tempo de procedimento de 6 horas max
   durationMinutes: z
     .number()
-    .max(360, 'tempo de procedimento excede o limite')
+    .max(1000, 'tempo de procedimento excede o limite')
     .int()
     .positive()
     .optional(),

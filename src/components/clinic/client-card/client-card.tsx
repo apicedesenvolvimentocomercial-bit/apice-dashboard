@@ -12,6 +12,7 @@ import {
   FileText,
   Loader2,
   Mail,
+  Pencil,
   Phone,
   Plus,
   Send,
@@ -64,6 +65,7 @@ import {
 import { deletePatientAction } from '@/server/actions/patient-actions'
 import { getClientCardAction } from '@/server/actions/client-card-actions'
 import { MoveLeadPipelineDialog } from '@/modules/crm/move-lead-pipeline-dialog'
+import { EditPatientDialog } from '@/modules/patients/edit-patient-dialog'
 import {
   INTERACTION_LABELS,
   SOURCE_LABELS,
@@ -735,7 +737,7 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
                               type="button"
                               onClick={() => downloadDoc(d.id)}
                               aria-label={`Baixar ${d.fileName}`}
-                              className="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[7px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              className="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
                             >
                               <Download className="h-4 w-4" />
                             </button>
@@ -995,59 +997,76 @@ function LeadInfo({
   }
 
   return (
-    <div className="flex flex-col gap-[18px]">
-      {/* Contato (§10.1). */}
-      {(lead.phone || lead.email) && (
-        <div className="flex flex-col gap-[11px]">
-          {lead.phone && (
-            <a
-              href={`tel:${lead.phone.replace(/\D/g, '')}`}
-              className="flex items-center gap-2 text-[13.5px] tabular-nums text-foreground transition-colors hover:text-primary-text"
-            >
-              <Phone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              {lead.phone}
-            </a>
+    <div className="group flex flex-col gap-[18px]">
+      {/* Contato à esquerda, Origem/Interesse à direita (§10.1/§10.2) — mesmo
+          layout do card do paciente; empilha quando o drawer ocupa a tela
+          toda (< sm). */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+        {(lead.phone || lead.email) && (
+          <div className="flex min-w-0 flex-1 flex-col gap-[11px] sm:border-r sm:border-border sm:pr-5">
+            {lead.phone && (
+              <a
+                href={`tel:${lead.phone.replace(/\D/g, '')}`}
+                className="flex items-center gap-2 text-[13.5px] tabular-nums text-foreground transition-colors hover:text-primary-text"
+              >
+                <Phone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                {lead.phone}
+              </a>
+            )}
+            {lead.email && (
+              <a
+                href={`mailto:${lead.email}`}
+                className="flex items-center gap-2 break-all text-[13.5px] text-foreground transition-colors hover:text-primary-text"
+              >
+                <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                {lead.email}
+              </a>
+            )}
+          </div>
+        )}
+
+        <div
+          className={cn(
+            'flex min-w-0 flex-1 flex-col gap-3',
+            (lead.phone || lead.email) && 'border-t border-border pt-4 sm:border-t-0 sm:pt-0'
           )}
-          {lead.email && (
-            <a
-              href={`mailto:${lead.email}`}
-              className="flex items-center gap-2 break-all text-[13.5px] text-foreground transition-colors hover:text-primary-text"
-            >
-              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              {lead.email}
-            </a>
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[12.5px] text-muted-foreground">Origem</span>
+            <span className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground">
+              {SOURCE_LABELS[lead.source as keyof typeof SOURCE_LABELS] ?? lead.source}
+            </span>
+          </div>
+          {lead.procedureInterest && (
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[12.5px] text-muted-foreground">Interesse</span>
+              <span className="text-right text-[13px] font-medium">{lead.procedureInterest}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bloco de dados restante (§10.2). */}
+      {(lead.estimatedValue != null || lead.notes) && (
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          {lead.estimatedValue != null && (
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[12.5px] text-muted-foreground">Valor estimado</span>
+              <span className="text-sm font-semibold tabular-nums">
+                {lead.estimatedValue.toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })}
+              </span>
+            </div>
+          )}
+          {lead.notes && (
+            <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
+              {lead.notes}
+            </p>
           )}
         </div>
       )}
-
-      {/* Bloco de dados (§10.2). */}
-      <div className="flex flex-col gap-3 border-t border-border pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[12.5px] text-muted-foreground">Origem</span>
-          <span className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground">
-            {SOURCE_LABELS[lead.source as keyof typeof SOURCE_LABELS] ?? lead.source}
-          </span>
-        </div>
-        {lead.procedureInterest && (
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[12.5px] text-muted-foreground">Interesse</span>
-            <span className="text-right text-[13px] font-medium">{lead.procedureInterest}</span>
-          </div>
-        )}
-        {lead.estimatedValue != null && (
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[12.5px] text-muted-foreground">Valor estimado</span>
-            <span className="text-sm font-semibold tabular-nums">
-              {lead.estimatedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </span>
-          </div>
-        )}
-        {lead.notes && (
-          <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
-            {lead.notes}
-          </p>
-        )}
-      </div>
 
       {/* Responsável (§10.3) — item 4: crm:assignToOthers; some na retenção. */}
       {!isRetention && canReassign && members.length > 1 && (
@@ -1148,7 +1167,7 @@ function LeadInfo({
             type="button"
             onClick={() => setConfirmDelete(true)}
             disabled={isPending}
-            className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive opacity-0 transition hover:underline focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 group-hover:opacity-100"
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             Remover lead
@@ -1229,6 +1248,7 @@ function PatientInfo({
   const [isPending, startTransition] = useTransition()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   function handleDelete() {
     startTransition(async () => {
@@ -1243,7 +1263,7 @@ function PatientInfo({
   const hasDates = Boolean(patient.birthDate || patient.firstVisitAt || patient.lastVisitAt)
 
   return (
-    <div className="flex flex-col gap-[18px]">
+    <div className="group flex flex-col gap-[18px]">
       {/* Contato à esquerda, datas à direita — empilha quando o drawer ocupa a
           tela toda (< sm). */}
       {(hasContact || hasDates) && (
@@ -1400,18 +1420,38 @@ function PatientInfo({
         </div>
       </div>
 
-      {/* Remover paciente — confirm real (§16). */}
-      <div className="flex justify-end border-t border-border pt-3">
+      {/* Editar dados + Remover paciente — confirm real (§16). */}
+      <div className="flex items-center justify-between border-t border-border pt-3">
+        <button
+          type="button"
+          onClick={() => setEditOpen(true)}
+          disabled={isPending}
+          className="flex items-center gap-[7px] text-[12.5px] font-semibold text-foreground opacity-0 transition hover:text-primary-text focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 group-hover:opacity-100"
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+          Editar dados
+        </button>
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}
           disabled={isPending}
-          className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive opacity-0 transition hover:underline focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 group-hover:opacity-100"
         >
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           Remover paciente
         </button>
       </div>
+
+      <EditPatientDialog
+        open={editOpen}
+        clientId={clientId}
+        patient={patient}
+        onOpenChange={setEditOpen}
+        onUpdated={() => {
+          setEditOpen(false)
+          onChanged()
+        }}
+      />
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
