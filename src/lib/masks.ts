@@ -68,3 +68,19 @@ export function parseMoneyBR(display: string): number | undefined {
 export function formatMoneyBR(value: number): string {
   return value.toFixed(2).replace('.', ',')
 }
+
+/**
+ * Só dígitos — campos que o zod exige `.int()` (duração em minutos, recorrência
+ * em dias). Zero à esquerda cai (`"007"` → `"7"`), então o que está no campo é
+ * exatamente o número que a action recebe.
+ *
+ * `maxDigits` deve vir do TETO do campo no zod (360 minutos / 365 dias = 3
+ * dígitos): assim o usuário não digita uma ordem de grandeza inteira só para ser
+ * recusado no submit.
+ */
+export function sanitizeInteger(raw: string, maxDigits = 9): string {
+  return raw
+    .replace(/\D/g, '')
+    .replace(/^0+(?=\d)/, '')
+    .slice(0, maxDigits)
+}

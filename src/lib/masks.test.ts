@@ -6,6 +6,7 @@ import {
   formatMoneyBR,
   formatPhoneBR,
   parseMoneyBR,
+  sanitizeInteger,
   sanitizeMoneyBR,
 } from './masks'
 
@@ -63,6 +64,30 @@ describe('sanitizeMoneyBR', () => {
   it('limita a parte inteira ao teto da action', () => {
     expect(sanitizeMoneyBR('123456789012345')).toBe('1234567890')
     expect(parseMoneyBR(sanitizeMoneyBR('9999999999,99'))).toBeLessThanOrEqual(MAX_MONEY)
+  })
+})
+
+describe('sanitizeInteger', () => {
+  it('mantém apenas dígitos (nada de decimal, sinal ou notação científica)', () => {
+    expect(sanitizeInteger('60')).toBe('60')
+    expect(sanitizeInteger('')).toBe('')
+    expect(sanitizeInteger('1,5')).toBe('15')
+    expect(sanitizeInteger('1.5')).toBe('15')
+    expect(sanitizeInteger('-30')).toBe('30')
+    expect(sanitizeInteger('1e5')).toBe('15')
+    expect(sanitizeInteger('abc')).toBe('')
+  })
+
+  it('derruba zero à esquerda, mas o zero sozinho fica (para o erro cobrá-lo)', () => {
+    expect(sanitizeInteger('007')).toBe('7')
+    expect(sanitizeInteger('0')).toBe('0')
+    expect(sanitizeInteger('00')).toBe('0')
+  })
+
+  it('limita a quantidade de dígitos ao teto do campo', () => {
+    expect(sanitizeInteger('1234', 3)).toBe('123')
+    expect(sanitizeInteger('0360', 3)).toBe('360')
+    expect(Number(sanitizeInteger('999', 3))).toBeGreaterThan(365) // fora da faixa = erro inline
   })
 })
 
