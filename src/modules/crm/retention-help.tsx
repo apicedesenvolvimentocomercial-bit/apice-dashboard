@@ -69,15 +69,21 @@ export function RetentionHelp() {
       >
         <HelpCircle className="h-4 w-4" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-96 p-0">
-        <div className="border-b border-border px-4 py-3">
+      {/* Em telas baixas o conteúdo não cabe: limita pela altura disponível que o
+          Radix expõe e rola a lista (o cabeçalho fica fixo). */}
+      <PopoverContent
+        align="start"
+        collisionPadding={12}
+        className="flex max-h-[min(var(--radix-popover-content-available-height),34rem)] w-96 max-w-[calc(100vw-1.5rem)] flex-col p-0"
+      >
+        <div className="shrink-0 border-b border-border px-4 py-3">
           <p className="text-sm font-semibold">Funil de retenção</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             As etapas são automáticas: o sistema move cada paciente conforme o tempo desde a última
             visita e a recorrência do procedimento.
           </p>
         </div>
-        <ol className="divide-y divide-border">
+        <ol className="min-h-0 flex-1 divide-y divide-border overflow-y-auto [scrollbar-gutter:stable]">
           {STAGES.map((s, i) => {
             const Icon = s.icon
             return (
