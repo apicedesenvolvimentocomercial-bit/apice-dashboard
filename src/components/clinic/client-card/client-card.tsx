@@ -1027,7 +1027,7 @@ function LeadInfo({
               className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-input bg-background px-3.5 text-[13.5px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               <ArrowRightLeft className="h-[15px] w-[15px] text-primary-text" aria-hidden="true" />
-              Mover para funil
+              Trocar de funil
             </button>
           )}
           {!isTerminal && !isRetention && lostStage && (
@@ -1195,79 +1195,103 @@ function PatientInfo({
     })
   }
 
+  const hasContact = Boolean(patient.phone || patient.email)
+  const hasDates = Boolean(patient.birthDate || patient.firstVisitAt || patient.lastVisitAt)
+
   return (
     <div className="flex flex-col gap-[18px]">
-      {/* Contato. */}
-      {(patient.phone || patient.email) && (
-        <div className="flex flex-col gap-[11px]">
-          {patient.phone && (
-            <a
-              href={`tel:${patient.phone.replace(/\D/g, '')}`}
-              className="flex items-center gap-2 text-[13.5px] tabular-nums text-foreground transition-colors hover:text-primary-text"
+      {/* Contato à esquerda, datas à direita — empilha quando o drawer ocupa a
+          tela toda (< sm). */}
+      {(hasContact || hasDates) && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+          {hasContact && (
+            <div
+              className={cn(
+                'flex min-w-0 flex-1 flex-col gap-[11px]',
+                hasDates && 'sm:border-r sm:border-border sm:pr-5'
+              )}
             >
-              <Phone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              {patient.phone}
-            </a>
+              {patient.phone && (
+                <a
+                  href={`tel:${patient.phone.replace(/\D/g, '')}`}
+                  className="flex items-center gap-2 text-[13.5px] tabular-nums text-foreground transition-colors hover:text-primary-text"
+                >
+                  <Phone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  {patient.phone}
+                </a>
+              )}
+              {patient.email && (
+                <a
+                  href={`mailto:${patient.email}`}
+                  className="flex items-center gap-2 break-all text-[13.5px] text-foreground transition-colors hover:text-primary-text"
+                >
+                  <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  {patient.email}
+                </a>
+              )}
+            </div>
           )}
-          {patient.email && (
-            <a
-              href={`mailto:${patient.email}`}
-              className="flex items-center gap-2 break-all text-[13.5px] text-foreground transition-colors hover:text-primary-text"
+
+          {hasDates && (
+            <div
+              className={cn(
+                'flex min-w-0 flex-1 flex-col gap-3',
+                hasContact && 'border-t border-border pt-4 sm:border-t-0 sm:pt-0'
+              )}
             >
-              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              {patient.email}
-            </a>
+              {patient.birthDate && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+                    Nascimento
+                  </span>
+                  <span className="text-[13px] font-medium tabular-nums">
+                    {format(new Date(patient.birthDate), 'dd/MM/yyyy', { locale: ptBR })}
+                  </span>
+                </div>
+              )}
+              {patient.firstVisitAt && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[12.5px] text-muted-foreground">Primeira visita</span>
+                  <span className="text-[13px] font-medium tabular-nums">
+                    {format(new Date(patient.firstVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
+                  </span>
+                </div>
+              )}
+              {patient.lastVisitAt && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[12.5px] text-muted-foreground">Última visita</span>
+                  <span className="text-[13px] font-medium tabular-nums">
+                    {format(new Date(patient.lastVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
+                  </span>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
 
-      {/* Bloco de dados. */}
-      <div className="flex flex-col gap-3 border-t border-border pt-4">
-        {patient.birthDate && (
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-              Nascimento
-            </span>
-            <span className="text-[13px] font-medium tabular-nums">
-              {format(new Date(patient.birthDate), 'dd/MM/yyyy', { locale: ptBR })}
-            </span>
-          </div>
-        )}
-        {patient.firstVisitAt && (
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[12.5px] text-muted-foreground">Primeira visita</span>
-            <span className="text-[13px] font-medium tabular-nums">
-              {format(new Date(patient.firstVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
-            </span>
-          </div>
-        )}
-        {patient.lastVisitAt && (
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[12.5px] text-muted-foreground">Última visita</span>
-            <span className="text-[13px] font-medium tabular-nums">
-              {format(new Date(patient.lastVisitAt), 'dd/MM/yyyy', { locale: ptBR })}
-            </span>
-          </div>
-        )}
-        {patient.notes && (
-          <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
-            {patient.notes}
-          </p>
-        )}
-        {patient.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {patient.tags.map((t) => (
-              <span
-                key={t}
-                className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      {(patient.notes || patient.tags.length > 0) && (
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          {patient.notes && (
+            <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
+              {patient.notes}
+            </p>
+          )}
+          {patient.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {patient.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Engajamento do funil (card unificado): "Mover para funil" + interações
           do card de RETENÇÃO do paciente — o mesmo do card do funil. Só aparece
@@ -1281,7 +1305,7 @@ function PatientInfo({
               className="flex h-10 items-center justify-center gap-2 rounded-[10px] border border-input bg-background px-3.5 text-[13.5px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ArrowRightLeft className="h-[15px] w-[15px] text-primary-text" aria-hidden="true" />
-              Mover para funil
+              Trocar de funil
             </button>
           )}
           <InteractionSection
