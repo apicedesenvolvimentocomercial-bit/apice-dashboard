@@ -154,7 +154,7 @@ export function AttendLeadDialog({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@exemplo.com"
+                placeholder="exemplo@mail.com.com"
               />
             </div>
             <div className="space-y-1">

@@ -35,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { ActionButton } from '@/components/ui/action-button'
 import { Dialog, DialogOverlay, DialogPortal } from '@/components/ui/dialog'
 import {
   Select,
@@ -176,27 +177,6 @@ function Overline({ children }: { children: React.ReactNode }) {
     </p>
   )
 }
-
-/** Botão primário compacto (36px) — "Nova atividade" / "Enviar arquivo" (§11.1).
- *  forwardRef + spread p/ funcionar como trigger `asChild` do Radix. */
-const SmallPrimaryButton = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement>
->(function SmallPrimaryButton({ className, children, ...props }, ref) {
-  return (
-    <button
-      ref={ref}
-      type="button"
-      className={cn(
-        'flex h-9 items-center gap-[7px] rounded-[9px] bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  )
-})
 
 /** Empty state composto (handoff §11.4/§12.3/§13.3). */
 function EmptyState({
@@ -458,7 +438,7 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
             </div>
             <DialogPrimitive.Close
               aria-label="Fechar"
-              className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-[17px] w-[17px]" />
             </DialogPrimitive.Close>
@@ -549,9 +529,9 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
                       presetTarget={{ type: subject.type, id: subject.id, name: subjectName }}
                       onCreated={loadActivities}
                       trigger={
-                        <SmallPrimaryButton>
-                          <Plus className="h-[15px] w-[15px]" aria-hidden="true" /> Nova atividade
-                        </SmallPrimaryButton>
+                        <ActionButton>
+                          <Plus aria-hidden="true" /> Nova atividade
+                        </ActionButton>
                       }
                     />
                   </div>
@@ -662,17 +642,17 @@ export function ClientCard({ open, clientId, subject, onClose, onChanged }: Prop
                         className="hidden"
                         onChange={onUploadFile}
                       />
-                      <SmallPrimaryButton
+                      <ActionButton
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploading}
                       >
                         {uploading ? (
-                          <Loader2 className="h-[15px] w-[15px] animate-spin" aria-hidden="true" />
+                          <Loader2 className="animate-spin" aria-hidden="true" />
                         ) : (
-                          <Upload className="h-[15px] w-[15px]" aria-hidden="true" />
+                          <Upload aria-hidden="true" />
                         )}
                         Enviar arquivo
-                      </SmallPrimaryButton>
+                      </ActionButton>
                     </div>
 
                     {docsLoading && documents.length === 0 ? (

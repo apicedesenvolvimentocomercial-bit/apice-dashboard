@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react'
 
+import { ActionButton } from '@/components/ui/action-button'
 import { cn } from '@/lib/utils'
 
 import type { AgendaView } from './agenda-fc-shared'
@@ -120,14 +121,10 @@ export function AgendaToolbar({
 
         {children}
 
-        <button
-          type="button"
-          onClick={onAction}
-          className="inline-flex h-[38px] items-center gap-[7px] rounded-[9px] bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ActionIcon className="h-[15px] w-[15px]" aria-hidden="true" />
+        <ActionButton onClick={onAction}>
+          <ActionIcon aria-hidden="true" />
           {actionLabel}
-        </button>
+        </ActionButton>
       </div>
     </div>
   )

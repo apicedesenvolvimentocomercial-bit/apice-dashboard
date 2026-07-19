@@ -4,6 +4,7 @@ import { Check, Copy, Loader2, Mail } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
+import { SETTINGS_BTN_PRIMARY } from '@/components/clinic/settings/section-card'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -66,11 +67,7 @@ export function InviteUserDialog({ clientId }: { clientId: string }) {
     <>
       {/* Trigger no padrão do redesign (Configurações-handoff §13.1): botão
           primário 40px com ícone de e-mail. */}
-      <button
-        type="button"
-        onClick={() => reset(true)}
-        className="inline-flex h-10 flex-none items-center justify-center gap-[7px] rounded-[9px] bg-primary px-[17px] text-[13.5px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
+      <button type="button" onClick={() => reset(true)} className={SETTINGS_BTN_PRIMARY}>
         <Mail className="h-[15px] w-[15px]" aria-hidden="true" />
         Convidar pessoa
       </button>

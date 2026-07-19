@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef, useEffect, useRef, useState } from 'react'
+import { INPUT_BASE_CLASS } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 // ─── smart mask engine ───────────────────────────────────────────────────────
@@ -98,9 +99,6 @@ type BaseProps = Omit<
   onChange?: React.ChangeEventHandler<HTMLInputElement>
 }
 
-const BASE_CLASS =
-  'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
-
 // ─── DateInput ───────────────────────────────────────────────────────────────
 
 export const DateInput = forwardRef<HTMLInputElement, BaseProps>(
@@ -153,7 +151,7 @@ export const DateInput = forwardRef<HTMLInputElement, BaseProps>(
         onKeyDown={handleKeyDown}
         onClick={(e) => cursorToEnd(e.currentTarget)}
         onFocus={(e) => cursorToEnd(e.currentTarget)}
-        className={cn(BASE_CLASS, className)}
+        className={cn(INPUT_BASE_CLASS, className)}
         {...props}
       />
     )

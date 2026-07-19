@@ -4,6 +4,7 @@ import { Box, HelpCircle, Loader2, MonitorSmartphone, Plus, Trash2 } from 'lucid
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
+import { ActionButton } from '@/components/ui/action-button'
 import { Button } from '@/components/ui/button'
 import { DateInput } from '@/components/ui/date-input'
 import {
@@ -395,10 +396,6 @@ export function AssetsTab({ clientId }: { clientId: string }) {
   )
 }
 
-// Botão primário do redesign (trigger dos dialogs de cadastro).
-const PRIMARY_TRIGGER_CLASS =
-  'inline-flex h-[38px] items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-
 function NewRentalDialog({ clientId, onSaved }: { clientId: string; onSaved: () => void }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -431,10 +428,10 @@ function NewRentalDialog({ clientId, onSaved }: { clientId: string; onSaved: () 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button type="button" className={PRIMARY_TRIGGER_CLASS}>
-          <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+        <ActionButton>
+          <Plus aria-hidden="true" />
           Novo aluguel
-        </button>
+        </ActionButton>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -544,10 +541,10 @@ function NewAssetDialog({ clientId, onSaved }: { clientId: string; onSaved: () =
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button type="button" className={PRIMARY_TRIGGER_CLASS}>
-          <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+        <ActionButton>
+          <Plus aria-hidden="true" />
           Novo ativo
-        </button>
+        </ActionButton>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

@@ -33,7 +33,7 @@ import {
 
 const schema = z
   .object({
-    name: z.string().trim().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+    name: z.string().trim().min(2, 'Mínimo 2 caracteres'),
     currentPassword: z.string(),
     newPassword: z.string(),
     confirmPassword: z.string(),
@@ -56,7 +56,7 @@ const schema = z
       ctx.addIssue({
         code: 'custom',
         path: ['confirmPassword'],
-        message: 'As senhas não coincidem',
+        message: 'Senhas não coincidem',
       })
     }
   })

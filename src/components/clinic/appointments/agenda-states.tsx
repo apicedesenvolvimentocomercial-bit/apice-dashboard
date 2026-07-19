@@ -1,5 +1,7 @@
 import { CalendarDays, Plus } from 'lucide-react'
 
+import { ActionButton } from '@/components/ui/action-button'
+
 /**
  * Estados da Agenda (agenda-handoff §10 + design.md §5): skeleton com
  * shimmer (nunca spinner), vazio composto (com ação) e erro inline. O
@@ -47,14 +49,10 @@ function EmptyBox({ title, hint, actionLabel, onAction }: EmptyProps) {
       </span>
       <div className="text-sm font-semibold">{title}</div>
       <p className="-mt-1 max-w-[300px] text-[12.5px] text-muted-foreground">{hint}</p>
-      <button
-        type="button"
-        onClick={onAction}
-        className="mt-1.5 inline-flex h-9 items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+      <ActionButton className="mt-1.5" onClick={onAction}>
+        <Plus aria-hidden="true" />
         {actionLabel}
-      </button>
+      </ActionButton>
     </div>
   )
 }

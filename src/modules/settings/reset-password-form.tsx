@@ -23,7 +23,7 @@ import { resetPasswordAction } from '@/server/actions/auth-actions'
 
 const schema = z
   .object({
-    password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
+    password: z.string().min(8, 'Mínimo 8 caracteres'),
     confirm: z.string().min(8, 'Confirme a senha'),
   })
   .refine((v) => v.password === v.confirm, {

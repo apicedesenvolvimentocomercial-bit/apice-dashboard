@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { ActionButton } from '@/components/ui/action-button'
 import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import {
@@ -222,7 +223,7 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
                       type="button"
                       onClick={() => setFiltersOpen(false)}
                       aria-label="Fechar filtros"
-                      className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] text-muted-foreground opacity-70 transition-opacity hover:opacity-100"
                     >
                       <X className="h-[15px] w-[15px]" aria-hidden="true" />
                     </button>
@@ -335,14 +336,10 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
             <FileUp className="h-4 w-4" aria-hidden="true" />
             Importar CSV
           </button>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex h-[38px] items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+          <ActionButton onClick={openCreate}>
+            <Plus aria-hidden="true" />
             Nova receita
-          </button>
+          </ActionButton>
         </div>
       </div>
 
@@ -363,14 +360,10 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
               : 'Ajuste os filtros para ver outros lançamentos.'}
           </p>
           {revenues.length === 0 ? (
-            <button
-              type="button"
-              onClick={openCreate}
-              className="mt-1.5 inline-flex h-9 items-center gap-[7px] rounded-[9px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105"
-            >
-              <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+            <ActionButton className="mt-1.5" onClick={openCreate}>
+              <Plus aria-hidden="true" />
               Adicionar receita
-            </button>
+            </ActionButton>
           ) : (
             <button
               type="button"

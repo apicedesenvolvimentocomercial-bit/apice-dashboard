@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { isValidCpf } from '@/lib/cpf'
 
 import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
+import { EMAIL_REGEX, PHONE_BR_REGEX } from '@/lib/masks'
 import { ok, fail, NotFoundError, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -99,43 +100,61 @@ const attendSchema = z.object({
 
 // feat agenda→pipeline: criar um LEAD NOVO direto pela agenda (cai em Agendado
 // no funil comercial). Campos mínimos do lead + dados do agendamento.
-const scheduledLeadSchema = z.object({
-  name: z
-    .string()
-    .min(2, 'Nome obrigatório')
-    .max(255, 'Nome muito grande')
-    .regex(
-      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
-      'O texto contém caracteres inválidos'
-    ),
-  phone: z
-    .string()
-    .length(12, 'Telefone inválido')
-    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
-    .optional(),
-  email: z
-    .string()
-    .email('E-mail inválido')
-    .max(255, 'Email de tamanho inválido')
-    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
-    .optional()
-    .or(z.literal('')),
-  source: z.enum(['META_ADS', 'GOOGLE_ADS', 'ORGANIC', 'REFERRAL', 'WHATSAPP', 'WALK_IN', 'OTHER']),
-  procedureIds: z
-    .array(z.string().min(1).max(64))
-    .min(1, 'Selecione ao menos um procedimento')
-    .max(100, 'Muitos procedimentos'),
-  scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
-  durationMinutes: z.number().max(360, 'tempo de procedimento excede o limite').int().positive(),
-  notes: z
-    .string()
-    .max(65535, 'Nota muito grande')
-    .regex(
-      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
-      'O texto contém caracteres inválidos'
-    )
-    .optional(),
-})
+const scheduledLeadSchema = z
+  .object({
+    name: z
+      .string()
+      .min(2, 'Nome obrigatório')
+      .max(255, 'Nome muito grande')
+      .regex(
+        /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+        'O texto contém caracteres inválidos'
+      ),
+    // Formato canônico = o que a máscara do frontend produz (`(11) 91234-1234`),
+    // igual ao `leadSchema` de lead-actions. Antes exigia o cru `11 912341234`,
+    // que a agenda deixou de enviar quando passou a usar o `PhoneInput`.
+    phone: z
+      .string()
+      .regex(PHONE_BR_REGEX, 'Telefone inválido. Use o formato (11) 91234-1234')
+      .optional()
+      .or(z.literal('')),
+    email: z
+      .string()
+      .email('E-mail inválido')
+      .max(255, 'Email de tamanho inválido')
+      .regex(EMAIL_REGEX, 'Email com formato inválido')
+      .optional()
+      .or(z.literal('')),
+    source: z.enum([
+      'META_ADS',
+      'GOOGLE_ADS',
+      'ORGANIC',
+      'REFERRAL',
+      'WHATSAPP',
+      'WALK_IN',
+      'OTHER',
+    ]),
+    procedureIds: z
+      .array(z.string().min(1).max(64))
+      .min(1, 'Selecione ao menos um procedimento')
+      .max(100, 'Muitos procedimentos'),
+    scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
+    durationMinutes: z.number().max(360, 'tempo de procedimento excede o limite').int().positive(),
+    notes: z
+      .string()
+      .max(65535, 'Nota muito grande')
+      .regex(
+        /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
+        'O texto contém caracteres inválidos'
+      )
+      .optional(),
+  })
+  // Um lead sem NENHUM meio de contato nasce inalcançável e trava o funil:
+  // exige telefone OU e-mail (não os dois). Mesma regra do `createLeadSchema`.
+  .refine((d) => Boolean(d.phone?.trim() || d.email?.trim()), {
+    message: 'Informe telefone ou e-mail',
+    path: ['phone'],
+  })
 
 export async function getAppointmentsAction(
   clientId: string,

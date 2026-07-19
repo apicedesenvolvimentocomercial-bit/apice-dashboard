@@ -23,8 +23,8 @@ import { acceptInviteAction } from '@/server/actions/auth-actions'
 
 const schema = z
   .object({
-    name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-    password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
+    name: z.string().min(2, 'Mínimo 2 caracteres'),
+    password: z.string().min(8, 'Mínimo 8 caracteres'),
     confirmPassword: z.string(),
   })
   .refine((d) => d.password === d.confirmPassword, {

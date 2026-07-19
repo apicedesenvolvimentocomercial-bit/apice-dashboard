@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
+import { ActionButton } from '@/components/ui/action-button'
 import { Button } from '@/components/ui/button'
 import { DateInput } from '@/components/ui/date-input'
 import { TimeInput } from '@/components/ui/time-input'
@@ -159,9 +160,9 @@ export function ClinicCreateActivityDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger ?? (
-          <Button>
-            <Plus className="mr-1 h-4 w-4" /> Nova atividade
-          </Button>
+          <ActionButton>
+            <Plus aria-hidden="true" /> Nova atividade
+          </ActionButton>
         )}
       </DialogTrigger>
       <DialogContent className="max-w-lg">

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { ActionButton } from '@/components/ui/action-button'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -185,10 +186,10 @@ export function CreateGoalDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {!isEdit && (
         <DialogTrigger asChild>
-          <Button size="sm">
-            <Plus className="h-4 w-4" />
+          <ActionButton>
+            <Plus aria-hidden="true" />
             Nova meta
-          </Button>
+          </ActionButton>
         </DialogTrigger>
       )}
       <DialogContent>

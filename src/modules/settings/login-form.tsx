@@ -26,10 +26,7 @@ import { Input } from '@/components/ui/input'
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido').max(254, 'Email inválido'),
-  password: z
-    .string()
-    .min(6, 'Senha deve ter pelo menos 6 caracteres')
-    .max(128, 'Senha deve ter no máximo 128 caracteres'),
+  password: z.string().min(6, 'Mínimo 6 caracteres').max(128, 'Máximo 128 caracteres'),
 })
 
 type LoginValues = z.infer<typeof loginSchema>

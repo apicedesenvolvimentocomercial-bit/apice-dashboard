@@ -10,6 +10,7 @@ import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { isValidCpf } from '@/lib/cpf'
+import { EMAIL_REGEX, MAX_MONEY, PHONE_BR_REGEX, SAFE_TEXT_REGEX } from '@/lib/masks'
 import {
   createLead,
   createLeadForPatient,
@@ -51,19 +52,18 @@ const leadSchema = z.object({
     .string()
     .min(2, 'Nome obrigatório')
     .max(255, 'Nome muito grande')
-    .regex(
-      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
-      'O nome contém caracteres inválidos'
-    ),
+    .regex(SAFE_TEXT_REGEX, 'O nome contém caracteres inválidos'),
+  // Formato canônico = o que a máscara do frontend produz: `(11) 91234-1234`.
+  // Campo é opcional; string vazia é aceita como "não informado".
   phone: z
     .string()
-    .length(12, 'Telefone inválido')
-    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
-    .optional(),
+    .regex(PHONE_BR_REGEX, 'Telefone inválido. Use o formato (11) 91234-1234')
+    .optional()
+    .or(z.literal('')),
   email: z
     .string()
     .max(255, 'Email de tamanho inválido')
-    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
+    .regex(EMAIL_REGEX, 'E-mail incompleto')
     .email('E-mail inválido')
     .optional()
     .or(z.literal('')),
@@ -72,25 +72,27 @@ const leadSchema = z.object({
   procedureInterest: z
     .string()
     .max(65535, 'Muitos procedimentos de interesse')
-    .regex(
-      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
-      'Os procedimentos de interesse contém caracteres inválidos'
-    )
+    .regex(SAFE_TEXT_REGEX, 'Os procedimentos de interesse contém caracteres inválidos')
     .optional(),
   procedureInterestIds: z.array(z.string().max(64)).max(100, 'Muitos procedimentos').optional(),
-  estimatedValue: z
-    .number()
-    .max(9_999_999_999.99, 'Valor estimado muito alto')
-    .positive()
-    .optional(),
+  estimatedValue: z.number().max(MAX_MONEY, 'Valor estimado muito alto').positive().optional(),
   notes: z
     .string()
     .max(65535, 'Nota muito grande')
-    .regex(
-      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
-      'a nota contém caracteres inválidos'
-    )
+    .regex(SAFE_TEXT_REGEX, 'a nota contém caracteres inválidos')
     .optional(),
+})
+
+/**
+ * CRIAÇÃO exige ao menos UM meio de contato (telefone OU e-mail): um lead sem
+ * contato nenhum nasce inalcançável e trava o funil.
+ *
+ * O `refine` vive aqui, e não no `leadSchema`, porque `updateLeadAction` usa
+ * `leadSchema.partial()` — e `.partial()` não existe em `ZodEffects`.
+ */
+const createLeadSchema = leadSchema.refine((d) => Boolean(d.phone?.trim() || d.email?.trim()), {
+  message: 'Informe telefone ou e-mail',
+  path: ['phone'],
 })
 
 function revalidate(clientId: string) {
@@ -130,11 +132,12 @@ export async function createLeadAction(clientId: string, formData: unknown) {
   enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta action
   await assertCan(ctx, 'crm', 'write')
 
-  const parsed = leadSchema.safeParse(formData)
+  const parsed = createLeadSchema.safeParse(formData)
   if (!parsed.success) return validationFail(parsed.error)
 
   const lead = await createLead(ctx, clientId, {
     ...parsed.data,
+    phone: parsed.data.phone || undefined,
     email: parsed.data.email || undefined,
   })
   createAuditLog(ctx, {
@@ -158,6 +161,7 @@ export async function updateLeadAction(leadId: string, clientId: string, formDat
 
   await updateLead(ctx, leadId, clientId, {
     ...parsed.data,
+    phone: parsed.data.phone || undefined,
     email: parsed.data.email || undefined,
   })
   revalidate(clientId)

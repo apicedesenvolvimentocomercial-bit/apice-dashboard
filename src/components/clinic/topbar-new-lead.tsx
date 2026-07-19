@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { ActionButton } from '@/components/ui/action-button'
 import { CreateLeadDialog } from '@/modules/crm/create-lead-dialog'
 import type { ProcedureOption } from '@/modules/crm/schedule-lead-dialog'
 import { getNewLeadDialogDataAction } from '@/server/actions/lead-actions'
@@ -41,19 +42,14 @@ export function TopbarNewLead({ clientId }: { clientId: string }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={loading}
-        className="flex h-[38px] items-center gap-[7px] rounded-[9px] bg-primary px-[15px] text-[13px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70"
-      >
+      <ActionButton onClick={handleClick} disabled={loading}>
         {loading ? (
-          <Loader2 className="h-[15px] w-[15px] animate-spin" aria-hidden="true" />
+          <Loader2 className="animate-spin" aria-hidden="true" />
         ) : (
-          <Plus className="h-[15px] w-[15px]" aria-hidden="true" />
+          <Plus aria-hidden="true" />
         )}
         Novo lead
-      </button>
+      </ActionButton>
 
       {data && (
         <CreateLeadDialog

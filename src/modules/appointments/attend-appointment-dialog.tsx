@@ -188,7 +188,7 @@ export function AttendAppointmentDialog({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@exemplo.com"
+                placeholder="exemplo@mail.com"
                 disabled={loading}
               />
             </div>

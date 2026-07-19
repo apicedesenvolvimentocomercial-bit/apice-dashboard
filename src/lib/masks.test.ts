@@ -1,0 +1,90 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  MAX_MONEY,
+  PHONE_BR_REGEX,
+  formatMoneyBR,
+  formatPhoneBR,
+  parseMoneyBR,
+  sanitizeMoneyBR,
+} from './masks'
+
+describe('formatPhoneBR', () => {
+  it('mascara progressivamente enquanto o usuário digita', () => {
+    expect(formatPhoneBR('')).toBe('')
+    expect(formatPhoneBR('1')).toBe('(1')
+    expect(formatPhoneBR('11')).toBe('(11')
+    expect(formatPhoneBR('119')).toBe('(11) 9')
+    expect(formatPhoneBR('1191234')).toBe('(11) 91234')
+    expect(formatPhoneBR('11912341')).toBe('(11) 91234-1')
+    expect(formatPhoneBR('11912341234')).toBe('(11) 91234-1234')
+  })
+
+  it('descarta lixo e dígitos além do 11º (colar texto sujo converge p/ a máscara)', () => {
+    expect(formatPhoneBR('+55 (11) 91234-1234')).toBe('(55) 11912-3412')
+    expect(formatPhoneBR('11912341234999')).toBe('(11) 91234-1234')
+    expect(formatPhoneBR('abc')).toBe('')
+  })
+
+  it('a saída completa satisfaz o regex que o zod da action exige', () => {
+    expect(PHONE_BR_REGEX.test(formatPhoneBR('11912341234'))).toBe(true)
+    // Incompleto NÃO passa — o servidor rejeita o que a máscara ainda não fechou.
+    expect(PHONE_BR_REGEX.test(formatPhoneBR('119123'))).toBe(false)
+  })
+
+  it('rejeita DDD com zero à esquerda e celular sem o 9', () => {
+    expect(PHONE_BR_REGEX.test('(01) 91234-1234')).toBe(false)
+    expect(PHONE_BR_REGEX.test('(11) 81234-1234')).toBe(false)
+    expect(PHONE_BR_REGEX.test('11 912341234')).toBe(false) // formato antigo
+  })
+})
+
+describe('sanitizeMoneyBR', () => {
+  it('mantém apenas dígitos e uma vírgula', () => {
+    expect(sanitizeMoneyBR('1234')).toBe('1234')
+    expect(sanitizeMoneyBR('1234,56')).toBe('1234,56')
+    expect(sanitizeMoneyBR('R$ 1.234,56')).toBe('1234,56')
+    expect(sanitizeMoneyBR('12a3b4')).toBe('1234')
+    expect(sanitizeMoneyBR('-12')).toBe('12')
+    expect(sanitizeMoneyBR('1e5')).toBe('15')
+  })
+
+  it('só a primeira vírgula vale', () => {
+    expect(sanitizeMoneyBR('12,34,56')).toBe('12,34')
+    expect(sanitizeMoneyBR('12,3,4')).toBe('12,34')
+    expect(sanitizeMoneyBR(',5')).toBe(',5')
+  })
+
+  it('corta centavos além de 2 casas', () => {
+    expect(sanitizeMoneyBR('10,999')).toBe('10,99')
+    expect(sanitizeMoneyBR('10,5')).toBe('10,5')
+  })
+
+  it('limita a parte inteira ao teto da action', () => {
+    expect(sanitizeMoneyBR('123456789012345')).toBe('1234567890')
+    expect(parseMoneyBR(sanitizeMoneyBR('9999999999,99'))).toBeLessThanOrEqual(MAX_MONEY)
+  })
+})
+
+describe('parseMoneyBR / formatMoneyBR', () => {
+  it('converte pt-BR → número', () => {
+    expect(parseMoneyBR('1234,56')).toBe(1234.56)
+    expect(parseMoneyBR('1234')).toBe(1234)
+    expect(parseMoneyBR('10,5')).toBe(10.5)
+  })
+
+  it('vazio/incompleto vira undefined (campo opcional na action)', () => {
+    expect(parseMoneyBR('')).toBeUndefined()
+    expect(parseMoneyBR(',')).toBeUndefined()
+    expect(parseMoneyBR('abc')).toBeUndefined()
+  })
+
+  it('formata número → pt-BR (autofill da soma dos procedimentos)', () => {
+    expect(formatMoneyBR(1200)).toBe('1200,00')
+    expect(formatMoneyBR(1234.5)).toBe('1234,50')
+  })
+
+  it('ida e volta preserva o valor', () => {
+    expect(parseMoneyBR(formatMoneyBR(1234.56))).toBe(1234.56)
+  })
+})

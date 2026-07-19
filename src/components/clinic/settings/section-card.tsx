@@ -1,6 +1,7 @@
 import { ChevronDown } from 'lucide-react'
 import { forwardRef } from 'react'
 
+import { FieldError as SharedFieldError } from '@/components/ui/field-error'
 import { cn } from '@/lib/utils'
 
 /**
@@ -18,6 +19,11 @@ export const SETTINGS_INPUT =
 export const SETTINGS_TEXTAREA =
   'w-full resize-y rounded-[9px] border border-input bg-background px-3 py-2.5 text-[13.5px] leading-normal text-foreground transition-shadow placeholder:text-muted-foreground/70 focus:border-ring focus:outline-none focus:[box-shadow:0_0_0_3px_hsl(var(--ring)/0.18)]'
 
+/**
+ * Primário na escala de Configurações: 40px para casar com os `SETTINGS_INPUT`
+ * (h-10) ao lado. Fora desta tela a ação primária é o `ActionButton` (38px) —
+ * não troque um pelo outro.
+ */
 export const SETTINGS_BTN_PRIMARY =
   'inline-flex h-10 flex-none items-center justify-center gap-[7px] rounded-[9px] bg-primary px-[18px] text-[13.5px] font-semibold text-primary-foreground transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60'
 
@@ -91,8 +97,11 @@ export const SettingsSelect = forwardRef<
   )
 })
 
-/** Mensagem de validação inline (nunca alert()). */
+/**
+ * Mensagem de validação inline (nunca alert()). Reexporta o primitivo canônico
+ * só para acrescentar o respiro vertical das seções — a garantia de uma linha
+ * (e a largura máxima) vem de `FieldError`.
+ */
 export function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return <p className="m-0 mt-1.5 text-xs text-destructive">{message}</p>
+  return <SharedFieldError message={message} className="mt-1.5" />
 }
