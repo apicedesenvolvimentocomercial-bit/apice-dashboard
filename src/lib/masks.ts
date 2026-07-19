@@ -13,6 +13,9 @@ export const PHONE_BR_REGEX = /^\([1-9]{2}\) 9\d{4}-\d{4}$/
 /** E-mail — mesmo teste "frouxo" usado nas actions, antes do `.email()` do zod. */
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+/** CPF mascarado: `123.456.789-01` — mesmo formato exigido por `isValidCpf` (`lib/cpf`). */
+export const CPF_REGEX = /^\d{3}\.\d{3}\.\d{3}-\d{2}$/
+
 /**
  * Texto livre seguro (nome, notas, procedimentos de interesse) — mesma lista de
  * caracteres aceita pelas actions do servidor.
@@ -36,6 +39,19 @@ export function formatPhoneBR(raw: string): string {
   if (d.length <= 2) return `(${d}`
   if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
+/**
+ * Aplica a máscara de CPF progressivamente (aceita entrada parcial):
+ * `1` → `1` · `1234` → `123.4` · `12345678901` → `123.456.789-01`.
+ * Só dígitos entram; além do 11º são descartados.
+ */
+export function formatCpf(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
 }
 
 /**

@@ -377,7 +377,7 @@ const scheduleSchema = z.object({
   scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   durationMinutes: z
     .number()
-    .max(360, 'Duração de procedimento muito grande muito grande')
+    .max(1000, 'Duração de procedimento muito grande muito grande')
     .int()
     .positive(),
   notes: z
@@ -398,7 +398,7 @@ const rescheduleSchema = z.object({
   scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
   durationMinutes: z
     .number()
-    .max(360, 'Duração de procedimento muito grande muito grande')
+    .max(1000, 'Duração de procedimento muito grande muito grande')
     .int()
     .positive(),
   notes: z
@@ -758,7 +758,9 @@ export async function addInteractionAction(
 
   const interaction = await addInteraction(ctx, clientId, leadId, type, content.trim())
   if (!interaction) return fail(new NotFoundError('Lead'))
-  revalidate(clientId)
+  // Sem revalidate: interação não aparece no board (KanbanLead não a exibe) —
+  // revalidar aqui re-renderizava a página inteira e fazia o drawer recarregar.
+  // O card faz append otimista com o retorno.
   return ok(interaction)
 }
 

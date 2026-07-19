@@ -223,7 +223,7 @@ export function AssetsTab({ clientId }: { clientId: string }) {
                   key={a.id}
                   className={cn(
                     ASSET_GRID,
-                    'border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50',
+                    'group border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50',
                     a.disposedAt && 'opacity-60'
                   )}
                 >
@@ -262,7 +262,7 @@ export function AssetsTab({ clientId }: { clientId: string }) {
                         onClick={() =>
                           act(() => disposeFixedAssetAction(clientId, a.id), 'Ativo baixado')
                         }
-                        className="whitespace-nowrap text-[12.5px] font-semibold text-primary-text hover:underline disabled:opacity-50"
+                        className="whitespace-nowrap text-[12.5px] font-semibold text-primary-text opacity-0 transition hover:underline focus-visible:opacity-100 disabled:opacity-50 group-hover:opacity-100"
                       >
                         Dar baixa
                       </button>
@@ -275,7 +275,7 @@ export function AssetsTab({ clientId }: { clientId: string }) {
                       onClick={() =>
                         act(() => deleteFixedAssetAction(clientId, a.id), 'Ativo excluído')
                       }
-                      className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/[0.12] hover:text-destructive disabled:opacity-50"
+                      className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground opacity-0 transition hover:bg-destructive/[0.12] hover:text-destructive focus-visible:opacity-100 disabled:opacity-50 group-hover:opacity-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -344,7 +344,7 @@ export function AssetsTab({ clientId }: { clientId: string }) {
                   key={r.id}
                   className={cn(
                     RENTAL_GRID,
-                    'border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50'
+                    'group border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50'
                   )}
                 >
                   <div className="truncate text-[13px] font-semibold">
@@ -371,7 +371,7 @@ export function AssetsTab({ clientId }: { clientId: string }) {
                       onClick={() =>
                         act(() => deleteCostAction(r.id, clientId), 'Aluguel removido')
                       }
-                      className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/[0.12] hover:text-destructive disabled:opacity-50"
+                      className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground opacity-0 transition hover:bg-destructive/[0.12] hover:text-destructive focus-visible:opacity-100 disabled:opacity-50 group-hover:opacity-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>

@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus, Users } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Plus, Users } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -12,6 +12,7 @@ import { cn, getInitials } from '@/lib/utils'
 import type { PatientWithStats } from '@/server/repositories/patient-repository'
 
 import { CreatePatientDialog } from './create-patient-dialog'
+import { EditPatientDialog } from './edit-patient-dialog'
 
 // "Inativo" = sem atividade há mais tempo que este corte. Espelha o default de
 // `Client.winbackDays` (retenção → bucket "Salvamento/Inativos"). É uma derivação
@@ -80,6 +81,7 @@ type Props = {
 export function PatientsList({ patients, clientId }: Props) {
   const router = useRouter()
   const [createOpen, setCreateOpen] = useState(false)
+  const [editPatient, setEditPatient] = useState<PatientWithStats | null>(null)
   const [drawerPatientId, setDrawerPatientId] = useState<string | null>(null)
   const [tab, setTab] = useState<TabKey>('todos')
   const [page, setPage] = useState(1)
@@ -226,7 +228,7 @@ export function PatientsList({ patients, clientId }: Props) {
                 }}
                 className={cn(
                   GRID,
-                  'cursor-pointer border-t border-border px-5 py-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
+                  'group relative cursor-pointer border-t border-border px-5 py-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
                 )}
               >
                 {/* Paciente */}
@@ -300,6 +302,20 @@ export function PatientsList({ patients, clientId }: Props) {
                     </span>
                   )}
                 </div>
+
+                {/* Editar (hover da linha) — stopPropagation p/ não abrir o drawer. */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setEditPatient(p)
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  aria-label={`Editar ${p.name}`}
+                  className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </button>
               </div>
             )
           })}
@@ -368,6 +384,21 @@ export function PatientsList({ patients, clientId }: Props) {
         onOpenChange={setCreateOpen}
         onCreated={() => router.refresh()}
       />
+
+      {editPatient && (
+        <EditPatientDialog
+          open
+          clientId={clientId}
+          patient={editPatient}
+          onOpenChange={(o) => {
+            if (!o) setEditPatient(null)
+          }}
+          onUpdated={() => {
+            setEditPatient(null)
+            router.refresh()
+          }}
+        />
+      )}
 
       <ClientCard
         open={drawerPatientId !== null}

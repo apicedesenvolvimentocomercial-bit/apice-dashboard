@@ -18,10 +18,7 @@ import {
   softDeletePatient,
   quickSearchPatients,
 } from '@/server/repositories/patient-repository'
-import {
-  findCommercialLeadForPatient,
-  findRetentionLeadForPatient,
-} from '@/server/repositories/lead-repository'
+import { findCommercialLeadForPatient } from '@/server/repositories/lead-repository'
 import { listPipelines } from '@/server/repositories/pipeline-repository'
 import {
   addPatientToRetention,
@@ -29,35 +26,9 @@ import {
 } from '@/server/services/retention-service'
 import { logger } from '@/lib/logger'
 
-const patientSchema = z.object({
-  name: z
-    .string()
-    .min(2, 'Nome obrigatório')
-    .max(255, 'Nome muito grande')
-    .regex(
-      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
-      'O nome contém caracteres inválidos'
-    ),
-  phone: z
-    .string()
-    .length(12, 'Telefone inválido')
-    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
-    .optional(),
-  email: z
-    .string()
-    .max(255, 'Email de tamanho inválido')
-    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email com formato inválido')
-    .email('E-mail inválido')
-    .optional()
-    .or(z.literal('')),
-  birthDate: z.string().max(30, 'Data inválida').optional(),
-  cpf: z.string().max(20, 'CPF inválido').optional(),
-  notes: z.string().max(65535, 'Nota muito grande').optional(),
-  tags: z.array(z.string().max(100, 'Tag muito grande')).max(50, 'Muitas tags').optional(),
-})
-
-// feat1 — Cadastro manual exige os 5 campos. Schema separado p/ o create;
-// `updatePatientAction` segue usando o `patientSchema.partial()` (edição lenient).
+// feat1 — Cadastro manual exige os 5 campos. O MESMO schema vale para a edição
+// manual (`updatePatientAction`): editar um paciente re-exige dados válidos
+// (máscaras + `isValidCpf`), mantendo uma única definição de "paciente válido".
 const createPatientSchema = z.object({
   name: z.string().min(2, 'Nome obrigatório').max(255, 'Nome muito grande'),
   phone: z.string().min(1, 'Telefone obrigatório').max(20, 'Telefone inválido'),
@@ -118,38 +89,6 @@ export async function getPatientAction(patientId: string, clientId: string) {
   const patient = await findPatientById(ctx, clientId, patientId)
   if (!patient) return fail(new NotFoundError('Paciente'))
   return ok(patient)
-}
-
-/**
- * Contexto de RETENÇÃO do paciente p/ o card UNIFICADO (aba Pacientes / busca do
- * topbar): o card de paciente passa a mostrar a MESMA engajamento do funil —
- * timeline de interações + "Registrar interação" + "Mover para funil" — além dos
- * dados clínicos. Retorna `null` (card fica só clínico) quando o usuário não lê
- * CRM ou o paciente ainda não tem card de retenção. `crm:write` é enforçado nas
- * ações de escrita (addInteraction / move), igual ao card do funil.
- */
-export async function getPatientRetentionContextAction(clientId: string, patientId: string) {
-  const ctx = await getTenantContext()
-  await assertClientAccess(ctx, clientId)
-  enterClientScope(clientId)
-  await assertCan(ctx, 'patients', 'read')
-
-  // Engajamento (interações + mover de funil) é do módulo CRM — sem leitura de
-  // CRM o card mostra só a parte clínica.
-  if (!(await can(ctx.userId, ctx.role, 'crm', 'read'))) return ok(null)
-
-  const lead = await findRetentionLeadForPatient(ctx, clientId, patientId)
-  if (!lead) return ok(null)
-
-  const viewerId = await resolveOwnerScope(ctx, 'crm')
-  const pipelines = await listPipelines(ctx, clientId, viewerId)
-  return ok({
-    leadId: lead.id,
-    pipelineId: lead.stage.pipelineId,
-    pipelineCategory: lead.stage.pipeline.category,
-    pipelines: pipelines.map((p) => ({ id: p.id, name: p.name, category: p.category })),
-    interactions: lead.interactions,
-  })
 }
 
 /**
@@ -221,15 +160,18 @@ export async function updatePatientAction(patientId: string, clientId: string, f
   enterClientScope(clientId)
   await assertCan(ctx, 'patients', 'write')
 
-  const parsed = patientSchema.partial().safeParse(formData)
+  // Edição manual re-exige os 5 campos válidos (mesmo schema do cadastro).
+  const parsed = createPatientSchema.safeParse(formData)
   if (!parsed.success) return validationFail(parsed.error)
 
   await updatePatient(ctx, patientId, clientId, {
     ...parsed.data,
-    email: parsed.data.email || undefined,
-    birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : undefined,
+    birthDate: new Date(parsed.data.birthDate),
   })
   revalidate(clientId)
+  // O nome do paciente aparece no board de retenção (CRM) — revalida também lá.
+  revalidatePath('/crm')
+  revalidatePath(`/clients/${clientId}/crm`)
   return ok(null)
 }
 

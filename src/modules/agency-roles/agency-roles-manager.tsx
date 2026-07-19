@@ -140,7 +140,7 @@ export function AgencyRolesManager({ roles, users, viewerLevel }: Props) {
                 return (
                   <div
                     key={role.id}
-                    className="flex items-center justify-between gap-3 px-3 py-2.5"
+                    className="group flex items-center justify-between gap-3 px-3 py-2.5"
                   >
                     <div>
                       <div className="text-sm font-medium">
@@ -158,7 +158,7 @@ export function AgencyRolesManager({ roles, users, viewerLevel }: Props) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-8 w-8 opacity-0 transition focus-visible:opacity-100 group-hover:opacity-100"
                         onClick={() => openEdit(role)}
                         disabled={pending || !editable}
                         aria-label={`Editar ${role.name}`}
@@ -168,7 +168,7 @@ export function AgencyRolesManager({ roles, users, viewerLevel }: Props) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-rose-600 hover:text-rose-700"
+                        className="h-8 w-8 text-rose-600 opacity-0 transition hover:text-rose-700 focus-visible:opacity-100 group-hover:opacity-100"
                         onClick={() => removeRole(role)}
                         disabled={pending || !editable}
                         aria-label={`Excluir ${role.name}`}

@@ -252,8 +252,11 @@ aviso/erro com fundo claro). Aí escreva os dois lados, ex.:
     (`fromScheduledLead=false`) e o Appointment `ATTENDED`. **Fechar EXIGE Appointment já
     `ATTENDED`** (`moveLeadWithEffect` retorna `not-attended` senão) — não auto-marca: arrastar
     Agendado→Fechado direto é bloqueado (passe por Compareceu). O atalho "Ganhou" do drawer foi
-    REMOVIDO (burlava o fluxo). Cadastro manual de paciente (`createPatientAction`) também exige
-    os 5 campos (`createPatientSchema`); `updatePatientAction` segue lenient.
+    REMOVIDO (burlava o fluxo). Cadastro **e edição** manual de paciente
+    (`createPatientAction`/`updatePatientAction`) exigem os mesmos 5 campos válidos
+    (`createPatientSchema`, com `isValidCpf`) — uma única definição de "paciente válido".
+    O front espelha as regras em `modules/patients/patient-form.ts` (`validatePatientForm`),
+    com máscaras `PhoneInput`/`CpfInput` (`123.456.789-01`) e limites do zod nos inputs.
   - **Excluir Appointment de pipeline retrocede o card** (`regressAppointmentToLead` via
     `regressAppointmentToLeadAction`): volta o card à etapa `LEAD` da mesma pipeline e desfaz os
     efeitos (`regressLeadStage` soft-deleta o Appointment). Sem card ligado = soft-delete normal.

@@ -75,6 +75,46 @@ export async function can(
 }
 
 /**
+ * Resolução em LOTE — MESMA ordem de decisão do `can()`, mas com 1 única query:
+ * busca coroa+cargo uma vez e devolve um checador SÍNCRONO. Use quando a mesma
+ * request precisa de VÁRIAS decisões (ex.: card do cliente) — n×`can()` viram
+ * 1 query. Não guarde o checador além do request: cargo/coroa mudam a qualquer
+ * momento e a decisão deve ser fresca por request, igual ao `can()`.
+ */
+export async function getPermissionChecker(
+  userId: string,
+  role: UserRole
+): Promise<(module: string, action: Action) => boolean> {
+  if (role === 'ADMIN') return () => true
+
+  if (AGENCY_ROLES.has(role)) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { agencyRole: { select: { permissions: true } } },
+    })
+    if (!user?.agencyRole) return () => false
+    const perms = parseRolePermissions(user.agencyRole.permissions)
+    return (module, action) => roleCan(perms, module, action)
+  }
+
+  if (CLINIC_ROLES.has(role)) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        ownedClient: { select: { id: true } },
+        clinicRole: { select: { permissions: true } },
+      },
+    })
+    if (user?.ownedClient) return () => true
+    if (!user?.clinicRole) return () => false
+    const perms = parseRolePermissions(user.clinicRole.permissions)
+    return (module, action) => roleCan(perms, module, action)
+  }
+
+  return () => false
+}
+
+/**
  * Versão síncrona — NÃO consulta o DB, então NÃO enxerga cargo nem titularidade.
  * Com deny-by-default, sem DB não há como conceder nada exceto ADMIN. Use só
  * onde a ausência de concessão é o resultado seguro desejado; nunca como gate

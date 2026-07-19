@@ -232,7 +232,9 @@ function AccountMenu({
               </span>
             </div>
 
-            <div className="flex flex-col px-1.5 pb-1.5">
+            <div className="h-px bg-border" />
+
+            <div className="flex flex-col px-1.5 pb-1.5 pt-1.5">
               <Link
                 href="/configuracoes"
                 role="menuitem"
@@ -243,7 +245,7 @@ function AccountMenu({
                 Meu perfil
               </Link>
 
-              <div className="-mx-1.5 my-1 h-px bg-border" />
+              <div className="mx-2 my-1 h-px bg-border/60" />
 
               <button
                 type="button"

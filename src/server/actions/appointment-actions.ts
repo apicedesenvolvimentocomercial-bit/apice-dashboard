@@ -39,7 +39,7 @@ const appointmentSchema = z.object({
     .min(1, 'Selecione ao menos um procedimento')
     .max(100, 'Muitos procedimentos'),
   scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
-  durationMinutes: z.number().max(360, 'tempo de procedimento excede o limite').int().positive(),
+  durationMinutes: z.number().max(1000, 'tempo de procedimento excede o limite').int().positive(),
   notes: z
     .string()
     .max(65535, 'Nota muito grande')
@@ -139,7 +139,7 @@ const scheduledLeadSchema = z
       .min(1, 'Selecione ao menos um procedimento')
       .max(100, 'Muitos procedimentos'),
     scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
-    durationMinutes: z.number().max(360, 'tempo de procedimento excede o limite').int().positive(),
+    durationMinutes: z.number().max(1000, 'tempo de procedimento excede o limite').int().positive(),
     notes: z
       .string()
       .max(65535, 'Nota muito grande')

@@ -397,7 +397,7 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
                 key={r.id}
                 className={cn(
                   GRID,
-                  'border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50'
+                  'group border-t border-border px-[18px] py-[13px] transition-colors hover:bg-accent/50'
                 )}
               >
                 <div className="text-[12.5px] tabular-nums">
@@ -444,7 +444,7 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
                     title="Editar"
                     aria-label="Editar receita"
                     onClick={() => openEdit(r)}
-                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                   >
                     <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -454,7 +454,7 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
                       title="Estornar"
                       aria-label="Estornar receita"
                       onClick={() => handleCancel(r.id)}
-                      className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                     >
                       <Ban className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -465,7 +465,7 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
                     aria-label="Remover receita"
                     disabled={deleting === r.id}
                     onClick={() => handleDelete(r.id)}
-                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/[0.12] hover:text-destructive disabled:opacity-50"
+                    className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-muted-foreground opacity-0 transition hover:bg-destructive/[0.12] hover:text-destructive focus-visible:opacity-100 disabled:opacity-50 group-hover:opacity-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>

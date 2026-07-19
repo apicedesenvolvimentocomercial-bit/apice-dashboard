@@ -98,7 +98,7 @@ export function ProceduresTab({ procedures, clientId }: Props) {
                       ? 'text-amber-600'
                       : 'text-green-700'
                 return (
-                  <tr key={p.id} className="border-b last:border-0 hover:bg-muted/20">
+                  <tr key={p.id} className="group border-b last:border-0 hover:bg-muted/20">
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1.5">
                         <span className={!p.isActive ? 'text-muted-foreground line-through' : ''}>
@@ -133,7 +133,7 @@ export function ProceduresTab({ procedures, clientId }: Props) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          className="h-7 w-7 text-muted-foreground opacity-0 transition hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                           onClick={() => openEdit(p)}
                           aria-label="Editar procedimento"
                         >
@@ -142,7 +142,7 @@ export function ProceduresTab({ procedures, clientId }: Props) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          className="h-7 w-7 text-muted-foreground opacity-0 transition hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
                           disabled={deleting === p.id}
                           onClick={() => handleDelete(p.id)}
                           aria-label="Remover procedimento"

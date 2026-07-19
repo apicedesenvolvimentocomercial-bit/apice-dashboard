@@ -20,6 +20,9 @@ type Props = {
   disabled?: boolean
   id?: string
   className?: string
+  /** Classes extras do DROPDOWN (ex.: `bg-background` dentro de Dialog, onde o
+   *  `bg-popover` padrão destoa do fundo no dark). */
+  contentClassName?: string
   // Default true. Passe `false` quando o select vive DENTRO de um Dialog — sem
   // portal a lista rola por roda/trackpad (o portal a tira do lock de scroll do
   // Dialog, que bloqueia a roda e só deixa arrastar a barra).
@@ -41,6 +44,7 @@ export function SearchableSelect({
   disabled,
   id,
   className,
+  contentClassName,
   portal = true,
 }: Props) {
   const [open, setOpen] = useState(false)
@@ -67,11 +71,16 @@ export function SearchableSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-0"
+        className={cn('w-[var(--radix-popover-trigger-width)] p-0', contentClassName)}
         align="start"
         portal={portal}
       >
-        <CommandPrimitive className="flex flex-col overflow-hidden rounded-md bg-popover text-popover-foreground">
+        <CommandPrimitive
+          className={cn(
+            'flex flex-col overflow-hidden rounded-md bg-popover text-popover-foreground',
+            contentClassName
+          )}
+        >
           <div className="flex items-center border-b px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
             <CommandPrimitive.Input

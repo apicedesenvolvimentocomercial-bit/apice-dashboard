@@ -230,7 +230,9 @@ export async function findLeadById(ctx: TenantContext, clientId: string, leadId:
     where: { id: leadId, clientId, organizationId: ctx.organizationId, deletedAt: null },
     include: {
       stage: { select: { id: true, name: true, color: true, isWon: true, isLost: true } },
-      interactions: { orderBy: { createdAt: 'desc' } },
+      // Histórico não tem teto natural — cap p/ o payload do drawer não crescer
+      // para sempre em leads antigos.
+      interactions: { orderBy: { createdAt: 'desc' }, take: 50 },
     },
   })
 }
@@ -260,6 +262,7 @@ export async function findRetentionLeadForPatient(
       stage: { select: { pipelineId: true, pipeline: { select: { category: true } } } },
       interactions: {
         orderBy: { createdAt: 'desc' },
+        take: 50,
         select: { id: true, type: true, content: true, createdAt: true },
       },
     },
