@@ -16,6 +16,7 @@ import {
   Phone,
   Plus,
   Send,
+  Star,
   ThumbsDown,
   Trash2,
   Upload,
@@ -1046,25 +1047,41 @@ function LeadInfo({
         </div>
       </div>
 
+      {/* Observações moram JUNTO dos dados de contato/origem, com rótulo
+          explícito (antes era um texto solto sem identificação). `line-clamp-4`
+          trava o teto de 4 linhas — o input dos popups limita em
+          MAX_CARD_NOTES (lib/masks) pelo mesmo motivo. */}
+      {lead.notes && (
+        <div className="flex flex-col gap-1.5">
+          {/* Rótulo estilo Overline + estrela dourada: separa visualmente o
+              TÍTULO do texto da observação (ambos eram muted 12.5px). */}
+          <span className="flex items-center gap-1.5">
+            <Star className="h-3.5 w-3.5 fill-primary text-primary" aria-hidden="true" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+              Observações
+            </span>
+          </span>
+          <p
+            className="line-clamp-4 whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground"
+            title={lead.notes}
+          >
+            {lead.notes}
+          </p>
+        </div>
+      )}
+
       {/* Bloco de dados restante (§10.2). */}
-      {(lead.estimatedValue != null || lead.notes) && (
+      {lead.estimatedValue != null && (
         <div className="flex flex-col gap-3 border-t border-border pt-4">
-          {lead.estimatedValue != null && (
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12.5px] text-muted-foreground">Valor estimado</span>
-              <span className="text-sm font-semibold tabular-nums">
-                {lead.estimatedValue.toLocaleString('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                })}
-              </span>
-            </div>
-          )}
-          {lead.notes && (
-            <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
-              {lead.notes}
-            </p>
-          )}
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[12.5px] text-muted-foreground">Valor estimado</span>
+            <span className="text-sm font-semibold tabular-nums">
+              {lead.estimatedValue.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              })}
+            </span>
+          </div>
         </div>
       )}
 
@@ -1116,7 +1133,7 @@ function LeadInfo({
               )}
             >
               <ThumbsDown className="h-[15px] w-[15px]" aria-hidden="true" />
-              Perdeu
+              Perdido
             </button>
           )}
         </div>
@@ -1335,25 +1352,37 @@ function PatientInfo({
         </div>
       )}
 
-      {(patient.notes || patient.tags.length > 0) && (
+      {/* Observações rotuladas, junto dos dados de contato/datas — mesmo padrão
+          do card do lead; `line-clamp-4` + MAX_CARD_NOTES no input. */}
+      {patient.notes && (
+        <div className="flex flex-col gap-1.5">
+          <span className="flex items-center gap-1.5">
+            <Star className="h-3.5 w-3.5 fill-primary text-primary" aria-hidden="true" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+              Observações
+            </span>
+          </span>
+          <p
+            className="line-clamp-4 whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground"
+            title={patient.notes}
+          >
+            {patient.notes}
+          </p>
+        </div>
+      )}
+
+      {patient.tags.length > 0 && (
         <div className="flex flex-col gap-3 border-t border-border pt-4">
-          {patient.notes && (
-            <p className="whitespace-pre-wrap break-words text-[12.5px] italic text-muted-foreground">
-              {patient.notes}
-            </p>
-          )}
-          {patient.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {patient.tags.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1.5">
+            {patient.tags.map((t) => (
+              <span
+                key={t}
+                className="rounded-full bg-secondary px-[9px] py-0.5 text-[11px] font-semibold text-secondary-foreground"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 

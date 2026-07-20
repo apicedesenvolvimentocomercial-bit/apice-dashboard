@@ -17,6 +17,7 @@ import { PhoneInput } from '@/components/ui/phone-input'
 import { DateInput } from '@/components/ui/date-input'
 import { FieldError } from '@/components/ui/field-error'
 import { Label } from '@/components/ui/label'
+import { MAX_CARD_NOTES } from '@/lib/masks'
 import { cn } from '@/lib/utils'
 import { updatePatientAction } from '@/server/actions/patient-actions'
 
@@ -207,7 +208,7 @@ export function EditPatientDialog({ open, clientId, patient, onOpenChange, onUpd
               value={form.notes}
               onChange={(e) => handleChange('notes', e.target.value)}
               rows={2}
-              maxLength={65535}
+              maxLength={MAX_CARD_NOTES}
               className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               placeholder="Anotações sobre o paciente..."
             />

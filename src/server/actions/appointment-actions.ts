@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { isValidCpf } from '@/lib/cpf'
 
 import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
-import { EMAIL_REGEX, PHONE_BR_REGEX } from '@/lib/masks'
+import { EMAIL_REGEX, MAX_CARD_NOTES, PHONE_BR_REGEX } from '@/lib/masks'
 import { ok, fail, NotFoundError, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -140,9 +140,11 @@ const scheduledLeadSchema = z
       .max(100, 'Muitos procedimentos'),
     scheduledAt: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
     durationMinutes: z.number().max(1000, 'tempo de procedimento excede o limite').int().positive(),
+    // Vira `Lead.notes` (além de `Appointment.notes`) — teto baixo p/ caber em
+    // ≤4 linhas no card do lead (ver MAX_CARD_NOTES em lib/masks).
     notes: z
       .string()
-      .max(65535, 'Nota muito grande')
+      .max(MAX_CARD_NOTES, 'Observação muito grande')
       .regex(
         /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
         'O texto contém caracteres inválidos'

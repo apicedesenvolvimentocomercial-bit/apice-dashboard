@@ -26,6 +26,15 @@ export const SAFE_TEXT_REGEX =
 /** Maior valor monetário aceito pelas actions (`estimatedValue`, receitas, custos). */
 export const MAX_MONEY = 9_999_999_999.99
 
+/**
+ * Teto das "Observações" de LEAD e de PACIENTE — vale p/ todos os popups que
+ * criam/editam (funil, agenda, cadastro/edição de paciente) e p/ o zod das
+ * actions. O número vem do card (client-card): a observação mora junto dos
+ * dados de contato e deve caber em no MÁXIMO 4 linhas (~60 chars/linha;
+ * `line-clamp-4` no card é a rede de segurança).
+ */
+export const MAX_CARD_NOTES = 240
+
 const MONEY_MAX_INT_DIGITS = 10 // casa com MAX_MONEY
 
 /**

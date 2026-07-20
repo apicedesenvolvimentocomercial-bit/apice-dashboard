@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/searchable-select'
 import { cn } from '@/lib/utils'
-import { EMAIL_REGEX, PHONE_BR_REGEX, SAFE_TEXT_REGEX } from '@/lib/masks'
+import { EMAIL_REGEX, MAX_CARD_NOTES, PHONE_BR_REGEX, SAFE_TEXT_REGEX } from '@/lib/masks'
 import { getScheduleViolation } from '@/lib/schedule-violation'
 import {
   createAppointmentAction,
@@ -681,7 +681,7 @@ export function CreateAppointmentDialog({
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               onBlur={() => setNotesTouched(true)}
               rows={2}
-              maxLength={65535}
+              maxLength={MAX_CARD_NOTES}
               aria-invalid={!!notesError}
               className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               placeholder="Observações opcionais..."

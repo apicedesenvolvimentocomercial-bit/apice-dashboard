@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale'
 import {
   Check,
   CheckSquare,
+  ChevronDown,
   Mail,
   MessageSquare,
   MoreHorizontal,
@@ -33,13 +34,21 @@ import {
   updateClinicActivityStatusAction,
 } from '@/domains/clinic/activities/activity-actions'
 import { cn } from '@/lib/utils'
-import { activityTypeLabel, type ActivityView } from '@/components/shared/activities/types'
+import {
+  activityTypeLabel,
+  PRIORITY_LABEL,
+  STATUS_LABEL,
+  type ActivityView,
+} from '@/components/shared/activities/types'
 
 /**
  * Linha de atividade do redesign (atividades-handoff §7): tile de ícone por
  * TIPO (tints HSL fixos — são cor de dado, não chrome), título + sub
  * "{tipo} · {alvo}", prazo à direita (destructive quando atrasada), pill
  * "Alta"/"Urgente" e checkbox de conclusão com animação de saída (§8).
+ *
+ * Clicar na linha expande o conteúdo completo (descrição + metadados), com a
+ * mesma animação grid-rows 0fr↔1fr dos cards de Insights.
  *
  * O menu "..." (Iniciar/Cancelar/Excluir/Reabrir) não existe no protótipo,
  * mas preserva funcionalidade real — aparece só no hover da linha.
@@ -94,6 +103,7 @@ export function ClinicActivityRow({ activity, assigneeSuffix, isNewForViewer }: 
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [leaving, setLeaving] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   const isDone = activity.status === 'COMPLETED'
   const isCanceled = activity.status === 'CANCELED'
@@ -164,117 +174,213 @@ export function ClinicActivityRow({ activity, assigneeSuffix, isNewForViewer }: 
     })
   }
 
+  // Metadados do corpo expandido — pares "rótulo: valor" numa linha que quebra.
+  const detailPairs: { label: string; value: string }[] = [
+    { label: 'Tipo', value: activityTypeLabel(activity) },
+    { label: 'Prioridade', value: PRIORITY_LABEL[activity.priority] },
+    { label: 'Status', value: STATUS_LABEL[activity.status] },
+    ...(activity.target
+      ? [
+          {
+            label: activity.target.type === 'lead' ? 'Lead' : 'Paciente',
+            value: activity.target.name,
+          },
+        ]
+      : []),
+    ...(activity.assignedTo ? [{ label: 'Responsável', value: activity.assignedTo.name }] : []),
+    ...(activity.dueDate
+      ? [
+          {
+            label: 'Vencimento',
+            value: format(new Date(activity.dueDate), "dd/MM/yyyy 'às' HH:mm"),
+          },
+        ]
+      : []),
+    ...(activity.createdBy
+      ? [
+          {
+            label: 'Criada por',
+            value: `${activity.createdBy.name} em ${format(new Date(activity.createdAt), 'dd/MM/yyyy')}`,
+          },
+        ]
+      : []),
+  ]
+
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      // Sem o label, o nome acessível do "botão" seria o texto da linha
+      // inteira (título + prazo + corpo expandido concatenados).
+      aria-label={activity.title}
+      onClick={() => setExpanded((v) => !v)}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          setExpanded((v) => !v)
+        }
+      }}
       className={cn(
-        'senno-act-row group flex items-center gap-3.5 border-t border-border px-[18px] py-3.5 hover:bg-accent/50',
+        'senno-act-row group cursor-pointer border-t border-border px-[18px] py-3.5 hover:bg-accent/50',
         leaving && 'senno-act-leaving'
       )}
+      // `.senno-act-row` tem `max-height: 180px` (teto p/ a animação de saída);
+      // expandida, o corpo pode passar disso — solta o teto. O colapso do
+      // `.senno-act-leaving` segue funcionando (max-height 0 é !important).
+      style={{ maxHeight: expanded ? 'none' : undefined }}
     >
-      <span
-        className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[10px]"
-        style={{ background: tile.bg, color: tile.color }}
-        title={activityTypeLabel(activity)}
-      >
-        <TileIcon className="h-[18px] w-[18px]" aria-hidden="true" />
-      </span>
+      <div className="flex items-center gap-3.5">
+        <span
+          className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[10px]"
+          style={{ background: tile.bg, color: tile.color }}
+          title={activityTypeLabel(activity)}
+        >
+          <TileIcon className="h-[18px] w-[18px]" aria-hidden="true" />
+        </span>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          {isNewForViewer && !isDone && (
-            <span className="flex-none rounded-full bg-primary/[0.16] px-2 py-px text-[10.5px] font-semibold text-primary-text">
-              Nova
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {isNewForViewer && !isDone && (
+              <span className="flex-none rounded-full bg-primary/[0.16] px-2 py-px text-[10.5px] font-semibold text-primary-text">
+                Nova
+              </span>
+            )}
+            <span
+              className={cn(
+                'truncate text-[13.5px] font-semibold',
+                isDone || isCanceled ? 'text-muted-foreground line-through' : 'text-foreground'
+              )}
+            >
+              {activity.title}
             </span>
+          </div>
+          {subParts.length > 0 && (
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">
+              {subParts.join(' · ')}
+            </div>
           )}
+        </div>
+
+        {when && (
           <span
             className={cn(
-              'truncate text-[13.5px] font-semibold',
-              isDone || isCanceled ? 'text-muted-foreground line-through' : 'text-foreground'
+              'flex-none whitespace-nowrap text-xs font-medium tabular-nums',
+              isOverdue ? 'text-destructive' : 'text-muted-foreground'
             )}
           >
-            {activity.title}
+            {when}
           </span>
-        </div>
-        {subParts.length > 0 && (
-          <div className="mt-0.5 truncate text-xs text-muted-foreground">
-            {subParts.join(' · ')}
-          </div>
         )}
+
+        {showHighPill && (
+          <span
+            className={cn(
+              'flex-none rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
+              isUrgent ? 'bg-destructive/[0.12] text-destructive' : 'bg-warn-bg text-warn'
+            )}
+          >
+            {isUrgent ? 'Urgente' : 'Alta'}
+          </span>
+        )}
+
+        {isDone ? (
+          <span
+            className="senno-check flex h-6 w-6 flex-none items-center justify-center rounded-full border-[1.5px] border-ok bg-ok text-[hsl(0_0%_100%)]"
+            aria-label="Concluída"
+          >
+            <Check className="h-[13px] w-[13px]" aria-hidden="true" />
+          </span>
+        ) : (
+          <button
+            type="button"
+            aria-label="Concluir atividade"
+            disabled={pending || leaving}
+            onClick={(e) => {
+              e.stopPropagation()
+              complete()
+            }}
+            className="senno-check flex h-6 w-6 flex-none cursor-pointer items-center justify-center rounded-full border-[1.5px] border-border bg-transparent text-muted-foreground/40 transition-[background-color,border-color,color,transform] duration-200 hover:border-ok hover:bg-ok/[0.12] hover:text-ok"
+          >
+            <Check className="h-[13px] w-[13px]" aria-hidden="true" />
+          </button>
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label="Mais opções"
+              onClick={(e) => e.stopPropagation()}
+              className="h-7 w-7 flex-none text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {activity.status === 'PENDING' && (
+              <DropdownMenuItem onClick={() => setStatus('IN_PROGRESS')}>
+                <Play className="mr-2 h-4 w-4" /> Iniciar
+              </DropdownMenuItem>
+            )}
+            {isDone && (
+              <DropdownMenuItem onClick={() => setStatus('PENDING')}>
+                <Play className="mr-2 h-4 w-4" /> Reabrir
+              </DropdownMenuItem>
+            )}
+            {!isDone && !isCanceled && (
+              <DropdownMenuItem onClick={() => setStatus('CANCELED')}>
+                <X className="mr-2 h-4 w-4" /> Cancelar
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem className="text-destructive" onClick={remove}>
+              <Trash2 className="mr-2 h-4 w-4" /> Excluir
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 flex-none text-muted-foreground transition-transform duration-340 ease-senno',
+            expanded && 'rotate-180'
+          )}
+          aria-hidden="true"
+        />
       </div>
 
-      {when && (
-        <span
-          className={cn(
-            'flex-none whitespace-nowrap text-xs font-medium tabular-nums',
-            isOverdue ? 'text-destructive' : 'text-muted-foreground'
-          )}
-        >
-          {when}
-        </span>
-      )}
-
-      {showHighPill && (
-        <span
-          className={cn(
-            'flex-none rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
-            isUrgent ? 'bg-destructive/[0.12] text-destructive' : 'bg-warn-bg text-warn'
-          )}
-        >
-          {isUrgent ? 'Urgente' : 'Alta'}
-        </span>
-      )}
-
-      {isDone ? (
-        <span
-          className="senno-check flex h-6 w-6 flex-none items-center justify-center rounded-full border-[1.5px] border-ok bg-ok text-[hsl(0_0%_100%)]"
-          aria-label="Concluída"
-        >
-          <Check className="h-[13px] w-[13px]" aria-hidden="true" />
-        </span>
-      ) : (
-        <button
-          type="button"
-          aria-label="Concluir atividade"
-          disabled={pending || leaving}
-          onClick={complete}
-          className="senno-check flex h-6 w-6 flex-none cursor-pointer items-center justify-center rounded-full border-[1.5px] border-border bg-transparent text-muted-foreground/40 transition-[background-color,border-color,color,transform] duration-200 hover:border-ok hover:bg-ok/[0.12] hover:text-ok"
-        >
-          <Check className="h-[13px] w-[13px]" aria-hidden="true" />
-        </button>
-      )}
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Mais opções"
-            className="h-7 w-7 flex-none text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+      {/* Região expansível — anima altura via grid-template-rows 0fr↔1fr, o
+          mesmo padrão do card de Insights. */}
+      <div
+        className="grid transition-[grid-template-rows] duration-340 ease-senno-io"
+        style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
+      >
+        <div className="min-h-0 overflow-hidden">
+          {/* Interagir com o corpo não recolhe a linha. */}
+          {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
+          <div
+            className="flex flex-col gap-2.5 pl-[52px] pr-1 pt-3"
+            onClick={(e) => e.stopPropagation()}
           >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {activity.status === 'PENDING' && (
-            <DropdownMenuItem onClick={() => setStatus('IN_PROGRESS')}>
-              <Play className="mr-2 h-4 w-4" /> Iniciar
-            </DropdownMenuItem>
-          )}
-          {isDone && (
-            <DropdownMenuItem onClick={() => setStatus('PENDING')}>
-              <Play className="mr-2 h-4 w-4" /> Reabrir
-            </DropdownMenuItem>
-          )}
-          {!isDone && !isCanceled && (
-            <DropdownMenuItem onClick={() => setStatus('CANCELED')}>
-              <X className="mr-2 h-4 w-4" /> Cancelar
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem className="text-destructive" onClick={remove}>
-            <Trash2 className="mr-2 h-4 w-4" /> Excluir
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            {activity.description ? (
+              <p className="m-0 whitespace-pre-wrap break-words text-[12.5px] leading-[1.45] text-muted-foreground">
+                <span className="font-semibold text-foreground/80">Descrição:</span>{' '}
+                {activity.description}
+              </p>
+            ) : (
+              <p className="m-0 text-[12.5px] italic text-muted-foreground/70">Sem descrição.</p>
+            )}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-muted-foreground">
+              {detailPairs.map((d) => (
+                <span key={d.label} className="min-w-0">
+                  <span className="font-semibold text-foreground/80">{d.label}:</span> {d.value}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

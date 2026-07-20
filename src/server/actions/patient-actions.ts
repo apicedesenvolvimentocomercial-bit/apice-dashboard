@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { ok, fail, NotFoundError, validationFail } from '@/types/errors'
 import { isValidCpf } from '@/lib/cpf'
+import { MAX_CARD_NOTES } from '@/lib/masks'
 import { assertCan } from '@/server/auth/assert-can'
 import { can } from '@/server/auth/permissions'
 import { resolveOwnerScope } from '@/server/auth/owner-scope'
@@ -39,9 +40,11 @@ const createPatientSchema = z.object({
     .min(1, 'CPF obrigatório')
     .max(20, 'CPF inválido')
     .refine(isValidCpf, 'cpf inválido'),
+  // Teto BAIXO de propósito: a observação é exibida no card do paciente junto
+  // dos dados de contato e precisa caber em ≤4 linhas (ver MAX_CARD_NOTES).
   notes: z
     .string()
-    .max(65535, 'Nota muito grande')
+    .max(MAX_CARD_NOTES, 'Observação muito grande')
     .regex(
       /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
       'A nota contém caracteres inválidos'

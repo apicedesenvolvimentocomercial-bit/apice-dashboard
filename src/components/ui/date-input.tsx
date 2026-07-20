@@ -1,5 +1,6 @@
 'use client'
 
+import { CalendarDays } from 'lucide-react'
 import { forwardRef, useEffect, useRef, useState } from 'react'
 import { INPUT_BASE_CLASS } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -97,15 +98,34 @@ type BaseProps = Omit<
 > & {
   value?: string
   onChange?: React.ChangeEventHandler<HTMLInputElement>
+  /** Ícone de calendário à direita que abre o seletor NATIVO de data (espelho
+   *  do relógio do `TimeInput`). A máscara digitável continua a via principal. */
+  withPicker?: boolean
+  /** Classe do wrapper `relative` (só com `withPicker`) — ex.: `flex-1` quando
+   *  o campo vive dentro de um grupo flex. */
+  containerClassName?: string
 }
 
 // ─── DateInput ───────────────────────────────────────────────────────────────
 
 export const DateInput = forwardRef<HTMLInputElement, BaseProps>(
-  ({ value, onChange, className, placeholder = 'DD/MM/AAAA', ...props }, ref) => {
+  (
+    {
+      value,
+      onChange,
+      className,
+      placeholder = 'DD/MM/AAAA',
+      withPicker,
+      containerClassName,
+      disabled,
+      ...props
+    },
+    ref
+  ) => {
     const [rawDigits, setRawDigits] = useState(() => isoToRawDate(value ?? ''))
     const rawRef = useRef(rawDigits)
     rawRef.current = rawDigits
+    const pickerRef = useRef<HTMLInputElement | null>(null)
 
     const { display, paddedDigits } = applyDateMask(rawDigits)
 
@@ -140,20 +160,70 @@ export const DateInput = forwardRef<HTMLInputElement, BaseProps>(
       if (e.key === 'Delete') e.preventDefault()
     }
 
-    return (
+    function openPicker() {
+      const el = pickerRef.current
+      if (!el || disabled) return
+      if (typeof el.showPicker === 'function') {
+        try {
+          el.showPicker()
+        } catch {
+          // Sem suporte/permissão: a máscara digitável segue como via única.
+        }
+      }
+    }
+
+    function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+      const iso = e.target.value // "YYYY-MM-DD" ou '' (limpou no picker)
+      setRawDigits(isoToRawDate(iso))
+      onChange?.(syntheticEvent(iso))
+    }
+
+    const input = (
       <input
         ref={ref}
         type="text"
         inputMode="numeric"
         value={display}
         placeholder={placeholder}
+        disabled={disabled}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onClick={(e) => cursorToEnd(e.currentTarget)}
         onFocus={(e) => cursorToEnd(e.currentTarget)}
-        className={cn(INPUT_BASE_CLASS, className)}
+        className={cn(INPUT_BASE_CLASS, withPicker && 'pr-9', className)}
         {...props}
       />
+    )
+
+    if (!withPicker) return input
+
+    return (
+      <div className={cn('relative', containerClassName)}>
+        {input}
+        {/* Proxy invisível: o `type="date"` nativo existe SÓ p/ o showPicker
+            (a máscara não tem picker próprio). Renderizado com opacity-0 e não
+            display:none — o navegador recusa showPicker em elemento não
+            renderizado. Ancorado à direita p/ o popup abrir junto do ícone. */}
+        <input
+          ref={pickerRef}
+          type="date"
+          value={value ?? ''}
+          onChange={handlePick}
+          tabIndex={-1}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-9 opacity-0"
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={openPicker}
+          disabled={disabled}
+          aria-label="Abrir calendário"
+          className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+        >
+          <CalendarDays className="h-4 w-4" />
+        </button>
+      </div>
     )
   }
 )

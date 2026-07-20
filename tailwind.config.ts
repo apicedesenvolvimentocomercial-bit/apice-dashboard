@@ -104,6 +104,7 @@ const config: Config = {
       // `duration-`/`ease-` p/ animation) — use estes nomes.
       transitionDuration: {
         '160': '160ms',
+        '180': '180ms',
         '250': '250ms',
         '320': '320ms',
         '340': '340ms',

@@ -30,6 +30,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import {
   EMAIL_REGEX,
+  MAX_CARD_NOTES,
   MAX_MONEY,
   PHONE_BR_REGEX,
   SAFE_TEXT_REGEX,
@@ -79,6 +80,14 @@ const schema = z
         invalid_type_error: 'Origem obrigatória',
       })
     ),
+    // Exibida no card do lead junto de contato/origem/interesse — teto baixo
+    // p/ caber em ≤4 linhas lá (MAX_CARD_NOTES espelha o zod da action).
+    notes: z
+      .string()
+      .max(MAX_CARD_NOTES, 'Observação muito grande')
+      .regex(SAFE_TEXT_REGEX, 'Caracteres inválidos')
+      .optional()
+      .or(z.literal('')),
   })
   // Telefone e e-mail são opcionais isoladamente, mas ao menos UM é exigido:
   // lead sem contato nenhum nasce inalcançável. Espelha `createLeadSchema`.
@@ -131,7 +140,7 @@ export function CreateLeadDialog({
     // do primeiro submit, senão o RHF voltaria a validar a cada tecla.
     mode: 'onBlur',
     reValidateMode: 'onBlur',
-    defaultValues: { name: '', phone: '', email: '', source: undefined },
+    defaultValues: { name: '', phone: '', email: '', source: undefined, notes: '' },
   })
 
   // Procedimentos de interesse (>1) + valor estimado. O valor é preenchido
@@ -213,6 +222,8 @@ export function CreateLeadDialog({
       ...values,
       phone: values.phone || undefined,
       email: values.email || undefined,
+      // Vazio vira undefined: o zod da action é `.optional()` sem aceitar ''.
+      notes: values.notes?.trim() || undefined,
       stageId: defaultStageId,
       procedureInterestIds: selectedProcs,
       estimatedValue: parsedValue,
@@ -449,6 +460,26 @@ export function CreateLeadDialog({
                     : '')}
               </p>
             </div>
+
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Observações</FormLabel>
+                  <FormControl>
+                    <textarea
+                      rows={2}
+                      maxLength={MAX_CARD_NOTES}
+                      placeholder="Observações opcionais..."
+                      className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage reserve />
+                </FormItem>
+              )}
+            />
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
