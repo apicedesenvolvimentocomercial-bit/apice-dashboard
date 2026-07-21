@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DateInput } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { attendLeadAction } from '@/server/actions/lead-actions'
@@ -159,10 +160,8 @@ export function AttendLeadDialog({
             </div>
             <div className="space-y-1">
               <Label htmlFor="attend-birth">Nascimento *</Label>
-              <Input
+              <DateInput
                 id="attend-birth"
-                type="date"
-                lang="pt-BR"
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
               />

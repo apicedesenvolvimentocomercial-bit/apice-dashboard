@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { FieldError } from '@/components/ui/field-error'
+import { DateTimeInput } from '@/components/ui/date-time-input'
 import { Input } from '@/components/ui/input'
 import { IntegerInput } from '@/components/ui/integer-input'
 import { Label } from '@/components/ui/label'
@@ -566,13 +567,13 @@ export function CreateAppointmentDialog({
             <FieldError reserve />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
+          {/* 3 colunas com a data/hora ocupando 2: o campo composto precisa de
+              ~240px (data + hora + os dois ícones) e a duração vive com pouco. */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2 space-y-2">
               <Label htmlFor="apt-date">Data e hora *</Label>
-              <Input
+              <DateTimeInput
                 id="apt-date"
-                type="datetime-local"
-                lang="pt-BR"
                 min={minScheduledAttr}
                 value={form.scheduledAt}
                 onChange={(e) => {
@@ -582,9 +583,7 @@ export function CreateAppointmentDialog({
                   setFarFutureAck(false)
                 }}
                 onBlur={() => setDateBlurred(true)}
-                aria-invalid={isTooOld || undefined}
-                className={isTooOld ? 'border-red-500 focus-visible:ring-red-500' : undefined}
-                required
+                invalid={isTooOld}
               />
               <FieldError message={isTooOld ? 'Máximo 1 ano no passado' : undefined} reserve />
             </div>

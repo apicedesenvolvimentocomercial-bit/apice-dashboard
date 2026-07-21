@@ -2,7 +2,9 @@
 
 import { CalendarDays } from 'lucide-react'
 import { forwardRef, useEffect, useRef, useState } from 'react'
+import { Calendar } from '@/components/ui/calendar'
 import { INPUT_BASE_CLASS } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
 // ─── smart mask engine ───────────────────────────────────────────────────────
@@ -98,11 +100,15 @@ type BaseProps = Omit<
 > & {
   value?: string
   onChange?: React.ChangeEventHandler<HTMLInputElement>
-  /** Ícone de calendário à direita que abre o seletor NATIVO de data (espelho
-   *  do relógio do `TimeInput`). A máscara digitável continua a via principal. */
+  /** Ícone de calendário à direita que abre o NOSSO calendário (`ui/calendar`)
+   *  num popover. A máscara digitável continua a via principal.
+   *
+   *  **Ligado por padrão**: todo campo de data do sistema oferece o calendário,
+   *  e um campo novo já nasce com ele. Passe `withPicker={false}` só onde o
+   *  ícone não couber (o campo vira o input de máscara puro). */
   withPicker?: boolean
-  /** Classe do wrapper `relative` (só com `withPicker`) — ex.: `flex-1` quando
-   *  o campo vive dentro de um grupo flex. */
+  /** Classe do wrapper `relative` (só com `withPicker`) — é ELE que participa
+   *  do layout, então largura/flex vão aqui, não no `className` do input. */
   containerClassName?: string
 }
 
@@ -115,9 +121,11 @@ export const DateInput = forwardRef<HTMLInputElement, BaseProps>(
       onChange,
       className,
       placeholder = 'DD/MM/AAAA',
-      withPicker,
+      withPicker = true,
       containerClassName,
       disabled,
+      min,
+      max,
       ...props
     },
     ref
@@ -125,7 +133,7 @@ export const DateInput = forwardRef<HTMLInputElement, BaseProps>(
     const [rawDigits, setRawDigits] = useState(() => isoToRawDate(value ?? ''))
     const rawRef = useRef(rawDigits)
     rawRef.current = rawDigits
-    const pickerRef = useRef<HTMLInputElement | null>(null)
+    const [pickerOpen, setPickerOpen] = useState(false)
 
     const { display, paddedDigits } = applyDateMask(rawDigits)
 
@@ -160,20 +168,8 @@ export const DateInput = forwardRef<HTMLInputElement, BaseProps>(
       if (e.key === 'Delete') e.preventDefault()
     }
 
-    function openPicker() {
-      const el = pickerRef.current
-      if (!el || disabled) return
-      if (typeof el.showPicker === 'function') {
-        try {
-          el.showPicker()
-        } catch {
-          // Sem suporte/permissão: a máscara digitável segue como via única.
-        }
-      }
-    }
-
-    function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
-      const iso = e.target.value // "YYYY-MM-DD" ou '' (limpou no picker)
+    function handlePick(iso: string) {
+      // "YYYY-MM-DD" ou '' (limpou no calendário)
       setRawDigits(isoToRawDate(iso))
       onChange?.(syntheticEvent(iso))
     }
@@ -200,29 +196,43 @@ export const DateInput = forwardRef<HTMLInputElement, BaseProps>(
     return (
       <div className={cn('relative', containerClassName)}>
         {input}
-        {/* Proxy invisível: o `type="date"` nativo existe SÓ p/ o showPicker
-            (a máscara não tem picker próprio). Renderizado com opacity-0 e não
-            display:none — o navegador recusa showPicker em elemento não
-            renderizado. Ancorado à direita p/ o popup abrir junto do ícone. */}
-        <input
-          ref={pickerRef}
-          type="date"
-          value={value ?? ''}
-          onChange={handlePick}
-          tabIndex={-1}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-9 opacity-0"
-        />
-        <button
-          type="button"
-          tabIndex={-1}
-          onClick={openPicker}
-          disabled={disabled}
-          aria-label="Abrir calendário"
-          className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-        >
-          <CalendarDays className="h-4 w-4" />
-        </button>
+        {/* Calendário PRÓPRIO (design.md) no lugar do popup nativo do
+            `input[type=date]`, que não é estilizável. A máscara digitável segue
+            sendo a via principal; o ícone é o atalho de apontar-e-clicar. */}
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              disabled={disabled}
+              aria-label="Abrir calendário"
+              className="absolute inset-y-0 right-0 flex items-center rounded-md pr-2.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 data-[state=open]:text-primary-text"
+            >
+              <CalendarDays className="h-4 w-4" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            className="w-auto p-0 shadow-pop"
+            // O Calendar põe o foco no dia selecionado (mais útil que a seta de
+            // navegação, que é o 1º tabulável).
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            <Calendar
+              autoFocusDay
+              value={value ?? ''}
+              min={typeof min === 'string' ? min : undefined}
+              max={typeof max === 'string' ? max : undefined}
+              onSelect={(iso) => {
+                handlePick(iso)
+                setPickerOpen(false)
+              }}
+              onClear={() => {
+                handlePick('')
+                setPickerOpen(false)
+              }}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
     )
   }

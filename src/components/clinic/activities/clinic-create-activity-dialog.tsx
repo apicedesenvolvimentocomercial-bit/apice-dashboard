@@ -24,6 +24,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -79,6 +80,8 @@ export function ClinicCreateActivityDialog({
   const [description, setDescription] = useState('')
   // typeValue é um tipo nativo (chave do enum) OU `custom:<id>` p/ tipo da clínica.
   const [typeValue, setTypeValue] = useState<string>('TASK')
+  // `open` controlado só p/ fechar o dropdown após criar um tipo no rodapé.
+  const [typeOpen, setTypeOpen] = useState(false)
   const [customTypes, setCustomTypes] = useState<{ id: string; label: string }[]>([])
   const [newType, setNewType] = useState('')
   const [addingType, setAddingType] = useState(false)
@@ -129,6 +132,7 @@ export function ClinicCreateActivityDialog({
     setCustomTypes((prev) => (prev.some((t) => t.id === res.data.id) ? prev : [...prev, res.data]))
     setTypeValue(`custom:${res.data.id}`)
     setNewType('')
+    setTypeOpen(false) // recém-criado já vira o valor: fecha o dropdown.
   }
 
   function reset() {
@@ -195,7 +199,7 @@ export function ClinicCreateActivityDialog({
           </ActionButton>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Nova atividade</DialogTitle>
         </DialogHeader>
@@ -264,23 +268,62 @@ export function ClinicCreateActivityDialog({
           </div>
 
           {/* Tipo + Prioridade — colunas SIMÉTRICAS (label + select + slot de
-              erro). O criador de tipo personalizado saiu do grid p/ uma linha
-              própria: dentro da coluna ele deixava Tipo mais alto que
-              Prioridade e o grid esticava, sobrando faixa em branco ao lado. */}
+              erro). O criador de tipo personalizado vive no RODAPÉ do dropdown
+              de Tipo (footer), então não desequilibra a altura das colunas. */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Tipo</Label>
-              <Select value={typeValue} onValueChange={setTypeValue}>
+              <Select
+                open={typeOpen}
+                onOpenChange={setTypeOpen}
+                value={typeValue}
+                onValueChange={setTypeValue}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-background">
+                <SelectContent
+                  // Largura FIXA na do trigger: sem isto o input largo do footer
+                  // empurraria o dropdown p/ além do campo (o base só usa min-w).
+                  className="w-[var(--radix-select-trigger-width)] bg-background"
+                  footer={
+                    /* Criar tipo personalizado (2–40 chars, teto do zod da
+                       action). Fixo no rodapé do dropdown; os eventos ficam
+                       contidos pelo wrapper do footer (ver select.tsx). */
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        value={newType}
+                        onChange={(e) => setNewType(e.target.value)}
+                        placeholder="Criar tipo personalizado…"
+                        maxLength={40}
+                        className="h-8 min-w-0 flex-1 text-xs"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void addCustomType()
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        aria-label="Criar tipo"
+                        onClick={() => void addCustomType()}
+                        disabled={addingType || newType.trim().length < 2}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  }
+                >
                   {Object.entries(TYPE_LABEL).map(([k, v]) => (
                     <SelectItem key={k} value={k}>
                       {v}
                     </SelectItem>
                   ))}
-                  {customTypes.length > 0 && <div className="my-1 border-t border-border" />}
+                  {customTypes.length > 0 && <SelectSeparator />}
                   {customTypes.map((t) => (
                     <SelectItem key={t.id} value={`custom:${t.id}`}>
                       {t.label}
@@ -308,38 +351,6 @@ export function ClinicCreateActivityDialog({
             </div>
           </div>
 
-          {/* Criar tipo personalizado da clínica (2–40 chars, teto do zod da
-              action). Linha própria: pertence ao Tipo, mas fora do grid p/ não
-              desequilibrar a altura das colunas. */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5">
-              <Input
-                value={newType}
-                onChange={(e) => setNewType(e.target.value)}
-                placeholder="Criar tipo personalizado…"
-                maxLength={40}
-                className="h-8 text-xs"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void addCustomType()
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 shrink-0"
-                onClick={() => void addCustomType()}
-                disabled={addingType || newType.trim().length < 2}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            <FieldError reserve />
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="dueDate">Vencimento</Label>
             {/* UM campo visual (como o "Data e hora" da agenda), mas por baixo
@@ -350,7 +361,6 @@ export function ClinicCreateActivityDialog({
                 id="dueDate"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                withPicker
                 containerClassName="h-full min-w-0 flex-1"
                 className="h-full w-full rounded-none border-0 shadow-none focus-visible:ring-0"
               />

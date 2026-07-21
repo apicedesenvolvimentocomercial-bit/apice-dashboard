@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DateTimeInput } from '@/components/ui/date-time-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -229,13 +230,12 @@ export function RescheduleLeadDialog({
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
+            {/* Data/hora ocupa 2 de 3 colunas — ver create-appointment-dialog. */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2 space-y-1">
                 <Label htmlFor="reschedule-when">Data e hora *</Label>
-                <Input
+                <DateTimeInput
                   id="reschedule-when"
-                  type="datetime-local"
-                  lang="pt-BR"
                   min={minScheduledAttr}
                   value={scheduledAt}
                   onChange={(e) => {
@@ -246,8 +246,7 @@ export function RescheduleLeadDialog({
                     setFarFutureAck(false)
                   }}
                   onBlur={() => setDateBlurred(true)}
-                  aria-invalid={isTooOld || undefined}
-                  className={isTooOld ? 'border-red-500 focus-visible:ring-red-500' : undefined}
+                  invalid={isTooOld}
                 />
               </div>
               <div className="space-y-1">

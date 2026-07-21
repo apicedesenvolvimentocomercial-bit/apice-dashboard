@@ -70,7 +70,6 @@ type Props = {
   /** Linha secundária sob o nome da clínica (cidade · UF); null = oculta. */
   clinicSub: string | null
   userName: string
-  userEmail: string | null
   /** "Titular" ou nome do cargo; null = sem rótulo. */
   roleLabel: string | null
 }
@@ -87,7 +86,6 @@ export function ClinicSidebar({
   clinicName,
   clinicSub,
   userName,
-  userEmail,
   roleLabel,
 }: Props) {
   const pathname = usePathname()
@@ -138,26 +136,20 @@ export function ClinicSidebar({
       </nav>
 
       {/* Rodapé: usuário logado — abre o menu de conta */}
-      <AccountMenu userName={userName} userEmail={userEmail} roleLabel={roleLabel} />
+      <AccountMenu userName={userName} roleLabel={roleLabel} />
     </aside>
   )
 }
 
 /**
- * Menu de conta do rodapé da sidebar (redesign — design.md §5 "Popovers"):
- * painel `bg-popover` radius 12px com sombra `shadow-pop`, overlay para fechar
- * ao clicar fora, Esc para fechar e rodapé com a dica. Sair mostra estado
- * ocupado (o logout é assíncrono: derruba TODAS as sessões antes do signOut).
+ * Menu de conta do rodapé da sidebar. Em vez de um popover destacado, o painel
+ * é a MESMA superfície do botão (identidade): ao abrir, as ações (Meu perfil /
+ * Sair) crescem PARA CIMA sobre `bg-accent`, formando um bloco contínuo com o
+ * botão — sem repetir o nome (que já aparece no botão). Fecha ao clicar fora ou
+ * com Esc. Sair mostra estado ocupado (logout assíncrono derruba TODAS as
+ * sessões antes do signOut).
  */
-function AccountMenu({
-  userName,
-  userEmail,
-  roleLabel,
-}: {
-  userName: string
-  userEmail: string | null
-  roleLabel: string | null
-}) {
+function AccountMenu({ userName, roleLabel }: { userName: string; roleLabel: string | null }) {
   const [open, setOpen] = useState(false)
   const [leaving, setLeaving] = useState(false)
 
@@ -178,97 +170,87 @@ function AccountMenu({
 
   return (
     <div className="relative mt-auto">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Menu da conta"
-        aria-haspopup="menu"
-        aria-expanded={open}
+      {open && (
+        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+      )}
+
+      {/* Superfície única: quando aberta, ganha o `bg-accent` do botão + moldura,
+          e as ações ficam ACIMA do botão (expansão para cima, não popover). */}
+      <div
         className={cn(
-          'flex w-full items-center gap-2.5 rounded-[10px] bg-muted p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          open && 'bg-accent'
+          'relative z-50 rounded-[10px] transition-colors',
+          open && 'bg-accent shadow-pop ring-1 ring-border'
         )}
       >
-        <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-primary/20 text-[12.5px] font-semibold text-primary-text">
-          {getInitials(userName)}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[12.5px] font-semibold text-foreground">
-            {userName}
-          </span>
-          {roleLabel && (
-            <span className="block truncate text-[11px] text-muted-foreground">{roleLabel}</span>
-          )}
-        </span>
-        <ChevronUp
-          className={cn(
-            'h-3.5 w-3.5 flex-none text-muted-foreground transition-transform duration-200',
-            !open && 'rotate-180'
-          )}
-          aria-hidden="true"
-        />
-      </button>
+        {open && (
+          <div role="menu" aria-label="Conta" className="flex flex-col px-1.5 pb-1 pt-1.5">
+            <Link
+              href="/configuracoes"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-[11px] rounded-lg px-2 py-[9px] text-[12.5px] font-medium text-foreground transition-colors hover:bg-background/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <User className="h-[15px] w-[15px] flex-none text-muted-foreground" />
+              Meu perfil
+            </Link>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div
-            role="menu"
-            aria-label="Conta"
-            className="absolute inset-x-0 bottom-[calc(100%+8px)] z-50 overflow-hidden rounded-xl border border-border bg-popover shadow-pop"
-          >
-            {/* Identidade: quem está logado nesta sessão */}
-            <div className="flex items-center gap-[11px] px-3.5 pb-2.5 pt-3">
-              <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary-text">
-                {getInitials(userName)}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-semibold text-foreground">
-                  {userName}
-                </span>
-                <span className="block truncate text-[11.5px] text-muted-foreground">
-                  {userEmail ?? roleLabel ?? 'Sessão ativa'}
-                </span>
-              </span>
-            </div>
+            <div className="mx-2 my-1 h-px bg-border/70" />
 
-            <div className="h-px bg-border" />
-
-            <div className="flex flex-col px-1.5 pb-1.5 pt-1.5">
-              <Link
-                href="/configuracoes"
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-[11px] rounded-lg px-2 py-[9px] text-[12.5px] font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <User className="h-[15px] w-[15px] flex-none text-muted-foreground" />
-                Meu perfil
-              </Link>
-
-              <div className="mx-2 my-1 h-px bg-border/60" />
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={handleLogout}
-                disabled={leaving}
-                className="flex items-center gap-[11px] rounded-lg px-2 py-[9px] text-left text-[12.5px] font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-              >
-                {leaving ? (
-                  <Loader2 className="h-[15px] w-[15px] flex-none animate-spin" />
-                ) : (
-                  <LogOut className="h-[15px] w-[15px] flex-none" />
-                )}
-                {leaving ? 'Saindo…' : 'Sair'}
-              </button>
-            </div>
-
-            <div className="flex items-center justify-end border-t border-border bg-muted/40 px-3.5 py-[9px]">
-              <span className="text-[10.5px] text-muted-foreground">Esc para fechar</span>
-            </div>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleLogout}
+              disabled={leaving}
+              className="flex items-center gap-[11px] rounded-lg px-2 py-[9px] text-left text-[12.5px] font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            >
+              {leaving ? (
+                <Loader2 className="h-[15px] w-[15px] flex-none animate-spin" />
+              ) : (
+                <LogOut className="h-[15px] w-[15px] flex-none" />
+              )}
+              {leaving ? 'Saindo…' : 'Sair'}
+            </button>
           </div>
-        </>
-      )}
+        )}
+
+        {/* Divisor entre as ações e a identidade — só existe com o menu aberto. */}
+        {open && <div className="mx-2.5 h-px bg-border/70" />}
+
+        {/* Botão de identidade — sempre visível; é o gatilho. Ao abrir vira
+            transparente p/ herdar o `bg-accent` da superfície e cola no divisor. */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label="Menu da conta"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className={cn(
+            'flex w-full items-center gap-2.5 rounded-[10px] p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            open
+              ? 'rounded-t-none bg-transparent hover:bg-background/40'
+              : 'bg-muted hover:bg-accent'
+          )}
+        >
+          <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-primary/20 text-[12.5px] font-semibold text-primary-text">
+            {getInitials(userName)}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12.5px] font-semibold text-foreground">
+              {userName}
+            </span>
+            {roleLabel && (
+              <span className="block truncate text-[11px] text-muted-foreground">{roleLabel}</span>
+            )}
+          </span>
+          <ChevronUp
+            className={cn(
+              'h-3.5 w-3.5 flex-none text-muted-foreground transition-transform duration-200',
+              !open && 'rotate-180'
+            )}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import {
   Check,
   CheckSquare,
   ChevronDown,
+  Flag,
   Mail,
   MessageSquare,
   MoreHorizontal,
@@ -14,6 +15,8 @@ import {
   Star,
   StickyNote,
   Trash2,
+  User,
+  UserPlus,
   Users,
   X,
 } from 'lucide-react'
@@ -69,6 +72,23 @@ const TYPE_TILE_DEFAULT = {
   icon: Star,
   bg: 'hsl(var(--muted))',
   color: 'hsl(var(--muted-foreground))',
+}
+
+// Tom do valor "Prioridade" no corpo expandido — par de status do design.md
+// (nada de zinc/amber literais; o legado PRIORITY_COLOR não segue os tokens).
+const PRIORITY_TONE: Record<ActivityView['priority'], string> = {
+  LOW: 'text-muted-foreground',
+  MEDIUM: 'text-foreground',
+  HIGH: 'text-warn',
+  URGENT: 'text-destructive',
+}
+
+// Pill de status no rodapé do corpo expandido (par texto+fundo, design.md §1).
+const STATUS_PILL: Record<ActivityView['status'], string> = {
+  PENDING: 'bg-warn-bg text-warn',
+  IN_PROGRESS: 'bg-info-bg text-info-t',
+  COMPLETED: 'bg-ok-bg text-ok',
+  CANCELED: 'bg-muted text-muted-foreground',
 }
 
 function capitalize(s: string): string {
@@ -174,33 +194,37 @@ export function ClinicActivityRow({ activity, assigneeSuffix, isNewForViewer }: 
     })
   }
 
-  // Metadados do corpo expandido — pares "rótulo: valor" numa linha que quebra.
-  const detailPairs: { label: string; value: string }[] = [
-    { label: 'Tipo', value: activityTypeLabel(activity) },
-    { label: 'Prioridade', value: PRIORITY_LABEL[activity.priority] },
-    { label: 'Status', value: STATUS_LABEL[activity.status] },
+  // Fatos principais do corpo expandido — tiles no topo (padrão KPI do
+  // design.md §5: ícone + label overline, valor abaixo).
+  type Fact = {
+    label: string
+    value: string
+    icon: LucideIcon
+    iconColor?: string
+    valueClass?: string
+  }
+  const facts: Fact[] = [
+    ...(activity.assignedTo
+      ? [{ label: 'Responsável', value: activity.assignedTo.name, icon: User }]
+      : []),
+    {
+      label: 'Tipo',
+      value: activityTypeLabel(activity),
+      icon: TileIcon,
+      iconColor: tile.color,
+    },
+    {
+      label: 'Prioridade',
+      value: PRIORITY_LABEL[activity.priority],
+      icon: Flag,
+      valueClass: PRIORITY_TONE[activity.priority],
+    },
     ...(activity.target
       ? [
           {
             label: activity.target.type === 'lead' ? 'Lead' : 'Paciente',
             value: activity.target.name,
-          },
-        ]
-      : []),
-    ...(activity.assignedTo ? [{ label: 'Responsável', value: activity.assignedTo.name }] : []),
-    ...(activity.dueDate
-      ? [
-          {
-            label: 'Vencimento',
-            value: format(new Date(activity.dueDate), "dd/MM/yyyy 'às' HH:mm"),
-          },
-        ]
-      : []),
-    ...(activity.createdBy
-      ? [
-          {
-            label: 'Criada por',
-            value: `${activity.createdBy.name} em ${format(new Date(activity.createdAt), 'dd/MM/yyyy')}`,
+            icon: activity.target.type === 'lead' ? UserPlus : User,
           },
         ]
       : []),
@@ -360,23 +384,84 @@ export function ClinicActivityRow({ activity, assigneeSuffix, isNewForViewer }: 
           {/* Interagir com o corpo não recolhe a linha. */}
           {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
           <div
-            className="flex flex-col gap-2.5 pl-[52px] pr-1 pt-3"
+            className="flex flex-col gap-2.5 pl-[52px] pr-1 pt-3.5"
             onClick={(e) => e.stopPropagation()}
           >
-            {activity.description ? (
-              <p className="m-0 whitespace-pre-wrap break-words text-[12.5px] leading-[1.45] text-muted-foreground">
-                <span className="font-semibold text-foreground/80">Descrição:</span>{' '}
-                {activity.description}
-              </p>
-            ) : (
-              <p className="m-0 text-[12.5px] italic text-muted-foreground/70">Sem descrição.</p>
-            )}
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-muted-foreground">
-              {detailPairs.map((d) => (
-                <span key={d.label} className="min-w-0">
-                  <span className="font-semibold text-foreground/80">{d.label}:</span> {d.value}
+            {/* Topo — fatos principais (responsável · tipo · prioridade · alvo). */}
+            <div className="flex flex-wrap gap-2">
+              {facts.map((f) => {
+                const FactIcon = f.icon
+                return (
+                  <div
+                    key={f.label}
+                    className="flex min-w-[136px] flex-1 flex-col gap-1 rounded-[10px] border border-border bg-muted/40 px-3 py-2"
+                  >
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
+                      <FactIcon
+                        className="h-3 w-3 flex-none"
+                        style={f.iconColor ? { color: f.iconColor } : undefined}
+                        aria-hidden="true"
+                      />
+                      {f.label}
+                    </span>
+                    <span
+                      className={cn(
+                        'truncate text-[12.5px] font-semibold',
+                        f.valueClass ?? 'text-foreground'
+                      )}
+                      title={f.value}
+                    >
+                      {f.value}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Descrição. */}
+            <div className="rounded-[10px] border border-border bg-muted/25 px-3 py-2.5">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
+                Descrição
+              </span>
+              {activity.description ? (
+                <p className="m-0 mt-1 whitespace-pre-wrap break-words text-[12.5px] leading-[1.45] text-foreground/90">
+                  {activity.description}
+                </p>
+              ) : (
+                <p className="m-0 mt-1 text-[12.5px] italic text-muted-foreground/70">
+                  Sem descrição.
+                </p>
+              )}
+            </div>
+
+            {/* Rodapé — status + autoria/prazo. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11.5px] text-muted-foreground">
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
+                  STATUS_PILL[activity.status]
+                )}
+              >
+                {STATUS_LABEL[activity.status]}
+              </span>
+              {activity.createdBy && (
+                <span className="min-w-0">
+                  Criada por{' '}
+                  <span className="font-medium text-foreground/80">{activity.createdBy.name}</span>{' '}
+                  em{' '}
+                  <span className="tabular-nums">
+                    {format(new Date(activity.createdAt), 'dd/MM/yyyy')}
+                  </span>
                 </span>
-              ))}
+              )}
+              {activity.dueDate && (
+                <span className="min-w-0">
+                  Vence em{' '}
+                  <span className={cn('tabular-nums', isOverdue && 'font-medium text-destructive')}>
+                    {format(new Date(activity.dueDate), "dd/MM/yyyy 'às' HH:mm")}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
         </div>

@@ -1177,14 +1177,16 @@ function LeadInfo({
         onAdded={onInteractionAdded}
       />
 
-      {/* Remover lead (§10.8) — some na retenção; confirm real (§16). */}
+      {/* Remover lead (§10.8) — some na retenção; confirm real (§16). Botão
+          FIXO (não some ao tirar o hover): esconder por hover deixava a ação
+          invisível em toque/teclado e confundia o usuário. */}
       {!isRetention && (
         <div className="flex justify-end border-t border-border pt-3">
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
             disabled={isPending}
-            className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive opacity-0 transition hover:underline focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 group-hover:opacity-100"
+            className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             Remover lead
@@ -1449,13 +1451,15 @@ function PatientInfo({
         </div>
       </div>
 
-      {/* Editar dados + Remover paciente — confirm real (§16). */}
+      {/* Editar dados + Remover paciente — confirm real (§16). Botões FIXOS
+          (não somem ao tirar o hover): esconder por hover deixava as ações
+          invisíveis em toque/teclado e confundia o usuário. */}
       <div className="flex items-center justify-between border-t border-border pt-3">
         <button
           type="button"
           onClick={() => setEditOpen(true)}
           disabled={isPending}
-          className="flex items-center gap-[7px] text-[12.5px] font-semibold text-foreground opacity-0 transition hover:text-primary-text focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 group-hover:opacity-100"
+          className="flex items-center gap-[7px] text-[12.5px] font-semibold text-foreground transition hover:text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
           Editar dados
@@ -1464,7 +1468,7 @@ function PatientInfo({
           type="button"
           onClick={() => setConfirmDelete(true)}
           disabled={isPending}
-          className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive opacity-0 transition hover:underline focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 group-hover:opacity-100"
+          className="flex items-center gap-[7px] text-[12.5px] font-semibold text-destructive transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           Remover paciente

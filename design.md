@@ -233,6 +233,57 @@ Pills `bg-muted`/`border`, texto `muted-foreground`; selecionado ganha `bg-accen
 - **Skeleton** no lugar de spinner: blocos `border-radius` com shimmer `linear-gradient(90deg, muted 25%, accent 37%, muted 63%)` + `background-size:220%` + animação 1.5s.
 - **Erro inline** (nunca `alert()`): caixa `destructive/0.1` + borda `destructive/0.3`, ícone de alerta, botão "Recarregar".
 
+### Calendário / seletor de data (`components/ui/calendar.tsx`)
+
+Componente **próprio** — o popup nativo do `input[type="date"]` não é estilizável
+(fim-de-semana em vermelho, tipografia do SO, `<select>` de mês fora do chrome) e por
+isso foi abandonado. Sem dependência nova: a grade é calculada no componente.
+
+- **Popover** `bg-popover` + radius 12px + `shadow-pop`, largura 276px, **altura fixa** —
+  trocar de painel ou de mês não redimensiona o balão.
+- **Cabeçalho:** `‹ julho de 2026 ›` (13.5/600). O rótulo é botão e cicla os painéis
+  **dias → meses → anos**; as setas mudam a unidade do painel visível (mês / ano / página
+  de 12 anos). Salto rápido a anos distantes sem N cliques — importante p/ nascimento.
+- **Grade:** cabeçalho de semana em overline (11px/600/`0.07em`/uppercase, `muted-foreground`);
+  células 36px radius 8px, `tabular-nums`; **sempre 6 semanas** (altura estável).
+- **Cores — só dois papéis ganham cor** (mesma regra da Agenda): **selecionado** =
+  `bg-primary` + `text-primary-foreground`; **hoje** = `bg-primary/10` + `text-primary-text`.
+  Dias de fora do mês `muted-foreground/45`, fora da faixa min/max `muted-foreground/35`.
+  **Fim de semana não é colorido** — era invenção do nativo.
+- **Rodapé:** "Hoje" (`primary-text`) e "Limpar" (`muted-foreground`), separados por `border-t`.
+- **Teclado (roving tabindex, padrão APG):** setas = ±1 dia / ±1 semana, Home/End = extremos
+  da semana, PageUp/Down = ±1 mês, Enter = seleciona, Esc = fecha. Ao abrir, o foco vai no
+  dia selecionado (não na seta de navegação).
+- Consumido pelo `DateInput`, onde o picker é **ligado por padrão** — todo campo de data do
+  sistema oferece o calendário e um campo novo já nasce com ele (`withPicker={false}` só onde
+  o ícone não couber). A máscara digitável segue sendo a via principal; o ícone é o atalho de
+  apontar-e-clicar. `min`/`max` desabilitam dias e setas.
+- ⚠️ Com o picker ligado o input ganha um **wrapper `relative`**, e é ele que participa do
+  layout: **largura/flex vão em `containerClassName`**, não no `className` do input (que fica
+  `w-full`). Nenhum `input[type="date"]` cru deve voltar ao código — ele traz o popup do SO.
+
+### Campo de data e hora (`components/ui/date-time-input.tsx`)
+
+Substitui o `<input type="datetime-local">` (mesmo popup do SO). **UM campo com borda única
+contendo DOIS controles**: `DateInput` (com o calendário) + divisor `w-px bg-border` +
+`TimeInput`, dentro de uma caixa `h-9` com `focus-within:ring-1`. A borda é da CAIXA — o
+estado de erro (`invalid`) pinta ela de `destructive`, nunca um vermelho literal.
+
+- `value`/`onChange` seguem no formato do `datetime-local` (`"YYYY-MM-DDTHH:mm"`) — a troca
+  é drop-in para quem lê `e.target.value`.
+- **Metade preenchida emite `''`** (data sem hora não é um datetime), mas isso NÃO apaga o
+  que o usuário já digitou: o componente guarda o último valor emitido para distinguir esse
+  eco de um reset externo de verdade (diálogo reabrindo), que aí sim limpa os dois lados.
+- A hora fica desabilitada enquanto não há data. `min`/`max` recebem datetime; só a parte de
+  DATA chega ao calendário (o limite de hora segue nas validações do próprio formulário).
+- Usado em: nova consulta e remarcar (Agenda), agendar e remarcar lead (Funil).
+- ⚠️ **Precisa de ~260px.** São dois campos e dois ícones: a hora ocupa 104px fixos e a data
+  fica com o resto, do qual 60px são padding (`px-3` + a bitola do ícone). Num `grid-cols-2`
+  de um diálogo `sm:max-w-md` a caixa fica com 193px e o placeholder da data é cortado
+  ("DD/M"). Nesses diálogos o padrão é **`grid-cols-3` com o campo em `col-span-2`** (a
+  "Duração (min)" ao lado vive bem com 1 coluna) → caixa de 261px. Em container de largura
+  cheia (ex.: o painel de reagendar) não há problema.
+
 ### Popovers / dropdowns
 
 `bg-popover` + `border` + radius 12px + sombra `hsl(var(--shadow)/calc(var(--shadow-a)*3.5))`. Overlay `fixed inset-0` para fechar ao clicar fora; "Esc para fechar". Rodapé com link `primary-text` "Ver todos".

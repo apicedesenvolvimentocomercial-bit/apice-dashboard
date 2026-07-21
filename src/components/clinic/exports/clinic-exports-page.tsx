@@ -20,6 +20,7 @@ import {
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { DateInput } from '@/components/ui/date-input'
 import { cn } from '@/lib/utils'
 
 /**
@@ -214,21 +215,27 @@ export function ClinicExportsPage({
 
         <div className="ml-auto flex flex-wrap items-end gap-[18px]">
           <div className="flex gap-3.5">
+            {/* Rótulo associado por `htmlFor` (não envolvendo o campo): o
+                DateInput traz o botão do calendário, e um <button> dentro de
+                <label> faz o clique ser reencaminhado ao input. */}
             {(['from', 'to'] as const).map((field) => (
-              <label
-                key={field}
-                className="flex flex-col gap-[5px] text-[11.5px] font-semibold text-muted-foreground"
-              >
-                {field === 'from' ? 'De' : 'Até'}
-                <input
-                  type="date"
+              <div key={field} className="flex flex-col gap-[5px]">
+                <label
+                  htmlFor={`export-period-${field}`}
+                  className="text-[11.5px] font-semibold text-muted-foreground"
+                >
+                  {field === 'from' ? 'De' : 'Até'}
+                </label>
+                <DateInput
+                  id={`export-period-${field}`}
                   value={filter[field]}
                   // Editar a data manualmente limpa o preset — campos e
                   // segmented são mutuamente exclusivos como fonte (§9).
                   onChange={(e) => setFilter({ ...filter, [field]: e.target.value, preset: '' })}
-                  className="h-[38px] w-40 rounded-[9px] border border-input bg-background px-3 text-[13px] tabular-nums text-foreground transition-shadow focus:border-ring focus:outline-none focus:[box-shadow:0_0_0_3px_hsl(var(--ring)/0.18)]"
+                  containerClassName="w-40"
+                  className="h-[38px] w-full rounded-[9px] border-input bg-background px-3 text-[13px] tabular-nums text-foreground shadow-none transition-shadow focus-visible:border-ring focus-visible:ring-0 focus-visible:[box-shadow:0_0_0_3px_hsl(var(--ring)/0.18)]"
                 />
-              </label>
+              </div>
             ))}
           </div>
 

@@ -18,6 +18,7 @@ type RecurringTemplate = {
   type: CostType
   category: string | null
   amount: Prisma.Decimal | number
+  date: Date
   description: string | null
   recurringDay: number | null
   campaignId: string | null
@@ -69,6 +70,7 @@ export async function runRecurringCostsJob(
       type: true,
       category: true,
       amount: true,
+      date: true,
       description: true,
       recurringDay: true,
       campaignId: true,
@@ -82,6 +84,14 @@ export async function runRecurringCostsJob(
 
   for (const t of templates) {
     if (!t.recurringDay) {
+      skipped++
+      continue
+    }
+    // A própria linha do template (data = quando foi cadastrado) é a "baixa" do
+    // mês em que nasceu — o usuário já lançou a despesa agora. Não materializar
+    // um filho no MESMO mês, senão o custo é cobrado 2× (template + filho). A
+    // partir do mês seguinte o cron gera as instâncias normalmente.
+    if (t.date && t.date >= monthStart && t.date < nextMonthStart) {
       skipped++
       continue
     }

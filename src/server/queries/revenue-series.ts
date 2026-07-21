@@ -83,7 +83,7 @@ export async function getRevenueMonthlySeries(
         deletedAt: null,
         isRecurring: true,
       },
-      select: { id: true, amount: true, createdAt: true },
+      select: { id: true, amount: true, date: true, createdAt: true },
     }),
   ])
 
@@ -162,6 +162,23 @@ export async function getRevenueMonthlySeries(
       set.add(c.recurringSourceId)
       materializedRecurringByMonth.set(key, set)
     }
+  }
+
+  // A própria linha do template (isRecurring, excluída de `costRows`) é a
+  // despesa do mês em que foi cadastrada — o cron NÃO materializa um filho nesse
+  // mês (evita cobrar 2×, ver recurring-costs-job). Conta o valor do template no
+  // mês da sua `date` e marca como materializado p/ a projeção não duplicar. O
+  // guard `has(t.id)` cobre dados antigos que ainda tenham um filho nesse mês.
+  for (const t of recurringTemplates) {
+    const key = monthKey(t.date)
+    if (materializedRecurringByMonth.get(key)?.has(t.id)) continue
+    const gen = generatedBuckets.get(key)
+    if (gen) gen.costs += Number(t.amount)
+    const rec = receivedBuckets.get(key)
+    if (rec) rec.costs += Number(t.amount)
+    const set = materializedRecurringByMonth.get(key) ?? new Set<string>()
+    set.add(t.id)
+    materializedRecurringByMonth.set(key, set)
   }
 
   // Projeção de custos recorrentes: a partir do mês atual em diante, para

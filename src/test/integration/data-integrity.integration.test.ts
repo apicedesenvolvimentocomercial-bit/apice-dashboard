@@ -37,6 +37,10 @@ describe('integridade de dados (H1/I1/J1)', () => {
 
   it('H1: duas execuções concorrentes do cron geram UM custo por template/mês', async () => {
     const admin = getAdminPrisma()
+    // Template cadastrado num mês ANTERIOR: a linha do template já é a "baixa" do
+    // mês em que nasceu, então o cron só materializa filhos a partir do mês
+    // seguinte. Datando 60 dias atrás garantimos que o mês corrente PRECISA de um
+    // filho — é isso que a concorrência abaixo dedup-a para exatamente 1.
     const template = await admin.cost.create({
       data: {
         organizationId: base.organizationId,
@@ -44,7 +48,7 @@ describe('integridade de dados (H1/I1/J1)', () => {
         type: 'FIXED',
         category: 'Aluguel',
         amount: 3000,
-        date: new Date(),
+        date: new Date(Date.now() - 60 * 86_400_000),
         isRecurring: true,
         recurringDay: 1,
       },

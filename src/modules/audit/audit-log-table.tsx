@@ -171,7 +171,8 @@ export function AuditLogTable({
               setFrom(e.target.value)
               applyFilters({ from: e.target.value })
             }}
-            className="h-8 w-36 text-sm"
+            containerClassName="w-36"
+            className="h-8 w-full text-sm"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -185,7 +186,8 @@ export function AuditLogTable({
               setTo(e.target.value)
               applyFilters({ to: e.target.value })
             }}
-            className="h-8 w-36 text-sm"
+            containerClassName="w-36"
+            className="h-8 w-full text-sm"
           />
         </div>
         <div className="flex flex-col gap-1">
