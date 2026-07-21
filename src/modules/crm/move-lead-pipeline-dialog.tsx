@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DateInput } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -224,9 +225,8 @@ export function MoveLeadPipelineDialog({
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="mv-birth">Nascimento *</Label>
-                  <Input
+                  <DateInput
                     id="mv-birth"
-                    type="date"
                     value={form.birthDate}
                     onChange={(e) => setForm((f) => ({ ...f, birthDate: e.target.value }))}
                   />

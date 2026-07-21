@@ -63,8 +63,15 @@ SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayNam
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = 'popper', ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    /**
+     * Rodapé FIXO abaixo da lista rolável — não é uma opção (ex.: campo de
+     * "criar item"). Os eventos de teclado/pointer são contidos aqui para o
+     * Radix não interpretar a digitação como typeahead nem fechar o dropdown.
+     */
+    footer?: React.ReactNode
+  }
+>(({ className, children, footer, position = 'popper', ...props }, ref) => (
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
@@ -88,6 +95,19 @@ const SelectContent = React.forwardRef<
         {children}
       </SelectPrimitive.Viewport>
       <SelectScrollDownButton />
+      {footer != null && (
+        // Não é um widget interativo — só uma barreira que CONTÉM os eventos dos
+        // filhos (input/botão): o teclado não vira typeahead do Radix e o clique
+        // não seleciona/fecha o dropdown enquanto o usuário interage no rodapé.
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+        <div
+          className="border-t border-border p-1"
+          onKeyDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {footer}
+        </div>
+      )}
     </SelectPrimitive.Content>
   </SelectPrimitive.Portal>
 ))

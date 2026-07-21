@@ -24,6 +24,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { DateTimeInput } from '@/components/ui/date-time-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toSPWallClock } from '@/lib/calendar-time'
@@ -409,9 +410,7 @@ export function AppointmentDetailDialog({
                   {showRescheduleForm && (
                     <div className="space-y-2 rounded-lg border border-amber-200 p-3">
                       <Label className="text-xs text-amber-700">Nova data e hora</Label>
-                      <Input
-                        type="datetime-local"
-                        lang="pt-BR"
+                      <DateTimeInput
                         value={newDateTime}
                         min={toSPWallClock(new Date()).slice(0, 16)}
                         onChange={(e) => setNewDateTime(e.target.value)}

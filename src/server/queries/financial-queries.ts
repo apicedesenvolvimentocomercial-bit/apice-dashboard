@@ -107,8 +107,11 @@ export async function getPatientsForSelect(clientId: string) {
   await assertClientAccess(ctx, clientId)
   enterClientScope(clientId) // suspenders: ativa a RLS p/ esta clínica nesta query
   await assertCan(ctx, 'patients', 'read')
+  // Sem `onlyCompleted`: traz pacientes reais E leads provisórios (agendados que
+  // ainda não compareceram). O `fromScheduledLead` alimenta o rótulo/sublabel
+  // "Lead" no select de receita — o financeiro pode lançar sobre ambos.
   const patients = await listPatients(ctx, clientId)
-  return patients.map((p) => ({ id: p.id, name: p.name }))
+  return patients.map((p) => ({ id: p.id, name: p.name, fromScheduledLead: p.fromScheduledLead }))
 }
 
 // (DRE simplificada removida — a DRE em competência vive em `dre-queries.ts` e na

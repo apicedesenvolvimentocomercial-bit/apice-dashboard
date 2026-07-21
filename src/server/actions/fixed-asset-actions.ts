@@ -48,11 +48,14 @@ const createSchema = z.object({
     .positive('valor de aquisição deve ser positivo')
     .optional(),
   acquisitionDate: z.string().min(1, 'Data obrigatória').max(30, 'Data inválida'),
+  // Vida útil em MESES (o placeholder do form sugere 60 = 5 anos). O teto de 10
+  // era um bug — rejeitava qualquer valor realista; 1200 = 100 anos é folga de
+  // sobra p/ software/licenças/marcas.
   usefulLifeMonths: z
     .number()
-    .max(10, 'Vida útil muito longa')
     .int()
-    .positive('Vida útil em meses'),
+    .positive('Vida útil em meses')
+    .max(1200, 'Vida útil muito longa'),
 })
 
 function revalidate(clientId: string) {

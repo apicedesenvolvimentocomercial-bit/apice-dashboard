@@ -42,7 +42,7 @@ import {
 } from './types'
 import type { RevenueRow, ProcedureForSelect } from './types'
 
-type Patient = { id: string; name: string }
+type Patient = { id: string; name: string; fromScheduledLead: boolean }
 
 type Props = {
   revenues: RevenueRow[]
@@ -300,7 +300,9 @@ export function RevenuesTab({ revenues, clientId, patients, procedures }: Props)
                       onChange={(v) => setPatientId(v === ALL_VALUE ? '' : v)}
                       placeholder="Todos"
                       emptyText="Nenhum paciente encontrado"
-                      className="h-9 text-xs"
+                      // `bg-transparent` p/ bater com o tom dos outros selects (SelectTrigger)
+                      // sobre o popover — o outline padrão do Button usa `bg-background`, que destoa.
+                      className="h-9 bg-transparent text-xs"
                       options={[
                         { value: ALL_VALUE, label: 'Todos' },
                         ...patients.map((p) => ({ value: p.id, label: p.name })),

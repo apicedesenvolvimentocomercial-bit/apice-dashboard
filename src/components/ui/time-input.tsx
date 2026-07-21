@@ -6,7 +6,11 @@ import { Clock } from 'lucide-react'
 import { INPUT_BASE_CLASS } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
-type TimeInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>
+type TimeInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> & {
+  /** Classe do wrapper `relative` — ex.: `h-full flex-1` quando o campo vive
+   *  dentro de um grupo flex (campo composto data+hora). */
+  containerClassName?: string
+}
 
 /**
  * Input de horário (`<input type="time">`) com ícone de relógio à direita para
@@ -15,7 +19,7 @@ type TimeInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>
  * nosso ícone. Mantém o visual do `Input` padrão (mesma altura/borda/tokens).
  */
 const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
-  ({ className, disabled, ...props }, ref) => {
+  ({ className, containerClassName, disabled, ...props }, ref) => {
     const innerRef = React.useRef<HTMLInputElement | null>(null)
     const setRefs = (el: HTMLInputElement | null) => {
       innerRef.current = el
@@ -39,7 +43,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
     }
 
     return (
-      <div className="relative">
+      <div className={cn('relative', containerClassName)}>
         <input
           ref={setRefs}
           type="time"

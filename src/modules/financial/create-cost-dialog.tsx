@@ -12,7 +12,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { FieldError } from '@/components/ui/field-error'
 import { Input } from '@/components/ui/input'
+import { IntegerInput } from '@/components/ui/integer-input'
+import { MoneyInput } from '@/components/ui/money-input'
 import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import {
@@ -22,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { MAX_MONEY, SAFE_TEXT_REGEX, formatMoneyBR, parseMoneyBR } from '@/lib/masks'
+import { cn } from '@/lib/utils'
 import { createCostAction, updateCostAction } from '@/server/actions/cost-actions'
 import {
   COST_TYPE_LABELS,
@@ -32,6 +37,12 @@ import {
 import type { CostRow } from './types'
 
 const COST_TYPES = Object.keys(COST_TYPE_LABELS)
+
+// Espelha os tetos do `costSchema` da action.
+const MAX_CATEGORY = 100
+const MAX_DESCRIPTION = 65535
+// Teto de parcelas espelha `MAX_COST_INSTALLMENTS` da action.
+const MAX_INSTALLMENTS = 36
 
 type Props = {
   open: boolean
@@ -49,11 +60,15 @@ const EMPTY = {
   description: '',
   isRecurring: false,
   recurringDay: '',
+  installmentsEnabled: false,
+  installments: '',
 }
 
 export function CreateCostDialog({ open, clientId, cost, onOpenChange, onSaved }: Props) {
   const [isPending, startTransition] = useTransition()
   const [form, setForm] = useState(EMPTY)
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [submitAttempted, setSubmitAttempted] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -62,29 +77,102 @@ export function CreateCostDialog({ open, clientId, cost, onOpenChange, onSaved }
           ? {
               type: cost.type,
               category: cost.category ?? '',
-              amount: String(cost.amount),
+              amount: formatMoneyBR(cost.amount),
               date: new Date(cost.date).toISOString().split('T')[0],
               description: stripRecurringMarker(cost.description),
               isRecurring: cost.isRecurring,
               recurringDay: cost.recurringDay ? String(cost.recurringDay) : '',
+              installmentsEnabled: false,
+              installments: '',
             }
           : EMPTY
       )
+      setTouched({})
+      setSubmitAttempted(false)
     }
   }, [open, cost])
 
   function handleOpenChange(v: boolean) {
-    if (!v) setForm(EMPTY)
+    if (!v) {
+      setForm(EMPTY)
+      setTouched({})
+      setSubmitAttempted(false)
+    }
     onOpenChange(v)
   }
 
+  function touch(field: string) {
+    setTouched((t) => ({ ...t, [field]: true }))
+  }
+  function showErr(field: string) {
+    return Boolean(touched[field] || submitAttempted)
+  }
+
+  // Parcelamento só na criação (editar não re-parcela).
+  const canInstallment = !cost
+
+  // ---- Validação (espelha o zod da action; server é a autoridade) ----
+  const parsedAmount = parseMoneyBR(form.amount)
+  const amountInvalid =
+    parsedAmount === undefined
+      ? 'Informe o valor'
+      : parsedAmount <= 0
+        ? 'Deve ser maior que zero'
+        : parsedAmount > MAX_MONEY
+          ? 'Valor muito alto'
+          : undefined
+  const amountError = showErr('amount') ? amountInvalid : undefined
+
+  const dateInvalid = !form.date ? 'Data obrigatória' : undefined
+  const dateError = showErr('date') ? dateInvalid : undefined
+
+  const categoryInvalid =
+    form.category.trim() && !SAFE_TEXT_REGEX.test(form.category)
+      ? 'Caracteres inválidos'
+      : undefined
+  const categoryError = showErr('category') ? categoryInvalid : undefined
+
+  const descInvalid =
+    form.description.trim() && !SAFE_TEXT_REGEX.test(form.description)
+      ? 'Caracteres inválidos'
+      : undefined
+  const descError = showErr('description') ? descInvalid : undefined
+
+  const recurringDayNum = parseInt(form.recurringDay || '', 10)
+  const recurringDayInvalid =
+    form.isRecurring &&
+    (!Number.isFinite(recurringDayNum) || recurringDayNum < 1 || recurringDayNum > 31)
+      ? 'Dia entre 1 e 31'
+      : undefined
+  const recurringDayError = showErr('recurringDay') ? recurringDayInvalid : undefined
+
+  const installmentsNum = parseInt(form.installments || '', 10)
+  const installmentsInvalid = form.installmentsEnabled
+    ? !Number.isFinite(installmentsNum) || installmentsNum < 2
+      ? 'Mínimo 2 parcelas'
+      : installmentsNum > MAX_INSTALLMENTS
+        ? `Máximo ${MAX_INSTALLMENTS} parcelas`
+        : undefined
+    : undefined
+  const installmentsError = showErr('installments') ? installmentsInvalid : undefined
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const amount = parseFloat(form.amount.replace(',', '.'))
-    if (!amount || amount <= 0) {
-      toast.error('Informe um valor válido')
+    setSubmitAttempted(true)
+
+    if (
+      amountInvalid ||
+      dateInvalid ||
+      categoryInvalid ||
+      descInvalid ||
+      recurringDayInvalid ||
+      installmentsInvalid
+    ) {
+      toast.error('Verifique os campos destacados')
       return
     }
+
+    const amount = parsedAmount as number
 
     const marker = extractRecurringMarker(cost?.description)
     const userText = form.description.trim()
@@ -96,12 +184,13 @@ export function CreateCostDialog({ open, clientId, cost, onOpenChange, onSaved }
 
     const data = {
       type: form.type as CostType,
-      category: form.category || undefined,
+      category: form.category.trim() || undefined,
       amount,
       date: form.date,
       description,
       isRecurring: form.isRecurring,
-      recurringDay: form.recurringDay ? parseInt(form.recurringDay) : undefined,
+      recurringDay: form.isRecurring && form.recurringDay ? recurringDayNum : undefined,
+      installments: canInstallment && form.installmentsEnabled ? installmentsNum : undefined,
     }
 
     startTransition(async () => {
@@ -114,31 +203,43 @@ export function CreateCostDialog({ open, clientId, cost, onOpenChange, onSaved }
         return
       }
       toast.success(cost ? 'Custo atualizado!' : 'Custo registrado!')
-      onOpenChange(false)
+      handleOpenChange(false)
       onSaved()
     })
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+      <DialogContent
+        className="max-h-[92vh] overflow-y-auto sm:max-w-md"
+        aria-describedby={undefined}
+      >
         <DialogHeader>
           <DialogTitle>{cost ? 'Editar Custo' : 'Novo Custo'}</DialogTitle>
         </DialogHeader>
         {cost && isAutoGeneratedRecurring(cost.description) && (
-          <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900">
+          <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
             Custo gerado automaticamente a partir de um template recorrente.
           </p>
         )}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* space-y-3 + slot de erro reservado sob CADA campo = ritmo homogêneo
+            (mesmo padrão do popup de novo lead). */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {/* Ordem original: Tipo|Categoria, Valor|Data, Descrição. Os toggles
+              "Recorrente mensal" e "Parcelar custo" moram numa linha ABAIXO do campo,
+              na ordem checkbox → texto → input (dia/nº). O input fica invisível (mas
+              ocupando espaço) quando o toggle está off, e a linha de erro/preview vem
+              logo abaixo — assim label+input das duas colunas seguem alinhados. */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Tipo *</Label>
+            <div className="space-y-2">
+              <div className="flex h-5 items-center gap-2">
+                <Label htmlFor="cs-type">Tipo *</Label>
+              </div>
               <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}>
-                <SelectTrigger>
+                <SelectTrigger id="cs-type">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background">
                   {COST_TYPES.map((t) => (
                     <SelectItem key={t} value={t}>
                       {COST_TYPE_LABELS[t]}
@@ -146,72 +247,168 @@ export function CreateCostDialog({ open, clientId, cost, onOpenChange, onSaved }
                   ))}
                 </SelectContent>
               </Select>
+              <div className="flex h-6 items-center gap-1.5">
+                <label
+                  className={cn(
+                    'flex min-w-0 flex-1 cursor-pointer select-none items-center gap-1.5 text-xs',
+                    form.installmentsEnabled && 'cursor-not-allowed text-muted-foreground'
+                  )}
+                >
+                  <input
+                    id="cs-recurring"
+                    type="checkbox"
+                    checked={form.isRecurring}
+                    disabled={form.installmentsEnabled}
+                    onChange={(e) => setForm((f) => ({ ...f, isRecurring: e.target.checked }))}
+                    className="h-3.5 w-3.5 flex-none rounded border-input"
+                  />
+                  <span className="truncate">Recorrente mensal</span>
+                </label>
+                <IntegerInput
+                  maxDigits={2}
+                  value={form.recurringDay}
+                  onChange={(e) => setForm((f) => ({ ...f, recurringDay: e.target.value }))}
+                  onBlur={() => touch('recurringDay')}
+                  placeholder="Dia"
+                  disabled={!form.isRecurring}
+                  tabIndex={form.isRecurring ? undefined : -1}
+                  aria-hidden={!form.isRecurring}
+                  className={cn(
+                    'h-6 w-14 flex-none px-2 text-xs',
+                    !form.isRecurring && 'invisible'
+                  )}
+                  aria-invalid={!!recurringDayError}
+                />
+              </div>
+              <div className="flex h-4 items-center">
+                <FieldError message={recurringDayError} className="mb-0 min-w-0 flex-1" />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="cs-category">Categoria</Label>
+            <div className="space-y-2">
+              <div className="flex h-5 items-center gap-2">
+                <Label htmlFor="cs-category">Categoria</Label>
+              </div>
               <Input
                 id="cs-category"
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                placeholder="ex: Aluguel, Marketing..."
+                onBlur={() => touch('category')}
+                placeholder="ex: Aluguel, Conserto..."
+                maxLength={MAX_CATEGORY}
+                aria-invalid={!!categoryError}
               />
+              <div className="flex h-6 items-center">
+                <FieldError message={categoryError} className="mb-0 min-w-0 flex-1" />
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="cs-amount">Valor (R$) *</Label>
-              <Input
+            <div className="space-y-2">
+              <div className="flex h-5 items-center gap-2">
+                <Label htmlFor="cs-amount">Valor (R$) *</Label>
+              </div>
+              <MoneyInput
                 id="cs-amount"
                 value={form.amount}
                 onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                placeholder="0,00"
-                required
+                onBlur={() => touch('amount')}
+                aria-invalid={!!amountError}
               />
+              {canInstallment && (
+                <div className="flex h-6 items-center gap-1.5">
+                  <label
+                    className={cn(
+                      'flex min-w-0 flex-1 cursor-pointer select-none items-center gap-1.5 text-xs',
+                      form.isRecurring && 'cursor-not-allowed text-muted-foreground'
+                    )}
+                  >
+                    <input
+                      id="cs-installments"
+                      type="checkbox"
+                      checked={form.installmentsEnabled}
+                      disabled={form.isRecurring}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          installmentsEnabled: e.target.checked,
+                          installments: e.target.checked ? f.installments : '',
+                        }))
+                      }
+                      className="h-3.5 w-3.5 flex-none rounded border-input"
+                    />
+                    <span className="truncate">Parcelar custo</span>
+                  </label>
+                  <IntegerInput
+                    maxDigits={2}
+                    value={form.installments}
+                    onChange={(e) => setForm((f) => ({ ...f, installments: e.target.value }))}
+                    onBlur={() => touch('installments')}
+                    placeholder="Nº"
+                    disabled={!form.installmentsEnabled}
+                    tabIndex={form.installmentsEnabled ? undefined : -1}
+                    aria-hidden={!form.installmentsEnabled}
+                    className={cn(
+                      'h-6 w-14 flex-none px-2 text-xs',
+                      !form.installmentsEnabled && 'invisible'
+                    )}
+                    aria-invalid={!!installmentsError}
+                  />
+                </div>
+              )}
+              <div className="flex h-4 items-center">
+                {/* Prioridade: erro do valor → erro do parcelamento → preview → vazio. */}
+                {amountError ? (
+                  <FieldError message={amountError} className="mb-0 min-w-0 flex-1" />
+                ) : installmentsError ? (
+                  <FieldError message={installmentsError} className="mb-0 min-w-0 flex-1" />
+                ) : form.installmentsEnabled && installmentsNum >= 2 && parsedAmount ? (
+                  <span className="min-w-0 flex-1 truncate text-xs leading-4 text-muted-foreground">
+                    {installmentsNum}× de aprox.{' '}
+                    {formatMoneyBR(Math.round((parsedAmount / installmentsNum) * 100) / 100)} por
+                    mês
+                  </span>
+                ) : (
+                  <span className="flex-1" />
+                )}
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="cs-date">Data *</Label>
+            <div className="space-y-2">
+              <div className="flex h-5 items-center gap-2">
+                <Label htmlFor="cs-date">Data *</Label>
+              </div>
               <DateInput
                 id="cs-date"
                 value={form.date}
-                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                required
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, date: e.target.value }))
+                  touch('date')
+                }}
+                onBlur={() => touch('date')}
+                aria-invalid={!!dateError}
               />
+              <div className="flex h-6 items-center">
+                <FieldError message={dateError} className="mb-0 min-w-0 flex-1" />
+              </div>
             </div>
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="cs-desc">Descrição</Label>
+          <div className="space-y-2">
+            <div className="flex h-5 items-center gap-2">
+              <Label htmlFor="cs-desc">Descrição</Label>
+            </div>
             <Input
               id="cs-desc"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              onBlur={() => touch('description')}
               placeholder="Descrição opcional..."
+              maxLength={MAX_DESCRIPTION}
+              aria-invalid={!!descError}
             />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <input
-              id="cs-recurring"
-              type="checkbox"
-              checked={form.isRecurring}
-              onChange={(e) => setForm((f) => ({ ...f, isRecurring: e.target.checked }))}
-              className="h-4 w-4 rounded border-input"
-            />
-            <Label htmlFor="cs-recurring" className="cursor-pointer font-normal">
-              Custo recorrente mensal
-            </Label>
-            {form.isRecurring && (
-              <Input
-                type="number"
-                min={1}
-                max={31}
-                value={form.recurringDay}
-                onChange={(e) => setForm((f) => ({ ...f, recurringDay: e.target.value }))}
-                placeholder="Dia"
-                className="w-20"
-              />
-            )}
+            <div className="flex h-6 items-center">
+              <FieldError message={descError} className="mb-0 min-w-0 flex-1" />
+            </div>
           </div>
 
           <DialogFooter>

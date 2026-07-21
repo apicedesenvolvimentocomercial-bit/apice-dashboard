@@ -438,7 +438,7 @@ function NotificationRow({
             disabled={pending}
             title="Marcar como lida"
             aria-label="Marcar como lida"
-            className="senno-mark duration-[180ms] flex h-[26px] w-[26px] items-center justify-center rounded-[7px] border border-primary/40 bg-primary/[0.12] text-primary-text transition-[background-color,border-color,color] hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            className="senno-mark flex h-[26px] w-[26px] items-center justify-center rounded-[7px] border border-primary/40 bg-primary/[0.12] text-primary-text transition-[background-color,border-color,color] duration-180 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
             <Check className="h-[13px] w-[13px]" aria-hidden="true" />
           </button>
@@ -449,7 +449,7 @@ function NotificationRow({
             disabled={pending || leaving}
             title="Dispensar"
             aria-label="Dispensar"
-            className="senno-dismiss duration-[180ms] flex h-[26px] w-[26px] items-center justify-center rounded-[7px] border border-border bg-background text-muted-foreground transition-[background-color,border-color,color] hover:border-destructive hover:bg-destructive/[0.12] hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            className="senno-dismiss flex h-[26px] w-[26px] items-center justify-center rounded-[7px] border border-border bg-background text-muted-foreground transition-[background-color,border-color,color] duration-180 hover:border-destructive hover:bg-destructive/[0.12] hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
             <X className="h-[13px] w-[13px]" aria-hidden="true" />
           </button>

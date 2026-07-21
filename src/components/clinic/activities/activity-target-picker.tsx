@@ -77,7 +77,9 @@ export function ActivityTargetPicker({ value, onChange, disabled }: Props) {
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      {/* `bg-background` casa com o fundo do dialog que hospeda o picker — o
+          `bg-popover` padrão é mais claro no dark e destoava do popup. */}
+      <PopoverContent className="w-[--radix-popover-trigger-width] bg-background p-0" align="start">
         <div className="flex border-b border-border">
           {(['lead', 'patient'] as const).map((t) => (
             <button

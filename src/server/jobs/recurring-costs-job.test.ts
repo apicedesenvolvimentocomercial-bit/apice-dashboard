@@ -10,6 +10,7 @@ type Template = {
   type: 'FIXED' | 'VARIABLE' | 'MARKETING' | 'PAYROLL' | 'TAX_REVENUE' | 'OTHER'
   category: string | null
   amount: number
+  date: Date
   description: string | null
   recurringDay: number
   campaignId: string | null
@@ -24,6 +25,9 @@ function makeTemplate(overrides: Partial<Template> = {}): Template {
     type: 'FIXED',
     category: 'Aluguel',
     amount: 1000,
+    // Cadastrado num mês ANTERIOR ao de referência (mai/2025) — o cron deve
+    // gerar o filho do mês corrente. O mês de cadastro é coberto pelo template.
+    date: spDate(2025, 0, 15), // 15/jan/2025
     description: 'Aluguel matriz',
     recurringDay: 5,
     campaignId: null,
@@ -79,6 +83,17 @@ describe('runRecurringCostsJob', () => {
       templates: [makeTemplate()],
       existingChildIds: new Set(['tpl-1']),
     })
+    const result = await runRecurringCostsJob(reference, mock)
+    expect(result.created).toBe(0)
+    expect(result.skipped).toBe(1)
+    expect(created).toHaveLength(0)
+  })
+
+  it('NÃO cria filho no mês em que o template foi cadastrado (baixa manual já cobre)', async () => {
+    // Template cadastrado em 3/mai/2025, dia recorrente 5 — o cron roda em
+    // 11/mai. O mês de maio já foi lançado no cadastro; não pode duplicar.
+    const template = makeTemplate({ recurringDay: 5, date: spDate(2025, 4, 3, 12, 0, 0) })
+    const { mock, created } = makeMock({ templates: [template] })
     const result = await runRecurringCostsJob(reference, mock)
     expect(result.created).toBe(0)
     expect(result.skipped).toBe(1)

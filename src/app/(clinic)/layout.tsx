@@ -47,7 +47,6 @@ export default async function ClientLayout({ children }: { children: React.React
         clinicName={chrome.clinicName}
         clinicSub={chrome.clinicSub}
         userName={session.user.name ?? 'Usuário'}
-        userEmail={session.user.email ?? null}
         roleLabel={chrome.roleLabel}
       />
       <div className="flex flex-1 flex-col overflow-hidden">

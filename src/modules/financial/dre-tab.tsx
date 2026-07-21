@@ -123,14 +123,16 @@ export function DreTab({ clientId }: { clientId: string }) {
                 aria-label="De"
                 value={custom.from}
                 onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
-                className="h-9 w-36 text-xs"
+                containerClassName="w-36"
+                className="h-9 w-full text-xs"
               />
               <span className="text-xs text-muted-foreground">até</span>
               <DateInput
                 aria-label="Até"
                 value={custom.to}
                 onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
-                className="h-9 w-36 text-xs"
+                containerClassName="w-36"
+                className="h-9 w-full text-xs"
               />
             </div>
           )}

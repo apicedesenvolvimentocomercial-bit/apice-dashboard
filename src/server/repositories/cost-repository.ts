@@ -1,6 +1,8 @@
 import type { CostType } from '@prisma/client'
 
+import { clampDayToMonth, monthBoundsFor } from '@/lib/date'
 import { prisma } from '@/lib/prisma'
+import { scopedTransaction } from '@/server/tenant/scoped-transaction'
 import type { TenantContext } from '@/server/tenant/context'
 
 export type CostRow = Awaited<ReturnType<typeof listCosts>>[number]
@@ -102,6 +104,58 @@ export async function createCost(
       recurringDay: data.recurringDay,
       createdById: ctx.userId,
     },
+  })
+}
+
+/**
+ * Cria um custo PARCELADO = N custos mensais, um por mês a partir de `data.date`.
+ * O total é dividido em centavos (os primeiros parcelas absorvem o resto para a
+ * soma bater exatamente), e cada parcela recebe " (i/N)" na descrição. Diferente
+ * de "recorrente" (template + cron indefinido): parcelamento é FINITO e concreto.
+ *
+ * Roda em `scopedTransaction` (RLS na mesma transação): ou cria todas ou nenhuma.
+ * Retorna a 1ª parcela (âncora p/ auditoria).
+ */
+export async function createCostInstallments(
+  ctx: TenantContext,
+  clientId: string,
+  data: {
+    type: CostType
+    category?: string
+    amount: number
+    date: Date
+    description?: string
+  },
+  installments: number
+) {
+  const { year, month0, day } = monthBoundsFor(data.date)
+  const totalCents = Math.round(data.amount * 100)
+  const baseCents = Math.floor(totalCents / installments)
+  const remainder = totalCents - baseCents * installments
+
+  const rows = Array.from({ length: installments }, (_, i) => {
+    const cents = baseCents + (i < remainder ? 1 : 0)
+    const suffix = ` (${i + 1}/${installments})`
+    const description = data.description
+      ? `${data.description}${suffix}`.slice(0, 65535)
+      : suffix.trim()
+    return {
+      organizationId: ctx.organizationId,
+      clientId,
+      type: data.type,
+      category: data.category,
+      amount: cents / 100,
+      date: clampDayToMonth(year, month0 + i, day),
+      description,
+      isRecurring: false,
+      createdById: ctx.userId,
+    }
+  })
+
+  return scopedTransaction(async (tx) => {
+    const first = await tx.cost.create({ data: rows[0] })
+    if (rows.length > 1) await tx.cost.createMany({ data: rows.slice(1) })
+    return first
   })
 }
 

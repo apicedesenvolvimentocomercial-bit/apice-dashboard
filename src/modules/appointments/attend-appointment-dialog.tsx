@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DateInput } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { attendAppointmentAction } from '@/server/actions/appointment-actions'
@@ -194,10 +195,8 @@ export function AttendAppointmentDialog({
             </div>
             <div className="space-y-1">
               <Label htmlFor="attend-appt-birth">Nascimento *</Label>
-              <Input
+              <DateInput
                 id="attend-appt-birth"
-                type="date"
-                lang="pt-BR"
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
                 disabled={loading}

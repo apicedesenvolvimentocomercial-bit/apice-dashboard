@@ -10,7 +10,13 @@ import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import { isValidCpf } from '@/lib/cpf'
-import { EMAIL_REGEX, MAX_MONEY, PHONE_BR_REGEX, SAFE_TEXT_REGEX } from '@/lib/masks'
+import {
+  EMAIL_REGEX,
+  MAX_CARD_NOTES,
+  MAX_MONEY,
+  PHONE_BR_REGEX,
+  SAFE_TEXT_REGEX,
+} from '@/lib/masks'
 import {
   createLead,
   createLeadForPatient,
@@ -76,9 +82,11 @@ const leadSchema = z.object({
     .optional(),
   procedureInterestIds: z.array(z.string().max(64)).max(100, 'Muitos procedimentos').optional(),
   estimatedValue: z.number().max(MAX_MONEY, 'Valor estimado muito alto').positive().optional(),
+  // Teto BAIXO de propósito: a observação é exibida no card do lead junto dos
+  // dados de contato e precisa caber em ≤4 linhas (ver MAX_CARD_NOTES).
   notes: z
     .string()
-    .max(65535, 'Nota muito grande')
+    .max(MAX_CARD_NOTES, 'Observação muito grande')
     .regex(SAFE_TEXT_REGEX, 'a nota contém caracteres inválidos')
     .optional(),
 })

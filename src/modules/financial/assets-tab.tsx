@@ -4,6 +4,7 @@ import { Box, HelpCircle, Loader2, MonitorSmartphone, Plus, Trash2 } from 'lucid
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
+import { InfoHint } from '@/components/dashboard/info-hint'
 import { ActionButton } from '@/components/ui/action-button'
 import { Button } from '@/components/ui/button'
 import { DateInput } from '@/components/ui/date-input'
@@ -15,9 +16,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { FieldError } from '@/components/ui/field-error'
 import { Input } from '@/components/ui/input'
+import { IntegerInput } from '@/components/ui/integer-input'
+import { MoneyInput } from '@/components/ui/money-input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { MAX_MONEY, SAFE_TEXT_REGEX, parseMoneyBR } from '@/lib/masks'
 import { cn } from '@/lib/utils'
 import {
   createFixedAssetAction,
@@ -400,19 +405,68 @@ function NewRentalDialog({ clientId, onSaved }: { clientId: string; onSaved: () 
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [form, setForm] = useState({ name: '', amount: '', startDate: '', recurringDay: '' })
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [submitAttempted, setSubmitAttempted] = useState(false)
+
+  function touch(field: string) {
+    setTouched((t) => ({ ...t, [field]: true }))
+  }
+  function showErr(field: string) {
+    return Boolean(touched[field] || submitAttempted)
+  }
+  function resetForm() {
+    setForm({ name: '', amount: '', startDate: '', recurringDay: '' })
+    setTouched({})
+    setSubmitAttempted(false)
+  }
+
+  // ---- Validação (espelha `rentalSchema` da cost-action) ----
+  // "Mínimo 2 caracteres" (campo ainda vazio/curto) só incomoda ao tentar
+  // cadastrar — não no blur de quem apenas passou pelo campo. Erros "duros"
+  // (nome grande / caracteres inválidos) seguem aparecendo no blur.
+  const nameTooShort = form.name.trim().length < 2
+  const nameHardInvalid =
+    form.name.length > 255
+      ? 'Nome muito grande'
+      : form.name.trim() && !SAFE_TEXT_REGEX.test(form.name)
+        ? 'Caracteres inválidos'
+        : undefined
+  const nameInvalid = nameTooShort ? 'Mínimo 2 caracteres' : nameHardInvalid
+  const nameError = submitAttempted ? nameInvalid : touched.name ? nameHardInvalid : undefined
+
+  const parsedAmount = parseMoneyBR(form.amount)
+  const amountInvalid =
+    parsedAmount === undefined
+      ? 'Informe o valor'
+      : parsedAmount <= 0
+        ? 'Deve ser maior que zero'
+        : parsedAmount > MAX_MONEY
+          ? 'Valor muito alto'
+          : undefined
+  const amountError = showErr('amount') ? amountInvalid : undefined
+
+  const dateInvalid = !form.startDate ? 'Data obrigatória' : undefined
+  const dateError = showErr('startDate') ? dateInvalid : undefined
+
+  const dayNum = parseInt(form.recurringDay || '', 10)
+  const dayInvalid =
+    form.recurringDay && (!Number.isFinite(dayNum) || dayNum < 1 || dayNum > 31)
+      ? 'Dia entre 1 e 31'
+      : undefined
+  const dayError = showErr('recurringDay') ? dayInvalid : undefined
 
   function submit() {
-    const amount = Number(form.amount)
-    if (form.name.trim().length < 2) return toast.error('Dê um nome ao equipamento')
-    if (!(amount > 0)) return toast.error('Valor mensal inválido')
-    if (!form.startDate) return toast.error('Informe a data de início')
-
+    setSubmitAttempted(true)
+    if (nameInvalid || amountInvalid || dateInvalid || dayInvalid) {
+      toast.error('Verifique os campos destacados')
+      return
+    }
     startTransition(async () => {
       const res = await createEquipmentRentalAction(clientId, {
-        name: form.name,
-        amount,
+        name: form.name.trim(),
+        amount: parsedAmount as number,
         startDate: form.startDate,
-        recurringDay: form.recurringDay ? parseInt(form.recurringDay, 10) : undefined,
+        recurringDay: form.recurringDay ? dayNum : undefined,
       })
       if (!res.success) {
         toast.error(res.error.message)
@@ -420,13 +474,19 @@ function NewRentalDialog({ clientId, onSaved }: { clientId: string; onSaved: () 
       }
       toast.success('Aluguel cadastrado')
       setOpen(false)
-      setForm({ name: '', amount: '', startDate: '', recurringDay: '' })
+      resetForm()
       onSaved()
     })
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) resetForm()
+        setOpen(v)
+      }}
+    >
       <DialogTrigger asChild>
         <ActionButton>
           <Plus aria-hidden="true" />
@@ -437,43 +497,60 @@ function NewRentalDialog({ clientId, onSaved }: { clientId: string; onSaved: () 
         <DialogHeader>
           <DialogTitle>Novo aluguel de equipamento</DialogTitle>
         </DialogHeader>
+        {/* space-y-3 + slot de erro reservado sob CADA campo = ritmo homogêneo. */}
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Equipamento</Label>
+          <div className="space-y-2">
+            <Label htmlFor="rent-name">Equipamento</Label>
             <Input
+              id="rent-name"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              onBlur={() => touch('name')}
               placeholder="Ex: Laser alugado"
+              maxLength={255}
+              aria-invalid={!!nameError}
             />
+            <FieldError message={nameError} reserve />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Aluguel mensal</Label>
-              <Input
-                type="number"
-                step="0.01"
+            <div className="space-y-2">
+              <Label htmlFor="rent-amount">Aluguel mensal (R$)</Label>
+              <MoneyInput
+                id="rent-amount"
                 value={form.amount}
                 onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                onBlur={() => touch('amount')}
+                aria-invalid={!!amountError}
               />
+              <FieldError message={amountError} reserve />
             </div>
-            <div className="space-y-1.5">
-              <Label>Dia do vencimento (opcional)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={31}
+            <div className="space-y-2">
+              <Label htmlFor="rent-day">Dia do vencimento</Label>
+              <IntegerInput
+                id="rent-day"
+                maxDigits={2}
                 value={form.recurringDay}
                 onChange={(e) => setForm((f) => ({ ...f, recurringDay: e.target.value }))}
+                onBlur={() => touch('recurringDay')}
                 placeholder="Dia da data início"
+                aria-invalid={!!dayError}
               />
+              <FieldError message={dayError} reserve />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Início</Label>
+          <div className="space-y-2">
+            <Label htmlFor="rent-start">Início</Label>
             <DateInput
+              id="rent-start"
               value={form.startDate}
-              onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, startDate: e.target.value }))
+                touch('startDate')
+              }}
+              onBlur={() => touch('startDate')}
+              aria-invalid={!!dateError}
             />
+            <FieldError message={dateError} reserve />
           </div>
         </div>
         <DialogFooter>
@@ -501,24 +578,107 @@ function NewAssetDialog({ clientId, onSaved }: { clientId: string; onSaved: () =
     acquisitionDate: '',
     usefulLifeMonths: '',
   })
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [submitAttempted, setSubmitAttempted] = useState(false)
+
+  function touch(field: string) {
+    setTouched((t) => ({ ...t, [field]: true }))
+  }
+  function showErr(field: string) {
+    return Boolean(touched[field] || submitAttempted)
+  }
+  function resetForm() {
+    setForm({
+      name: '',
+      category: '',
+      acquisitionValue: '',
+      residualValue: '',
+      acquisitionDate: '',
+      usefulLifeMonths: '',
+    })
+    setTouched({})
+    setSubmitAttempted(false)
+  }
+
+  // ---- Validação (espelha `createSchema` de fixed-asset-actions) ----
+  // "Mínimo 2 caracteres" (campo ainda vazio/curto) só incomoda ao tentar
+  // cadastrar — não no blur de quem apenas passou pelo campo. Erros "duros"
+  // (nome grande / caracteres inválidos) seguem aparecendo no blur.
+  const nameTooShort = form.name.trim().length < 2
+  const nameHardInvalid =
+    form.name.length > 255
+      ? 'Nome muito grande'
+      : form.name.trim() && !SAFE_TEXT_REGEX.test(form.name)
+        ? 'Caracteres inválidos'
+        : undefined
+  const nameInvalid = nameTooShort ? 'Mínimo 2 caracteres' : nameHardInvalid
+  const nameError = submitAttempted ? nameInvalid : touched.name ? nameHardInvalid : undefined
+
+  const categoryInvalid =
+    form.category.trim() && !SAFE_TEXT_REGEX.test(form.category)
+      ? 'Caracteres inválidos'
+      : undefined
+  const categoryError = showErr('category') ? categoryInvalid : undefined
+
+  const parsedAcq = parseMoneyBR(form.acquisitionValue)
+  const acqInvalid =
+    parsedAcq === undefined
+      ? 'Informe o valor'
+      : parsedAcq <= 0
+        ? 'Deve ser maior que zero'
+        : parsedAcq > MAX_MONEY
+          ? 'Valor muito alto'
+          : undefined
+  const acqError = showErr('acquisitionValue') ? acqInvalid : undefined
+
+  const parsedResidual = parseMoneyBR(form.residualValue)
+  const residualInvalid =
+    form.residualValue.trim() === ''
+      ? undefined
+      : parsedResidual === undefined || parsedResidual <= 0
+        ? 'Valor inválido'
+        : parsedResidual > MAX_MONEY
+          ? 'Valor muito alto'
+          : parsedAcq !== undefined && parsedResidual >= parsedAcq
+            ? 'Deve ser menor que o de aquisição'
+            : undefined
+  const residualError = showErr('residualValue') ? residualInvalid : undefined
+
+  const dateInvalid = !form.acquisitionDate ? 'Data obrigatória' : undefined
+  const dateError = showErr('acquisitionDate') ? dateInvalid : undefined
+
+  const lifeNum = parseInt(form.usefulLifeMonths || '', 10)
+  const lifeInvalid =
+    !Number.isFinite(lifeNum) || lifeNum < 1
+      ? 'Informe os meses'
+      : lifeNum > 1200
+        ? 'Vida útil muito longa'
+        : undefined
+  const lifeError = showErr('usefulLifeMonths') ? lifeInvalid : undefined
 
   function submit() {
-    const acquisitionValue = Number(form.acquisitionValue)
-    const usefulLifeMonths = parseInt(form.usefulLifeMonths, 10)
-    if (form.name.trim().length < 2) return toast.error('Dê um nome ao ativo')
-    if (!(acquisitionValue > 0)) return toast.error('Valor de aquisição inválido')
-    if (!(usefulLifeMonths > 0)) return toast.error('Vida útil (meses) inválida')
-    if (!form.acquisitionDate) return toast.error('Informe a data de aquisição')
+    setSubmitAttempted(true)
+    if (
+      nameInvalid ||
+      categoryInvalid ||
+      acqInvalid ||
+      residualInvalid ||
+      dateInvalid ||
+      lifeInvalid
+    ) {
+      toast.error('Verifique os campos destacados')
+      return
+    }
 
     startTransition(async () => {
       const res = await createFixedAssetAction(clientId, {
-        name: form.name,
-        category: form.category || undefined,
+        name: form.name.trim(),
+        category: form.category.trim() || undefined,
         kind: 'INTANGIVEL',
-        acquisitionValue,
-        residualValue: form.residualValue ? Number(form.residualValue) : undefined,
+        acquisitionValue: parsedAcq as number,
+        residualValue: form.residualValue.trim() ? (parsedResidual as number) : undefined,
         acquisitionDate: form.acquisitionDate,
-        usefulLifeMonths,
+        usefulLifeMonths: lifeNum,
       })
       if (!res.success) {
         toast.error(res.error.message)
@@ -526,87 +686,122 @@ function NewAssetDialog({ clientId, onSaved }: { clientId: string; onSaved: () =
       }
       toast.success('Ativo cadastrado')
       setOpen(false)
-      setForm({
-        name: '',
-        category: '',
-        acquisitionValue: '',
-        residualValue: '',
-        acquisitionDate: '',
-        usefulLifeMonths: '',
-      })
+      resetForm()
       onSaved()
     })
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) resetForm()
+        setOpen(v)
+      }}
+    >
       <DialogTrigger asChild>
         <ActionButton>
           <Plus aria-hidden="true" />
           Novo ativo
         </ActionButton>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo ativo intangível</DialogTitle>
         </DialogHeader>
+        {/* space-y-3 + slot de erro reservado sob CADA campo = ritmo homogêneo. */}
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
             Ativos intangíveis (software, licenças, marcas) entram na DRE pela amortização.
             Depreciação de equipamentos foi descontinuada.
           </p>
-          <div className="space-y-1.5">
-            <Label>Nome</Label>
+          <div className="space-y-2">
+            <Label htmlFor="asset-name">Nome</Label>
             <Input
+              id="asset-name"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              onBlur={() => touch('name')}
               placeholder="Ex: Licença do software de gestão"
+              maxLength={255}
+              aria-invalid={!!nameError}
             />
+            <FieldError message={nameError} reserve />
           </div>
-          <div className="space-y-1.5">
-            <Label>Categoria (opcional)</Label>
+          <div className="space-y-2">
+            <Label htmlFor="asset-category">Categoria (opcional)</Label>
             <Input
+              id="asset-category"
               value={form.category}
               onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+              onBlur={() => touch('category')}
               placeholder="Software"
+              maxLength={255}
+              aria-invalid={!!categoryError}
             />
+            <FieldError message={categoryError} reserve />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Valor de aquisição</Label>
-              <Input
-                type="number"
-                step="0.01"
+            <div className="space-y-2">
+              <Label htmlFor="asset-acq">Valor de aquisição (R$)</Label>
+              <MoneyInput
+                id="asset-acq"
                 value={form.acquisitionValue}
                 onChange={(e) => setForm((f) => ({ ...f, acquisitionValue: e.target.value }))}
+                onBlur={() => touch('acquisitionValue')}
+                aria-invalid={!!acqError}
               />
+              <FieldError message={acqError} reserve />
             </div>
-            <div className="space-y-1.5">
-              <Label>Valor residual (opcional)</Label>
-              <Input
-                type="number"
-                step="0.01"
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="asset-residual">Valor residual (opcional)</Label>
+                <InfoHint label="valor residual">
+                  <p className="font-medium text-foreground">Valor residual</p>
+                  <p className="mt-1">
+                    Quanto o ativo ainda deve valer ao fim da vida útil (revenda/sucata). A
+                    amortização incide só sobre a diferença:{' '}
+                    <span className="font-medium">valor de aquisição − residual</span>.
+                  </p>
+                </InfoHint>
+              </div>
+              <MoneyInput
+                id="asset-residual"
                 value={form.residualValue}
                 onChange={(e) => setForm((f) => ({ ...f, residualValue: e.target.value }))}
+                onBlur={() => touch('residualValue')}
+                aria-invalid={!!residualError}
               />
+              <FieldError message={residualError} reserve />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Data de aquisição</Label>
+            <div className="space-y-2">
+              <Label htmlFor="asset-date">Data de aquisição</Label>
               <DateInput
+                id="asset-date"
                 value={form.acquisitionDate}
-                onChange={(e) => setForm((f) => ({ ...f, acquisitionDate: e.target.value }))}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, acquisitionDate: e.target.value }))
+                  touch('acquisitionDate')
+                }}
+                onBlur={() => touch('acquisitionDate')}
+                aria-invalid={!!dateError}
               />
+              <FieldError message={dateError} reserve />
             </div>
-            <div className="space-y-1.5">
-              <Label>Vida útil (meses)</Label>
-              <Input
-                type="number"
+            <div className="space-y-2">
+              <Label htmlFor="asset-life">Vida útil (meses)</Label>
+              <IntegerInput
+                id="asset-life"
+                maxDigits={4}
                 value={form.usefulLifeMonths}
                 onChange={(e) => setForm((f) => ({ ...f, usefulLifeMonths: e.target.value }))}
+                onBlur={() => touch('usefulLifeMonths')}
                 placeholder="60"
+                aria-invalid={!!lifeError}
               />
+              <FieldError message={lifeError} reserve />
             </div>
           </div>
         </div>

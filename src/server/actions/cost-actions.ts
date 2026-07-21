@@ -11,11 +11,16 @@ import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
 import { enterClientScope } from '@/server/tenant/client-scope'
 import {
   createCost,
+  createCostInstallments,
   updateCost,
   softDeleteCost,
   listEquipmentRentals,
   EQUIPMENT_RENTAL_CATEGORY,
 } from '@/server/repositories/cost-repository'
+
+// Teto de parcelas de um custo (3 anos). Não vem do banco — o parcelamento gera
+// N linhas de Cost mensais, então cabe um limite sensato de negócio.
+const MAX_COST_INSTALLMENTS = 36
 
 const COST_TYPES = [
   'FIXED',
@@ -53,6 +58,14 @@ const costSchema = z.object({
     .optional(),
   isRecurring: z.boolean().optional(),
   recurringDay: z.number().int().min(1).max(31).optional(),
+  // Parcelamento (opcional): >1 divide o custo em N linhas mensais. Mutuamente
+  // exclusivo com `isRecurring` (validado na action).
+  installments: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_COST_INSTALLMENTS, 'Número de parcelas muito grande')
+    .optional(),
 })
 
 function revalidate(clientId: string) {
@@ -76,15 +89,35 @@ export async function createCostAction(clientId: string, formData: unknown) {
   const date = parseLocalDate(parsed.data.date)
   if (!date) return fail('Data inválida')
 
-  const cost = await createCost(ctx, clientId, {
-    ...parsed.data,
-    date,
-  })
+  const { installments, ...costData } = parsed.data
+  const parcelas = installments ?? 1
+  // Parcelamento e recorrência não convivem: um é finito (N linhas), o outro é
+  // um template mensal indefinido.
+  if (parcelas > 1 && costData.isRecurring) {
+    return fail('Um custo parcelado não pode ser recorrente')
+  }
+
+  // >1 parcela → N custos mensais; senão, um único custo (caminho antigo).
+  const cost =
+    parcelas > 1
+      ? await createCostInstallments(
+          ctx,
+          clientId,
+          {
+            type: costData.type,
+            category: costData.category,
+            amount: costData.amount,
+            date,
+            description: costData.description,
+          },
+          parcelas
+        )
+      : await createCost(ctx, clientId, { ...costData, date })
   createAuditLog(ctx, {
     action: 'create',
     entityType: 'Cost',
     entityId: cost.id,
-    changes: { amount: parsed.data.amount, type: parsed.data.type },
+    changes: { amount: parsed.data.amount, type: parsed.data.type, installments: parcelas },
   }).catch(() => {})
   revalidate(clientId)
   return ok(null)
@@ -106,9 +139,16 @@ export async function updateCostAction(costId: string, clientId: string, formDat
     date = parsedDate
   }
 
+  // `installments` só vale na criação (gera N linhas) — editar não re-parcela,
+  // então os campos vão explícitos (sem espalhar `installments` p/ o updateMany).
   await updateCost(ctx, costId, clientId, {
-    ...parsed.data,
+    type: parsed.data.type,
+    category: parsed.data.category,
+    amount: parsed.data.amount,
     date,
+    description: parsed.data.description,
+    isRecurring: parsed.data.isRecurring,
+    recurringDay: parsed.data.recurringDay,
   })
   revalidate(clientId)
   return ok(null)

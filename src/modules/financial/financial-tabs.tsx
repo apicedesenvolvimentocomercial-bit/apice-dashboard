@@ -22,7 +22,7 @@ import type {
 } from './types'
 import type { RevenueMonthlySeries } from '@/server/queries/revenue-series'
 
-type Patient = { id: string; name: string }
+type Patient = { id: string; name: string; fromScheduledLead: boolean }
 
 type TabKey = 'visao' | 'dre' | 'receitas' | 'contas' | 'custos' | 'ativos'
 

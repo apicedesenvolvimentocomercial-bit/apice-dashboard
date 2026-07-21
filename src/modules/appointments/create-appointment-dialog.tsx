@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { FieldError } from '@/components/ui/field-error'
+import { DateTimeInput } from '@/components/ui/date-time-input'
 import { Input } from '@/components/ui/input'
 import { IntegerInput } from '@/components/ui/integer-input'
 import { Label } from '@/components/ui/label'
@@ -26,7 +27,7 @@ import {
 } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/shared/searchable-select'
 import { cn } from '@/lib/utils'
-import { EMAIL_REGEX, PHONE_BR_REGEX, SAFE_TEXT_REGEX } from '@/lib/masks'
+import { EMAIL_REGEX, MAX_CARD_NOTES, PHONE_BR_REGEX, SAFE_TEXT_REGEX } from '@/lib/masks'
 import { getScheduleViolation } from '@/lib/schedule-violation'
 import {
   createAppointmentAction,
@@ -566,13 +567,13 @@ export function CreateAppointmentDialog({
             <FieldError reserve />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
+          {/* 3 colunas com a data/hora ocupando 2: o campo composto precisa de
+              ~240px (data + hora + os dois ícones) e a duração vive com pouco. */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2 space-y-2">
               <Label htmlFor="apt-date">Data e hora *</Label>
-              <Input
+              <DateTimeInput
                 id="apt-date"
-                type="datetime-local"
-                lang="pt-BR"
                 min={minScheduledAttr}
                 value={form.scheduledAt}
                 onChange={(e) => {
@@ -582,9 +583,7 @@ export function CreateAppointmentDialog({
                   setFarFutureAck(false)
                 }}
                 onBlur={() => setDateBlurred(true)}
-                aria-invalid={isTooOld || undefined}
-                className={isTooOld ? 'border-red-500 focus-visible:ring-red-500' : undefined}
-                required
+                invalid={isTooOld}
               />
               <FieldError message={isTooOld ? 'Máximo 1 ano no passado' : undefined} reserve />
             </div>
@@ -681,7 +680,7 @@ export function CreateAppointmentDialog({
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               onBlur={() => setNotesTouched(true)}
               rows={2}
-              maxLength={65535}
+              maxLength={MAX_CARD_NOTES}
               aria-invalid={!!notesError}
               className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               placeholder="Observações opcionais..."

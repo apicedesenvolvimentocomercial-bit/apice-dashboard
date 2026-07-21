@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { decideCalendarSync } from '@/lib/activity-calendar-sync'
 import { APP_TIMEZONE, parseLocalDate, spDate } from '@/lib/date'
 import { logger } from '@/lib/logger'
+import { SAFE_TEXT_REGEX } from '@/lib/masks'
 import { prisma } from '@/lib/prisma'
 import { getClinicContext } from '@/server/auth/clinic-context'
 import { assertCan } from '@/server/auth/assert-can'
@@ -51,24 +52,33 @@ const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as const
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const
 
 const activitySchema = z.object({
-  title: z.string().min(2, 'Título obrigatório'),
-  description: z.string().optional(),
+  title: z
+    .string()
+    .min(2, 'Título obrigatório')
+    .max(255, 'Título muito grande')
+    .regex(SAFE_TEXT_REGEX, 'O título contém caracteres inválidos'),
+  // Vazio deve virar undefined no caller (o regex recusa string vazia).
+  description: z
+    .string()
+    .max(1000, 'Descrição muito grande')
+    .regex(SAFE_TEXT_REGEX, 'A descrição contém caracteres inválidos')
+    .optional(),
   type: z.enum(TYPES),
   // Tipo personalizado da clínica (opcional). Quando presente, `type` é forçado a
   // TASK na action e a UI mostra o label custom.
-  customTypeId: z.string().optional().nullable(),
+  customTypeId: z.string().max(64).optional().nullable(),
   status: z.enum(STATUSES).optional(),
   priority: z.enum(PRIORITIES).default('MEDIUM'),
-  dueDate: z.string().optional().nullable(),
-  dueTime: z.string().optional().nullable(),
+  dueDate: z.string().max(30, 'Data inválida').optional().nullable(),
+  dueTime: z.string().max(10, 'Hora inválida').optional().nullable(),
   // 'all' = fan-out p/ toda a clínica; id = usuário específico (validado);
   // null/vazio = o próprio usuário.
-  assignedToId: z.string().optional().nullable(),
+  assignedToId: z.string().max(64).optional().nullable(),
   addToCalendar: z.boolean().optional(),
   // Alvo da atividade (item 1) — obrigatório no create (atividade de clínica é
   // sempre sobre um lead OU paciente). Validado contra a clínica na action.
   targetType: z.enum(['lead', 'patient']).optional(),
-  targetId: z.string().optional().nullable(),
+  targetId: z.string().max(64).optional().nullable(),
 })
 
 const END_OF_DAY_HOUR = 23

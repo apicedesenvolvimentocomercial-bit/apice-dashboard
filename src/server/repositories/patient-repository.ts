@@ -42,6 +42,9 @@ export async function listPatients(
       firstVisitAt: true,
       lastVisitAt: true,
       createdAt: true,
+      // Distingue paciente "real" de lead provisório (criado ao agendar e que
+      // nunca compareceu) — usado no rótulo "Paciente / Lead" dos selects.
+      fromScheduledLead: true,
       _count: {
         select: {
           appointments: { where: { deletedAt: null } },
