@@ -124,6 +124,7 @@ export function AppointmentsCalendar({
         open={selectedAppointment !== null}
         appointment={selectedAppointment}
         clientId={clientId}
+        procedures={procedures}
         onClose={() => setSelectedAppointment(null)}
         onUpdated={handleUpdated}
       />

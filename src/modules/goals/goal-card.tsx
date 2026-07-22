@@ -118,7 +118,6 @@ export function GoalCard({ clientId, goal, users, roles, canAssign }: Props) {
               targetValue: goal.targetValue,
               startDate: goal.startDate,
               endDate: goal.endDate,
-              notes: goal.notes,
               scopeType: goal.scopeType,
               mode: goal.mode,
               assigneeUserId: goal.assigneeUserId,
@@ -143,7 +142,9 @@ export function GoalCard({ clientId, goal, users, roles, canAssign }: Props) {
                     confirmDelete()
                   }}
                   disabled={isPending}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  // Largura mínima do rótulo mais LONGO ("Excluindo..."): sem
+                  // ela o botão encolhia/expandia ao alternar o texto.
+                  className="min-w-[7.5rem] bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   {isPending ? 'Excluindo...' : 'Excluir'}
                 </AlertDialogAction>
@@ -175,8 +176,6 @@ export function GoalCard({ clientId, goal, users, roles, canAssign }: Props) {
             Projeção no ritmo atual: {formatValue(goal.metric, goal.projectedAtPace)}
           </p>
         )}
-
-        {goal.notes && <p className="text-xs text-muted-foreground">{goal.notes}</p>}
       </CardContent>
     </Card>
   )

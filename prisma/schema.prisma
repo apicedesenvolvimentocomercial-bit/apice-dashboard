@@ -1069,7 +1069,6 @@ model Goal {
   targetValue Decimal    @db.Decimal(15, 2)
   startDate   DateTime
   endDate     DateTime
-  notes       String?
 
   // Escopo (Etapa 2). Default CLINIC para compatibilidade com metas existentes.
   scopeType      GoalScopeType @default(CLINIC)

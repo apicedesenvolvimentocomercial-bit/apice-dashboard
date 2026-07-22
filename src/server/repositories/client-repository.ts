@@ -92,7 +92,8 @@ export async function updateClient(
     name: string
     city: string
     state: string
-    phone: string
+    /** `null` limpa o campo (usuário apagou o telefone nas Configurações). */
+    phone: string | null
     email: string
     monthlyFee: number
     contractStart: Date

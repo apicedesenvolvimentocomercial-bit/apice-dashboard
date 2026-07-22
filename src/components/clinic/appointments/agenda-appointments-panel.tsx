@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { Plus, Settings2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { toSPWallClock } from '@/lib/calendar-time'
 import { cn } from '@/lib/utils'
@@ -15,6 +15,7 @@ import type { PatientWithStats } from '@/server/repositories/patient-repository'
 import type { ProcedureForSelect } from '@/server/repositories/procedure-repository'
 
 import {
+  localDateKey,
   toLocalISO,
   type AgendaCalendarApi,
   type AgendaDatesInfo,
@@ -22,7 +23,7 @@ import {
 } from './agenda-fc-shared'
 import { AgendaLegend } from './agenda-legend'
 import { AgendaListView, type AgendaListGroup } from './agenda-list-view'
-import { AgendaEmptyCard, AgendaEmptyOverlay, AgendaGridSkeleton } from './agenda-states'
+import { AgendaEmptyCard, AgendaGridSkeleton } from './agenda-states'
 import { AgendaToolbar } from './agenda-toolbar'
 
 const SennoAppointmentsCalendar = dynamic(
@@ -68,11 +69,38 @@ export function AgendaAppointmentsPanel({
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentEvent | null>(null)
   const apiRef = useRef<AgendaCalendarApi | null>(null)
   const [dates, setDates] = useState<AgendaDatesInfo | null>(null)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
 
   function handleDateSelect(dateStr: string) {
     setDefaultDate(dateStr)
     setCreateOpen(true)
   }
+
+  /**
+   * Agendamento criado FORA do período visível: navega a grade até o dia dele e
+   * o realça. Dentro do período, nada disso acontece — o card já vai aparecer na
+   * tela no `router.refresh()`, e navegar/piscar em cima do que o usuário já está
+   * olhando só polui. O realce existe para reencontrar o que saiu de vista.
+   */
+  function handleCreated(created?: { appointmentId: string; scheduledAt: string }) {
+    router.refresh()
+    if (!created) return
+    // `scheduledAt` é wall-clock local ("YYYY-MM-DDTHH:mm"); só o dia importa.
+    const day = created.scheduledAt.slice(0, 10)
+    // `dates.end` é EXCLUSIVO (padrão do FullCalendar), daí o `<`.
+    const alreadyVisible =
+      dates != null && day >= localDateKey(dates.start) && day < localDateKey(dates.end)
+    if (alreadyVisible) return
+    apiRef.current?.gotoDate(day)
+    setHighlightId(created.appointmentId)
+  }
+
+  // O realce só começa a contar quando o card aparece de fato (pós-refresh).
+  useEffect(() => {
+    if (!highlightId || !appointments.some((a) => a.id === highlightId)) return
+    const t = setTimeout(() => setHighlightId(null), 5000)
+    return () => clearTimeout(t)
+  }, [highlightId, appointments])
 
   function handleUpdated() {
     setSelectedAppointment(null)
@@ -173,6 +201,7 @@ export function AgendaAppointmentsPanel({
             appointments={appointments}
             schedule={schedule}
             view={view}
+            highlightId={highlightId}
             onApi={(api) => {
               apiRef.current = api
             }}
@@ -187,17 +216,6 @@ export function AgendaAppointmentsPanel({
             </div>
           )}
         </div>
-        {isEmpty && view !== 'lista' && (
-          <AgendaEmptyOverlay
-            title="Nenhum agendamento neste período"
-            hint="Crie um agendamento ou navegue até outra data."
-            actionLabel="Novo agendamento"
-            onAction={() => {
-              setDefaultDate(undefined)
-              setCreateOpen(true)
-            }}
-          />
-        )}
       </div>
 
       {view === 'lista' &&
@@ -212,7 +230,7 @@ export function AgendaAppointmentsPanel({
             }}
           />
         ) : (
-          <AgendaListView groups={listGroups} />
+          <AgendaListView groups={listGroups} highlightId={highlightId} />
         ))}
 
       {showLegend && (
@@ -231,7 +249,7 @@ export function AgendaAppointmentsPanel({
         defaultDate={defaultDate}
         schedule={schedule}
         onOpenChange={setCreateOpen}
-        onCreated={() => router.refresh()}
+        onCreated={handleCreated}
       />
 
       <ScheduleSettingsDialog
@@ -246,6 +264,7 @@ export function AgendaAppointmentsPanel({
         open={selectedAppointment !== null}
         appointment={selectedAppointment}
         clientId={clientId}
+        procedures={procedures}
         onClose={() => setSelectedAppointment(null)}
         onUpdated={handleUpdated}
       />

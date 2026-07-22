@@ -13,6 +13,8 @@ export type AgendaCalendarApi = {
   prev: () => void
   next: () => void
   today: () => void
+  /** Navega a visão atual até a data (aceita "YYYY-MM-DD" wall-clock local). */
+  gotoDate: (date: string | Date) => void
 }
 
 export type AgendaDatesInfo = {

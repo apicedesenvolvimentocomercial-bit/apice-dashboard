@@ -13,9 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { CpfInput } from '@/components/ui/cpf-input'
 import { DateInput } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PhoneInput } from '@/components/ui/phone-input'
+import { formatCpf, formatPhoneBR } from '@/lib/masks'
 import {
   Select,
   SelectContent,
@@ -90,10 +93,12 @@ export function MoveLeadPipelineDialog({
     if (sourceCategory === 'LEAD' && t?.category === 'PATIENT') {
       setForm({
         name: patientDefaults?.name ?? '',
-        phone: patientDefaults?.phone ?? '',
+        // Normaliza p/ o formato canônico da máscara (registros antigos podem
+        // estar crus) — o que aparece é o que a action recebe.
+        phone: formatPhoneBR(patientDefaults?.phone ?? ''),
         email: patientDefaults?.email ?? '',
         birthDate: birthToInput(patientDefaults?.birthDate),
-        cpf: patientDefaults?.cpf ?? '',
+        cpf: formatCpf(patientDefaults?.cpf ?? ''),
       })
     }
   }
@@ -198,7 +203,7 @@ export function MoveLeadPipelineDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="mv-phone">Telefone *</Label>
-                  <Input
+                  <PhoneInput
                     id="mv-phone"
                     value={form.phone}
                     onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
@@ -206,7 +211,7 @@ export function MoveLeadPipelineDialog({
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="mv-cpf">CPF *</Label>
-                  <Input
+                  <CpfInput
                     id="mv-cpf"
                     value={form.cpf}
                     onChange={(e) => setForm((f) => ({ ...f, cpf: e.target.value }))}

@@ -49,7 +49,9 @@ export default async function ClientLayout({ children }: { children: React.React
         userName={session.user.name ?? 'Usuário'}
         roleLabel={chrome.roleLabel}
       />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* min-w-0: sem isso o conteúdo largo (kanban, tabelas) impõe largura
+          mínima ao flex item e o `main` não encolhe/estica com a sidebar. */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <ClinicTopbar
           clientId={ctx.clientId}
           canSearchPatients={ctx.isOwner || visibleTabs.has('patients')}

@@ -38,7 +38,6 @@ export default async function ClientGoalsPage() {
         projectedAtPace: g.projectedAtPace,
         startDate: g.startDate,
         endDate: g.endDate,
-        notes: g.notes,
         scopeType: g.scopeType,
         mode: g.mode,
         scopeLabel: g.scopeLabel,

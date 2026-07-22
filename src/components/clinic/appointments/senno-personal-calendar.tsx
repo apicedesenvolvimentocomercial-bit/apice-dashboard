@@ -77,6 +77,7 @@ export function SennoPersonalCalendar({
       prev: () => calendarRef.current?.getApi().prev(),
       next: () => calendarRef.current?.getApi().next(),
       today: () => calendarRef.current?.getApi().today(),
+      gotoDate: (date) => calendarRef.current?.getApi().gotoDate(date),
     })
   }, [onApi])
 

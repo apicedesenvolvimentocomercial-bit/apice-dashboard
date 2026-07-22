@@ -34,14 +34,6 @@ const goalSchema = z.object({
     .positive('Valor alvo deve ser positivo'),
   startDate: z.string().min(1, 'Data inicial obrigatória').max(30, 'Data inválida'),
   endDate: z.string().min(1, 'Data final obrigatória').max(30, 'Data inválida'),
-  notes: z
-    .string()
-    .max(65535, 'Notas muito grande')
-    .regex(
-      /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
-      'As notas contém caracteres inválidos'
-    )
-    .optional(),
   // Etapa 2 — escopo. Default CLINIC (coletiva) p/ retrocompatibilidade.
   scopeType: z.enum(SCOPE_TYPES).default('CLINIC'),
   mode: z.enum(MODES).default('SHARED'),
@@ -109,7 +101,6 @@ export async function createGoalAction(clientId: string, formData: unknown) {
       targetValue: parsed.data.targetValue,
       startDate,
       endDate,
-      notes: parsed.data.notes,
       scopeType,
       mode,
       assigneeUserId,

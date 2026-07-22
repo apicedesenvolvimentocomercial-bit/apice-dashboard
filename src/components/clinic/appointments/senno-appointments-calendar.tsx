@@ -49,6 +49,8 @@ type Props = {
   appointments: AppointmentEvent[]
   schedule: ClinicSchedule
   view: AgendaView
+  /** Agendamento recém-criado: ganha realce temporário e rola até a vista. */
+  highlightId?: string | null
   onApi: (api: AgendaCalendarApi) => void
   onDatesChange: (info: AgendaDatesInfo) => void
   onEventClick: (appointment: AppointmentEvent) => void
@@ -59,6 +61,7 @@ export function SennoAppointmentsCalendar({
   appointments,
   schedule,
   view,
+  highlightId,
   onApi,
   onDatesChange,
   onEventClick,
@@ -94,6 +97,7 @@ export function SennoAppointmentsCalendar({
       prev: () => calendarRef.current?.getApi().prev(),
       next: () => calendarRef.current?.getApi().next(),
       today: () => calendarRef.current?.getApi().today(),
+      gotoDate: (date) => calendarRef.current?.getApi().gotoDate(date),
     })
   }, [onApi])
 
@@ -187,6 +191,9 @@ export function SennoAppointmentsCalendar({
         const classNames: string[] = []
         if (leadDeleted) classNames.push('fc-event-lead-deleted')
         if (win.clamped) classNames.push('fc-event-clamped')
+        // Realce do recém-criado sai daqui (e não do `eventClassNames`) porque
+        // a mudança no evento garante o re-render do bloco no FullCalendar.
+        if (apt.id === highlightId) classNames.push('senno-ev-highlight')
 
         return {
           id: apt.id,
@@ -204,8 +211,18 @@ export function SennoAppointmentsCalendar({
           } satisfies SennoEventProps,
         }
       }),
-    [appointments, minMin, maxMin]
+    [appointments, minMin, maxMin, highlightId]
   )
+
+  // Agendamento recém-criado: rola até ele. O bloco só existe no DOM depois do
+  // `router.refresh()` trazer o registro novo — por isso o efeito depende
+  // também de `events` (roda de novo quando o card finalmente entra na grade).
+  useEffect(() => {
+    if (!highlightId) return
+    containerRef.current
+      ?.querySelector('.senno-ev-highlight')
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [highlightId, events])
 
   // Feriados como background events (tinta dourada 0.12 via .fc-bg-holiday).
   const holidayEvents = useMemo(

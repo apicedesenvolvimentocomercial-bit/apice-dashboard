@@ -83,7 +83,7 @@ export function MessageTemplatesCard({ clientId, operationMode, templates, recen
   )
 
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="flex flex-col gap-5">
       {/* ---- Card "Modo de operação" (§12.1) ---- */}
       <SettingsSectionCard
         title="Régua de retenção"

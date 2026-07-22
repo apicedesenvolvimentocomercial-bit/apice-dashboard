@@ -100,7 +100,8 @@ type Props = {
   defaultDate?: string
   schedule?: ClinicSchedule
   onOpenChange: (open: boolean) => void
-  onCreated?: () => void
+  /** Recebe o agendamento criado p/ quem quiser navegar/destacar (agenda). */
+  onCreated?: (created?: { appointmentId: string; scheduledAt: string }) => void
 }
 
 export function CreateAppointmentDialog({
@@ -351,9 +352,14 @@ export function CreateAppointmentDialog({
         return
       }
       toast.success(mode === 'existing' ? 'Agendamento criado!' : 'Lead criado e agendado!')
+      // Guarda antes do reset: quem chama usa a data p/ navegar até o card novo.
+      const created = {
+        appointmentId: 'appointmentId' in result.data ? result.data.appointmentId : result.data.id,
+        scheduledAt: form.scheduledAt,
+      }
       reset()
       onOpenChange(false)
-      onCreated?.()
+      onCreated?.(created)
     })
   }
 

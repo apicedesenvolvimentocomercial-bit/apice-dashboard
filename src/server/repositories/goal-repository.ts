@@ -32,7 +32,6 @@ export async function createGoal(
     targetValue: number
     startDate: Date
     endDate: Date
-    notes?: string
     scopeType?: GoalScopeType
     mode?: GoalMode
     assigneeUserId?: string | null
@@ -58,7 +57,6 @@ export async function updateGoal(
     targetValue: number
     startDate: Date
     endDate: Date
-    notes: string
   }>
 ) {
   // clientId no where (belt): isola entre clínicas da mesma org sem depender da RLS.

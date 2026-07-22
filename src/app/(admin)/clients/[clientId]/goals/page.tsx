@@ -27,7 +27,6 @@ function toView(g: Awaited<ReturnType<typeof getGoalsWithProgress>>[number]): Go
     projectedAtPace: g.projectedAtPace,
     startDate: g.startDate,
     endDate: g.endDate,
-    notes: g.notes,
     scopeType: g.scopeType,
     mode: g.mode,
     scopeLabel: g.scopeLabel,

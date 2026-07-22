@@ -7,8 +7,16 @@
  * sozinho porque ambos importam deste arquivo.
  */
 
-/** Telefone celular BR mascarado: `(11) 91234-1234` (DDB sem zero à esquerda, 9 obrigatório). */
-export const PHONE_BR_REGEX = /^\([1-9]{2}\) 9\d{4}-\d{4}$/
+/**
+ * Telefone BR mascarado, nas DUAS formas em uso (DDD sem zero à esquerda):
+ * celular de 11 dígitos `(11) 91234-1234` e fixo de 10 `(12) 1234-1234`.
+ * O `9` do celular é opcional justamente porque o fixo não o tem — exigi-lo
+ * recusava telefone fixo no cadastro de lead/paciente/agenda.
+ */
+export const PHONE_BR_REGEX = /^\([1-9]{2}\) 9?\d{4}-\d{4}$/
+
+/** Texto do formato aceito — usado nas mensagens de erro do zod e nos placeholders. */
+export const PHONE_BR_HINT = '(11) 91234-1234 ou (12) 1234-1234'
 
 /** E-mail — mesmo teste "frouxo" usado nas actions, antes do `.email()` do zod. */
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -39,14 +47,19 @@ const MONEY_MAX_INT_DIGITS = 10 // casa com MAX_MONEY
 
 /**
  * Aplica a máscara de telefone progressivamente (aceita entrada parcial):
- * `1` → `(1` · `119` → `(11) 9` · `11912341234` → `(11) 91234-1234`.
- * Dígitos além do 11º são descartados.
+ * `1` → `(1` · `119` → `(11) 9` · `1212341234` → `(12) 1234-1234` ·
+ * `11912341234` → `(11) 91234-1234`. Dígitos além do 11º são descartados.
+ *
+ * Enquanto o número não fecha, só dá para assumir o FIXO (4+4); o grupo vira
+ * 5+4 quando o 11º dígito chega. Por isso o hífen "anda" um dígito ao digitar
+ * o celular inteiro — é o mesmo comportamento das máscaras BR usuais.
  */
 export function formatPhoneBR(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(0, 11)
   if (d.length === 0) return ''
   if (d.length <= 2) return `(${d}`
-  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
 }
 

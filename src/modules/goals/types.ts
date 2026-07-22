@@ -16,7 +16,6 @@ export type GoalView = {
   projectedAtPace: number | null
   startDate: Date
   endDate: Date
-  notes: string | null
   // Etapa 2 — escopo.
   scopeType: 'CLINIC' | 'USER' | 'ROLE'
   mode: 'INDIVIDUAL' | 'SHARED'

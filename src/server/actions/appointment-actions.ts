@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { isValidCpf } from '@/lib/cpf'
 
 import { isTooOldToSchedule, parseScheduledAt } from '@/lib/date'
-import { EMAIL_REGEX, MAX_CARD_NOTES, PHONE_BR_REGEX } from '@/lib/masks'
+import { EMAIL_REGEX, MAX_CARD_NOTES, PHONE_BR_HINT, PHONE_BR_REGEX } from '@/lib/masks'
 import { ok, fail, NotFoundError, validationFail } from '@/types/errors'
 import { assertCan } from '@/server/auth/assert-can'
 import { assertClientAccess, getTenantContext } from '@/server/tenant/context'
@@ -85,10 +85,9 @@ const attendSchema = z.object({
       'O texto contém caracteres inválidos'
     )
     .min(2, 'Nome obrigatório'),
-  phone: z
-    .string()
-    .length(12, 'Telefone inválido')
-    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido'),
+  // Formato canônico = o que a máscara produz. Antes exigia o cru `11 912341234`
+  // (12 chars), que o `PhoneInput` deixou de emitir.
+  phone: z.string().regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`),
   email: z
     .string()
     .email('E-mail inválido')
@@ -110,12 +109,12 @@ const scheduledLeadSchema = z
         /^[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s.,;:!?()'"\-\–\—\/*_+=@#%&]+$/,
         'O texto contém caracteres inválidos'
       ),
-    // Formato canônico = o que a máscara do frontend produz (`(11) 91234-1234`),
+    // Formato canônico = o que a máscara do frontend produz (celular ou fixo),
     // igual ao `leadSchema` de lead-actions. Antes exigia o cru `11 912341234`,
     // que a agenda deixou de enviar quando passou a usar o `PhoneInput`.
     phone: z
       .string()
-      .regex(PHONE_BR_REGEX, 'Telefone inválido. Use o formato (11) 91234-1234')
+      .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`)
       .optional()
       .or(z.literal('')),
     email: z

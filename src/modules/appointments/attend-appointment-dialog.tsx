@@ -13,9 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { CpfInput } from '@/components/ui/cpf-input'
 import { DateInput } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PhoneInput } from '@/components/ui/phone-input'
+import { formatCpf, formatPhoneBR } from '@/lib/masks'
 import { attendAppointmentAction } from '@/server/actions/appointment-actions'
 import { getPatientAction } from '@/server/actions/patient-actions'
 
@@ -75,7 +78,9 @@ export function AttendAppointmentDialog({
     if (!open || !patientId) return
     let active = true
     setName(defaults.name ?? '')
-    setPhone(defaults.phone ?? '')
+    // Normaliza p/ o formato canônico: registros antigos podem ter telefone/CPF
+    // crus, e o valor enviado precisa bater com o exibido pela máscara.
+    setPhone(formatPhoneBR(defaults.phone ?? ''))
     setEmail('')
     setBirthDate('')
     setCpf('')
@@ -86,10 +91,10 @@ export function AttendAppointmentDialog({
         if (res.success) {
           const p = res.data
           setName(p.name ?? defaults.name ?? '')
-          setPhone(p.phone ?? defaults.phone ?? '')
+          setPhone(formatPhoneBR(p.phone ?? defaults.phone ?? ''))
           setEmail(p.email ?? '')
           setBirthDate(toDateInput(p.birthDate))
-          setCpf(p.cpf ?? '')
+          setCpf(formatCpf(p.cpf ?? ''))
         }
       })
       .finally(() => {
@@ -161,21 +166,19 @@ export function AttendAppointmentDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="attend-appt-phone">Telefone *</Label>
-              <Input
+              <PhoneInput
                 id="attend-appt-phone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="(00) 00000-0000"
                 disabled={loading}
               />
             </div>
             <div className="space-y-1">
               <Label htmlFor="attend-appt-cpf">CPF *</Label>
-              <Input
+              <CpfInput
                 id="attend-appt-cpf"
                 value={cpf}
                 onChange={(e) => setCpf(e.target.value)}
-                placeholder="000.000.000-00"
                 disabled={loading}
               />
             </div>

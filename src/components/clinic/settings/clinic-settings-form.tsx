@@ -8,7 +8,9 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { SearchableSelect } from '@/components/shared/searchable-select'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { CNAE_OPTIONS } from '@/lib/cnae-list'
+import { PHONE_BR_HINT, PHONE_BR_REGEX } from '@/lib/masks'
 import { updateClinicSettingsAction } from '@/server/actions/settings-actions'
 
 import {
@@ -70,7 +72,13 @@ const UFS = [
 const schema = z.object({
   name: z.string().trim().min(2, 'Nome obrigatório'),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
-  phone: z.string().optional().or(z.literal('')),
+  // Mesmo formato canônico do resto do app (ver lib/masks) — o campo usa a
+  // máscara, então o valor já chega pronto para o zod da action.
+  phone: z
+    .string()
+    .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`)
+    .optional()
+    .or(z.literal('')),
   city: z.string().optional().or(z.literal('')),
   state: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
@@ -157,13 +165,20 @@ export function ClinicSettingsForm({ clientId, initial }: Props) {
             <label htmlFor="clinic-phone" className={SETTINGS_LABEL}>
               Telefone
             </label>
-            <input
-              id="clinic-phone"
-              type="text"
-              placeholder="(11) 99999-9999"
-              className={SETTINGS_INPUT}
-              {...register('phone')}
+            <Controller
+              control={control}
+              name="phone"
+              render={({ field }) => (
+                <PhoneInput
+                  id="clinic-phone"
+                  className={SETTINGS_INPUT}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                />
+              )}
             />
+            <FieldError message={errors.phone?.message} />
           </div>
 
           <div>
