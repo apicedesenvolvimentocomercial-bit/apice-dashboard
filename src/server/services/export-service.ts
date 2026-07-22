@@ -504,7 +504,7 @@ export async function buildExportDataset(
         },
       })
       return {
-        headers: ['Métrica', 'Período', 'Alvo', 'Início', 'Fim', 'Escopo', 'Atribuída a', 'Notas'],
+        headers: ['Métrica', 'Período', 'Alvo', 'Início', 'Fim', 'Escopo', 'Atribuída a'],
         rows: rows.map((r) => [
           metricLabel(r.metric),
           PERIOD_LABEL[r.period as GoalPeriodKey] ?? r.period,
@@ -513,7 +513,6 @@ export async function buildExportDataset(
           fmtDate(r.endDate),
           GOAL_SCOPE_LABELS[r.scopeType] ?? r.scopeType,
           r.assigneeUser?.name ?? r.assigneeRole?.name ?? '',
-          r.notes ?? '',
         ]),
       }
     }
