@@ -19,9 +19,14 @@ describe('formatPhoneBR', () => {
     expect(formatPhoneBR('1')).toBe('(1')
     expect(formatPhoneBR('11')).toBe('(11')
     expect(formatPhoneBR('119')).toBe('(11) 9')
-    expect(formatPhoneBR('1191234')).toBe('(11) 91234')
-    expect(formatPhoneBR('11912341')).toBe('(11) 91234-1')
+    expect(formatPhoneBR('119123')).toBe('(11) 9123')
+    expect(formatPhoneBR('1191234')).toBe('(11) 9123-4')
     expect(formatPhoneBR('11912341234')).toBe('(11) 91234-1234')
+  })
+
+  it('fecha em 4+4 no fixo de 10 dígitos e reflui p/ 5+4 no 11º', () => {
+    expect(formatPhoneBR('1212341234')).toBe('(12) 1234-1234')
+    expect(formatPhoneBR('12912341234')).toBe('(12) 91234-1234')
   })
 
   it('descarta lixo e dígitos além do 11º (colar texto sujo converge p/ a máscara)', () => {
@@ -32,14 +37,15 @@ describe('formatPhoneBR', () => {
 
   it('a saída completa satisfaz o regex que o zod da action exige', () => {
     expect(PHONE_BR_REGEX.test(formatPhoneBR('11912341234'))).toBe(true)
+    expect(PHONE_BR_REGEX.test(formatPhoneBR('1212341234'))).toBe(true)
     // Incompleto NÃO passa — o servidor rejeita o que a máscara ainda não fechou.
     expect(PHONE_BR_REGEX.test(formatPhoneBR('119123'))).toBe(false)
   })
 
-  it('rejeita DDD com zero à esquerda e celular sem o 9', () => {
+  it('rejeita DDD com zero à esquerda e o formato cru antigo', () => {
     expect(PHONE_BR_REGEX.test('(01) 91234-1234')).toBe(false)
-    expect(PHONE_BR_REGEX.test('(11) 81234-1234')).toBe(false)
     expect(PHONE_BR_REGEX.test('11 912341234')).toBe(false) // formato antigo
+    expect(PHONE_BR_REGEX.test('(11) 123-1234')).toBe(false) // grupo curto demais
   })
 })
 

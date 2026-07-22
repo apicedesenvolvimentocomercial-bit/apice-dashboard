@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { logger } from '@/lib/logger'
+import { PHONE_BR_HINT, PHONE_BR_REGEX } from '@/lib/masks'
 import { prisma } from '@/lib/prisma'
 import { generateWebhookToken } from '@/lib/webhook-token'
 import { assertCan } from '@/server/auth/assert-can'
@@ -137,9 +138,9 @@ const updateClinicSettingsSchema = z.object({
     .optional(),
   phone: z
     .string()
-    .length(12, 'Telefone inválido')
-    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
-    .optional(),
+    .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`)
+    .optional()
+    .or(z.literal('')),
   email: z
     .string()
     .max(255, 'Email de tamanho inválido')
@@ -183,7 +184,7 @@ export async function updateClinicSettingsAction(
     const parsed = updateClinicSettingsSchema.safeParse(input)
     if (!parsed.success) throw new ConflictError(parsed.error.errors[0].message)
 
-    const { clientId, email, cnae, ...rest } = parsed.data
+    const { clientId, email, cnae, phone, ...rest } = parsed.data
     await assertClientAccess(ctx, clientId)
     enterClientScope(clientId) // suspenders: RLS ativa p/ esta clínica (rls-gambiarra)
     await assertCan(ctx, 'settings', 'write')
@@ -201,6 +202,8 @@ export async function updateClinicSettingsAction(
     await updateClient(ctx, clientId, {
       ...rest,
       email: email || undefined,
+      // Campo limpo pelo usuário vira null no banco (não string vazia).
+      phone: phone ? phone : null,
       // '' (opção "Não informar") vira null no banco.
       cnae: cnae ? cnae : null,
     })
@@ -208,7 +211,7 @@ export async function updateClinicSettingsAction(
       action: 'update',
       entityType: 'Client',
       entityId: clientId,
-      changes: { ...rest, cnae: cnae ?? null },
+      changes: { ...rest, phone: phone ?? null, cnae: cnae ?? null },
     }).catch(() => {})
 
     revalidatePath('/configuracoes') // dados da clínica vivem no domínio clínica (Fase 7)

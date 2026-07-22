@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+
 import { cn } from '@/lib/utils'
 
 /**
@@ -30,7 +32,22 @@ export type AgendaListGroup = {
   items: AgendaListItem[]
 }
 
-export function AgendaListView({ groups }: { groups: AgendaListGroup[] }) {
+export function AgendaListView({
+  groups,
+  highlightId,
+}: {
+  groups: AgendaListGroup[]
+  /** Item recém-criado: realce temporário + rolagem até ele. */
+  highlightId?: string | null
+}) {
+  const highlightRef = useRef<HTMLButtonElement>(null)
+
+  // Roda de novo quando os grupos mudam: o item só existe depois do refresh.
+  useEffect(() => {
+    if (!highlightId) return
+    highlightRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [highlightId, groups])
+
   return (
     <div className="flex flex-col gap-3.5">
       {groups.map((g) => (
@@ -64,11 +81,14 @@ export function AgendaListView({ groups }: { groups: AgendaListGroup[] }) {
           {g.items.map((it) => (
             <button
               key={it.id}
+              ref={it.id === highlightId ? highlightRef : undefined}
               type="button"
               onClick={it.onClick}
               className={cn(
                 'flex w-full items-center gap-4 border-t border-grid px-4 py-3 text-left transition-colors first-of-type:border-t-0 hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none',
-                it.muted && 'opacity-55'
+                it.muted && 'opacity-55',
+                // Mesmo item, só mais aceso — dourado do card + anel interno.
+                it.id === highlightId && 'bg-primary/[0.14] ring-2 ring-inset ring-primary/70'
               )}
             >
               <span className="w-[104px] flex-none text-[12.5px] font-semibold tabular-nums text-primary-text">

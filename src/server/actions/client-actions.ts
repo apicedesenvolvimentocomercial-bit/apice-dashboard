@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { env } from '@/lib/env'
+import { PHONE_BR_HINT, PHONE_BR_REGEX } from '@/lib/masks'
 import { sendEmail } from '@/lib/resend'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
@@ -57,9 +58,9 @@ const createClientSchema = z.object({
     .optional(),
   phone: z
     .string()
-    .length(12, 'Telefone inválido')
-    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
-    .optional(),
+    .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`)
+    .optional()
+    .or(z.literal('')),
   email: z
     .string()
     .max(255, 'Email de tamanho inválido')
@@ -153,9 +154,9 @@ const updateClientSchema = z.object({
     .optional(),
   phone: z
     .string()
-    .length(12, 'Telefone inválido')
-    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido')
-    .optional(),
+    .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`)
+    .optional()
+    .or(z.literal('')),
   email: z
     .string()
     .max(255, 'Email de tamanho inválido')

@@ -14,6 +14,7 @@ import {
   EMAIL_REGEX,
   MAX_CARD_NOTES,
   MAX_MONEY,
+  PHONE_BR_HINT,
   PHONE_BR_REGEX,
   SAFE_TEXT_REGEX,
 } from '@/lib/masks'
@@ -63,7 +64,7 @@ const leadSchema = z.object({
   // Campo é opcional; string vazia é aceita como "não informado".
   phone: z
     .string()
-    .regex(PHONE_BR_REGEX, 'Telefone inválido. Use o formato (11) 91234-1234')
+    .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`)
     .optional()
     .or(z.literal('')),
   email: z
@@ -547,8 +548,7 @@ const attendSchema = z.object({
   phone: z
     .string()
     .min(1, 'Telefone obrigatório')
-    .length(12, 'Telefone inválido')
-    .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido'),
+    .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`),
   email: z
     .string()
     .max(255, 'Email de tamanho inválido')
@@ -631,8 +631,7 @@ const movePipelineSchema = z.object({
       phone: z
         .string()
         .min(1, 'Telefone obrigatório')
-        .length(12, 'Telefone inválido')
-        .regex(/^[1-9]{2}\s?9\d{8}$/, 'Telefone inválido'),
+        .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`),
       email: z
         .string()
         .email('E-mail inválido')

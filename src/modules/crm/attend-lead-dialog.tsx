@@ -13,9 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { CpfInput } from '@/components/ui/cpf-input'
 import { DateInput } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PhoneInput } from '@/components/ui/phone-input'
+import { formatPhoneBR } from '@/lib/masks'
 import { attendLeadAction } from '@/server/actions/lead-actions'
 
 type Props = {
@@ -58,7 +61,9 @@ export function AttendLeadDialog({
   useEffect(() => {
     if (open) {
       setName(defaults.name ?? '')
-      setPhone(defaults.phone ?? '')
+      // O lead pode ter telefone gravado antes da máscara (cru): normaliza na
+      // abertura, senão o valor exibido (mascarado) e o enviado divergiriam.
+      setPhone(formatPhoneBR(defaults.phone ?? ''))
       setEmail(defaults.email ?? '')
       setBirthDate('')
       setCpf('')
@@ -129,21 +134,15 @@ export function AttendLeadDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="attend-phone">Telefone *</Label>
-              <Input
+              <PhoneInput
                 id="attend-phone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="(00) 00000-0000"
               />
             </div>
             <div className="space-y-1">
               <Label htmlFor="attend-cpf">CPF *</Label>
-              <Input
-                id="attend-cpf"
-                value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
-                placeholder="000.000.000-00"
-              />
+              <CpfInput id="attend-cpf" value={cpf} onChange={(e) => setCpf(e.target.value)} />
             </div>
           </div>
 

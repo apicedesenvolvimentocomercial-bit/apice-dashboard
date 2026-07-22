@@ -26,13 +26,20 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { DateInput } from '@/components/ui/date-input'
+import { PhoneInput } from '@/components/ui/phone-input'
+import { PHONE_BR_HINT, PHONE_BR_REGEX } from '@/lib/masks'
 import { createClientAction } from '@/server/actions/client-actions'
 
 const schema = z.object({
   name: z.string().trim().min(2, 'Mínimo 2 caracteres'),
   city: z.string().optional(),
   state: z.string().optional(),
-  phone: z.string().optional(),
+  // Formato canônico da máscara (ver lib/masks) — mesmo teste do zod da action.
+  phone: z
+    .string()
+    .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`)
+    .optional()
+    .or(z.literal('')),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   monthlyFee: z.string().optional(),
   contractStart: z.string().optional(),
@@ -138,7 +145,7 @@ export function CreateClientDialog({ open, onOpenChange }: Props) {
                   <FormItem>
                     <FormLabel>Telefone</FormLabel>
                     <FormControl>
-                      <Input placeholder="(11) 99999-9999" {...field} />
+                      <PhoneInput {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

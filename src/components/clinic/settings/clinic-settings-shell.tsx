@@ -71,7 +71,7 @@ export function ClinicSettingsShell({ sections }: Props) {
   ].filter((c) => !q || c.label.toLowerCase().includes(q))
 
   return (
-    <div className="mx-auto w-full max-w-[940px]">
+    <div className="mx-auto w-full max-w-[1180px]">
       {/* ---- Busca de configuração + chips (handoff §4) ---- */}
       <div className="mb-[22px]">
         <div className="relative w-[340px] max-w-full">
@@ -121,10 +121,16 @@ export function ClinicSettingsShell({ sections }: Props) {
         )}
       </div>
 
-      {/* ---- Seções (§5/§6): "Todas" empilha; chip mostra só a sua ---- */}
-      <div className="flex flex-col gap-3.5 pb-2.5">
-        {available.map((c) => (
+      {/* ---- Seções (§5/§6): "Todas" empilha; chip mostra só a sua ----
+          Em "Todas" cada grupo é separado por um filete + respiro maior (o
+          título mora fora do card, então o divisor é o que fecha o grupo).
+          Com um chip escolhido só há uma seção — nada a separar. */}
+      <div className="flex flex-col pb-2.5">
+        {available.map((c, i) => (
           <div key={c.key} className={cn(section !== 'todas' && section !== c.key && 'hidden')}>
+            {i > 0 && section === 'todas' && (
+              <div className="my-8 h-px w-full bg-border" role="presentation" />
+            )}
             {sections[c.key]}
           </div>
         ))}

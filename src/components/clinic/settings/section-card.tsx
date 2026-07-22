@@ -9,6 +9,11 @@ import { cn } from '@/lib/utils'
  * "shell de seção"). Toda categoria renderiza dentro do MESMO card de seção
  * (radius 14, padding 24×26, sombra tingida) e reusa label/input/select/botões
  * daqui — mantém as 9 seções idênticas sem repetir string de classe.
+ *
+ * O CABEÇALHO (título/descrição/ação) mora FORA da caixa, acima dela: na visão
+ * "Todas" as seções empilham e o título dentro do card não separava os grupos
+ * o suficiente. O respiro entre grupos + o filete divisor ficam no shell
+ * (`clinic-settings-shell`), não aqui.
  */
 
 export const SETTINGS_LABEL = 'mb-[7px] block text-xs font-semibold text-muted-foreground'
@@ -50,25 +55,32 @@ export function SettingsSectionCard({
   className?: string
 }) {
   return (
-    <section
-      className={cn(
-        'rounded-[14px] border border-border bg-card px-[26px] py-6 shadow-card max-sm:px-5',
-        className
-      )}
-    >
-      <div className={cn('mb-5', headerRight && 'flex items-start justify-between gap-4')}>
+    <div className="flex flex-col gap-3">
+      <div
+        className={cn(
+          'px-0.5',
+          headerRight && 'flex flex-wrap items-start justify-between gap-x-4 gap-y-3'
+        )}
+      >
         <div className="min-w-0">
           <h2 className="m-0 text-[16.5px] font-semibold tracking-[-0.01em]">{title}</h2>
           {description && (
-            <p className="m-0 mt-[5px] text-[13px] leading-[1.55] text-muted-foreground">
+            <p className="m-0 mt-[5px] max-w-[70ch] text-[13px] leading-[1.55] text-muted-foreground">
               {description}
             </p>
           )}
         </div>
         {headerRight}
       </div>
-      {children}
-    </section>
+      <section
+        className={cn(
+          'rounded-[14px] border border-border bg-card px-[26px] py-6 shadow-card max-sm:px-5',
+          className
+        )}
+      >
+        {children}
+      </section>
+    </div>
   )
 }
 

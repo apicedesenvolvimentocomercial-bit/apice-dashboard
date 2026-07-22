@@ -17,7 +17,7 @@ import { PhoneInput } from '@/components/ui/phone-input'
 import { DateInput } from '@/components/ui/date-input'
 import { FieldError } from '@/components/ui/field-error'
 import { Label } from '@/components/ui/label'
-import { MAX_CARD_NOTES } from '@/lib/masks'
+import { MAX_CARD_NOTES, formatCpf, formatPhoneBR } from '@/lib/masks'
 import { cn } from '@/lib/utils'
 import { updatePatientAction } from '@/server/actions/patient-actions'
 
@@ -73,10 +73,12 @@ export function EditPatientDialog({ open, clientId, patient, onOpenChange, onUpd
     if (!open) return
     setForm({
       name: patient.name ?? '',
-      phone: patient.phone ?? '',
+      // Normaliza p/ o formato canônico: paciente gravado antes da máscara viria
+      // cru e reprovaria na validação sem que o usuário tivesse tocado no campo.
+      phone: formatPhoneBR(patient.phone ?? ''),
       email: patient.email ?? '',
       birthDate: birthIso,
-      cpf: patient.cpf ?? '',
+      cpf: formatCpf(patient.cpf ?? ''),
       notes: patient.notes ?? '',
     })
     setErrors({})

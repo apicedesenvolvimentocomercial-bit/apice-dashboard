@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 import { ok, fail, NotFoundError, validationFail } from '@/types/errors'
 import { isValidCpf } from '@/lib/cpf'
-import { MAX_CARD_NOTES } from '@/lib/masks'
+import { MAX_CARD_NOTES, PHONE_BR_HINT, PHONE_BR_REGEX } from '@/lib/masks'
 import { assertCan } from '@/server/auth/assert-can'
 import { can } from '@/server/auth/permissions'
 import { resolveOwnerScope } from '@/server/auth/owner-scope'
@@ -32,7 +32,10 @@ import { logger } from '@/lib/logger'
 // (máscaras + `isValidCpf`), mantendo uma única definição de "paciente válido".
 const createPatientSchema = z.object({
   name: z.string().min(2, 'Nome obrigatório').max(255, 'Nome muito grande'),
-  phone: z.string().min(1, 'Telefone obrigatório').max(20, 'Telefone inválido'),
+  phone: z
+    .string()
+    .min(1, 'Telefone obrigatório')
+    .regex(PHONE_BR_REGEX, `Telefone inválido. Use o formato ${PHONE_BR_HINT}`),
   email: z.string().email('E-mail inválido').max(255, 'Email de tamanho inválido'),
   birthDate: z.string().min(1, 'Data de nascimento obrigatória').max(30, 'Data inválida'),
   cpf: z
